@@ -151,16 +151,16 @@ cargo run -p fleischwolf --example convert -- crates/fleischwolf/sample.md
 scripts/conformance.sh html
 scripts/conformance.sh html --live
 
-# diff Python docling vs Rust on one file (loads docling from local sources)
-scripts/compare.sh ../tests/data/html/sources/example_03.html
+# diff Python docling vs Rust on one file (installs published docling from PyPI)
+scripts/compare.sh tests/data/html/sources/example_03.html
 
 # benchmark time / CPU / memory: Python docling vs Rust
-scripts/performance.sh ../tests/data/html/sources/wiki_duck.html 10
+scripts/performance.sh tests/data/html/sources/wiki_duck.html 10
 ```
 
-The comparison scripts load Python `docling` from this repo's own sources (an
-editable install in `.venv-compare`, created automatically) — no
-`pip install docling` required. See [`COMPARING.md`](./COMPARING.md).
+The comparison scripts install the latest published Python `docling` from PyPI
+into `.venv-compare` automatically on first run. See
+[`COMPARING.md`](./COMPARING.md).
 
 ## Layout
 

@@ -35,7 +35,10 @@ pub fn convert_mets_gbs(bytes: &[u8], name: &str) -> Result<DoclingDocument, Pdf
             .to_string_lossy()
             .into_owned();
         let base = path.rsplit('/').next().unwrap_or(&path);
-        if let Some(stem) = base.strip_suffix(".html").or_else(|| base.strip_suffix(".hocr")) {
+        if let Some(stem) = base
+            .strip_suffix(".html")
+            .or_else(|| base.strip_suffix(".hocr"))
+        {
             let mut s = String::new();
             if entry.read_to_string(&mut s).is_ok() {
                 html.insert(stem.to_string(), s);
@@ -82,9 +85,8 @@ pub fn convert_mets_gbs(bytes: &[u8], name: &str) -> Result<DoclingDocument, Pdf
 fn parse_hocr(hocr: &str, image: &image::RgbImage) -> (f32, f32, Vec<TextCell>) {
     static PAGE_RE: OnceLock<Regex> = OnceLock::new();
     static WORD_RE: OnceLock<Regex> = OnceLock::new();
-    let page_re = PAGE_RE.get_or_init(|| {
-        Regex::new(r"ocr_page[^>]*?bbox\s+\d+\s+\d+\s+(\d+)\s+(\d+)").unwrap()
-    });
+    let page_re = PAGE_RE
+        .get_or_init(|| Regex::new(r"ocr_page[^>]*?bbox\s+\d+\s+\d+\s+(\d+)\s+(\d+)").unwrap());
     let word_re = WORD_RE.get_or_init(|| {
         Regex::new(r"ocrx_word[^>]*?bbox\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)[^>]*>([^<]*)</").unwrap()
     });

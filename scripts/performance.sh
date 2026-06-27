@@ -5,15 +5,15 @@
 #
 # Usage:
 #   scripts/performance.sh <input-file> [runs]
-#   scripts/performance.sh ../tests/data/html/sources/example_07.html 10
+#   scripts/performance.sh tests/data/html/sources/example_07.html 10
 #
 # Notes:
 #   * The Rust side is built in --release and the binary is invoked directly.
-#   * The Python side loads docling from local sources (see _common.sh) and calls
-#     the backend directly (no torch). End-to-end timing therefore includes the
-#     Python interpreter + import startup, which is real CLI cost but dominates
-#     on small inputs — so we also report a "warm" in-process Python number that
-#     isolates the actual conversion work.
+#   * The Python side uses the latest published docling, installed from PyPI (see
+#     _common.sh), and for declarative formats calls the backend directly.
+#     End-to-end timing therefore includes the Python interpreter + import
+#     startup, which is real CLI cost but dominates on small inputs — so we also
+#     report a "warm" in-process Python number that isolates the conversion work.
 
 set -euo pipefail
 

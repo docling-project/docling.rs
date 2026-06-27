@@ -31,7 +31,7 @@ for arg in "$@"; do
   esac
 done
 
-DATA_DIR="$REPO_ROOT/tests/data/$FORMAT"
+DATA_DIR="$CORPUS_DIR/$FORMAT"
 SRC_DIR="$DATA_DIR/sources"
 GT_DIR="$DATA_DIR/groundtruth"
 
@@ -52,9 +52,8 @@ cargo build --quiet --manifest-path "$MANIFEST" -p fleischwolf-cli
 
 # Write the reference Markdown for a source into $1; returns non-zero to skip.
 # Groundtruth is named "<source>.md" for most formats but "<stem>.md" for PDF
-# (e.g. 2305.03393v1-pg9.md). For --live we run the local Python docling; when
-# that can't handle the format (PDF needs the full torch/ML pipeline, which the
-# lightweight .venv-compare omits) we fall back to the committed groundtruth.
+# (e.g. 2305.03393v1-pg9.md). For --live we run the installed Python docling; if
+# it can't produce output for a source we fall back to the committed groundtruth.
 reference_into() {
   local src="$1" out="$2" base stem cand
   base="$(basename "$src")"

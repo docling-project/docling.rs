@@ -121,7 +121,10 @@ impl Parser {
         if let Some(caption) = is_picture(line) {
             let cap = self.take_caption(doc);
             let _ = caption; // alt text is not rendered by docling's markdown export
-            self.deferred.push(Node::Picture { caption: cap, image: None });
+            self.deferred.push(Node::Picture {
+                caption: cap,
+                image: None,
+            });
             return;
         }
 

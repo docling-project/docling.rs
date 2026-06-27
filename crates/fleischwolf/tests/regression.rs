@@ -82,7 +82,11 @@ fn convert(src: &Path, strict: bool) -> Result<fleischwolf::DoclingDocument, Str
 fn outputs_match_fixtures() {
     let regen = std::env::var_os("FLEISCHWOLF_REGEN").is_some();
     let srcs = sources();
-    assert!(!srcs.is_empty(), "no sources under {}", data_dir().display());
+    assert!(
+        !srcs.is_empty(),
+        "no sources under {}",
+        data_dir().display()
+    );
 
     let mut failures = Vec::new();
     for src in &srcs {
@@ -120,7 +124,9 @@ fn outputs_match_fixtures() {
                 Ok(_) => failures.push(format!(
                     "{rel}{suffix}: output changed (run FLEISCHWOLF_REGEN=1 to update)"
                 )),
-                Err(_) => failures.push(format!("{rel}{suffix}: missing fixture {}", path.display())),
+                Err(_) => {
+                    failures.push(format!("{rel}{suffix}: missing fixture {}", path.display()))
+                }
             }
         }
     }

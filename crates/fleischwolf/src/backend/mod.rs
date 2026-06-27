@@ -33,13 +33,13 @@ mod html;
 mod jats;
 mod latex;
 mod markdown;
-mod omml;
 mod odf;
+mod omml;
 mod ooxml;
 mod pptx;
+mod uspto;
 mod webvtt;
 pub(crate) mod xbrl;
-mod uspto;
 mod xlsx;
 
 pub use asciidoc::AsciiDocBackend;

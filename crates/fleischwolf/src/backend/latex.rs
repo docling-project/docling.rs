@@ -83,7 +83,10 @@ impl Parser<'_> {
                 self.i += 2;
                 let math = self.read_until(close);
                 doc.push(Node::Paragraph {
-                    text: format!("$${}$$", math.split_whitespace().collect::<Vec<_>>().join(" ")),
+                    text: format!(
+                        "$${}$$",
+                        math.split_whitespace().collect::<Vec<_>>().join(" ")
+                    ),
                 });
             } else if self.chars[self.i] == '$' {
                 // Inline math becomes its own block (docling extracts formulas).
@@ -91,7 +94,10 @@ impl Parser<'_> {
                 self.i += 1;
                 let math = self.read_until("$");
                 doc.push(Node::Paragraph {
-                    text: format!("${}$", math.split_whitespace().collect::<Vec<_>>().join(" ")),
+                    text: format!(
+                        "${}$",
+                        math.split_whitespace().collect::<Vec<_>>().join(" ")
+                    ),
                 });
             } else if self.chars[self.i] == '\n' && self.peek_blank_line() {
                 flush(&mut para, doc);
@@ -118,7 +124,10 @@ impl Parser<'_> {
                 doc.push(Node::Paragraph {
                     text: format!(
                         "$${}$$",
-                        clean_inline(&inner).split_whitespace().collect::<Vec<_>>().join(" ")
+                        clean_inline(&inner)
+                            .split_whitespace()
+                            .collect::<Vec<_>>()
+                            .join(" ")
                     ),
                 });
             }
@@ -219,7 +228,9 @@ impl Parser<'_> {
             self.i += 1;
         }
         while self.i < self.chars.len()
-            && (self.chars[self.i] == '\n' || self.chars[self.i] == ' ' || self.chars[self.i] == '\t')
+            && (self.chars[self.i] == '\n'
+                || self.chars[self.i] == ' '
+                || self.chars[self.i] == '\t')
         {
             self.i += 1;
         }
@@ -360,8 +371,16 @@ fn clean_inline(s: &str) -> String {
             }
             // font/structure macros: keep the group content
             if let Some(cmd) = [
-                "\\textbf", "\\textit", "\\emph", "\\texttt", "\\textrm", "\\textsc",
-                "\\underline", "\\mbox", "\\caption", "\\text",
+                "\\textbf",
+                "\\textit",
+                "\\emph",
+                "\\texttt",
+                "\\textrm",
+                "\\textsc",
+                "\\underline",
+                "\\mbox",
+                "\\caption",
+                "\\text",
             ]
             .iter()
             .find(|c| rest.starts_with(**c))

@@ -32,8 +32,8 @@ impl DeclarativeBackend for EpubBackend {
             .ok_or_else(|| ConversionError::Parse(format!("epub: missing {opf_path}")))?;
         let opf_dir = opf_path.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
 
-        let spine = spine_files(&opf, opf_dir)
-            .map_err(|e| ConversionError::Parse(format!("epub: {e}")))?;
+        let spine =
+            spine_files(&opf, opf_dir).map_err(|e| ConversionError::Parse(format!("epub: {e}")))?;
 
         let mut combined =
             String::from("<!DOCTYPE html><html><head><meta charset=\"utf-8\"/></head><body>");
@@ -53,7 +53,8 @@ impl DeclarativeBackend for EpubBackend {
         }
         combined.push_str("\n</body></html>");
 
-        let html = SourceDocument::from_bytes(&source.name, InputFormat::Html, combined.into_bytes());
+        let html =
+            SourceDocument::from_bytes(&source.name, InputFormat::Html, combined.into_bytes());
         HtmlBackend.convert(&html)
     }
 }
@@ -78,10 +79,7 @@ fn spine_files(opf: &str, opf_dir: &str) -> Result<Vec<String>, String> {
     }
     let mut files = Vec::new();
     for itemref in dom.descendants().filter(|n| n.has_tag_name("itemref")) {
-        if let Some(href) = itemref
-            .attribute("idref")
-            .and_then(|id| id_to_href.get(id))
-        {
+        if let Some(href) = itemref.attribute("idref").and_then(|id| id_to_href.get(id)) {
             files.push(if opf_dir.is_empty() {
                 href.clone()
             } else {
@@ -118,6 +116,9 @@ mod tests {
         let container = r#"<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
             <rootfiles><rootfile full-path="epub/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
           </container>"#;
-        assert_eq!(rootfile_path(container).as_deref(), Some("epub/content.opf"));
+        assert_eq!(
+            rootfile_path(container).as_deref(),
+            Some("epub/content.opf")
+        );
     }
 }

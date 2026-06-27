@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 #
-# Set up a local, editable install of Python docling from this repo's sources so
-# the comparison scripts can import it without `pip install docling`.
-#
-# Creates fleischwolf/.venv-compare with the minimal extras needed for the
-# declarative formats (HTML, Markdown, CSV) — no torch / ML weights.
+# Install the latest PUBLISHED docling from PyPI into fleischwolf/.venv-compare
+# so the comparison scripts can import it. (Published docling 2.x bundles every
+# format backend plus the full PDF pipeline — torch + models — so the first run
+# downloads several hundred MB.)
 #
 # Usage: scripts/setup-docling.sh
 set -euo pipefail

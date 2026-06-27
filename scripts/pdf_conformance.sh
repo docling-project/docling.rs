@@ -19,7 +19,7 @@ done
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 echo "regenerating PDF output ..."
-cargo run --release -q -p fleischwolf-pdf --example snapshot -- ../tests/data "$tmp" 1>&2
+cargo run --release -q -p fleischwolf-pdf --example snapshot -- tests/data "$tmp" 1>&2
 
 exact=0; drift=0; tot=0
 while IFS= read -r snap; do

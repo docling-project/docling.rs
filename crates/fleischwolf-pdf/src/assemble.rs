@@ -73,7 +73,9 @@ fn order_regions(regions: &mut [Region], page_w: f32) {
         regions.sort_by(|a, b| {
             let ca = ((a.l + a.r) / 2.0) >= cx;
             let cb = ((b.l + b.r) / 2.0) >= cx;
-            ca.cmp(&cb).then(a.t.total_cmp(&b.t)).then(a.l.total_cmp(&b.l))
+            ca.cmp(&cb)
+                .then(a.t.total_cmp(&b.t))
+                .then(a.l.total_cmp(&b.l))
         });
     } else {
         regions.sort_by(|a, b| a.t.total_cmp(&b.t).then(a.l.total_cmp(&b.l)));

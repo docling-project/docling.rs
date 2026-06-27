@@ -4,14 +4,14 @@
 For declarative/text formats (HTML, Markdown, CSV, AsciiDoc, Office, VTT) this
 deliberately bypasses ``docling.document_converter.DocumentConverter`` and calls
 the format's backend directly: importing the converter eagerly pulls in the ML
-pipeline (``torch`` and friends), which is irrelevant to those formats. That
-keeps the comparison with the Rust port apples-to-apples and the lightweight
-.venv-compare env free of torch/model weights.
+pipeline (``torch`` and friends), which is irrelevant to those formats. Calling
+the backend directly keeps the comparison with the Rust port apples-to-apples
+and avoids paying torch import cost on every run.
 
 PDFs and images have no such lightweight path — they need the full pipeline
-(layout + table structure + OCR). For those we use the real ``DocumentConverter``
-(run from the heavier .venv-compare-pdf env), which is exactly what docling does
-to a PDF and the honest thing to time against the Rust pipeline.
+(layout + table structure + OCR). For those we use the real ``DocumentConverter``,
+which is exactly what docling does to a PDF and the honest thing to time against
+the Rust pipeline.
 
 Usage:
     docling_convert.py <input> [output.md]
@@ -68,8 +68,8 @@ EXT_TO_FORMAT = {
 
 # PDF and images have no lightweight backend-only path: they go through docling's
 # full pipeline (layout + table structure + OCR), which needs torch and model
-# weights and is available only in the heavier .venv-compare-pdf env. We reuse a
-# single DocumentConverter so warm-loop timings don't re-pay model loading.
+# weights. We reuse a single DocumentConverter so warm-loop timings don't re-pay
+# model loading.
 _PIPELINE_FORMATS = {InputFormat.PDF, InputFormat.IMAGE}
 _PIPELINE_CONVERTER = None
 

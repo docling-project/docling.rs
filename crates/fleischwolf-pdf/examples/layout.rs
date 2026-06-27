@@ -13,7 +13,13 @@ fn main() {
         let regions = model
             .predict(&page.image, page.width, page.height)
             .expect("predict");
-        println!("page {} ({:.0}x{:.0}): {} regions", i + 1, page.width, page.height, regions.len());
+        println!(
+            "page {} ({:.0}x{:.0}): {} regions",
+            i + 1,
+            page.width,
+            page.height,
+            regions.len()
+        );
         let mut rs = regions.clone();
         rs.sort_by(|a, b| a.t.total_cmp(&b.t));
         for r in &rs {

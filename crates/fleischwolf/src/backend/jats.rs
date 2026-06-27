@@ -30,7 +30,10 @@ impl DeclarativeBackend for JatsBackend {
 
         // --- metadata -------------------------------------------------------
         if let Some(title) = parse_title(&dom) {
-            doc.push(Node::Heading { level: 1, text: escape_text(&title) });
+            doc.push(Node::Heading {
+                level: 1,
+                text: escape_text(&title),
+            });
         }
         let (authors, affiliations) = parse_authors(&dom);
         if !authors.is_empty() {
@@ -51,7 +54,9 @@ impl DeclarativeBackend for JatsBackend {
                 level: 2,
                 text: escape_text(&label),
             });
-            doc.push(Node::Paragraph { text: escape_text(&content) });
+            doc.push(Node::Paragraph {
+                text: escape_text(&content),
+            });
         }
 
         // --- body + back ----------------------------------------------------
@@ -237,7 +242,9 @@ fn walk(node: XmlNode, level: u8, doc: &mut DoclingDocument) {
                     .find(|c| c.has_tag_name("title") || c.has_tag_name("label"))
                     .map(node_text)
                     .filter(|s| !s.is_empty())
-                    .or_else(|| (child.has_tag_name("ack")).then(|| "Acknowledgements".to_string()));
+                    .or_else(|| {
+                        (child.has_tag_name("ack")).then(|| "Acknowledgements".to_string())
+                    });
                 if let Some(t) = title {
                     doc.push(Node::Heading {
                         level: level + 2,
@@ -249,7 +256,9 @@ fn walk(node: XmlNode, level: u8, doc: &mut DoclingDocument) {
             "p" => {
                 let t = node_text(child);
                 if !t.is_empty() {
-                    doc.push(Node::Paragraph { text: escape_text(&t) });
+                    doc.push(Node::Paragraph {
+                        text: escape_text(&t),
+                    });
                 }
             }
             "title" | "label" => {} // consumed by the enclosing sec

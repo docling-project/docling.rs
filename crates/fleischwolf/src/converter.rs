@@ -4,8 +4,9 @@ use std::collections::HashSet;
 
 use crate::backend::{
     is_deepseek_markdown, AsciiDocBackend, CsvBackend, DeclarativeBackend, DeepSeekBackend,
-    DoclingJsonBackend, DocxBackend, LatexBackend, EmailBackend, EpubBackend, HtmlBackend, JatsBackend, MarkdownBackend, OdfBackend,
-    PptxBackend, UsptoBackend, WebVttBackend, XbrlBackend, XlsxBackend,
+    DoclingJsonBackend, DocxBackend, EmailBackend, EpubBackend, HtmlBackend, JatsBackend,
+    LatexBackend, MarkdownBackend, OdfBackend, PptxBackend, UsptoBackend, WebVttBackend,
+    XbrlBackend, XlsxBackend,
 };
 
 /// Pick the concrete XML backend for a generic `.xml` source by sniffing its
@@ -114,10 +115,8 @@ impl DocumentConverter {
                 .map_err(|e| ConversionError::Parse(e.to_string()))?,
             InputFormat::Image => fleischwolf_pdf::convert_image(&source.bytes, &source.name)
                 .map_err(|e| ConversionError::Parse(e.to_string()))?,
-            InputFormat::MetsGbs => {
-                fleischwolf_pdf::convert_mets_gbs(&source.bytes, &source.name)
-                    .map_err(|e| ConversionError::Parse(e.to_string()))?
-            }
+            InputFormat::MetsGbs => fleischwolf_pdf::convert_mets_gbs(&source.bytes, &source.name)
+                .map_err(|e| ConversionError::Parse(e.to_string()))?,
             other => return Err(ConversionError::UnsupportedFormat(other)),
         };
         // Carry the mode so `result.document.export_to_markdown()` reflects it.

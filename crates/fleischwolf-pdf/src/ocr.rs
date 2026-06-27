@@ -28,7 +28,13 @@ fn luma(p: &Rgb<u8>) -> f32 {
 fn is_text_label(label: &str) -> bool {
     matches!(
         label,
-        "text" | "title" | "section_header" | "list_item" | "caption" | "footnote" | "code"
+        "text"
+            | "title"
+            | "section_header"
+            | "list_item"
+            | "caption"
+            | "footnote"
+            | "code"
             | "formula"
     )
 }

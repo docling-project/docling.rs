@@ -80,7 +80,10 @@ impl DeclarativeBackend for XlsxBackend {
             }
             // docling appends one picture per embedded image, after the tables.
             for _ in 0..image_counts.get(&name).copied().unwrap_or(0) {
-                doc.push(Node::Picture { caption: None, image: None });
+                doc.push(Node::Picture {
+                    caption: None,
+                    image: None,
+                });
             }
         }
         Ok(doc)

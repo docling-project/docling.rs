@@ -149,7 +149,10 @@ fn collect_content(lines: &[&str], i: &mut usize, label: &str, visited: &mut [bo
 
 fn emit(label: &str, content: &str, caption: Option<String>, doc: &mut DoclingDocument) {
     match label {
-        "figure" | "image" => doc.push(Node::Picture { caption, image: None }),
+        "figure" | "image" => doc.push(Node::Picture {
+            caption,
+            image: None,
+        }),
         "table" => {
             if let Some(cap) = caption {
                 doc.push(Node::Paragraph { text: cap });

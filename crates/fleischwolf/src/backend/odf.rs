@@ -432,7 +432,10 @@ fn parse_table(table: XmlNode, styles: &Styles) -> Option<Table> {
 
 fn cell_text(tc: XmlNode, styles: &Styles) -> String {
     let mut parts = Vec::new();
-    for p in tc.children().filter(|c| c.has_tag_name("p") || c.has_tag_name("h")) {
+    for p in tc
+        .children()
+        .filter(|c| c.has_tag_name("p") || c.has_tag_name("h"))
+    {
         let mut runs = Vec::new();
         collect_runs(p, styles, Fmt::default(), &mut runs);
         let t = runs_to_text(runs);

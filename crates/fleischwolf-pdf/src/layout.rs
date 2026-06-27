@@ -65,7 +65,12 @@ impl LayoutModel {
 
     /// Detect layout regions on a page image. `page_w`/`page_h` are the page size
     /// in points; returned boxes are in those coordinates.
-    pub fn predict(&mut self, img: &RgbImage, page_w: f32, page_h: f32) -> Result<Vec<Region>, String> {
+    pub fn predict(
+        &mut self,
+        img: &RgbImage,
+        page_w: f32,
+        page_h: f32,
+    ) -> Result<Vec<Region>, String> {
         // Resize to 640×640 (RT-DETR ignores aspect ratio), rescale to [0,1],
         // lay out as CHW.
         let resized = image::imageops::resize(img, SIDE, SIDE, FilterType::Triangle);

@@ -17,12 +17,66 @@ const SCHEMA_VERSION: &str = "1.10.0";
 /// docling-core's `CodeLanguageLabel` values (anything else serializes as
 /// `unknown`, which the model requires for code items).
 const CODE_LANGUAGES: &[&str] = &[
-    "Ada", "Awk", "Bash", "bc", "C", "C#", "C++", "CMake", "COBOL", "CSS", "Ceylon", "Clojure",
-    "Crystal", "Cuda", "Cython", "D", "Dart", "dc", "Dockerfile", "DocLang", "Elixir", "Erlang",
-    "FORTRAN", "Forth", "Go", "HTML", "Haskell", "Haxe", "Java", "JavaScript", "JSON", "Julia",
-    "Kotlin", "Latex", "Lisp", "Lua", "Matlab", "MoonScript", "Nim", "OCaml", "ObjectiveC",
-    "Octave", "PHP", "Pascal", "Perl", "Prolog", "Python", "Racket", "Ruby", "Rust", "SML", "SQL",
-    "Scala", "Scheme", "Swift", "Tikz", "TypeScript", "VisualBasic", "XML", "YAML",
+    "Ada",
+    "Awk",
+    "Bash",
+    "bc",
+    "C",
+    "C#",
+    "C++",
+    "CMake",
+    "COBOL",
+    "CSS",
+    "Ceylon",
+    "Clojure",
+    "Crystal",
+    "Cuda",
+    "Cython",
+    "D",
+    "Dart",
+    "dc",
+    "Dockerfile",
+    "DocLang",
+    "Elixir",
+    "Erlang",
+    "FORTRAN",
+    "Forth",
+    "Go",
+    "HTML",
+    "Haskell",
+    "Haxe",
+    "Java",
+    "JavaScript",
+    "JSON",
+    "Julia",
+    "Kotlin",
+    "Latex",
+    "Lisp",
+    "Lua",
+    "Matlab",
+    "MoonScript",
+    "Nim",
+    "OCaml",
+    "ObjectiveC",
+    "Octave",
+    "PHP",
+    "Pascal",
+    "Perl",
+    "Prolog",
+    "Python",
+    "Racket",
+    "Ruby",
+    "Rust",
+    "SML",
+    "SQL",
+    "Scala",
+    "Scheme",
+    "Swift",
+    "Tikz",
+    "TypeScript",
+    "VisualBasic",
+    "XML",
+    "YAML",
 ];
 
 /// Map a fence language to docling's `CodeLanguageLabel` (case-insensitive), else
@@ -87,7 +141,9 @@ struct Builder {
 impl Builder {
     fn add_node(&mut self, node: &Node, parent: &str) -> Option<String> {
         match node {
-            Node::Heading { level: 1, text } => Some(self.add_text("title", text, parent, json!({}))),
+            Node::Heading { level: 1, text } => {
+                Some(self.add_text("title", text, parent, json!({})))
+            }
             Node::Heading { level, text } => Some(self.add_text(
                 "section_header",
                 text,
@@ -99,9 +155,7 @@ impl Builder {
                 // wraps it in `$$…$$` and, unlike a text item, never escapes it).
                 let t = text.trim();
                 match t.strip_prefix("$$").and_then(|s| s.strip_suffix("$$")) {
-                    Some(inner) if !inner.is_empty() => {
-                        Some(self.add_formula(inner, parent))
-                    }
+                    Some(inner) if !inner.is_empty() => Some(self.add_formula(inner, parent)),
                     _ => Some(self.add_text("text", text, parent, json!({}))),
                 }
             }
@@ -480,28 +534,62 @@ mod tests {
         assert!(doc.export_to_markdown().contains("<!-- image -->"));
         // embedded → base64 data URI (b"foobar" → "Zm9vYmFy")
         let (md, files) = doc.export_to_markdown_with_images(ImageMode::Embedded, "artifacts");
-        assert!(md.contains("![Image](data:image/png;base64,Zm9vYmFy)"), "got:\n{md}");
+        assert!(
+            md.contains("![Image](data:image/png;base64,Zm9vYmFy)"),
+            "got:\n{md}"
+        );
         assert!(files.is_empty());
         // referenced → file link + collected bytes
         let (md, files) = doc.export_to_markdown_with_images(ImageMode::Referenced, "artifacts");
-        assert!(md.contains("![Image](artifacts/image_000000.png)"), "got:\n{md}");
-        assert_eq!(files, vec![("artifacts/image_000000.png".to_string(), b"foobar".to_vec())]);
+        assert!(
+            md.contains("![Image](artifacts/image_000000.png)"),
+            "got:\n{md}"
+        );
+        assert_eq!(
+            files,
+            vec![("artifacts/image_000000.png".to_string(), b"foobar".to_vec())]
+        );
         // JSON carries the ImageRef (data URI + size)
         let v: Value = serde_json::from_str(&doc.export_to_json()).unwrap();
         assert_eq!(v["pictures"][0]["image"]["mimetype"], "image/png");
         assert_eq!(v["pictures"][0]["image"]["size"]["width"], 4);
-        assert_eq!(v["pictures"][0]["image"]["uri"], "data:image/png;base64,Zm9vYmFy");
+        assert_eq!(
+            v["pictures"][0]["image"]["uri"],
+            "data:image/png;base64,Zm9vYmFy"
+        );
     }
 
     #[test]
     fn exports_docling_schema() {
         let mut doc = DoclingDocument::new("t");
-        doc.push(Node::Heading { level: 1, text: "Title".into() });
-        doc.push(Node::Heading { level: 2, text: "Sec".into() });
-        doc.push(Node::Paragraph { text: "Body &amp; more".into() }); // markdown-escaped
-        doc.push(Node::ListItem { ordered: false, number: 0, first_in_list: true, text: "one".into(), level: 0 });
-        doc.push(Node::ListItem { ordered: false, number: 0, first_in_list: false, text: "two".into(), level: 0 });
-        doc.push(Node::Table(Table { rows: vec![vec!["A".into(), "B".into()]] }));
+        doc.push(Node::Heading {
+            level: 1,
+            text: "Title".into(),
+        });
+        doc.push(Node::Heading {
+            level: 2,
+            text: "Sec".into(),
+        });
+        doc.push(Node::Paragraph {
+            text: "Body &amp; more".into(),
+        }); // markdown-escaped
+        doc.push(Node::ListItem {
+            ordered: false,
+            number: 0,
+            first_in_list: true,
+            text: "one".into(),
+            level: 0,
+        });
+        doc.push(Node::ListItem {
+            ordered: false,
+            number: 0,
+            first_in_list: false,
+            text: "two".into(),
+            level: 0,
+        });
+        doc.push(Node::Table(Table {
+            rows: vec![vec!["A".into(), "B".into()]],
+        }));
 
         let v: Value = serde_json::from_str(&doc.export_to_json()).unwrap();
         assert_eq!(v["schema_name"], "DoclingDocument");
@@ -510,7 +598,7 @@ mod tests {
         assert_eq!(v["texts"][1]["label"], "section_header");
         assert_eq!(v["texts"][1]["level"], 1); // heading level 2 → docling level 1
         assert_eq!(v["texts"][2]["text"], "Body & more"); // un-escaped for the wire format
-        // consecutive list items fold into one list group, parented to it
+                                                          // consecutive list items fold into one list group, parented to it
         assert_eq!(v["groups"][0]["label"], "list");
         assert_eq!(v["groups"][0]["children"].as_array().unwrap().len(), 2);
         assert_eq!(v["texts"][3]["parent"]["$ref"], "#/groups/0");

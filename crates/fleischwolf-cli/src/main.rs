@@ -42,7 +42,9 @@ fn main() -> ExitCode {
         "embedded" => ImageMode::Embedded,
         "referenced" => ImageMode::Referenced,
         other => {
-            eprintln!("error: unknown --images '{other}' (expected: placeholder, embedded, referenced)");
+            eprintln!(
+                "error: unknown --images '{other}' (expected: placeholder, embedded, referenced)"
+            );
             return ExitCode::from(2);
         }
     };

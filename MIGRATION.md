@@ -207,11 +207,15 @@ Explicitly **not done**, with the reason:
 - **Snapshot harness** — `scripts/pdf_conformance.sh` regenerates and diffs the
   PDF/image/METS baseline (needs pdfium + the ONNX models; **76/76 exact**).
 - **Live conformance** — `scripts/conformance.sh <fmt> --live` scores a format
-  against docling run from this repo's sources (see [`COMPARING.md`](./COMPARING.md)).
+  against the latest published docling (installed from PyPI; see
+  [`COMPARING.md`](./COMPARING.md)).
 - **Differential / perf** — `scripts/compare.sh`, `scripts/performance.sh`.
 
-CI gate: `cargo test`, `cargo clippy --workspace --all-targets -- -D warnings`,
-`cargo fmt --check`.
+CI (`.github/workflows/ci.yml`) gates every pull request and master push on
+`cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings` and
+`cargo test` (the fast pure-Rust suite — no model downloads). On master it then
+runs `scripts/ci_publish.sh`, which publishes any version-bumped crate to
+crates.io in dependency order and skips those already published.
 
 ---
 

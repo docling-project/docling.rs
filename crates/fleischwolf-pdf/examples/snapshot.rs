@@ -59,7 +59,9 @@ fn main() {
                 } else {
                     pipeline.convert(&bytes, None, &name)
                 };
-                result.map(|d| d.export_to_markdown()).map_err(|e| e.to_string())
+                result
+                    .map(|d| d.export_to_markdown())
+                    .map_err(|e| e.to_string())
             }) {
             Ok(md) => {
                 ok += 1;

@@ -42,7 +42,9 @@ fn ref_kind(reference: &Value) -> &str {
 }
 
 fn text_of(reference: &Value, root: &Value) -> String {
-    resolve(reference, root).map(formatted_text).unwrap_or_default()
+    resolve(reference, root)
+        .map(formatted_text)
+        .unwrap_or_default()
 }
 
 /// Escaped item text with docling-core's inline markers applied in order:
@@ -164,7 +166,9 @@ fn list_group(children: &[Value], root: &Value, level: u8, doc: &mut DoclingDocu
             walk(c, root, level + 1, doc);
             continue;
         }
-        let Some(item) = resolve(c, root) else { continue };
+        let Some(item) = resolve(c, root) else {
+            continue;
+        };
         if item["label"].as_str() != Some("list_item") {
             continue;
         }
@@ -207,7 +211,10 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
 
 fn picture_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
     // docling renders the image marker first, then each caption as a paragraph.
-    doc.push(Node::Picture { caption: None, image: None });
+    doc.push(Node::Picture {
+        caption: None,
+        image: None,
+    });
     push_captions(item, root, doc);
 }
 
@@ -244,8 +251,12 @@ mod tests {
                       "children":[{"$ref":"#/texts/2"},{"$ref":"#/texts/3"}]}],
           "tables": [], "pictures": []
         }"##;
-        let src = SourceDocument::from_bytes("t", InputFormat::JsonDocling, json.as_bytes().to_vec());
-        let md = DoclingJsonBackend.convert(&src).unwrap().export_to_markdown();
+        let src =
+            SourceDocument::from_bytes("t", InputFormat::JsonDocling, json.as_bytes().to_vec());
+        let md = DoclingJsonBackend
+            .convert(&src)
+            .unwrap()
+            .export_to_markdown();
         assert!(
             md.starts_with("# Doc\n\n## [Sec](http://x)\n\n- one\n- **two**"),
             "got:\n{md}"

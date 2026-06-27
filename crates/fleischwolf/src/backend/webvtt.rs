@@ -63,7 +63,9 @@ impl DeclarativeBackend for WebVttBackend {
                 }
                 continue;
             }
-            if block.starts_with("NOTE") || block.starts_with("STYLE") || block.starts_with("REGION")
+            if block.starts_with("NOTE")
+                || block.starts_with("STYLE")
+                || block.starts_with("REGION")
             {
                 continue;
             }
@@ -169,10 +171,7 @@ mod tests {
 
     fn md(vtt: &str) -> String {
         let src = SourceDocument::from_bytes("t", InputFormat::Vtt, vtt.as_bytes().to_vec());
-        WebVttBackend
-            .convert(&src)
-            .unwrap()
-            .export_to_markdown()
+        WebVttBackend.convert(&src).unwrap().export_to_markdown()
     }
 
     #[test]
@@ -185,10 +184,8 @@ mod tests {
     fn nested_spans_serialize_with_inline_join() {
         // bold inside italic → ***x***; lang is transparent; components joined
         // with single spaces (so the un-stripped span spacing is preserved).
-        let out = md(
-            "WEBVTT\n\n00:01.000 --> 00:02.000\n\
-             a <i>b <lang es>c</lang></i> d\n",
-        );
+        let out = md("WEBVTT\n\n00:01.000 --> 00:02.000\n\
+             a <i>b <lang es>c</lang></i> d\n");
         assert_eq!(out.trim(), "a  *b * *c*  d");
     }
 }

@@ -114,7 +114,10 @@ fn walk_block(elem: ElementRef, nodes: &mut Vec<Node>, list_level: u8, base: Fmt
                 } else if name == "signature" || name == "stamp" {
                     // docling turns these into an image annotated with the kind.
                     flush_inline(&mut inline, nodes);
-                    nodes.push(Node::Picture { caption: None, image: None });
+                    nodes.push(Node::Picture {
+                        caption: None,
+                        image: None,
+                    });
                     let mut label = name.to_string();
                     label[..1].make_ascii_uppercase();
                     nodes.push(Node::Paragraph { text: label });
@@ -125,7 +128,10 @@ fn walk_block(elem: ElementRef, nodes: &mut Vec<Node>, list_level: u8, base: Fmt
                     // An inline wrapper (e.g. `<a>`) around only an image: docling
                     // pulls the image out as a Picture and drops the wrapper.
                     flush_inline(&mut inline, nodes);
-                    nodes.push(Node::Picture { caption, image: None });
+                    nodes.push(Node::Picture {
+                        caption,
+                        image: None,
+                    });
                 } else {
                     collect_element(cref, base, None, &mut inline);
                 }

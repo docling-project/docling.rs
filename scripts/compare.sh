@@ -5,12 +5,12 @@
 #
 # Usage:
 #   scripts/compare.sh <input-file>
-#   scripts/compare.sh ../tests/data/html/sources/example_03.html
+#   scripts/compare.sh tests/data/html/sources/example_03.html
 #
-# Python docling is loaded from THIS repo's sources (a local editable install in
-# fleischwolf/.venv-compare, created on first run) — no `pip install docling`
-# needed. The Python side calls the format backend directly via
-# docling_convert.py (no torch/ML), mirroring the work fleischwolf does.
+# Python docling is the latest PUBLISHED release, installed from PyPI into
+# fleischwolf/.venv-compare on first run (see _common.sh). For declarative
+# formats the Python side calls the format backend directly via
+# docling_convert.py, mirroring the work fleischwolf does.
 
 set -euo pipefail
 

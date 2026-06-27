@@ -12,28 +12,27 @@ There are two axes to compare:
 - **Correctness** — does the Markdown match? (§A, §B)
 - **Performance** — time, CPU, and memory to convert? (§C)
 
-### Local docling setup (no `pip install docling` needed)
+### Local docling setup
 
-This repo *is* the docling Python source, so the scripts load it from the local
-checkout — you don't need to install the published package. On first run they
-create an isolated, editable install under `fleischwolf/.venv-compare` using
-`uv`, with only the minimal extras for the declarative formats (HTML, Markdown,
-CSV) — **no torch / ML weights**:
+The comparison scripts install the **latest published** `docling` from PyPI into
+an isolated `fleischwolf/.venv-compare` (via `uv`) on first run:
 
 ```bash
 scripts/setup-docling.sh      # optional; the other scripts call this automatically
 ```
 
-The Python side calls the format backend directly (see `scripts/docling_convert.py`)
-rather than `DocumentConverter`, because importing the converter eagerly pulls in
-the ML pipeline (`torch`). Calling the backend is the same conversion work, kept
-lightweight and apples-to-apples with what `fleischwolf` does.
+Published docling 2.x bundles every format backend plus the full PDF pipeline
+(torch + models), so the first install pulls a few hundred MB. For the
+declarative formats the Python side still calls the format backend directly (see
+`scripts/docling_convert.py`) rather than `DocumentConverter`, so it avoids
+paying the `torch` import cost on every run — the same conversion work, kept
+apples-to-apples with what `fleischwolf` does.
 
 ---
 
 ## A. Against the upstream groundtruth corpus (no Python needed)
 
-The upstream repo ships a regression corpus under `tests/data/<format>/`:
+This repo ships a regression corpus under `tests/data/<format>/`:
 
 ```text
 tests/data/html/sources/example_01.html          # input
@@ -44,7 +43,6 @@ Those `.md` files were produced by Python `docling`, so we can score the Rust
 port against them directly:
 
 ```bash
-cd fleischwolf
 scripts/conformance.sh html          # vs committed groundtruth (no Python needed)
 scripts/conformance.sh html --live   # vs CURRENT docling (regenerates references)
 ```
@@ -78,8 +76,7 @@ To compare on a file that isn't in the corpus — or to confirm the groundtruth
 hasn't drifted — run both implementations and diff:
 
 ```bash
-cd fleischwolf
-scripts/compare.sh ../tests/data/html/sources/example_03.html
+scripts/compare.sh tests/data/html/sources/example_03.html
 scripts/compare.sh /path/to/your/own.html
 ```
 
@@ -105,11 +102,11 @@ diff -u py.md rs.md
 
 `scripts/performance.sh` measures the processing cost of each engine on one
 file — wall-clock time, CPU utilization, and peak resident memory — using GNU
-`/usr/bin/time`. The Rust side is built in `--release`; the Python side loads
-docling locally (no torch).
+`/usr/bin/time`. The Rust side is built in `--release`; the Python side runs the
+installed docling (declarative backends, no `torch` import).
 
 ```bash
-scripts/performance.sh ../tests/data/html/sources/wiki_duck.html 10   # 10 runs
+scripts/performance.sh tests/data/html/sources/wiki_duck.html 10   # 10 runs
 ```
 
 ```text

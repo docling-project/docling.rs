@@ -17,5 +17,5 @@ mod labels;
 mod markdown;
 
 pub use document::{DoclingDocument, Node, PictureImage, Table};
-pub use markdown::ImageMode;
 pub use labels::DocItemLabel;
+pub use markdown::ImageMode;
