@@ -1,0 +1,27 @@
+[package]
+name = "docling-crab"
+description = "DocumentConverter and format backends for docling-crab (Rust port of docling)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+calamine = { version = "0.26", features = ["dates"] }
+csv = "1.4.0"
+docling-crab-core = { path = "../docling-crab-core" }
+docling-crab-pdf = { path = "../docling-crab-pdf" }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "webp"] }
+mail-parser = "0.11"
+pulldown-cmark = { version = "0.13.4", default-features = false }
+quick-xml = "0.37"
+regex = "1.11"
+roxmltree = "0.20"
+scraper = "0.27.0"
+serde_json = "1"
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
+
+[[example]]
+name = "convert"
+path = "examples/convert.rs"

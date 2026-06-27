@@ -1,0 +1,138 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "formatting",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 5390296580490417006,
+    "filename": "formatting"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/texts/6"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "title",
+      "prov": [],
+      "orig": "HTML Text Formatting Examples",
+      "text": "HTML Text Formatting Examples"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "This is a **bold (b)** example and right next to it we have a **strong emphasis (strong)** . Notice that **strong + bold mixed** looks similar but carries additional semantic meaning.",
+      "text": "This is a **bold (b)** example and right next to it we have a **strong emphasis (strong)** . Notice that **strong + bold mixed** looks similar but carries additional semantic meaning."
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Here is an *italic (i)* word and an *emphasis (em)* example. Sometimes we combine them like *italic + emphasis together* .",
+      "text": "Here is an *italic (i)* word and an *emphasis (em)* example. Sometimes we combine them like *italic + emphasis together* ."
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Now let's look at text that appears crossed out: ~~strikethrough with s~~ and ~~deleted with del~~ . You can also mix them: ~~double strikethrough (s + del)~~ .",
+      "text": "Now let's look at text that appears crossed out: ~~strikethrough with s~~ and ~~deleted with del~~ . You can also mix them: ~~double strikethrough (s + del)~~ ."
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "To highlight insertions or underlines: underlined with u , inserted with ins . A combination could be: underline + insertion together .",
+      "text": "To highlight insertions or underlines: underlined with u , inserted with ins . A combination could be: underline + insertion together ."
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Subscript and superscript examples: Water is written as H 2 O using sub. The mathematical expression x 2 + y 3 uses sup. They can also be combined: CO 2 * .",
+      "text": "Subscript and superscript examples: Water is written as H 2 O using sub. The mathematical expression x 2 + y 3 uses sup. They can also be combined: CO 2 * ."
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Mixing several: This sentence has ***strong + emphasis*** , some **bold + underline** , and a formula like a 2 + b 3 .",
+      "text": "Mixing several: This sentence has ***strong + emphasis*** , some **bold + underline** , and a formula like a 2 + b 3 ."
+    }
+  ],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

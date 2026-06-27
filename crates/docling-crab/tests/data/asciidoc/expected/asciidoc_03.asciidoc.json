@@ -1,0 +1,240 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "asciidoc_03",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 5357824632395667774,
+    "filename": "asciidoc_03"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/pictures/0"
+      },
+      {
+        "$ref": "#/pictures/1"
+      },
+      {
+        "$ref": "#/pictures/2"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/5"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": ":_mod-docs-content-type: PROCEDURE :experimental:",
+      "text": ":_mod-docs-content-type: PROCEDURE :experimental:"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "title",
+      "prov": [],
+      "orig": "Renaming a bookmark",
+      "text": "Renaming a bookmark"
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "[id=\"renaming-a-bookmark_{context}\"]",
+      "text": "[id=\"renaming-a-bookmark_{context}\"]"
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "You can rename a bookmark to distinguish it from other bookmarks. If you have bookmarks to several folders that all share the same name, you can tell the bookmarks apart if you rename them.",
+      "text": "You can rename a bookmark to distinguish it from other bookmarks. If you have bookmarks to several folders that all share the same name, you can tell the bookmarks apart if you rename them."
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Renaming the bookmark does not rename the folder.",
+      "text": "Renaming the bookmark does not rename the folder."
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Check that the side bar lists the bookmark under the new name.",
+      "text": "Check that the side bar lists the bookmark under the new name.",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [],
+      "orig": "Procedure . Right-click the bookmark in the side bar. . Select *Rename…*. +",
+      "text": "Procedure . Right-click the bookmark in the side bar. . Select *Rename…*. +"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/pictures/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [],
+      "orig": " In the *Name* field, enter the new name for the bookmark. +",
+      "text": " In the *Name* field, enter the new name for the bookmark. +"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/pictures/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [],
+      "orig": " Click btn:[Rename]. .Verification",
+      "text": " Click btn:[Rename]. .Verification"
+    }
+  ],
+  "pictures": [
+    {
+      "self_ref": "#/pictures/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [],
+      "captions": [
+        {
+          "$ref": "#/texts/6"
+        }
+      ],
+      "references": [],
+      "footnotes": [],
+      "annotations": []
+    },
+    {
+      "self_ref": "#/pictures/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [],
+      "captions": [
+        {
+          "$ref": "#/texts/7"
+        }
+      ],
+      "references": [],
+      "footnotes": [],
+      "annotations": []
+    },
+    {
+      "self_ref": "#/pictures/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [],
+      "captions": [
+        {
+          "$ref": "#/texts/8"
+        }
+      ],
+      "references": [],
+      "footnotes": [],
+      "annotations": []
+    }
+  ],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

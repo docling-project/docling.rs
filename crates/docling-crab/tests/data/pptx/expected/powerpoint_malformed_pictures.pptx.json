@@ -1,0 +1,78 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "powerpoint_malformed_pictures",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 10001476661793007024,
+    "filename": "powerpoint_malformed_pictures"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Slide With Missing BlipFill",
+      "text": "Slide With Missing BlipFill"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Slide With Dangling Rel",
+      "text": "Slide With Dangling Rel"
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Slide With Wrong Content Type",
+      "text": "Slide With Wrong Content Type"
+    }
+  ],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

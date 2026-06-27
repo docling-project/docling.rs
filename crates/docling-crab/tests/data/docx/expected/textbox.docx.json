@@ -1,0 +1,401 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "textbox",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 10818552051114167323,
+    "filename": "textbox"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/groups/1"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/texts/9"
+      },
+      {
+        "$ref": "#/groups/2"
+      },
+      {
+        "$ref": "#/texts/12"
+      },
+      {
+        "$ref": "#/texts/13"
+      },
+      {
+        "$ref": "#/texts/14"
+      },
+      {
+        "$ref": "#/texts/15"
+      },
+      {
+        "$ref": "#/texts/16"
+      },
+      {
+        "$ref": "#/texts/17"
+      },
+      {
+        "$ref": "#/texts/18"
+      },
+      {
+        "$ref": "#/texts/19"
+      },
+      {
+        "$ref": "#/texts/20"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/3"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/10"
+        },
+        {
+          "$ref": "#/texts/11"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "**Chiayi County Shuishang Township Nanjing Elementary School Affiliated Kindergarten**",
+      "text": "**Chiayi County Shuishang Township Nanjing Elementary School Affiliated Kindergarten**"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "**Infectious Disease Reporting Procedure for the 113th Academic Year Kindergarten**",
+      "text": "**Infectious Disease Reporting Procedure for the 113th Academic Year Kindergarten**"
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "**Student falls ill**",
+      "text": "**Student falls ill**"
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Suggested Reportable Symptoms:\n＊ Fever\n＊ Cough\n＊ Diarrhea\n＊ Vomiting\n＊ Rash\n＊ Blisters\n＊ Headache\n＊ Sore throat",
+      "text": "Suggested Reportable Symptoms:\n＊ Fever\n＊ Cough\n＊ Diarrhea\n＊ Vomiting\n＊ Rash\n＊ Blisters\n＊ Headache\n＊ Sore throat",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "If a caregiver suspects that within one week, a fifth of the class (for classes with more than 15 students) or more than three students (for classes with 15 or fewer students)\nshow the same suggested reportable symptoms",
+      "text": "If a caregiver suspects that within one week, a fifth of the class (for classes with more than 15 students) or more than three students (for classes with 15 or fewer students)\nshow the same suggested reportable symptoms"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Yes",
+      "text": "Yes"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "A report must be submitted within 24 hours via the Ministry of Education’s Campus Safety and Disaster Prevention Information Network.",
+      "text": "A report must be submitted within 24 hours via the Ministry of Education’s Campus Safety and Disaster Prevention Information Network.",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "A report must also be submitted within 48 hours through Chiayi County’s School Suspected Infectious Disease Reporting System.",
+      "text": "A report must also be submitted within 48 hours through Chiayi County’s School Suspected Infectious Disease Reporting System.",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "**Health Bureau:**",
+      "text": "**Health Bureau:**"
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Upon receiving a report from the kindergarten, conduct a preliminary assessment of the case, and depending on the situation and type of illness, carry out an epidemiological investigation and report to the Centers for Disease Control.",
+      "text": "Upon receiving a report from the kindergarten, conduct a preliminary assessment of the case, and depending on the situation and type of illness, carry out an epidemiological investigation and report to the Centers for Disease Control."
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "If necessary, provide health education and important reminders at the kindergarten, or notify the individual to undergo specimen collection.",
+      "text": "If necessary, provide health education and important reminders at the kindergarten, or notify the individual to undergo specimen collection.",
+      "enumerated": true,
+      "marker": "1."
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Implement appropriate epidemic prevention measures in accordance with the Communicable Disease Control Act.",
+      "text": "Implement appropriate epidemic prevention measures in accordance with the Communicable Disease Control Act.",
+      "enumerated": true,
+      "marker": "2."
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Department of Education:\nCollaborate with the Health Bureau in conducting epidemiological investigations and assist Health Bureau personnel in implementing necessary epidemic prevention measures at all school levels.",
+      "text": "Department of Education:\nCollaborate with the Health Bureau in conducting epidemiological investigations and assist Health Bureau personnel in implementing necessary epidemic prevention measures at all school levels."
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "The Health Bureau will handle **reporting and specimen collection** .",
+      "text": "The Health Bureau will handle **reporting and specimen collection** ."
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "**Whether the epidemic has eased.**",
+      "text": "**Whether the epidemic has eased.**"
+    },
+    {
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "**Whether the test results are positive for a legally designated infectious disease.**",
+      "text": "**Whether the test results are positive for a legally designated infectious disease.**"
+    },
+    {
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "No",
+      "text": "No"
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Yes",
+      "text": "Yes"
+    },
+    {
+      "self_ref": "#/texts/18",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "**Case closed.**",
+      "text": "**Case closed.**"
+    },
+    {
+      "self_ref": "#/texts/19",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "The Health Bureau will carry out subsequent related epidemic prevention measures and follow-up, and will request assistance from the Centers for Disease Control if necessary.",
+      "text": "The Health Bureau will carry out subsequent related epidemic prevention measures and follow-up, and will request assistance from the Centers for Disease Control if necessary."
+    },
+    {
+      "self_ref": "#/texts/20",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "No",
+      "text": "No"
+    }
+  ],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

@@ -1,0 +1,176 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "docx_vml_images",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 10341765270926849502,
+    "filename": "docx_vml_images"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/pictures/0"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/pictures/1"
+      },
+      {
+        "$ref": "#/texts/5"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "title",
+      "prov": [],
+      "orig": "VML Image Test Document",
+      "text": "VML Image Test Document"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "This document contains VML images with v:imagedata elements for testing VML image extraction.",
+      "text": "This document contains VML images with v:imagedata elements for testing VML image extraction."
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Below is a VML image with v:imagedata:",
+      "text": "Below is a VML image with v:imagedata:"
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Above is a VML image with v:imagedata element.",
+      "text": "Above is a VML image with v:imagedata element."
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Below is another VML image:",
+      "text": "Below is another VML image:"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Above is the second VML image.",
+      "text": "Above is the second VML image."
+    }
+  ],
+  "pictures": [
+    {
+      "self_ref": "#/pictures/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "annotations": [],
+      "image": {
+        "mimetype": "image/png",
+        "dpi": 72,
+        "size": {
+          "width": 200,
+          "height": 200
+        },
+        "uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAIAAAAiOjnJAAACEklEQVR4nO3UsQ0AIBADsYf9d4YluALJHiDVKesMvLeDTRAWDY9FQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWAiLf3gsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCIiEsEsIiISwSwiIhLBLCYgoXij0Cj3aTAC8AAAAASUVORK5CYII="
+      }
+    },
+    {
+      "self_ref": "#/pictures/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "annotations": [],
+      "image": {
+        "mimetype": "image/png",
+        "dpi": 72,
+        "size": {
+          "width": 150,
+          "height": 150
+        },
+        "uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJYAAACWCAIAAACzY+a1AAABcUlEQVR4nO3RwQkAIBDAsNP9d9YhfEghmaDQNXOGsv07gFcW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehXkW5lmYZ2GehVN3AS48AivB6nXZAAAAAElFTkSuQmCC"
+      }
+    }
+  ],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

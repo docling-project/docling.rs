@@ -1,0 +1,288 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "webvtt_example_03",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 12969862334818319836,
+    "filename": "webvtt_example_03"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/texts/6"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/texts/9"
+      },
+      {
+        "$ref": "#/texts/10"
+      },
+      {
+        "$ref": "#/texts/11"
+      },
+      {
+        "$ref": "#/texts/12"
+      },
+      {
+        "$ref": "#/texts/13"
+      },
+      {
+        "$ref": "#/texts/14"
+      },
+      {
+        "$ref": "#/texts/15"
+      },
+      {
+        "$ref": "#/texts/16"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "OK,",
+      "text": "OK,"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "I think now we should be recording",
+      "text": "I think now we should be recording"
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "properly.",
+      "text": "properly."
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Good.",
+      "text": "Good."
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Yeah.",
+      "text": "Yeah."
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "I was also thinking.",
+      "text": "I was also thinking."
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Would be maybe good to create items,",
+      "text": "Would be maybe good to create items,"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "some metadata,",
+      "text": "some metadata,"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "some options that can be specific.",
+      "text": "some options that can be specific."
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Yeah,",
+      "text": "Yeah,"
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "I mean I think you went even more than",
+      "text": "I mean I think you went even more than"
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "But we preserved the atoms.",
+      "text": "But we preserved the atoms."
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "than me.",
+      "text": "than me."
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "I just opened the format.",
+      "text": "I just opened the format."
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "give it a try, yeah.",
+      "text": "give it a try, yeah."
+    },
+    {
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Okay, talk to you later.",
+      "text": "Okay, talk to you later."
+    },
+    {
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "See you.",
+      "text": "See you."
+    }
+  ],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

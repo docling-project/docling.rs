@@ -1,0 +1,486 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "inline_and_formatting",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 839503294034952260,
+    "filename": "inline_and_formatting"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/11"
+      },
+      {
+        "$ref": "#/groups/1"
+      },
+      {
+        "$ref": "#/texts/14"
+      },
+      {
+        "$ref": "#/texts/15"
+      },
+      {
+        "$ref": "#/texts/16"
+      },
+      {
+        "$ref": "#/texts/17"
+      },
+      {
+        "$ref": "#/tables/0"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/4"
+        },
+        {
+          "$ref": "#/texts/5"
+        },
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        },
+        {
+          "$ref": "#/texts/8"
+        },
+        {
+          "$ref": "#/texts/9"
+        },
+        {
+          "$ref": "#/texts/10"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/12"
+        },
+        {
+          "$ref": "#/texts/13"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "title",
+      "prov": [],
+      "orig": "Contribution guideline example",
+      "text": "Contribution guideline example"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "This is simple.",
+      "text": "This is simple."
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Foo *emphasis* **strong emphasis** ***both*** .",
+      "text": "Foo *emphasis* **strong emphasis** ***both*** ."
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Create your feature branch: `git checkout -b feature/AmazingFeature` .",
+      "text": "Create your feature branch: `git checkout -b feature/AmazingFeature` ."
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Pull the [**repository**](https://github.com/docling-project/docling) .",
+      "text": "Pull the [**repository**](https://github.com/docling-project/docling) .",
+      "enumerated": true,
+      "marker": "1."
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Create your feature branch ( `git checkout -b feature/AmazingFeature` )",
+      "text": "Create your feature branch ( `git checkout -b feature/AmazingFeature` )",
+      "enumerated": true,
+      "marker": "2."
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Commit your changes ( `git commit -m 'Add some AmazingFeature'` )",
+      "text": "Commit your changes ( `git commit -m 'Add some AmazingFeature'` )",
+      "enumerated": true,
+      "marker": "3."
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Push to the branch ( `git push origin feature/AmazingFeature` )",
+      "text": "Push to the branch ( `git push origin feature/AmazingFeature` )",
+      "enumerated": true,
+      "marker": "4."
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Open a Pull Request",
+      "text": "Open a Pull Request",
+      "enumerated": true,
+      "marker": "5."
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "**Whole list item has same formatting**",
+      "text": "**Whole list item has same formatting**",
+      "enumerated": true,
+      "marker": "6."
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "List item has *mixed or partial* formatting",
+      "text": "List item has *mixed or partial* formatting",
+      "enumerated": true,
+      "marker": "7."
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "title",
+      "prov": [],
+      "orig": "*Whole heading is italic*",
+      "text": "*Whole heading is italic*"
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "**First** : Lorem ipsum.",
+      "text": "**First** : Lorem ipsum.",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "**Second** : Dolor `sit` amet.",
+      "text": "**Second** : Dolor `sit` amet.",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Some *`formatted_code`*",
+      "text": "Some *`formatted_code`*"
+    },
+    {
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [],
+      "orig": "*Partially formatted* heading to_escape `not_to_escape`",
+      "text": "*Partially formatted* heading to_escape `not_to_escape`",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "[$$E=mc^2$$](https://en.wikipedia.org/wiki/Albert_Einstein)",
+      "text": "[$$E=mc^2$$](https://en.wikipedia.org/wiki/Albert_Einstein)"
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [],
+      "orig": "Table Heading",
+      "text": "Table Heading",
+      "level": 1
+    }
+  ],
+  "pictures": [],
+  "tables": [
+    {
+      "self_ref": "#/tables/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Bold Heading",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Italic Heading",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "data a",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "data b",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          }
+        ],
+        "num_rows": 2,
+        "num_cols": 2,
+        "grid": [
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Bold Heading",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Italic Heading",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "data a",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "data b",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ]
+        ]
+      },
+      "annotations": []
+    }
+  ],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

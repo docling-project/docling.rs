@@ -1,0 +1,263 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "docx_checkboxes",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 10967879698191795893,
+    "filename": "docx_checkboxes"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [],
+      "orig": "Table with options",
+      "text": "Table with options",
+      "level": 2
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [],
+      "orig": "Paragraph with options",
+      "text": "Paragraph with options",
+      "level": 2
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Tasks before release:",
+      "text": "Tasks before release:"
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "- [x] Design",
+      "text": "- [x] Design"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "- [x] Implementation",
+      "text": "- [x] Implementation"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "- [ ] Documentation of the task with a very long text that goes beyond the maximum length of a single line.",
+      "text": "- [ ] Documentation of the task with a very long text that goes beyond the maximum length of a single line."
+    }
+  ],
+  "pictures": [],
+  "tables": [
+    {
+      "self_ref": "#/tables/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "**List of services**",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Breakfast options",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Choose as many as you like:\n\n- [x] Orange juice\n\n- [ ] Tea\n\n- [x] Coffee\n\n- [ ] Milk\n\n- [x] Water",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Choose as many as you like:\n\n- [x] Scramble eggs\n\n- [ ] Porridge\n\n- [x] Bread\n\n- [x] Croissant",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          }
+        ],
+        "num_rows": 4,
+        "num_cols": 1,
+        "grid": [
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "**List of services**",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Breakfast options",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Choose as many as you like:\n\n- [x] Orange juice\n\n- [ ] Tea\n\n- [x] Coffee\n\n- [ ] Milk\n\n- [x] Water",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Choose as many as you like:\n\n- [x] Scramble eggs\n\n- [ ] Porridge\n\n- [x] Bread\n\n- [x] Croissant",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ]
+        ]
+      },
+      "annotations": []
+    }
+  ],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

@@ -1,0 +1,13 @@
+/target
+Cargo.lock
+
+# Local editable docling installs used by scripts/compare.sh & performance.sh
+# .venv-compare is the lightweight (no-torch) declarative-format env;
+# .venv-compare-pdf carries the full ML pipeline for PDF/image head-to-heads.
+/.venv-compare
+/.venv-compare-pdf
+
+# Downloaded native libs / models (not committed)
+.pdfium/
+*.onnx
+models/

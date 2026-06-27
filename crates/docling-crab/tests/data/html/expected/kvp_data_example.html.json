@@ -1,0 +1,709 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "kvp_data_example",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 10214695625712100204,
+    "filename": "kvp_data_example"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/texts/6"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/texts/9"
+      },
+      {
+        "$ref": "#/texts/10"
+      },
+      {
+        "$ref": "#/texts/11"
+      },
+      {
+        "$ref": "#/texts/12"
+      },
+      {
+        "$ref": "#/texts/13"
+      },
+      {
+        "$ref": "#/texts/14"
+      },
+      {
+        "$ref": "#/texts/15"
+      },
+      {
+        "$ref": "#/texts/16"
+      },
+      {
+        "$ref": "#/texts/17"
+      },
+      {
+        "$ref": "#/texts/18"
+      },
+      {
+        "$ref": "#/texts/19"
+      },
+      {
+        "$ref": "#/texts/20"
+      },
+      {
+        "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/texts/21"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "title",
+      "prov": [],
+      "orig": "HEADER",
+      "text": "HEADER"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Order Receipt Details",
+      "text": "Order Receipt Details"
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Receipt documentation for table service:",
+      "text": "Receipt documentation for table service:"
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "1",
+      "text": "1"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Restaurant Docling",
+      "text": "Restaurant Docling"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "2",
+      "text": "2"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Telephone (123) 456-7890",
+      "text": "Telephone (123) 456-7890"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "3",
+      "text": "3"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Server Quack Quackling",
+      "text": "Server Quack Quackling"
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "4",
+      "text": "4"
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Order Number 12345",
+      "text": "Order Number 12345"
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "5",
+      "text": "5"
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Seating 13",
+      "text": "Seating 13"
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "6",
+      "text": "6"
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Dining Type Celebration",
+      "text": "Dining Type Celebration"
+    },
+    {
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "7",
+      "text": "7"
+    },
+    {
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Number of guests 5",
+      "text": "Number of guests 5"
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "8",
+      "text": "8"
+    },
+    {
+      "self_ref": "#/texts/18",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Receipt date 16/03/2026",
+      "text": "Receipt date 16/03/2026"
+    },
+    {
+      "self_ref": "#/texts/19",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Order items:",
+      "text": "Order items:"
+    },
+    {
+      "self_ref": "#/texts/20",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Itemized list of products ordered with quantities.",
+      "text": "Itemized list of products ordered with quantities."
+    },
+    {
+      "self_ref": "#/texts/21",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Docling Restaurant 2026",
+      "text": "Docling Restaurant 2026"
+    }
+  ],
+  "pictures": [],
+  "tables": [
+    {
+      "self_ref": "#/tables/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Nr.",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Item Description",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "Quantity",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "I",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Coffee",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "1",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "II",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Lunch",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "2",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "III",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Cake",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "1",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          }
+        ],
+        "num_rows": 4,
+        "num_cols": 3,
+        "grid": [
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Nr.",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Item Description",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Quantity",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "I",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Coffee",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "1",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "II",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Lunch",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "2",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "III",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Cake",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "1",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ]
+        ]
+      },
+      "annotations": []
+    }
+  ],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

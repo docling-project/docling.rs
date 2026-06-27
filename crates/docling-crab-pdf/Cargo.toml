@@ -1,0 +1,20 @@
+[package]
+name = "docling-crab-pdf"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+# pdfium-render / ort need a newer compiler than the std-only crates' MSRV.
+rust-version = "1.82"
+description = "PDF backend for docling-crab: pdfium text extraction + ONNX layout/table/OCR pipeline"
+
+[dependencies]
+docling-crab-core = { path = "../docling-crab-core" }
+pdfium-render = "0.8"
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "download-binaries", "tls-rustls"] }
+image = "0.25"
+flate2 = "1"
+tar = "0.4"
+regex = "1.11"
+
+[lib]
+name = "docling_crab_pdf"

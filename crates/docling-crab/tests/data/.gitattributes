@@ -1,0 +1,2 @@
+# Regression corpus: preserve exact bytes (line endings matter for conformance).
+* -text

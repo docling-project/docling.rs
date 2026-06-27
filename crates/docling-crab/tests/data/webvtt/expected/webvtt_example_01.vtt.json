@@ -1,0 +1,228 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "webvtt_example_01",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 12969864533841576258,
+    "filename": "webvtt_example_01"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/texts/6"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/texts/9"
+      },
+      {
+        "$ref": "#/texts/10"
+      },
+      {
+        "$ref": "#/texts/11"
+      },
+      {
+        "$ref": "#/texts/12"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "We are in New York City",
+      "text": "We are in New York City"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "We’re actually at the Lucern Hotel, just down the street",
+      "text": "We’re actually at the Lucern Hotel, just down the street"
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "from the American Museum of Natural History",
+      "text": "from the American Museum of Natural History"
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "And with me is Neil deGrasse Tyson",
+      "text": "And with me is Neil deGrasse Tyson"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Astrophysicist, Director of the Hayden Planetarium",
+      "text": "Astrophysicist, Director of the Hayden Planetarium"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "at the AMNH.",
+      "text": "at the AMNH."
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Thank you for walking down here.",
+      "text": "Thank you for walking down here."
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "And I want to do a follow-up on the last conversation we did.",
+      "text": "And I want to do a follow-up on the last conversation we did."
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "When we e-mailed—",
+      "text": "When we e-mailed—"
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Didn’t we talk about enough in that conversation?",
+      "text": "Didn’t we talk about enough in that conversation?"
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "No! No no no no; 'cos 'cos obviously 'cos",
+      "text": "No! No no no no; 'cos 'cos obviously 'cos"
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "*Laughs*",
+      "text": "*Laughs*"
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "You know I’m so excited my glasses are falling off here.",
+      "text": "You know I’m so excited my glasses are falling off here."
+    }
+  ],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

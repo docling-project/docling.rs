@@ -1,0 +1,149 @@
+//! PDF backend for docling-crab.
+//!
+//! A port of docling's standard PDF pipeline: pdfium extracts the text layer
+//! (cells with bounding boxes) and renders page images; a discriminative ONNX
+//! stack (layout detection, table structure, OCR) classifies regions; the cells
+//! are assembled in reading order into a [`DoclingDocument`].
+//!
+//! Current stages: pdfium text-cell extraction + page rendering ([`pdfium_backend`])
+//! and the deterministic text/reading-order assembly ([`assemble`]). The layout,
+//! table-structure and OCR ONNX stages land behind [`Pipeline`] next.
+
+mod assemble;
+pub mod layout;
+mod mets;
+mod ocr;
+mod pdfium_backend;
+
+use std::fmt;
+
+use docling_crab_core::DoclingDocument;
+
+pub use mets::convert_mets_gbs;
+pub use pdfium_backend::{PdfDocument, PdfPage, TextCell};
+
+/// Errors from the PDF backend. Detailed and surfaced (never silently skipped).
+#[derive(Debug)]
+pub enum PdfError {
+    /// pdfium failed to bind, open, or read the document.
+    Pdfium(String),
+    /// The layout ONNX model failed to load or run.
+    Layout(String),
+    /// The OCR ONNX model failed to load or run.
+    Ocr(String),
+}
+
+impl fmt::Display for PdfError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PdfError::Pdfium(m) => write!(f, "pdf: pdfium error: {m}"),
+            PdfError::Layout(m) => write!(f, "pdf: {m}"),
+            PdfError::Ocr(m) => write!(f, "pdf: {m}"),
+        }
+    }
+}
+
+impl std::error::Error for PdfError {}
+
+/// A reusable PDF pipeline: the layout model is loaded once and reused across
+/// documents; OCR loads lazily the first time a scanned page is seen.
+pub struct Pipeline {
+    layout: layout::LayoutModel,
+    ocr: Option<ocr::OcrModel>,
+}
+
+impl Pipeline {
+    /// Load the layout model (the only always-required model).
+    pub fn new() -> Result<Self, PdfError> {
+        Ok(Self {
+            layout: layout::LayoutModel::load().map_err(PdfError::Layout)?,
+            ocr: None,
+        })
+    }
+
+    /// Convert a PDF (bytes) to a [`DoclingDocument`] via the discriminative
+    /// pipeline: pdfium text cells (or OCR for scanned pages) + per-page layout
+    /// detection, assembled in reading order. Errors are detailed and surfaced.
+    pub fn convert(
+        &mut self,
+        bytes: &[u8],
+        password: Option<&str>,
+        name: &str,
+    ) -> Result<DoclingDocument, PdfError> {
+        let parsed =
+            PdfDocument::open(bytes, password).map_err(|e| PdfError::Pdfium(e.to_string()))?;
+        self.process_pages(parsed.pages, name)
+    }
+
+    /// Convert a standalone image (PNG/JPEG/TIFF/WebP/…) as a single page —
+    /// docling routes images through the same layout+OCR pipeline as a PDF page.
+    pub fn convert_image(&mut self, bytes: &[u8], name: &str) -> Result<DoclingDocument, PdfError> {
+        let image = image::load_from_memory(bytes)
+            .map_err(|e| PdfError::Pdfium(format!("image: {e}")))?
+            .into_rgb8();
+        let (w, h) = image.dimensions();
+        // The image is its own page rendered at 1 px per "point" (scale 1.0); a
+        // standalone image has no text layer, so OCR supplies the cells.
+        let page = PdfPage {
+            width: w as f32,
+            height: h as f32,
+            scale: 1.0,
+            cells: Vec::new(),
+            image,
+        };
+        self.process_pages(vec![page], name)
+    }
+
+    /// Run layout (+ OCR for cell-less pages) and assemble each page.
+    fn process_pages(
+        &mut self,
+        mut pages: Vec<PdfPage>,
+        name: &str,
+    ) -> Result<DoclingDocument, PdfError> {
+        let mut doc = DoclingDocument::new(name);
+        for (n, page) in pages.iter_mut().enumerate() {
+            let regions = self
+                .layout
+                .predict(&page.image, page.width, page.height)
+                .map_err(|e| PdfError::Layout(format!("page {}: {e}", n + 1)))?;
+            // Resolve overlapping detections once, before OCR.
+            let regions = assemble::resolve(regions);
+            // No text layer → recognise text from the page image via OCR.
+            if page.cells.is_empty() {
+                if self.ocr.is_none() {
+                    self.ocr = Some(ocr::OcrModel::load().map_err(PdfError::Ocr)?);
+                }
+                let cells = self
+                    .ocr
+                    .as_mut()
+                    .unwrap()
+                    .ocr_page(&page.image, &regions, page.scale)
+                    .map_err(|e| PdfError::Ocr(format!("page {}: {e}", n + 1)))?;
+                page.cells = cells;
+            }
+            assemble::assemble_page(page, regions, &mut doc);
+        }
+        Ok(doc)
+    }
+}
+
+/// Convenience one-shot conversion (loads the pipeline per call). Errors are
+/// detailed and surfaced (never silently skipped).
+pub fn convert(
+    bytes: &[u8],
+    password: Option<&str>,
+    name: &str,
+) -> Result<DoclingDocument, PdfError> {
+    Pipeline::new()?.convert(bytes, password, name)
+}
+
+/// Convenience one-shot image conversion (loads the pipeline per call).
+pub fn convert_image(bytes: &[u8], name: &str) -> Result<DoclingDocument, PdfError> {
+    Pipeline::new()?.convert_image(bytes, name)
+}
+
+/// Convert pre-segmented pages (image + already-known text cells, e.g. METS/hOCR
+/// scans) through the shared layout + assembly pipeline.
+pub fn convert_pages(pages: Vec<PdfPage>, name: &str) -> Result<DoclingDocument, PdfError> {
+    Pipeline::new()?.process_pages(pages, name)
+}

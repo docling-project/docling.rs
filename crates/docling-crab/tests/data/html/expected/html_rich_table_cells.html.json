@@ -1,0 +1,1381 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "html_rich_table_cells",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 5421586991964531070,
+    "filename": "html_rich_table_cells"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/tables/1"
+      },
+      {
+        "$ref": "#/tables/2"
+      },
+      {
+        "$ref": "#/tables/3"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "title",
+      "prov": [],
+      "orig": "Rich Table Cells in HTML",
+      "text": "Rich Table Cells in HTML"
+    }
+  ],
+  "pictures": [],
+  "tables": [
+    {
+      "self_ref": "#/tables/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Name",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Habitat",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "Comment",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Wood Duck",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "Often seen near ponds.",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Mallard",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Ponds, lakes, rivers",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "Quack",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Goose (not a duck!)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Water & wetlands",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "**Large** , *loud* , noisy , ~~small~~",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Teal",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "- Pond\n- Marsh\n- Riverbank",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "1. Fly south in winter\n2. Build nest on ground",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          }
+        ],
+        "num_rows": 5,
+        "num_cols": 3,
+        "grid": [
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Name",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Habitat",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Comment",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Wood Duck",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Often seen near ponds.",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Mallard",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Ponds, lakes, rivers",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Quack",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Goose (not a duck!)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Water & wetlands",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "**Large** , *loud* , noisy , ~~small~~",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Teal",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "- Pond\n- Marsh\n- Riverbank",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "1. Fly south in winter\n2. Build nest on ground",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ]
+        ]
+      },
+      "annotations": []
+    },
+    {
+      "self_ref": "#/tables/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Genus",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Species",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Aythya\n(Diving ducks)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Hawser, Common Pochard",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Lophonetta\n(Pintail group)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Fulvous Whistling Duck",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Oxyura\n(Benthic ducks)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Wigee, Banded Water-screw",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          }
+        ],
+        "num_rows": 4,
+        "num_cols": 2,
+        "grid": [
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Genus",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Species",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Aythya\n(Diving ducks)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Hawser, Common Pochard",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Lophonetta\n(Pintail group)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Fulvous Whistling Duck",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Oxyura\n(Benthic ducks)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Wigee, Banded Water-screw",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ]
+        ]
+      },
+      "annotations": []
+    },
+    {
+      "self_ref": "#/tables/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Action",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Action",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "**Swim**",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Gracefully glide on H 2 O surfaces.",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "*Fly*",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Quack",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Type Sound Short \"quak\" Long \"quaaaaaack\"",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          }
+        ],
+        "num_rows": 4,
+        "num_cols": 2,
+        "grid": [
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Action",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Action",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "**Swim**",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Gracefully glide on H 2 O surfaces.",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "*Fly*",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Quack",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Type Sound Short \"quak\" Long \"quaaaaaack\"",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ]
+        ]
+      },
+      "annotations": []
+    },
+    {
+      "self_ref": "#/tables/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Name",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Description",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "Image",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Donald Duck",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Cartoon character.",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "[View PNG](https://en.wikipedia.org/wiki/Donald_Duck#/media/File:Donald_Duck_angry_transparent_background.png)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "White-headed duck",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "A small diving duck some 45 cm (18 in) long.",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "White-headed duck thumbnail\n\n<!-- image -->",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Mandarin Duck",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Known for its striking plumage.",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "[View Full-Size Image](https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Mandarin_duck_%28Aix_galericulata%29.jpg/250px-Mandarin_duck_%28Aix_galericulata%29.jpg)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Unknown Duck",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "No photo available.",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          }
+        ],
+        "num_rows": 5,
+        "num_cols": 3,
+        "grid": [
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Name",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Description",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Image",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Donald Duck",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Cartoon character.",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "[View PNG](https://en.wikipedia.org/wiki/Donald_Duck#/media/File:Donald_Duck_angry_transparent_background.png)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "White-headed duck",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "A small diving duck some 45 cm (18 in) long.",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "White-headed duck thumbnail\n\n<!-- image -->",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Mandarin Duck",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Known for its striking plumage.",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "[View Full-Size Image](https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Mandarin_duck_%28Aix_galericulata%29.jpg/250px-Mandarin_duck_%28Aix_galericulata%29.jpg)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Unknown Duck",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "No photo available.",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ]
+        ]
+      },
+      "annotations": []
+    }
+  ],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

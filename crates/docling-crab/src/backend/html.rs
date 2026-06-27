@@ -1,0 +1,926 @@
+//! HTML backend.
+//!
+//! Parses HTML with `scraper` (html5ever — the same HTML5 tree-construction
+//! algorithm browsers use) and walks the DOM into a [`DoclingDocument`]. This
+//! is the Rust counterpart of `docling/backend/html_backend.py`'s `_walk`.
+//!
+//! Scope (Phase 2): block structure (headings, paragraphs, nested lists,
+//! tables, code blocks, figures/images) and inline formatting (bold, italic,
+//! inline code, links). Out of scope for now and tracked in `MIGRATION.md`:
+//! browser rendering, bounding boxes, forms, and the rich per-cell table
+//! provenance the Python backend computes.
+
+use docling_crab_core::{DoclingDocument, Node, Table};
+use scraper::{ElementRef, Html, Node as HtmlNode, Selector};
+
+use crate::backend::DeclarativeBackend;
+use crate::error::ConversionError;
+use crate::source::SourceDocument;
+
+pub struct HtmlBackend;
+
+impl DeclarativeBackend for HtmlBackend {
+    fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
+        let mut doc = DoclingDocument::new(&source.name);
+        append_fragment(source.text()?, &mut doc.nodes);
+        Ok(doc)
+    }
+}
+
+/// Parse an HTML fragment and append its block nodes to `out`. Shared with the
+/// Markdown backend, which feeds embedded raw-HTML blocks through here (as
+/// docling does).
+pub(crate) fn append_fragment(html: &str, out: &mut Vec<Node>) {
+    let parsed = Html::parse_document(html);
+    // Prefer <body>; fall back to the root element for fragments.
+    let body = Selector::parse("body")
+        .ok()
+        .and_then(|s| parsed.select(&s).next());
+    let root = body.unwrap_or_else(|| parsed.root_element());
+    walk_block(root, out, 0, Fmt::default());
+}
+
+/// Tags whose content is not document text and should be skipped wholesale.
+fn is_skipped(name: &str) -> bool {
+    matches!(
+        name,
+        "script" | "style" | "head" | "title" | "noscript" | "template" | "svg"
+    )
+}
+
+/// Block-level tags: encountering one flushes any buffered inline text.
+fn is_block(name: &str) -> bool {
+    matches!(
+        name,
+        "h1" | "h2"
+            | "h3"
+            | "h4"
+            | "h5"
+            | "h6"
+            | "p"
+            | "ul"
+            | "ol"
+            | "pre"
+            | "table"
+            | "figure"
+            | "blockquote"
+            | "div"
+            | "section"
+            | "article"
+            | "main"
+            | "header"
+            | "footer"
+            | "nav"
+            | "aside"
+            | "details"
+            | "hr"
+            | "dl"
+            | "body"
+            | "html"
+    )
+}
+
+/// Walk the block-level children of `elem`, emitting [`Node`]s. Inline content
+/// found directly between block elements is buffered and flushed as paragraphs.
+/// `base` seeds the inline formatting — table cells pass `raw` so their text is
+/// not `&<>`/`_` escaped.
+fn walk_block(elem: ElementRef, nodes: &mut Vec<Node>, list_level: u8, base: Fmt) {
+    let mut inline: Vec<String> = Vec::new();
+
+    for child in elem.children() {
+        match child.value() {
+            HtmlNode::Text(text) => {
+                let run = normalize_ws(text);
+                if !run.is_empty() {
+                    inline.push(serialize_run(&run, base, None));
+                }
+            }
+            HtmlNode::Element(e) => {
+                let Some(cref) = ElementRef::wrap(child) else {
+                    continue;
+                };
+                let name = e.name();
+                if is_skipped(name) || e.attr("hidden").is_some() {
+                    continue;
+                }
+                if name == "img" {
+                    // A block-level image becomes a figure/picture, matching the
+                    // Python backend (inline images inside text stay inline).
+                    flush_inline(&mut inline, nodes);
+                    nodes.push(Node::Picture {
+                        caption: e.attr("alt").filter(|a| !a.is_empty()).map(str::to_string),
+                        image: None,
+                    });
+                } else if name == "signature" || name == "stamp" {
+                    // docling turns these into an image annotated with the kind.
+                    flush_inline(&mut inline, nodes);
+                    nodes.push(Node::Picture { caption: None, image: None });
+                    let mut label = name.to_string();
+                    label[..1].make_ascii_uppercase();
+                    nodes.push(Node::Paragraph { text: label });
+                } else if is_block(name) {
+                    flush_inline(&mut inline, nodes);
+                    handle_block(cref, name, nodes, list_level, base);
+                } else if let Some(caption) = image_wrapper(cref) {
+                    // An inline wrapper (e.g. `<a>`) around only an image: docling
+                    // pulls the image out as a Picture and drops the wrapper.
+                    flush_inline(&mut inline, nodes);
+                    nodes.push(Node::Picture { caption, image: None });
+                } else {
+                    collect_element(cref, base, None, &mut inline);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    flush_inline(&mut inline, nodes);
+}
+
+fn flush_inline(buf: &mut Vec<String>, nodes: &mut Vec<Node>) {
+    if !buf.is_empty() {
+        let text = finalize(buf);
+        if !text.is_empty() {
+            nodes.push(Node::Paragraph { text });
+        }
+    }
+    buf.clear();
+}
+
+fn handle_block(elem: ElementRef, name: &str, nodes: &mut Vec<Node>, list_level: u8, base: Fmt) {
+    match name {
+        "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+            let level: u8 = name[1..].parse().unwrap_or(1);
+            let text = render_inline_fmt(elem, base);
+            if !text.is_empty() {
+                nodes.push(Node::Heading { level, text });
+            }
+        }
+        "p" => {
+            // A paragraph whose only content is inline code becomes a code block.
+            if let Some(code) = lone_code(elem) {
+                nodes.push(Node::Code {
+                    language: None,
+                    text: code,
+                });
+            } else {
+                let text = render_inline_fmt(elem, base);
+                if !text.is_empty() {
+                    nodes.push(Node::Paragraph { text });
+                }
+            }
+        }
+        "ul" | "ol" => walk_list(elem, name == "ol", nodes, list_level, base),
+        "dl" => walk_dl(elem, nodes, list_level, base),
+        "pre" => {
+            // A <pre> with inline structure (links/formatting) renders each
+            // segment as inline code; a plain <pre> is a code block.
+            let mut runs = Vec::new();
+            collect_runs(elem, Fmt { code: true, ..base }, None, &mut runs);
+            if runs.len() > 1 {
+                nodes.push(Node::Paragraph {
+                    text: runs.join(" "),
+                });
+            } else {
+                let (language, text) = extract_pre(elem);
+                nodes.push(Node::Code { language, text });
+            }
+        }
+        "table" => {
+            if base.raw {
+                // A table nested in a cell is flattened to its grid cells joined
+                // with spaces (docling's `_collect_subtree_text`).
+                let text = parse_table(elem)
+                    .map(|t| {
+                        t.rows
+                            .iter()
+                            .flatten()
+                            .filter(|c| !c.is_empty())
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    })
+                    .unwrap_or_default();
+                if !text.is_empty() {
+                    nodes.push(Node::Paragraph { text });
+                }
+            } else if let Some(table) = parse_table(elem) {
+                nodes.push(Node::Table(table));
+            }
+        }
+        "figure" => nodes.push(Node::Picture {
+            caption: figure_caption(elem),
+            image: None,
+        }),
+        "hr" => {}
+        // Transparent containers (div, section, blockquote, …): recurse.
+        _ => walk_block(elem, nodes, list_level, base),
+    }
+}
+
+/// Emit one `ListItem` per `<li>`, recursing into nested `<ul>`/`<ol>` at a
+/// deeper level. Ordered items are numbered from the list's `start` attribute.
+fn walk_list(list: ElementRef, ordered: bool, nodes: &mut Vec<Node>, level: u8, base: Fmt) {
+    let mut number = list
+        .value()
+        .attr("start")
+        .and_then(|s| s.trim().parse().ok())
+        .filter(|_| ordered)
+        .unwrap_or(1);
+    for child in list.children() {
+        let Some(li) = ElementRef::wrap(child) else {
+            continue;
+        };
+        if li.value().name() != "li" {
+            continue;
+        }
+
+        // The item's own inline text, then its block content. Images fold into
+        // the item text (so the list stays tight); nested lists follow as
+        // adjacent items in the same run.
+        let mut runs: Vec<String> = Vec::new();
+        collect_li_inline(li, base, &mut runs);
+        let mut text = finalize(&runs);
+        let mut nested: Vec<(&str, ElementRef)> = Vec::new();
+        append_li_blocks(li, &mut text, &mut nested);
+        if !text.is_empty() {
+            nodes.push(Node::ListItem {
+                ordered,
+                number,
+                // HTML sibling lists separate only on a kind flip / ordered
+                // restart, both handled by the serializer's heuristic.
+                first_in_list: false,
+                text,
+                level,
+            });
+        }
+        number += 1;
+        for (kind, el) in nested {
+            match kind {
+                "ol" => walk_list(el, true, nodes, level + 1, base),
+                "dl" => walk_dl(el, nodes, level, base),
+                _ => walk_list(el, false, nodes, level + 1, base),
+            }
+        }
+    }
+}
+
+/// Collect a list item's own inline text. Images and nested lists are pulled out
+/// as blocks (handled by `walk_li_blocks`); `<p>`/`<div>` wrappers are folded in.
+fn collect_li_inline(li: ElementRef, base: Fmt, runs: &mut Vec<String>) {
+    for child in li.children() {
+        match child.value() {
+            HtmlNode::Text(t) => {
+                let run = normalize_ws(t);
+                if !run.is_empty() {
+                    runs.push(serialize_run(&run, base, None));
+                }
+            }
+            HtmlNode::Element(e) => {
+                let Some(cref) = ElementRef::wrap(child) else {
+                    continue;
+                };
+                if e.attr("hidden").is_some() {
+                    continue;
+                }
+                match e.name() {
+                    "ul" | "ol" | "dl" | "img" => {} // pulled out as blocks
+                    "p" | "div" | "section" | "article" | "blockquote" => {
+                        collect_li_inline(cref, base, runs)
+                    }
+                    _ => collect_element(cref, base, None, runs),
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Append a `<li>`'s block content: an image folds into the item text as a
+/// `<!-- image -->` marker (so the list stays tight); nested lists are collected
+/// for emission as adjacent items. Recurses through `<div>` wrappers.
+fn append_li_blocks<'a>(
+    elem: ElementRef<'a>,
+    text: &mut String,
+    nested: &mut Vec<(&'a str, ElementRef<'a>)>,
+) {
+    for child in elem.children().filter_map(ElementRef::wrap) {
+        let e = child.value();
+        if e.attr("hidden").is_some() {
+            continue;
+        }
+        match e.name() {
+            "img" => {
+                text.push('\n');
+                if let Some(alt) = e.attr("alt").filter(|a| !a.is_empty()) {
+                    text.push_str(&normalize_ws(alt));
+                    text.push('\n');
+                }
+                text.push_str("<!-- image -->");
+            }
+            "ul" => nested.push(("ul", child)),
+            "ol" => nested.push(("ol", child)),
+            "dl" => nested.push(("dl", child)),
+            "p" | "div" | "section" | "blockquote" => append_li_blocks(child, text, nested),
+            _ => {}
+        }
+    }
+}
+
+/// A description list: each `<dt>` is a bold list item, each `<dd>` an item one
+/// level deeper, recursing into nested `<dl>`/`<ul>`/`<ol>` (docling's rendering).
+fn walk_dl(dl: ElementRef, nodes: &mut Vec<Node>, level: u8, base: Fmt) {
+    let bold = Fmt { bold: true, ..base };
+    for child in dl.children() {
+        let Some(c) = ElementRef::wrap(child) else {
+            continue;
+        };
+        match c.value().name() {
+            "dt" => {
+                let text = render_inline_fmt(c, bold);
+                if !text.is_empty() {
+                    nodes.push(Node::ListItem {
+                        ordered: false,
+                        number: 1,
+                        // docling does not blank-separate description lists.
+                        first_in_list: false,
+                        text,
+                        level,
+                    });
+                }
+            }
+            "dd" => walk_dd(c, nodes, level + 1, base),
+            _ => {}
+        }
+    }
+}
+
+/// A `<dd>`: its own inline text becomes an item at `level`, and any nested
+/// `<dl>`/`<ul>`/`<ol>` is walked at the same level.
+fn walk_dd(dd: ElementRef, nodes: &mut Vec<Node>, level: u8, base: Fmt) {
+    let mut runs: Vec<String> = Vec::new();
+    let mut nested: Vec<(&str, ElementRef)> = Vec::new();
+    for child in dd.children() {
+        match child.value() {
+            HtmlNode::Text(t) => {
+                let run = normalize_ws(t);
+                if !run.is_empty() {
+                    runs.push(serialize_run(&run, base, None));
+                }
+            }
+            HtmlNode::Element(e) => {
+                let Some(cref) = ElementRef::wrap(child) else {
+                    continue;
+                };
+                match e.name() {
+                    "dl" | "ul" | "ol" => nested.push((e.name(), cref)),
+                    _ => collect_element(cref, base, None, &mut runs),
+                }
+            }
+            _ => {}
+        }
+    }
+    let text = finalize(&runs);
+    if !text.is_empty() {
+        nodes.push(Node::ListItem {
+            ordered: false,
+            number: 1,
+            first_in_list: false,
+            text,
+            level,
+        });
+    }
+    for (kind, el) in nested {
+        match kind {
+            "dl" => walk_dl(el, nodes, level, base),
+            "ol" => walk_list(el, true, nodes, level, base),
+            _ => walk_list(el, false, nodes, level, base),
+        }
+    }
+}
+
+/// Active inline formatting, accumulated from ancestor tags (mirrors docling's
+/// `_FORMAT_TAG_MAP`). `underline`/`sub`/`sup` carry no Markdown marker but
+/// still split runs; they're therefore not tracked here. `raw` suppresses
+/// `&<>`/`_` escaping — docling escapes body text but not table-cell text.
+#[derive(Clone, Copy, Default)]
+struct Fmt {
+    bold: bool,
+    italic: bool,
+    strike: bool,
+    code: bool,
+    raw: bool,
+}
+
+/// Collect the inline content of `elem` as a Markdown string, the docling way:
+/// each text node becomes a "run" carrying its ancestor formatting, and runs are
+/// re-joined with single spaces (so `<a>x</a>.` → `[x](…) .`).
+fn render_inline_fmt(elem: ElementRef, base: Fmt) -> String {
+    let mut runs: Vec<String> = Vec::new();
+    collect_runs(elem, base, None, &mut runs);
+    finalize(&runs)
+}
+
+/// docling represents a `<br>` with a sentinel that the serializer rewrites.
+const BR_SENTINEL: &str = "\u{e000}";
+
+/// Join runs with single spaces, then turn `<br>` sentinels into newlines,
+/// stripping the spaces the join inserted around them.
+fn finalize(runs: &[String]) -> String {
+    let joined = runs.join(" ");
+    if !joined.contains(BR_SENTINEL) {
+        return joined;
+    }
+    // " <br> " → "\n", stripping the spaces on both sides (docling's
+    // `re.sub(r" *\n *", "\n")`).
+    let nl = joined.replace(BR_SENTINEL, "\n");
+    let segments: Vec<&str> = nl.split('\n').collect();
+    let last = segments.len() - 1;
+    let mut out = String::with_capacity(nl.len());
+    for (i, seg) in segments.iter().enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        out.push_str(match (i, i == last) {
+            (0, _) => seg.trim_end(),
+            (_, true) => seg.trim_start(),
+            _ => seg.trim(),
+        });
+    }
+    out.trim_matches('\n').to_string()
+}
+
+fn collect_runs(elem: ElementRef, fmt: Fmt, hyperlink: Option<&str>, runs: &mut Vec<String>) {
+    for child in elem.children() {
+        match child.value() {
+            HtmlNode::Text(text) => {
+                let normalized = normalize_ws(text);
+                if !normalized.is_empty() {
+                    runs.push(serialize_run(&normalized, fmt, hyperlink));
+                }
+            }
+            HtmlNode::Element(_) => {
+                if let Some(cref) = ElementRef::wrap(child) {
+                    collect_element(cref, fmt, hyperlink, runs);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Process one inline element, applying its own tag (formatting / link / image)
+/// before recursing into its children.
+fn collect_element(elem: ElementRef, fmt: Fmt, hyperlink: Option<&str>, runs: &mut Vec<String>) {
+    let e = elem.value();
+    if e.attr("hidden").is_some() {
+        return;
+    }
+    match e.name() {
+        "b" | "strong" => collect_runs(elem, Fmt { bold: true, ..fmt }, hyperlink, runs),
+        "i" | "em" | "var" => collect_runs(
+            elem,
+            Fmt {
+                italic: true,
+                ..fmt
+            },
+            hyperlink,
+            runs,
+        ),
+        "s" | "del" | "strike" => collect_runs(
+            elem,
+            Fmt {
+                strike: true,
+                ..fmt
+            },
+            hyperlink,
+            runs,
+        ),
+        "code" | "kbd" | "samp" => collect_runs(elem, Fmt { code: true, ..fmt }, hyperlink, runs),
+        // Underline / sub / sup carry no marker but still split runs.
+        "u" | "ins" | "sub" | "sup" => collect_runs(elem, fmt, hyperlink, runs),
+        // A single <br> becomes a newline within the block (see `finalize`).
+        "br" => runs.push(BR_SENTINEL.to_string()),
+        "a" => {
+            let href = e.attr("href").map(normalize_url);
+            collect_runs(elem, fmt, href.as_deref().or(hyperlink), runs);
+        }
+        "img" => {
+            if let Some(alt) = e.attr("alt").filter(|a| !a.is_empty()) {
+                runs.push(format!("![{alt}](#)"));
+            }
+        }
+        "script" | "style" => {}
+        // Transparent container (span, time, abbr, …): recurse.
+        _ => collect_runs(elem, fmt, hyperlink, runs),
+    }
+}
+
+/// Normalize an absolute `http(s)` URL the way docling's `pydantic.AnyUrl` does:
+/// a bare scheme + host (no path) gets a trailing slash. Other URLs (relative
+/// paths, fragments) are left as-is.
+fn normalize_url(href: &str) -> String {
+    if let Some(rest) = href
+        .strip_prefix("https://")
+        .or_else(|| href.strip_prefix("http://"))
+    {
+        if !rest.is_empty() && !rest.contains('/') {
+            return format!("{href}/");
+        }
+    }
+    href.to_string()
+}
+
+/// Apply formatting markers to a single run, in docling's order: code
+/// (innermost, literal) → bold → italic → strikethrough → hyperlink (outermost).
+fn serialize_run(text: &str, fmt: Fmt, hyperlink: Option<&str>) -> String {
+    let mut res = if fmt.code {
+        format!("`{text}`")
+    } else if fmt.raw {
+        text.to_string()
+    } else {
+        super::markdown::escape_html(&super::markdown::escape_underscores(text))
+    };
+    if fmt.bold {
+        res = format!("**{res}**");
+    }
+    if fmt.italic {
+        res = format!("*{res}*");
+    }
+    if fmt.strike {
+        res = format!("~~{res}~~");
+    }
+    if let Some(href) = hyperlink {
+        res = format!("[{res}]({href})");
+    }
+    res
+}
+
+fn extract_pre(pre: ElementRef) -> (Option<String>, String) {
+    let mut language = Selector::parse("code")
+        .ok()
+        .and_then(|sel| pre.select(&sel).next())
+        .and_then(|code| code.value().attr("class").map(str::to_string))
+        .and_then(|c| lang_from_class(&c));
+    if language.is_none() {
+        language = pre.value().attr("class").and_then(lang_from_class);
+    }
+    let text = pre.text().collect::<String>();
+    (language, text.trim_matches('\n').to_string())
+}
+
+/// Extract a language hint from a `class` like `language-rust` or `lang-rust`.
+fn lang_from_class(class: &str) -> Option<String> {
+    class.split_whitespace().find_map(|c| {
+        c.strip_prefix("language-")
+            .or_else(|| c.strip_prefix("lang-"))
+            .map(str::to_string)
+    })
+}
+
+fn parse_table(table: ElementRef) -> Option<Table> {
+    // Collect this table's own rows without descending into nested tables (a
+    // recursive `select` would pull a nested table's cells into the outer grid).
+    let mut trs: Vec<ElementRef> = Vec::new();
+    for child in table.children().filter_map(ElementRef::wrap) {
+        match child.value().name() {
+            "tr" => trs.push(child),
+            "thead" | "tbody" | "tfoot" => {
+                trs.extend(
+                    child
+                        .children()
+                        .filter_map(ElementRef::wrap)
+                        .filter(|c| c.value().name() == "tr"),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    // A `<tr>` whose cells are all spanning `<th>`s is a "row header" (e.g. a
+    // rowspan label alone in its `<tr>`): it doesn't advance the row index, and
+    // its cells are offset into the following rows. `num_rows` therefore counts
+    // only non-row-header rows; cells are clamped to the `num_rows × num_cols`
+    // grid. Mirrors docling's `parse_table_data`.
+    let (mut num_rows, mut num_cols) = (0usize, 0usize);
+    for tr in &trs {
+        let cells = row_cells(*tr);
+        let col_count: usize = cells.iter().map(|c| span_attr(*c, "colspan")).sum();
+        num_cols = num_cols.max(col_count);
+        if !is_row_header(&cells) {
+            num_rows += 1;
+        }
+    }
+    if num_rows == 0 || num_cols == 0 {
+        return None;
+    }
+
+    let mut grid: Vec<Vec<Option<String>>> = vec![vec![None; num_cols]; num_rows];
+    let mut row_idx: isize = -1;
+    let mut start_row_span: usize = 0;
+    for tr in &trs {
+        let cells = row_cells(*tr);
+        let row_header = is_row_header(&cells);
+        if row_header {
+            start_row_span += 1;
+        } else {
+            row_idx += 1;
+            start_row_span = 0;
+        }
+        let base = (row_idx + start_row_span as isize).max(0) as usize;
+
+        let mut col = 0;
+        for cell in cells {
+            let colspan = span_attr(cell, "colspan");
+            let mut rowspan = span_attr(cell, "rowspan");
+            if row_header {
+                rowspan = rowspan.saturating_sub(1);
+            }
+            while col < num_cols && base < num_rows && grid[base][col].is_some() {
+                col += 1;
+            }
+            let text = render_cell(cell);
+            for r in start_row_span..start_row_span + rowspan {
+                let gr = (row_idx + r as isize).max(0) as usize;
+                for dc in 0..colspan {
+                    let gc = col + dc;
+                    if gr < num_rows && gc < num_cols {
+                        grid[gr][gc] = Some(text.clone());
+                    }
+                }
+            }
+            col += colspan;
+        }
+    }
+
+    let rows: Vec<Vec<String>> = grid
+        .into_iter()
+        .map(|row| row.into_iter().map(Option::unwrap_or_default).collect())
+        .collect();
+    (!rows.is_empty()).then_some(Table { rows })
+}
+
+/// A `<tr>`'s direct `<td>`/`<th>` cells (not nested-table cells).
+fn row_cells(tr: ElementRef) -> Vec<ElementRef> {
+    tr.children()
+        .filter_map(ElementRef::wrap)
+        .filter(|c| matches!(c.value().name(), "td" | "th"))
+        .collect()
+}
+
+/// A row is a "row header" when all its cells are spanning `<th>`s.
+fn is_row_header(cells: &[ElementRef]) -> bool {
+    !cells.is_empty()
+        && cells
+            .iter()
+            .all(|c| c.value().name() == "th" && span_attr(*c, "rowspan") > 1)
+}
+
+fn span_attr(cell: ElementRef, name: &str) -> usize {
+    cell.value()
+        .attr(name)
+        .and_then(|v| v.trim().parse().ok())
+        .filter(|&n| n >= 1)
+        .unwrap_or(1)
+}
+
+/// Render a table cell to Markdown. docling treats a cell as "rich" (and
+/// serializes its full block content — headings, paragraphs, lists, code) only
+/// when it carries structure; a single plain run is emitted as plain text.
+/// Either way inline text is left unescaped; the table serializer flattens
+/// newlines to spaces.
+fn render_cell(cell: ElementRef) -> String {
+    let raw = Fmt {
+        raw: true,
+        ..Fmt::default()
+    };
+    if is_rich_cell(cell) {
+        let mut nodes: Vec<Node> = Vec::new();
+        walk_block(cell, &mut nodes, 0, raw);
+        let mut doc = DoclingDocument::new("");
+        doc.nodes = nodes;
+        doc.export_to_markdown().trim().to_string()
+    } else {
+        render_inline_fmt(cell, raw)
+    }
+}
+
+/// docling's `_is_rich_table_cell`: a cell is rich if it has a `<br>`, more than
+/// one direct `<p>/<div>/<li>`, more than one text run, a single run carrying
+/// formatting/link/code, or only an image/input.
+fn is_rich_cell(cell: ElementRef) -> bool {
+    if has_descendant(cell, "br") {
+        return true;
+    }
+    let direct_blocks = cell
+        .children()
+        .filter_map(ElementRef::wrap)
+        .filter(|c| matches!(c.value().name(), "p" | "div" | "li"))
+        .count();
+    if direct_blocks > 1 {
+        return true;
+    }
+    let (runs, markup) = cell_richness(cell);
+    match runs {
+        0 => has_descendant(cell, "img") || has_descendant(cell, "input"),
+        1 => markup,
+        _ => true,
+    }
+}
+
+/// If `p`'s only meaningful content is a single inline-code element, return its
+/// text (docling turns such a paragraph into a code block).
+fn lone_code(p: ElementRef) -> Option<String> {
+    let mut code: Option<ElementRef> = None;
+    for child in p.children() {
+        match child.value() {
+            HtmlNode::Text(t) => {
+                if !t.trim().is_empty() {
+                    return None;
+                }
+            }
+            HtmlNode::Element(e) => {
+                if !matches!(e.name(), "code" | "kbd" | "samp") || code.is_some() {
+                    return None;
+                }
+                code = ElementRef::wrap(child);
+            }
+            _ => {}
+        }
+    }
+    code.map(|c| c.text().collect::<String>())
+}
+
+/// If `elem` wraps exactly one image and no other text, return the image's
+/// caption (its non-empty `alt`). Used to pull `<a><img></a>` out as a Picture.
+fn image_wrapper(elem: ElementRef) -> Option<Option<String>> {
+    let img_sel = Selector::parse("img").ok()?;
+    let mut imgs = elem.select(&img_sel);
+    let img = imgs.next()?;
+    if imgs.next().is_some() || !elem.text().collect::<String>().trim().is_empty() {
+        return None;
+    }
+    Some(
+        img.value()
+            .attr("alt")
+            .filter(|a| !a.is_empty())
+            .map(str::to_string),
+    )
+}
+
+fn has_descendant(elem: ElementRef, name: &str) -> bool {
+    Selector::parse(name).is_ok_and(|s| elem.select(&s).next().is_some())
+}
+
+/// Count the inline text runs in `cell` and whether any carries formatting,
+/// a hyperlink, or code (matching docling's annotation list).
+fn cell_richness(cell: ElementRef) -> (usize, bool) {
+    fn walk(elem: ElementRef, marked: bool, count: &mut usize, markup: &mut bool) {
+        for child in elem.children() {
+            match child.value() {
+                HtmlNode::Text(t) => {
+                    if !normalize_ws(t).is_empty() {
+                        *count += 1;
+                        if marked {
+                            *markup = true;
+                        }
+                    }
+                }
+                HtmlNode::Element(e) => {
+                    let Some(cref) = ElementRef::wrap(child) else {
+                        continue;
+                    };
+                    let marks = matches!(
+                        e.name(),
+                        "b" | "strong"
+                            | "i"
+                            | "em"
+                            | "var"
+                            | "s"
+                            | "del"
+                            | "strike"
+                            | "code"
+                            | "kbd"
+                            | "samp"
+                            | "a"
+                    );
+                    walk(cref, marked || marks, count, markup);
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut count = 0;
+    let mut markup = false;
+    walk(cell, false, &mut count, &mut markup);
+    (count, markup)
+}
+
+fn figure_caption(fig: ElementRef) -> Option<String> {
+    if let Some(cap) = Selector::parse("figcaption")
+        .ok()
+        .and_then(|s| fig.select(&s).next())
+    {
+        // A figure caption is plain text (formatting/links are stripped).
+        let text = normalize_ws(&cap.text().collect::<String>());
+        if !text.is_empty() {
+            return Some(text);
+        }
+    }
+    Selector::parse("img")
+        .ok()
+        .and_then(|s| fig.select(&s).next())
+        .and_then(|img| img.value().attr("alt"))
+        .filter(|a| !a.is_empty())
+        .map(str::to_string)
+}
+
+/// Sanitize typographic Unicode to ASCII (docling's HTML text cleanup) and then
+/// collapse all runs of whitespace to single spaces, trimming the ends.
+fn normalize_ws(s: &str) -> String {
+    let mut clean = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '\u{00a0}' | '\u{202f}' => clean.push(' '), // (narrow) non-breaking space
+            '\u{2010}'..='\u{2015}' => clean.push('-'), // hyphens, dashes, horizontal bar
+            '\u{2018}' | '\u{2019}' => clean.push('\''), // single quotation marks
+            '\u{201c}' | '\u{201d}' => clean.push('"'), // double quotation marks
+            '\u{2026}' => clean.push_str("..."),        // ellipsis
+            // Zero-width / soft / joiner characters are dropped.
+            '\u{200b}' | '\u{200c}' | '\u{200d}' | '\u{00ad}' | '\u{feff}' | '\u{2060}' => {}
+            _ => clean.push(ch),
+        }
+    }
+    clean.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::format::InputFormat;
+
+    fn convert(html: &str) -> DoclingDocument {
+        let src = SourceDocument::from_bytes("t", InputFormat::Html, html.as_bytes().to_vec());
+        HtmlBackend.convert(&src).unwrap()
+    }
+
+    #[test]
+    fn headings_paragraphs_and_inline_formatting() {
+        let doc = convert(
+            "<h1>Title</h1><p>Hello <strong>bold</strong> and <em>italic</em> and \
+             <a href=\"https://x.com\">link</a>.</p>",
+        );
+        assert_eq!(
+            doc.export_to_markdown(),
+            "# Title\n\nHello **bold** and *italic* and [link](https://x.com/) .\n"
+        );
+    }
+
+    #[test]
+    fn nested_lists() {
+        let doc = convert("<ul><li>one<ul><li>one-a</li></ul></li><li>two</li></ul>");
+        assert_eq!(doc.export_to_markdown(), "- one\n    - one-a\n- two\n");
+    }
+
+    #[test]
+    fn ordered_list_is_numbered_sequentially() {
+        let doc = convert("<ol><li>first</li><li>second</li></ol>");
+        assert_eq!(doc.export_to_markdown(), "1. first\n2. second\n");
+    }
+
+    #[test]
+    fn block_image_becomes_picture() {
+        let doc = convert("<img src=\"x.png\" alt=\"A cat\"/>");
+        assert_eq!(doc.export_to_markdown(), "A cat\n\n<!-- image -->\n");
+    }
+
+    #[test]
+    fn table_with_header() {
+        let doc = convert(
+            "<table><thead><tr><th>Name</th><th>Age</th></tr></thead>\
+             <tbody><tr><td>Ada</td><td>36</td></tr></tbody></table>",
+        );
+        assert_eq!(
+            doc.export_to_markdown(),
+            "| Name   |   Age |\n|--------|-------|\n| Ada    |    36 |\n"
+        );
+    }
+
+    #[test]
+    fn code_block_with_language() {
+        let doc = convert("<pre><code class=\"language-rust\">let x = 1;</code></pre>");
+        assert_eq!(
+            doc.nodes,
+            vec![Node::Code {
+                language: Some("rust".into()),
+                text: "let x = 1;".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn skips_script_and_style() {
+        let doc = convert("<style>.a{}</style><p>visible</p><script>x()</script>");
+        assert_eq!(doc.export_to_markdown(), "visible\n");
+    }
+}

@@ -1,0 +1,15 @@
+[package]
+name = "docling-crab-cli"
+description = "Command-line interface for docling-crab."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "docling-crab"
+path = "src/main.rs"
+
+[dependencies]
+docling-crab = { path = "../docling-crab" }

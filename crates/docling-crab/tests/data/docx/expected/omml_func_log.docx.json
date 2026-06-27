@@ -1,0 +1,79 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "omml_func_log",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 10663532877401121154,
+    "filename": "omml_func_log"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [],
+      "orig": "Issue 4: Missing \\log command",
+      "text": "Issue 4: Missing \\log command",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "The equation below uses <m:func> with fName='log'.\nExpected LaTeX: y = \\log(x)\nDocling produces: y = l o g(x)  (letters rendered as italic variables)\nand emits a warning about an unrecognized function name.\n\nThe <m:fName> element contains a plain-text run with style 'p' (upright).",
+      "text": "The equation below uses <m:func> with fName='log'.\nExpected LaTeX: y = \\log(x)\nDocling produces: y = l o g(x)  (letters rendered as italic variables)\nand emits a warning about an unrecognized function name.\n\nThe <m:fName> element contains a plain-text run with style 'p' (upright)."
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "formula",
+      "prov": [],
+      "orig": "y = \\log(\\left(x\\right))",
+      "text": "y = \\log(\\left(x\\right))"
+    }
+  ],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

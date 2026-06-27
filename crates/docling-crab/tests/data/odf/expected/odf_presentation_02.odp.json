@@ -1,0 +1,808 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "odf_presentation_02",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 8901522377341356156,
+    "filename": "odf_presentation_02"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/texts/9"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/2"
+        },
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/7"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/texts/3"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/4"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/2",
+      "parent": {
+        "$ref": "#/texts/4"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/5"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/3",
+      "parent": {
+        "$ref": "#/texts/3"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/6"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Complex list",
+      "text": "Complex list"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Hello",
+      "text": "Hello"
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "List item 1",
+      "text": "List item 1",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [
+        {
+          "$ref": "#/groups/1"
+        },
+        {
+          "$ref": "#/groups/3"
+        }
+      ],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "List item 2",
+      "text": "List item 2",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [
+        {
+          "$ref": "#/groups/2"
+        }
+      ],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Nested list item a",
+      "text": "Nested list item a",
+      "enumerated": true,
+      "marker": "1."
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Triple nested",
+      "text": "Triple nested",
+      "enumerated": true,
+      "marker": "1."
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/groups/3"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Nested list item b",
+      "text": "Nested list item b",
+      "enumerated": true,
+      "marker": "1."
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "closing",
+      "text": "closing",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "\n\nNext paragraph text",
+      "text": "\n\nNext paragraph text"
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Table with pictures",
+      "text": "Table with pictures"
+    }
+  ],
+  "pictures": [],
+  "tables": [
+    {
+      "self_ref": "#/tables/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Column 1",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Column 2",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "Column 3",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "Column 4",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 5,
+            "text": "Column 5",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Row 1",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Merged cells row 1-3, col 2-3",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "Merged cells row 1-3, col 2-3",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 5,
+            "text": "",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Row 2",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 5,
+            "text": "",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Row 3",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 5,
+            "text": "",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          }
+        ],
+        "num_rows": 4,
+        "num_cols": 5,
+        "grid": [
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Column 1",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Column 2",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Column 3",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "Column 4",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "Column 5",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Row 1",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Merged cells row 1-3, col 2-3",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Merged cells row 1-3, col 2-3",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Row 2",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Row 3",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ]
+        ]
+      },
+      "annotations": []
+    }
+  ],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

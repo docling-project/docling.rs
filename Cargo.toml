@@ -1,0 +1,25 @@
+# docling-crab — a Rust port of docling.
+#
+# This is the Phase 0 workspace skeleton. It is deliberately std-only (no
+# external crates yet) so it builds offline and proves the target public API
+# end to end. See MIGRATION.md for the full plan and when each dependency
+# (serde, pdfium-render, quick-xml, ...) gets introduced.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/docling-crab-core",
+    "crates/docling-crab",
+    "crates/docling-crab-cli",
+    "crates/docling-crab-pdf",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/docling-project/docling"
+rust-version = "1.74"
+
+[profile.release]
+lto = "thin"

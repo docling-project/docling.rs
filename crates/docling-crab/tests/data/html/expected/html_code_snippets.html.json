@@ -1,0 +1,208 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "html_code_snippets",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 6628855209591690243,
+    "filename": "html_code_snippets"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/texts/6"
+      },
+      {
+        "$ref": "#/groups/0"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/7"
+        },
+        {
+          "$ref": "#/texts/8"
+        },
+        {
+          "$ref": "#/texts/9"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "title",
+      "prov": [],
+      "orig": "Code snippets",
+      "text": "Code snippets"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "The Pythagorean theorem can be written as an equation relating the lengths of the sides *a* , *b* and the hypotenuse *c* .",
+      "text": "The Pythagorean theorem can be written as an equation relating the lengths of the sides *a* , *b* and the hypotenuse *c* ."
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "To use Docling, simply install `docling` from your package manager, e.g. pip: `pip install docling`",
+      "text": "To use Docling, simply install `docling` from your package manager, e.g. pip: `pip install docling`"
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "To convert individual documents with python, use `convert()` , for example:",
+      "text": "To convert individual documents with python, use `convert()` , for example:"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "code",
+      "prov": [],
+      "orig": "from docling.document_converter import DocumentConverter\n\nsource = \"https://arxiv.org/pdf/2408.09869\"\nconverter = DocumentConverter()\nresult = converter.convert(source)\nprint(result.document.export_to_markdown())",
+      "text": "from docling.document_converter import DocumentConverter\n\nsource = \"https://arxiv.org/pdf/2408.09869\"\nconverter = DocumentConverter()\nresult = converter.convert(source)\nprint(result.document.export_to_markdown())",
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "code_language": "unknown"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "The program will output: `## Docling Technical Report[...]`",
+      "text": "The program will output: `## Docling Technical Report[...]`"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Prefetch the models:",
+      "text": "Prefetch the models:"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Use the `docling-tools models download` utility:",
+      "text": "Use the `docling-tools models download` utility:",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Alternatively, models can be programmatically downloaded using `docling.utils.model_downloader.download_models()` .",
+      "text": "Alternatively, models can be programmatically downloaded using `docling.utils.model_downloader.download_models()` .",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Also, you can use download-hf-repo parameter to download arbitrary models from HuggingFace by specifying repo id: `$ docling-tools models download-hf-repo ds4sd/SmolDocling-256M-preview Downloading ds4sd/SmolDocling-256M-preview model from HuggingFace...`",
+      "text": "Also, you can use download-hf-repo parameter to download arbitrary models from HuggingFace by specifying repo id: `$ docling-tools models download-hf-repo ds4sd/SmolDocling-256M-preview Downloading ds4sd/SmolDocling-256M-preview model from HuggingFace...`",
+      "enumerated": false,
+      "marker": "-"
+    }
+  ],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

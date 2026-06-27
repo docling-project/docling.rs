@@ -1,0 +1,214 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "ipgD0701016",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 5867803781399769056,
+    "filename": "ipgD0701016"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/texts/6"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/texts/9"
+      },
+      {
+        "$ref": "#/texts/10"
+      },
+      {
+        "$ref": "#/texts/11"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "title",
+      "prov": [],
+      "orig": "Cheese in form of a triangular pyramid",
+      "text": "Cheese in form of a triangular pyramid"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "FIG. 1 is a perspective view of cheese in form of a triangular pyramid showing the new design;",
+      "text": "FIG. 1 is a perspective view of cheese in form of a triangular pyramid showing the new design;"
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "FIG. 2 is another perspective view thereof;",
+      "text": "FIG. 2 is another perspective view thereof;"
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "FIG. 3 is another perspective view thereof;",
+      "text": "FIG. 3 is another perspective view thereof;"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "FIG. 4 is a front elevational view thereof;",
+      "text": "FIG. 4 is a front elevational view thereof;"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "FIG. 5 is a rear elevational view thereof;",
+      "text": "FIG. 5 is a rear elevational view thereof;"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "FIG. 6 is a top view thereof;",
+      "text": "FIG. 6 is a top view thereof;"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "FIG. 7 is another front view thereof; and,",
+      "text": "FIG. 7 is another front view thereof; and,"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "FIG. 8 is a right side view thereof.",
+      "text": "FIG. 8 is a right side view thereof."
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "The broken lines shown in the drawings represent portions of the cheese in form of a triangular pyramid which form no part of the claimed design.",
+      "text": "The broken lines shown in the drawings represent portions of the cheese in form of a triangular pyramid which form no part of the claimed design."
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [],
+      "orig": "CLAIMS",
+      "text": "CLAIMS",
+      "level": 2
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "The ornamental design for cheese in form of a triangular pyramid, as shown and described.",
+      "text": "The ornamental design for cheese in form of a triangular pyramid, as shown and described."
+    }
+  ],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

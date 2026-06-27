@@ -1,0 +1,48 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "powerpoint_bad_text",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 1341245921128941054,
+    "filename": "powerpoint_bad_text"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "title",
+      "prov": [],
+      "orig": "X-Library The fully customisable and copyright-free standard content template collection exclusively for our customers",
+      "text": "X-Library The fully customisable and copyright-free standard content template collection exclusively for our customers"
+    }
+  ],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

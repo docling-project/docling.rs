@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>docling-crab demo</title>
+  <style>body { font-family: sans-serif; }</style>
+</head>
+<body>
+  <h1>docling-crab</h1>
+  <p>A <strong>Rust</strong> port of <a href="https://github.com/docling-project/docling">docling</a>.</p>
+
+  <h2>Features</h2>
+  <ul>
+    <li>Simple converter API</li>
+    <li>Backends:
+      <ol>
+        <li>Markdown</li>
+        <li>CSV</li>
+        <li>HTML</li>
+      </ol>
+    </li>
+    <li>More <em>coming soon</em></li>
+  </ul>
+
+  <h2>Benchmarks</h2>
+  <table>
+    <thead>
+      <tr><th>Format</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Markdown</td><td>done</td></tr>
+      <tr><td>HTML</td><td>done</td></tr>
+      <tr><td>PDF</td><td>planned</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Usage</h2>
+  <pre><code class="language-rust">let converter = DocumentConverter::new();</code></pre>
+
+  <script>console.log("ignored");</script>
+</body>
+</html>

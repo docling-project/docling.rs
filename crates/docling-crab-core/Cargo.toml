@@ -1,0 +1,14 @@
+[package]
+name = "docling-crab-core"
+description = "Core DoclingDocument data model and serializers for docling-crab."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# serde_json builds the docling-core-compatible DoclingDocument JSON wire format
+# (export_to_json); the model itself stays plain (walked into `Value` by json.rs).
+# `preserve_order` keeps docling's field order (schema_name, version, …).
+serde_json = { version = "1", features = ["preserve_order"] }

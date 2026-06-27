@@ -1,0 +1,31 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "tables_ipa20180000016",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 3019953966449220519,
+    "filename": "tables_ipa20180000016"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}

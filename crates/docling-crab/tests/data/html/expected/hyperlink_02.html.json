@@ -1,0 +1,83 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "hyperlink_02",
+  "origin": {
+    "mimetype": "text/plain",
+    "binary_hash": 18088597639479415936,
+    "filename": "hyperlink_02"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/pictures/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [],
+      "orig": "Image alt text",
+      "text": "Image alt text"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [],
+      "orig": "[Home](/home.html)",
+      "text": "[Home](/home.html)",
+      "level": 1
+    }
+  ],
+  "pictures": [
+    {
+      "self_ref": "#/pictures/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [],
+      "captions": [
+        {
+          "$ref": "#/texts/0"
+        }
+      ],
+      "references": [],
+      "footnotes": [],
+      "annotations": []
+    }
+  ],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {}
+}
