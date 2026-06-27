@@ -5,6 +5,9 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  # Manual re-run from the Actions tab / `gh workflow run`. Runs lint + test only;
+  # the release job is gated to `push` events, so a manual run never publishes.
+  workflow_dispatch:
 
 # Cancel superseded PR runs, but never interrupt a master run (it may publish).
 concurrency:
