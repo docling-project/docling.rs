@@ -3,13 +3,16 @@
 //! A stand-in for `docling.cli.main`; the full Typer-style CLI (batch mode,
 //! pipeline options) is a later phase.
 //!
-//! Usage: fleischwolf [--strict] [--to md|json] [--images MODE] <input-file>
+//! Usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] <input-file>
 //!   --to md|json       output format (default: md). `json` emits docling-core's
 //!                      native DoclingDocument JSON (export_to_dict).
 //!   --images MODE      picture handling for Markdown (mirrors docling's
 //!                      image_mode): placeholder (default) | embedded | referenced.
 //!                      `referenced` writes image files under ./artifacts/.
 //!                      JSON always embeds extracted images as data URIs.
+//!   --fetch-images     for HTML/EPUB, resolve external <img src> (data: URIs,
+//!                      local files, http(s) URLs, EPUB archive entries) and embed
+//!                      the bytes. Off by default; fetches over the network.
 //!   --strict           cleaner, more conformant Markdown instead of byte-for-byte
 //!                      docling-legacy output (Markdown only).
 
@@ -22,11 +25,13 @@ fn main() -> ExitCode {
     let mut strict = false;
     let mut to = "md".to_string();
     let mut images = "placeholder".to_string();
+    let mut fetch_images = false;
     let mut path: Option<String> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--strict" => strict = true,
+            "--fetch-images" => fetch_images = true,
             "--to" => to = args.next().unwrap_or_default(),
             "--images" => images = args.next().unwrap_or_default(),
             _ => path = Some(arg),
@@ -50,7 +55,7 @@ fn main() -> ExitCode {
     };
 
     let Some(path) = path else {
-        eprintln!("usage: fleischwolf [--strict] [--to md|json] [--images MODE] <input-file>");
+        eprintln!("usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] <input-file>");
         return ExitCode::from(2);
     };
 
@@ -62,7 +67,11 @@ fn main() -> ExitCode {
         }
     };
 
-    let document = match DocumentConverter::new().strict(strict).convert(source) {
+    let document = match DocumentConverter::new()
+        .strict(strict)
+        .fetch_images(fetch_images)
+        .convert(source)
+    {
         Ok(result) => result.document,
         Err(e) => {
             eprintln!("error: {e}");

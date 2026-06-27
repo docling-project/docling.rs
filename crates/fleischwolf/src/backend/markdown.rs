@@ -113,7 +113,8 @@ impl MarkdownBackend {
                     }
                     consume_end(events, i);
                     // docling parses embedded raw-HTML blocks; reuse the HTML backend.
-                    super::html::append_fragment(&html, out);
+                    // Embedded HTML never fetches images.
+                    super::html::append_fragment(&html, out, &super::images::NoFetch);
                 }
                 Event::Start(Tag::BlockQuote(_)) => {
                     *i += 1;

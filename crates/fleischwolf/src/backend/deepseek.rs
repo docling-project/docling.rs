@@ -157,7 +157,7 @@ fn emit(label: &str, content: &str, caption: Option<String>, doc: &mut DoclingDo
             if let Some(cap) = caption {
                 doc.push(Node::Paragraph { text: cap });
             }
-            append_fragment(content, &mut doc.nodes);
+            append_fragment(content, &mut doc.nodes, &crate::backend::images::NoFetch);
         }
         "title" => doc.push(Node::Heading {
             level: 1,

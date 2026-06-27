@@ -52,9 +52,10 @@ round-trips to the same Markdown.
 ### Image extraction
 
 Backends that have the image populate `Node::Picture { image }`: the PDF/image
-pipeline crops figure regions, and the DOCX / PPTX backends pull embedded image
-blobs. Pick how pictures render with an [`ImageMode`] — the analogue of
-docling's `image_mode`:
+pipeline crops figure regions, the DOCX / PPTX backends pull embedded image
+blobs, and — opt-in — the HTML / EPUB backends fetch `<img src>` (see below).
+Pick how pictures render with an [`ImageMode`] — the analogue of docling's
+`image_mode`:
 
 ```rust
 use fleischwolf::ImageMode;
@@ -72,8 +73,12 @@ for (path, bytes) in files { std::fs::write(path, bytes).unwrap(); }
 `<!-- image -->`, like docling.
 
 > The cropped/extracted pixels are real, but the base64 won't be byte-identical
-> to docling's (different PNG encoder). HTML/EPUB pictures stay placeholders —
-> like docling, external `<img src>` files aren't fetched.
+> to docling's (different PNG encoder). HTML/EPUB pictures stay placeholders by
+> default (like docling); enable fetching with `--fetch-images` /
+> `DocumentConverter::fetch_images(true)` to resolve `<img src>` — `data:` URIs,
+> local files, remote `http(s)` URLs, and EPUB archive entries — and embed the
+> bytes. Remote URLs are fetched over the network, so enable it only for input
+> you trust.
 
 ### `strict` Markdown (Rust-only)
 

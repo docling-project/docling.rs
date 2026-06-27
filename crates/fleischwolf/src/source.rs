@@ -4,7 +4,7 @@
 //! `SourceDocument` holds the raw bytes plus a resolved [`InputFormat`]; it is
 //! what you hand to [`crate::DocumentConverter::convert`].
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::error::ConversionError;
 use crate::format::InputFormat;
@@ -15,6 +15,10 @@ pub struct SourceDocument {
     pub name: String,
     pub format: InputFormat,
     pub bytes: Vec<u8>,
+    /// The filesystem path it was loaded from, if any (`from_file`). Used to
+    /// resolve relative `<img src>` paths when image fetching is enabled; `None`
+    /// for in-memory sources.
+    pub path: Option<PathBuf>,
 }
 
 impl SourceDocument {
@@ -41,6 +45,7 @@ impl SourceDocument {
             name,
             format,
             bytes,
+            path: Some(path.to_path_buf()),
         })
     }
 
@@ -50,7 +55,14 @@ impl SourceDocument {
             name: name.into(),
             format,
             bytes,
+            path: None,
         }
+    }
+
+    /// The directory containing the source file, for resolving relative asset
+    /// paths. `None` for in-memory sources.
+    pub fn base_dir(&self) -> Option<&Path> {
+        self.path.as_deref().and_then(Path::parent)
     }
 
     /// View the bytes as UTF-8 text, for text-based backends.

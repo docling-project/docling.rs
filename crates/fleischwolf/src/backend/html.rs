@@ -13,6 +13,7 @@
 use fleischwolf_core::{DoclingDocument, Node, Table};
 use scraper::{ElementRef, Html, Node as HtmlNode, Selector};
 
+use crate::backend::images::{ImageResolver, NoFetch};
 use crate::backend::DeclarativeBackend;
 use crate::error::ConversionError;
 use crate::source::SourceDocument;
@@ -21,23 +22,32 @@ pub struct HtmlBackend;
 
 impl DeclarativeBackend for HtmlBackend {
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
-        let mut doc = DoclingDocument::new(&source.name);
-        append_fragment(source.text()?, &mut doc.nodes);
-        Ok(doc)
+        // The bare backend never fetches images (it's also how the Markdown
+        // backend feeds in embedded raw HTML). Image fetching is wired through
+        // the converter, which calls `convert_html` with a real resolver.
+        Ok(convert_html(&source.name, source.text()?, &NoFetch))
     }
+}
+
+/// Convert an HTML document into a [`DoclingDocument`], resolving `<img>` sources
+/// through `images` (use [`NoFetch`] to leave every picture a placeholder).
+pub(crate) fn convert_html(name: &str, html: &str, images: &dyn ImageResolver) -> DoclingDocument {
+    let mut doc = DoclingDocument::new(name);
+    append_fragment(html, &mut doc.nodes, images);
+    doc
 }
 
 /// Parse an HTML fragment and append its block nodes to `out`. Shared with the
 /// Markdown backend, which feeds embedded raw-HTML blocks through here (as
 /// docling does).
-pub(crate) fn append_fragment(html: &str, out: &mut Vec<Node>) {
+pub(crate) fn append_fragment(html: &str, out: &mut Vec<Node>, images: &dyn ImageResolver) {
     let parsed = Html::parse_document(html);
     // Prefer <body>; fall back to the root element for fragments.
     let body = Selector::parse("body")
         .ok()
         .and_then(|s| parsed.select(&s).next());
     let root = body.unwrap_or_else(|| parsed.root_element());
-    walk_block(root, out, 0, Fmt::default());
+    walk_block(root, out, 0, Fmt::default(), images);
 }
 
 /// Tags whose content is not document text and should be skipped wholesale.
@@ -84,7 +94,13 @@ fn is_block(name: &str) -> bool {
 /// found directly between block elements is buffered and flushed as paragraphs.
 /// `base` seeds the inline formatting — table cells pass `raw` so their text is
 /// not `&<>`/`_` escaped.
-fn walk_block(elem: ElementRef, nodes: &mut Vec<Node>, list_level: u8, base: Fmt) {
+fn walk_block(
+    elem: ElementRef,
+    nodes: &mut Vec<Node>,
+    list_level: u8,
+    base: Fmt,
+    images: &dyn ImageResolver,
+) {
     let mut inline: Vec<String> = Vec::new();
 
     for child in elem.children() {
@@ -109,7 +125,7 @@ fn walk_block(elem: ElementRef, nodes: &mut Vec<Node>, list_level: u8, base: Fmt
                     flush_inline(&mut inline, nodes);
                     nodes.push(Node::Picture {
                         caption: e.attr("alt").filter(|a| !a.is_empty()).map(str::to_string),
-                        image: None,
+                        image: e.attr("src").and_then(|s| images.resolve(s)),
                     });
                 } else if name == "signature" || name == "stamp" {
                     // docling turns these into an image annotated with the kind.
@@ -123,14 +139,14 @@ fn walk_block(elem: ElementRef, nodes: &mut Vec<Node>, list_level: u8, base: Fmt
                     nodes.push(Node::Paragraph { text: label });
                 } else if is_block(name) {
                     flush_inline(&mut inline, nodes);
-                    handle_block(cref, name, nodes, list_level, base);
-                } else if let Some(caption) = image_wrapper(cref) {
+                    handle_block(cref, name, nodes, list_level, base, images);
+                } else if let Some((caption, src)) = image_wrapper(cref) {
                     // An inline wrapper (e.g. `<a>`) around only an image: docling
                     // pulls the image out as a Picture and drops the wrapper.
                     flush_inline(&mut inline, nodes);
                     nodes.push(Node::Picture {
                         caption,
-                        image: None,
+                        image: src.as_deref().and_then(|s| images.resolve(s)),
                     });
                 } else {
                     collect_element(cref, base, None, &mut inline);
@@ -153,7 +169,14 @@ fn flush_inline(buf: &mut Vec<String>, nodes: &mut Vec<Node>) {
     buf.clear();
 }
 
-fn handle_block(elem: ElementRef, name: &str, nodes: &mut Vec<Node>, list_level: u8, base: Fmt) {
+fn handle_block(
+    elem: ElementRef,
+    name: &str,
+    nodes: &mut Vec<Node>,
+    list_level: u8,
+    base: Fmt,
+    images: &dyn ImageResolver,
+) {
     match name {
         "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
             let level: u8 = name[1..].parse().unwrap_or(1);
@@ -216,11 +239,11 @@ fn handle_block(elem: ElementRef, name: &str, nodes: &mut Vec<Node>, list_level:
         }
         "figure" => nodes.push(Node::Picture {
             caption: figure_caption(elem),
-            image: None,
+            image: figure_img_src(elem).and_then(|s| images.resolve(&s)),
         }),
         "hr" => {}
         // Transparent containers (div, section, blockquote, …): recurse.
-        _ => walk_block(elem, nodes, list_level, base),
+        _ => walk_block(elem, nodes, list_level, base, images),
     }
 }
 
@@ -702,7 +725,8 @@ fn render_cell(cell: ElementRef) -> String {
     };
     if is_rich_cell(cell) {
         let mut nodes: Vec<Node> = Vec::new();
-        walk_block(cell, &mut nodes, 0, raw);
+        // Images inside table cells stay placeholders (they fold into cell text).
+        walk_block(cell, &mut nodes, 0, raw, &NoFetch);
         let mut doc = DoclingDocument::new("");
         doc.nodes = nodes;
         doc.export_to_markdown().trim().to_string()
@@ -758,20 +782,31 @@ fn lone_code(p: ElementRef) -> Option<String> {
 }
 
 /// If `elem` wraps exactly one image and no other text, return the image's
-/// caption (its non-empty `alt`). Used to pull `<a><img></a>` out as a Picture.
-fn image_wrapper(elem: ElementRef) -> Option<Option<String>> {
+/// caption (its non-empty `alt`) and `src`. Used to pull `<a><img></a>` out as a
+/// Picture.
+fn image_wrapper(elem: ElementRef) -> Option<(Option<String>, Option<String>)> {
     let img_sel = Selector::parse("img").ok()?;
     let mut imgs = elem.select(&img_sel);
     let img = imgs.next()?;
     if imgs.next().is_some() || !elem.text().collect::<String>().trim().is_empty() {
         return None;
     }
-    Some(
-        img.value()
-            .attr("alt")
-            .filter(|a| !a.is_empty())
-            .map(str::to_string),
-    )
+    let caption = img
+        .value()
+        .attr("alt")
+        .filter(|a| !a.is_empty())
+        .map(str::to_string);
+    let src = img.value().attr("src").map(str::to_string);
+    Some((caption, src))
+}
+
+/// The `src` of a `<figure>`'s first `<img>`, for image extraction.
+fn figure_img_src(fig: ElementRef) -> Option<String> {
+    Selector::parse("img")
+        .ok()
+        .and_then(|s| fig.select(&s).next())
+        .and_then(|img| img.value().attr("src"))
+        .map(str::to_string)
 }
 
 fn has_descendant(elem: ElementRef, name: &str) -> bool {
@@ -928,5 +963,42 @@ mod tests {
     fn skips_script_and_style() {
         let doc = convert("<style>.a{}</style><p>visible</p><script>x()</script>");
         assert_eq!(doc.export_to_markdown(), "visible\n");
+    }
+
+    /// Encode a small distinctly-sized PNG so dimensions are easy to assert.
+    fn tiny_png(w: u32, h: u32) -> Vec<u8> {
+        let img = image::RgbImage::from_pixel(w, h, image::Rgb([1, 2, 3]));
+        let mut buf = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(img)
+            .write_to(&mut buf, image::ImageFormat::Png)
+            .unwrap();
+        buf.into_inner()
+    }
+
+    #[test]
+    fn image_is_placeholder_by_default_but_extracted_with_a_resolver() {
+        use crate::backend::images::FsImageResolver;
+        use fleischwolf_core::base64::encode;
+
+        let uri = format!("data:image/png;base64,{}", encode(&tiny_png(2, 3)));
+        let html = format!("<img src=\"{uri}\" alt=\"k\"/>");
+
+        // The bare backend leaves every image a placeholder (default behaviour).
+        let plain = convert(&html);
+        assert!(matches!(plain.nodes[0], Node::Picture { image: None, .. }));
+
+        // With a resolver the data: URI is decoded and embedded.
+        let doc = convert_html("t", &html, &FsImageResolver::new(None));
+        match &doc.nodes[0] {
+            Node::Picture {
+                image: Some(img),
+                caption,
+            } => {
+                assert_eq!(caption.as_deref(), Some("k"));
+                assert_eq!(img.mimetype, "image/png");
+                assert_eq!((img.width, img.height), (2, 3));
+            }
+            other => panic!("expected an embedded image, got {other:?}"),
+        }
     }
 }
