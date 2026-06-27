@@ -10,7 +10,7 @@
 //! through Markdown. The faithful, `$ref`-based schema that matches
 //! docling-core's JSON wire format lands in Phase 1 (see `MIGRATION.md`).
 
-mod base64;
+pub mod base64;
 mod document;
 mod json;
 mod labels;

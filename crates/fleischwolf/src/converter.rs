@@ -41,6 +41,7 @@ use crate::source::SourceDocument;
 pub struct DocumentConverter {
     allowed_formats: Option<HashSet<InputFormat>>,
     strict: bool,
+    fetch_images: bool,
 }
 
 impl DocumentConverter {
@@ -55,6 +56,7 @@ impl DocumentConverter {
         Self {
             allowed_formats: Some(formats.into_iter().collect()),
             strict: false,
+            fetch_images: false,
         }
     }
 
@@ -67,6 +69,22 @@ impl DocumentConverter {
     /// docling has no such switch.
     pub fn strict(mut self, strict: bool) -> Self {
         self.strict = strict;
+        self
+    }
+
+    /// Fetch and embed external `<img>` images for HTML/EPUB sources.
+    ///
+    /// Off by default (matching docling's `enable_*_fetch=False`), so output is
+    /// unchanged unless you opt in. When on, the HTML/EPUB backends resolve each
+    /// `<img src>` — `data:` URIs, local files (relative to the source file's
+    /// directory), `http(s)` URLs, and EPUB archive entries — and embed the
+    /// bytes, so they survive into JSON `ImageRef`s and
+    /// [`crate::DoclingDocument::export_to_markdown_with_images`].
+    ///
+    /// Remote `http(s)` URLs are fetched over the network; enable only for input
+    /// you trust (it can otherwise be used to make the process issue requests).
+    pub fn fetch_images(mut self, fetch: bool) -> Self {
+        self.fetch_images = fetch;
         self
     }
 
@@ -89,6 +107,12 @@ impl DocumentConverter {
             }
             .convert(&source)?,
             InputFormat::Csv => CsvBackend.convert(&source)?,
+            InputFormat::Html if self.fetch_images => {
+                let resolver = crate::backend::FsImageResolver::new(
+                    source.base_dir().map(|p| p.to_path_buf()),
+                );
+                crate::backend::convert_html(&source.name, source.text()?, &resolver)
+            }
             InputFormat::Html => HtmlBackend.convert(&source)?,
             InputFormat::Asciidoc => AsciiDocBackend.convert(&source)?,
             InputFormat::Xlsx => XlsxBackend.convert(&source)?,
@@ -96,7 +120,10 @@ impl DocumentConverter {
             InputFormat::Docx => DocxBackend.convert(&source)?,
             InputFormat::Vtt => WebVttBackend.convert(&source)?,
             InputFormat::Email => EmailBackend.convert(&source)?,
-            InputFormat::Epub => EpubBackend.convert(&source)?,
+            InputFormat::Epub => EpubBackend {
+                fetch_images: self.fetch_images,
+            }
+            .convert(&source)?,
             InputFormat::JsonDocling => DoclingJsonBackend.convert(&source)?,
             InputFormat::Latex => LatexBackend.convert(&source)?,
             // A bare `.xml` defaults to XmlJats; sniff the content to route to the

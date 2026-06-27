@@ -106,8 +106,12 @@ deterministic snapshot (`scripts/pdf_conformance.sh`, **76/76 exact**).
   tree (texts/groups/tables/pictures, labels, list grouping, table grids,
   formula/code items, picture `ImageRef`s). It loads back into Python
   docling-core and **~91% round-trips** byte-identically to the direct Markdown.
-- **Image extraction** is wired for PDF/image (figure-region crops) and
-  DOCX/PPTX (embedded blobs); JSON always embeds extracted images as data URIs.
+- **Image extraction** is wired for PDF/image (figure-region crops) and DOCX/PPTX
+  (embedded blobs) by default, and — opt-in via
+  `DocumentConverter::fetch_images` (`--fetch-images`) — for HTML/EPUB `<img src>`:
+  `data:` URIs, local files (relative to the source), remote `http(s)` URLs, and
+  EPUB archive entries. Off by default, matching docling's `enable_*_fetch=False`.
+  JSON always embeds extracted images as data URIs.
 
 ---
 
@@ -189,9 +193,6 @@ Explicitly **not done**, with the reason:
 - **HTML browser-render subsystem** — nav/visibility suppression (`wiki_duck`),
   form key-value-pair regions (`kvp_data_example`), deep nested-table cell padding
   from rendered bounding boxes. ~4 HTML fixtures + KVP.
-- **Image extraction for HTML/EPUB.** External `<img src>` files are not fetched
-  (same as docling's default `enable_*_fetch=False`); only embedded blobs (DOCX/
-  PPTX) and PDF crops are extracted.
 - **PyO3 bindings** (`fleischwolf-py`) for a strangler-fig drop-in — not built.
 
 ---

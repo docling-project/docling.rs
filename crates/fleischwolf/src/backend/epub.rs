@@ -6,16 +6,21 @@
 //! `*.xhtml#anchor` links rewritten to `#anchor`) which is then converted by the
 //! HTML backend — exactly docling's approach.
 
+use std::collections::HashMap;
+
 use roxmltree::Document;
 
-use crate::backend::ooxml::Package;
-use crate::backend::{DeclarativeBackend, HtmlBackend};
+use crate::backend::ooxml::{self, Package};
+use crate::backend::{convert_html, DeclarativeBackend, MapImageResolver, NoFetch};
 use crate::error::ConversionError;
-use crate::format::InputFormat;
 use crate::source::SourceDocument;
-use fleischwolf_core::DoclingDocument;
+use fleischwolf_core::{DoclingDocument, PictureImage};
 
-pub struct EpubBackend;
+pub struct EpubBackend {
+    /// When set, `<img>` sources are read out of the EPUB archive and embedded
+    /// as [`PictureImage`]s (the analogue of docling's image fetch).
+    pub fetch_images: bool,
+}
 
 impl DeclarativeBackend for EpubBackend {
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
@@ -39,6 +44,9 @@ impl DeclarativeBackend for EpubBackend {
             String::from("<!DOCTYPE html><html><head><meta charset=\"utf-8\"/></head><body>");
         let body_re = cached_regex!(r"(?is)<body[^>]*>(.*?)</body>");
         let link_re = cached_regex!(r#"href="([^"]*\.xhtml)(#[^"]*)""#);
+        // Images extracted from the archive, keyed by their resolved in-archive
+        // path (which each `<img src>` is rewritten to during concatenation).
+        let mut images: HashMap<String, PictureImage> = HashMap::new();
         for file in &spine {
             let Some(xhtml) = pkg.read(file) else {
                 continue;
@@ -48,15 +56,66 @@ impl DeclarativeBackend for EpubBackend {
                 .map(|c| c[1].to_string())
                 .unwrap_or(xhtml);
             let body = link_re.replace_all(&body, r#"href="$2""#);
+            // Each `<img src>` is relative to *this* spine file's directory, so
+            // resolve + extract here, before the bodies are flattened together.
+            let body = if self.fetch_images {
+                let dir = file.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
+                extract_images(&body, dir, &mut pkg, &mut images)
+            } else {
+                body.into_owned()
+            };
             combined.push('\n');
             combined.push_str(&body);
         }
         combined.push_str("\n</body></html>");
 
-        let html =
-            SourceDocument::from_bytes(&source.name, InputFormat::Html, combined.into_bytes());
-        HtmlBackend.convert(&html)
+        let doc = if self.fetch_images {
+            convert_html(&source.name, &combined, &MapImageResolver::new(images))
+        } else {
+            convert_html(&source.name, &combined, &NoFetch)
+        };
+        Ok(doc)
     }
+}
+
+/// Rewrite each in-archive `<img src>` in `body` to its resolved archive path and
+/// read the image bytes into `images`. `data:`/remote sources are left untouched
+/// (they stay placeholders for EPUB). `dir` is the spine file's directory.
+fn extract_images(
+    body: &str,
+    dir: &str,
+    pkg: &mut Package,
+    images: &mut HashMap<String, PictureImage>,
+) -> String {
+    let img_re = cached_regex!(r"(?is)<img\b[^>]*>");
+    let src_re = cached_regex!(r#"(?is)\bsrc\s*=\s*"([^"]*)""#);
+    img_re
+        .replace_all(body, |caps: &regex::Captures| {
+            let tag = &caps[0];
+            let Some(raw) = src_re.captures(tag).map(|m| m[1].to_string()) else {
+                return tag.to_string();
+            };
+            if raw.is_empty()
+                || raw.starts_with("data:")
+                || raw.starts_with("http://")
+                || raw.starts_with("https://")
+            {
+                return tag.to_string();
+            }
+            let archive_path = ooxml::resolve(dir, &raw);
+            if !images.contains_key(&archive_path) {
+                if let Some(pic) = pkg
+                    .read_bytes(&archive_path)
+                    .and_then(|bytes| ooxml::picture_image(&archive_path, bytes))
+                {
+                    images.insert(archive_path.clone(), pic);
+                }
+            }
+            src_re
+                .replace(tag, format!(r#"src="{archive_path}""#).as_str())
+                .into_owned()
+        })
+        .into_owned()
 }
 
 /// `full-path` of the OPF package from `META-INF/container.xml`.
@@ -120,5 +179,50 @@ mod tests {
             rootfile_path(container).as_deref(),
             Some("epub/content.opf")
         );
+    }
+
+    #[test]
+    fn extracts_archive_images_only_when_fetching() {
+        use crate::format::InputFormat;
+        use fleischwolf_core::{DoclingDocument, Node};
+
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/data/epub/sources/epub_purvis_poetry.epub"
+        );
+        // The corpus lives outside the packaged crate; skip if it isn't present.
+        let Ok(bytes) = std::fs::read(path) else {
+            return;
+        };
+        let src = SourceDocument::from_bytes("epub_purvis_poetry", InputFormat::Epub, bytes);
+
+        let embedded = |doc: &DoclingDocument| {
+            doc.nodes
+                .iter()
+                .filter_map(|n| match n {
+                    Node::Picture {
+                        image: Some(img), ..
+                    } => Some(img),
+                    _ => None,
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+
+        // Default: pictures stay placeholders (no archive reads).
+        let plain = EpubBackend {
+            fetch_images: false,
+        }
+        .convert(&src)
+        .unwrap();
+        assert!(embedded(&plain).is_empty());
+
+        // Fetching: real image bytes are pulled out of the archive.
+        let fetched = EpubBackend { fetch_images: true }.convert(&src).unwrap();
+        let imgs = embedded(&fetched);
+        assert!(!imgs.is_empty(), "expected extracted archive images");
+        assert!(imgs
+            .iter()
+            .all(|img| img.width > 0 && img.height > 0 && !img.data.is_empty()));
     }
 }
