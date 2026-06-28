@@ -10,6 +10,14 @@ We export three graphs and drive the loop from Rust:
   decoder.onnx : tags[seq,1] + memory           -> logits[1,V], hidden[1,512]
   bbox.onnx    : memory + cell_hidden[ncells,512] -> classes, coords  (optional)
 
+IMPORTANT: export from the *same* checkpoint docling runs. Current docling pulls
+`docling-project/docling-models` (NOT the older `ds4sd/docling-models`); their
+TableFormer weights differ and produce different OTSL. Point the arg at:
+  ~/.cache/huggingface/hub/models--docling-project--docling-models/snapshots/*/model_artifacts/tableformer/accurate
+
+Verified: with these weights the exported graphs reproduce docling's OTSL token
+sequence byte-exact on docling's own preprocessed table tensor.
+
 Run inside the docling venv:
   .venv-compare/bin/python scripts/export_tableformer.py <accurate-artifacts-dir> [out_dir]
 """
@@ -55,10 +63,20 @@ class Encode(nn.Module):
 
 
 class Decode(nn.Module):
+    # The model's custom decoder layer keeps only the last token per layer and
+    # relies on a (non-standard) cache for the previous tokens' per-layer states.
+    # Re-running it cache-less loses deep context. Equivalently and statelessly we
+    # apply each layer to the *whole* prefix under a causal mask — verified to
+    # match the cache-based output exactly — so the ONNX graph is a plain step.
     def forward(self, tags, memory):
-        emb = tt._positional_encoding(tt._embedding(tags))
-        decoded, _ = tt._decoder(emb, memory, None, memory_key_padding_mask=None)
-        last = decoded[-1]
+        o = tt._positional_encoding(tt._embedding(tags))
+        s = o.shape[0]
+        cm = torch.triu(torch.full((s, s), float("-inf")), diagonal=1)
+        for mod in tt._decoder.layers:
+            o = mod.norm1(o + mod.self_attn(o, o, o, attn_mask=cm, need_weights=False)[0])
+            o = mod.norm2(o + mod.multihead_attn(o, memory, memory, need_weights=False)[0])
+            o = mod.norm3(o + mod.linear2(mod.activation(mod.linear1(o))))
+        last = o[-1]
         return tt._fc(last), last
 
 
@@ -77,13 +95,19 @@ torch.onnx.export(
     Encode(), (img,), f"{OUT}/encoder.onnx",
     input_names=["image"], output_names=["memory"], opset_version=17, dynamo=False,
 )
-tags = torch.full((3, 1), start, dtype=torch.long)
+tags = torch.full((4, 1), start, dtype=torch.long)
 with torch.no_grad():
     logits, hidden = Decode()(tags, mem)
+# The dynamo exporter is needed here: the legacy tracer bakes the sequence length
+# into nn.MultiheadAttention's reshape, so a 1-token first step fails. dynamo keeps
+# the `seq` axis symbolic.
+from torch.export import Dim  # noqa: E402
+
+seq = Dim("seq", min=1, max=1024)
 torch.onnx.export(
     Decode(), (tags, mem), f"{OUT}/decoder.onnx",
     input_names=["tags", "memory"], output_names=["logits", "hidden"],
-    dynamic_axes={"tags": {0: "seq"}}, opset_version=17, dynamo=False,
+    dynamo=True, dynamic_shapes=({0: seq}, {}),
 )
 
 import onnxruntime as ort  # noqa: E402

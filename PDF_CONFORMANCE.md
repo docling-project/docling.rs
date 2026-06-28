@@ -120,26 +120,36 @@ rows/columns); docling runs **TableFormer**, an autoregressive transformer that
 predicts the table structure as an OTSL/HTML tag sequence plus per-cell bounding
 boxes, which recovers spanning headers and merged cells we cannot.
 
-**Status — ONNX export DONE ✅.** `scripts/export_tableformer.py` loads
-`TableModel04_rs` (`accurate`, resnet18 + 6-layer encoder + 6-layer decoder) from
-the `docling-ibm-models` safetensors and exports two graphs, **both verified
-against PyTorch** (max abs diff < 1.5e-5):
+**Status — ONNX export + decode VERIFIED byte-exact ✅.**
+`scripts/export_tableformer.py` loads `TableModel04_rs` (`accurate`, resnet18 +
+6-layer encoder + 6-layer decoder) and exports two graphs, both verified against
+PyTorch (max abs diff < 1e-5):
 
 - `encoder.onnx` — `image[1,3,448,448] → memory[784,1,512]`
 - `decoder.onnx` — `tags[seq,1] + memory → logits[1,13], hidden[1,512]`
 
-The OTSL vocabulary is only **13 tokens** (`wordmap.json`). The decoder runs with
-`cache=None` (re-embeds the full token prefix each step), so it exports cleanly
-with a dynamic `seq` axis and is driven as a simple loop from Rust — no KV-cache
-machinery needed. The ONNX/weights are gitignored (downloaded/exported, like the
-layout/OCR models).
+The Rust loop (`crates/fleischwolf-pdf/src/tableformer.rs`) feeds the growing
+token list back in and applies docling's two corrections (`xcel→lcel` on *every*
+row — docling's `line_num` is never incremented; `ucel`-then-`lcel → fcel`).
+**Verified: this reproduces docling's OTSL token sequence byte-exact** on
+docling's own preprocessed table tensor (54-token sequence on `2305v1-pg9`).
 
-**Remaining (the Rust inference, staged):**
+Two findings that cost real debugging, recorded so they aren't re-hit:
+- The model's decoder layer keeps only `tgt[-1:]` per layer and relies on a
+  non-standard per-layer cache; re-running it cache-less loses deep context.
+  Equivalent stateless form: apply each layer to the whole prefix under a causal
+  mask. (Export uses the dynamo exporter so the `seq` axis stays symbolic — the
+  legacy tracer bakes it into `nn.MultiheadAttention`'s reshape.)
+- **Export from `docling-project/docling-models`, not `ds4sd/docling-models`** —
+  both are cached, weights differ, and the old ones give a different OTSL.
 
-1. **Decode loop** in `fleischwolf-pdf`: crop+resize the table region to 448²,
-   normalise, `encoder.onnx` once, then loop `decoder.onnx` — `argmax` the logits,
-   apply docling's two structure-correction rules (first-line `xcel→lcel`,
-   `ucel`-then-`lcel → fcel`), append, stop at `<end>`. Yields the OTSL tag run.
+**Remaining (the Rust integration, staged):**
+
+1. **Preprocessing parity.** The decode is exact on docling's input tensor, but
+   the pipeline's own crop differs (docling resizes the *page* to 1024px height,
+   crops the table bbox, then resizes to 448²; we crop the 2× render directly).
+   Match this so the live OTSL matches (currently 88 vs 54 tokens on `2305v1-pg9`
+   purely from the crop).
 2. **Bbox decoder** (`bbox.onnx`, not yet exported): per-cell hidden → box, for
    matching. Interim: skip it and match by grid geometry.
 3. **OTSL → grid.** `docling_ibm_models/tableformer/otsl.py` is the reference
@@ -147,10 +157,6 @@ layout/OCR models).
    row/col spans (the Markdown serializer needs span support added).
 4. **Cell content.** Map the PDF text cells we already extract onto the grid
    cells (docling does not OCR programmatic tables).
-
-A cheaper interim improvement (not docling-exact, but closes some diff): better
-geometric reconstruction — detect header rows, merge obvious spanning cells, and
-handle the multi-line header cells that currently shatter into many columns.
 
 A cheaper interim improvement (not docling-exact, but closes some diff): better
 geometric reconstruction — detect header rows, merge obvious spanning cells, and

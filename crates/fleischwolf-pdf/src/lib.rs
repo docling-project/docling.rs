@@ -14,6 +14,7 @@ pub mod layout;
 mod mets;
 mod ocr;
 mod pdfium_backend;
+pub mod tableformer;
 
 use std::fmt;
 
