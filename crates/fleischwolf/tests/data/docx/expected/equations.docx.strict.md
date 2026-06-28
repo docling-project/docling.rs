@@ -1,4 +1,4 @@
-This is a word document and this is an inline equation: $A= \pi r^{2}$ .
+This is a word document and this is an inline equation: $A= \pi r^{2}$.
 
 First item with inline equation: $A= \pi r^{2}$ is the area formula.
 
@@ -18,7 +18,7 @@ $$f\left(x\right)=a_{0}+\sum_{n=1}^{ \infty }\left(a_{n}\cos(\frac{n \pi x}{L})+
 
 This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text.
 
-This is a word document and this is an inline equation: $A= \pi r^{2}$ . If instead, I want an equation by line, I can do this:
+This is a word document and this is an inline equation: $A= \pi r^{2}$. If instead, I want an equation by line, I can do this:
 
 $$\left(x+a\right)^{n}=\sum_{k=0}^{n}\left(\genfrac{}{}{0pt}{}{n}{k}\right)x^{k}a^{n-k}$$
 
@@ -32,7 +32,7 @@ This is text. This is text. This is text. This is text. This is text. This is te
 
 This is a word document and these are inline equations: $N_{s}^{H}$ / $N_{s}^{P}$ ​. If instead, I want an equation by line, I can do this:
 
-$$e^{x}=1+\frac{x}{1!}+\frac{x^{2}}{2!}+\frac{x^{3}}{3!}+ \text{ \textellipsis } , - \infty <x< \infty$$
+$$e^{x}=1+\frac{x}{1!}+\frac{x^{2}}{2!}+\frac{x^{3}}{3!}+ \text{ \textellipsis }, - \infty <x< \infty$$
 
 And that is an equation by itself. Cheers!
 
@@ -60,7 +60,7 @@ $$\oiiint_{C}^{}\frac{1}{z}dz$$
 
 Operators used with limits:
 
-$$argmax_{ \epsilon }f(x),   \lim_{n}{\left(1+\frac{1}{n}\right)}^{n} ,  \max_{0 \leq x \leq 1}xe^{-x^{2}},  unsupported_{n}{\left(1+\frac{1}{n}\right)}^{n}$$
+$$argmax_{ \epsilon }f(x),   \lim_{n}{\left(1+\frac{1}{n}\right)}^{n},  \max_{0 \leq x \leq 1}xe^{-x^{2}},  unsupported_{n}{\left(1+\frac{1}{n}\right)}^{n}$$
 
 Equations with the OMML group character object:
 

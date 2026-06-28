@@ -19,7 +19,7 @@ Before table
 | A                      | B                                               | C      |
 | ~~Cell 1~~             | Cell 2                                          | Cell 3 |
 
-After table with  **bold** ,  underline ,  ~~strikethrough~~ , and  *italic*  formatting
+After table with  **bold**,  underline,  ~~strikethrough~~, and  *italic*  formatting
 
 ### Table with pictures
 

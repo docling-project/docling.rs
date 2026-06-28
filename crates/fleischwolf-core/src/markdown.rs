@@ -61,16 +61,25 @@ pub fn to_markdown_images(
     (md, ctx.artifacts)
 }
 
-/// In `strict` mode, undo the legacy `\_` underscore escaping the backends bake
-/// into inline text. Legacy output keeps `\_` (byte-for-byte with docling, which
-/// escapes underscores); strict prefers literal `_` for readability. Only inline
-/// text nodes are escaped — code blocks and table cells are left alone.
+/// In `strict` mode, rewrite inline text for readability rather than byte-for-byte
+/// docling fidelity: undo the legacy `\_` underscore escaping, and tighten stray
+/// spaces around punctuation (`[ 37 , 36 ]` → `[37, 36]`, `( x )` → `(x)`). This
+/// cleans up both the PDF backend's glyph-split spacing and the space the legacy
+/// emphasis serialization leaves before punctuation (`*a* ,` → `*a*,`).
+/// Legacy/default output keeps docling's spacing untouched. Only inline text
+/// nodes pass through here — code blocks and table cells are left alone.
 fn strict_text(text: &str, strict: bool) -> String {
-    if strict {
-        text.replace("\\_", "_")
-    } else {
-        text.to_string()
+    if !strict {
+        return text.to_string();
     }
+    text.replace("\\_", "_")
+        .replace(" ,", ",")
+        .replace(" .", ".")
+        .replace(" ;", ";")
+        .replace(" )", ")")
+        .replace("( ", "(")
+        .replace(" ]", "]")
+        .replace("[ ", "[")
 }
 
 fn render(nodes: &[Node], blocks: &mut Vec<String>, ctx: &mut Ctx) {
@@ -362,5 +371,15 @@ mod tests {
         assert_eq!(doc.export_to_markdown(), "# a\\_b\n\nx\\_y\n\n- i\\_j\n");
         // Strict prefers literal underscores (Rust-only readability mode).
         assert_eq!(doc.export_to_markdown_with(true), "# a_b\n\nx_y\n\n- i_j\n");
+    }
+
+    #[test]
+    fn strict_tightens_punctuation_spacing_legacy_keeps_it() {
+        let mut doc = DoclingDocument::new("t");
+        doc.add_paragraph("see [ 37 , 36 ] and ( x ) .");
+        // Legacy keeps docling's spacing byte-for-byte.
+        assert_eq!(doc.export_to_markdown(), "see [ 37 , 36 ] and ( x ) .\n");
+        // Strict tightens punctuation for readable Markdown.
+        assert_eq!(doc.export_to_markdown_with(true), "see [37, 36] and (x).\n");
     }
 }

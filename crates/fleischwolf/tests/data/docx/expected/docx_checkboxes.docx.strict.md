@@ -14,4 +14,4 @@ Tasks before release:
 
 - [x] Implementation
 
-- [ ] Documentation of the task with a very long text that goes beyond the maximum length of a single line.
+- [] Documentation of the task with a very long text that goes beyond the maximum length of a single line.

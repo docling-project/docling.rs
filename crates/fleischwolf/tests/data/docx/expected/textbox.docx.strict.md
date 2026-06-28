@@ -32,7 +32,7 @@ Upon receiving a report from the kindergarten, conduct a preliminary assessment 
 Department of Education:
 Collaborate with the Health Bureau in conducting epidemiological investigations and assist Health Bureau personnel in implementing necessary epidemic prevention measures at all school levels.
 
-The Health Bureau will handle **reporting and specimen collection** .
+The Health Bureau will handle **reporting and specimen collection**.
 
 **Whether the epidemic has eased.**
 

@@ -8,6 +8,6 @@ Install Docling as a Python library with your favorite package manager
 
 # Features
 
-- Import many document formats into a unified and structured Docling Document , including scanned pages via an OCR engine of your choice.
+- Import many document formats into a unified and structured Docling Document, including scanned pages via an OCR engine of your choice.
 - Export a parsed document to formats that simplify processing and ingestion into AI, RAG, and agentic systems. 
 - Extract document components and their properties from the Docling Document.
