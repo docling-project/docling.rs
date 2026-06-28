@@ -99,6 +99,7 @@ fn clean_text(text: &str) -> String {
         .replace(['\u{2}', '\u{ad}'], "") // any stray wrap hyphens not at a join
         .replace(['\u{2018}', '\u{2019}'], "'") // ‘ ’ → '
         .replace(['\u{201c}', '\u{201d}'], "\"") // “ ” → "
+        .replace(['\u{2013}', '\u{2014}'], "-") // – — → -
         .replace('\u{2026}', "...") // … → ...
         .split_whitespace()
         .collect::<Vec<_>>()
@@ -302,11 +303,16 @@ pub fn assemble_page(page: &PdfPage, mut regions: Vec<Region>, doc: &mut Docling
             // docling renders both the document title and section headers as
             // `##` (it never emits a top-level `#` for PDFs), so match that.
             "title" | "section_header" => doc.push(Node::Heading { level: 2, text }),
+            // docling drops the rendered bullet glyph; the Markdown serializer
+            // adds its own `- ` marker.
             "list_item" => doc.push(Node::ListItem {
                 ordered: false,
                 number: 0,
                 first_in_list: false,
-                text,
+                text: text
+                    .trim_start_matches(['•', '◦', '▪', '·', '*', '-'])
+                    .trim_start()
+                    .to_string(),
                 level: 0,
             }),
             // Geometric grid reconstruction from the text layer (TableFormer

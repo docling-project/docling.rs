@@ -1,7 +1,5 @@
 Sheet1
 
-## Number of freshwater ducks per year
-
 ## Year Freshwater Ducks
 
-2019 120 2020 135 2021 150 2022 170 2023 160 2024 180
+2019120 2020135 2021150 2022170 2023160 2024180

@@ -1,5 +1,13 @@
-//! pdfium-based text extraction and page rendering (docling's `PdfPipeline`
-//! text path uses pypdfium2 the same way).
+//! pdfium-based text extraction and page rendering.
+//!
+//! Text is reconstructed the way docling's `docling-parse` does it, so the
+//! output spacing matches the groundtruth: the page's **character** stream is
+//! grouped into **words** (split at a horizontal gap wider than a fraction of
+//! the font height — font-relative, so letter-tracking in display titles does
+//! not split a word) and words into **lines** (by baseline). pdfium-render's
+//! safe API only exposes whole style runs / `GetBoundedText`, so the character
+//! loop is driven through the raw `PdfiumLibraryBindings` FFI on a second handle
+//! to the same bytes (no fork; stays publishable).
 
 use image::RgbImage;
 use pdfium_render::prelude::*;
@@ -61,10 +69,11 @@ impl PdfDocument {
     /// once. For large documents prefer [`for_each_page`], which streams.
     pub fn open(bytes: &[u8], password: Option<&str>) -> Result<Self, PdfiumError> {
         let pdfium = bind()?;
+        let ffi = FfiText::load(pdfium.bindings(), bytes, password);
         let doc = pdfium.load_pdf_from_byte_slice(bytes, password)?;
         let mut pages = Vec::new();
-        for page in doc.pages().iter() {
-            pages.push(extract_page(&page)?);
+        for (i, page) in doc.pages().iter().enumerate() {
+            pages.push(extract_page(&page, &ffi, i as i32)?);
         }
         Ok(PdfDocument { pages })
     }
@@ -82,36 +91,28 @@ where
     F: FnMut(usize, usize, PdfPage) -> Result<(), E>,
 {
     let pdfium = bind()?;
+    let ffi = FfiText::load(pdfium.bindings(), bytes, password);
     let doc = pdfium.load_pdf_from_byte_slice(bytes, password)?;
     let pages = doc.pages();
     let total = pages.len() as usize;
     for (i, page) in pages.iter().enumerate() {
-        let extracted = extract_page(&page)?;
+        let extracted = extract_page(&page, &ffi, i as i32)?;
         f(i, total, extracted)?;
     }
     Ok(())
 }
 
-fn extract_page(page: &pdfium_render::prelude::PdfPage<'_>) -> Result<PdfPage, PdfiumError> {
+fn extract_page(
+    page: &pdfium_render::prelude::PdfPage<'_>,
+    ffi: &FfiText<'_>,
+    index: i32,
+) -> Result<PdfPage, PdfiumError> {
     let width = page.width().value;
     let height = page.height().value;
 
-    let text = page.text()?;
-    let mut cells = Vec::new();
-    for segment in text.segments().iter() {
-        let rect = segment.bounds();
-        let s = segment.text();
-        if s.trim().is_empty() {
-            continue;
-        }
-        // Flip Y to a top-left origin.
-        cells.push(TextCell {
-            text: s,
-            l: rect.left().value,
-            t: height - rect.top().value,
-            r: rect.right().value,
-            b: height - rect.bottom().value,
-        });
+    let mut cells = ffi.page_cells(index, height);
+    if cells.is_empty() {
+        cells = segment_cells(&page.text()?, height);
     }
 
     let tw = (width * RENDER_SCALE).round().max(1.0) as i32;
@@ -129,4 +130,237 @@ fn extract_page(page: &pdfium_render::prelude::PdfPage<'_>) -> Result<PdfPage, P
         cells,
         image,
     })
+}
+
+/// Fallback line cells from pdfium-render's style segments (one cell per
+/// segment). Used only when the raw-FFI text page can't be loaded.
+fn segment_cells(text: &PdfPageText, page_h: f32) -> Vec<TextCell> {
+    text.segments()
+        .iter()
+        .filter_map(|seg| {
+            let s = seg.text();
+            if s.trim().is_empty() {
+                return None;
+            }
+            let r = seg.bounds();
+            Some(TextCell {
+                text: s,
+                l: r.left().value,
+                t: page_h - r.top().value,
+                r: r.right().value,
+                b: page_h - r.bottom().value,
+            })
+        })
+        .collect()
+}
+
+/// A second, raw-FFI handle on the same PDF used to drive the character loop
+/// (`FPDFText_GetUnicode`/`GetCharBox`) that pdfium-render's safe API doesn't
+/// expose. Closes the document on drop.
+struct FfiText<'a> {
+    bindings: &'a dyn PdfiumLibraryBindings,
+    doc: FPDF_DOCUMENT,
+}
+
+/// One glyph: codepoint + native (bottom-left) box edges.
+struct Glyph {
+    ch: char,
+    l: f32,
+    b: f32,
+    r: f32,
+    t: f32,
+}
+
+impl<'a> FfiText<'a> {
+    fn load(bindings: &'a dyn PdfiumLibraryBindings, bytes: &[u8], password: Option<&str>) -> Self {
+        let doc = bindings.FPDF_LoadMemDocument(bytes, password);
+        FfiText { bindings, doc }
+    }
+
+    /// Reconstruct line cells for page `index` (zero-based) via the
+    /// chars→words→lines grouping. Empty on any failure (caller falls back).
+    fn page_cells(&self, index: i32, page_h: f32) -> Vec<TextCell> {
+        if self.doc.is_null() {
+            return Vec::new();
+        }
+        let b = self.bindings;
+        let page = b.FPDF_LoadPage(self.doc, index);
+        if page.is_null() {
+            return Vec::new();
+        }
+        let tp = b.FPDFText_LoadPage(page);
+        let cells = if tp.is_null() {
+            Vec::new()
+        } else {
+            let g = glyphs(b, tp);
+            b.FPDFText_ClosePage(tp);
+            lines_from_glyphs(&g, page_h)
+        };
+        b.FPDF_ClosePage(page);
+        cells
+    }
+}
+
+impl Drop for FfiText<'_> {
+    fn drop(&mut self) {
+        if !self.doc.is_null() {
+            self.bindings.FPDF_CloseDocument(self.doc);
+        }
+    }
+}
+
+/// Read every glyph (codepoint + native box) from the text page, in document
+/// order. A space glyph is kept as a word-boundary marker (NaN box, char `' '`);
+/// pdfium emits these on most lines and they pin word splits exactly. Hard line
+/// breaks are dropped (line structure comes from geometry); the gap heuristic in
+/// [`lines_from_glyphs`] is the fallback for the lines pdfium leaves space-less.
+fn glyphs(b: &dyn PdfiumLibraryBindings, tp: FPDF_TEXTPAGE) -> Vec<Glyph> {
+    let n = b.FPDFText_CountChars(tp);
+    let mut out = Vec::with_capacity(n.max(0) as usize);
+    for i in 0..n {
+        let ch = match char::from_u32(b.FPDFText_GetUnicode(tp, i)) {
+            Some(c) => c,
+            None => continue,
+        };
+        if ch == '\r' || ch == '\n' {
+            continue;
+        }
+        if ch.is_whitespace() {
+            out.push(Glyph {
+                ch: ' ',
+                l: f32::NAN,
+                b: 0.0,
+                r: 0.0,
+                t: 0.0,
+            });
+            continue;
+        }
+        let (mut l, mut r, mut bot, mut top) = (0f64, 0f64, 0f64, 0f64);
+        if b.FPDFText_GetCharBox(tp, i, &mut l, &mut r, &mut bot, &mut top) == 0 {
+            continue;
+        }
+        out.push(Glyph {
+            ch,
+            l: l as f32,
+            b: bot as f32,
+            r: r as f32,
+            t: top as f32,
+        });
+    }
+    out
+}
+
+/// Group glyphs (document order) into words then lines, the way docling-parse
+/// does: a new **word** starts where the horizontal gap to the previous glyph
+/// exceeds ~0.2 × the font height (a real space is ~0.3 × height; letter
+/// tracking is smaller, so titles don't shatter); a new **line** starts where
+/// the baseline drops by ~half the font height (a superscript rises without
+/// dropping, so it stays on its line). Coordinates are flipped to top-left.
+fn lines_from_glyphs(gs: &[Glyph], page_h: f32) -> Vec<TextCell> {
+    let mut cells: Vec<TextCell> = Vec::new();
+    let mut words: Vec<String> = Vec::new(); // words on the current line
+    let mut word = String::new();
+    // current line bounding box, native
+    let (mut ll, mut lb, mut lr, mut lt) = (
+        f32::INFINITY,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        f32::NEG_INFINITY,
+    );
+    // Tallest glyph seen on the current line: the word-gap threshold is relative
+    // to it, so a small-font run on the line (a superscript citation) isn't split
+    // at its tight digit gaps, while a big display title isn't split at its wider
+    // letter tracking. A real inter-word space is ~0.3× the font height.
+    let mut line_h: f32 = 0.0;
+    let mut prev: Option<&Glyph> = None;
+    // A space glyph between non-space glyphs pins a word split the gap heuristic
+    // can miss (tight justified spacing); it carries no geometry.
+    let mut pending_space = false;
+
+    for g in gs {
+        if g.ch == ' ' {
+            pending_space = true;
+            continue;
+        }
+        let h = (g.t - g.b).abs().max(1.0);
+        let (mut new_word, mut new_line) = (false, false);
+        if let Some(p) = prev {
+            // A new line drops the baseline *and* resets x leftward; requiring the
+            // x-reset avoids a descending comma/semicolon faking a line break.
+            new_line = p.b - g.b > h * 0.5 && g.l < p.r;
+            // Don't split before closing punctuation, after opening punctuation, or
+            // after a period that runs into a digit/lowercase letter — docling
+            // keeps `engines,` / `[37` / `i.e.` / `98.5` together even across a
+            // space or gap.
+            let glued = is_close_punct(g.ch)
+                || is_open_punct(p.ch)
+                || (p.ch.is_ascii_digit() && g.ch.is_ascii_digit())
+                || (p.ch == '.'
+                    && !pending_space
+                    && (g.ch.is_ascii_digit() || g.ch.is_ascii_lowercase()));
+            let word_gap = line_h.max(h) * 0.25;
+            new_word = new_line || ((pending_space || g.l - p.r > word_gap) && !glued);
+        }
+        pending_space = false;
+        if new_line {
+            push_word(&mut word, &mut words);
+            push_line(&mut words, (ll, lb, lr, lt), page_h, &mut cells);
+            (ll, lb, lr, lt) = (
+                f32::INFINITY,
+                f32::INFINITY,
+                f32::NEG_INFINITY,
+                f32::NEG_INFINITY,
+            );
+            line_h = 0.0;
+        } else if new_word {
+            push_word(&mut word, &mut words);
+        }
+        word.push(g.ch);
+        ll = ll.min(g.l);
+        lb = lb.min(g.b);
+        lr = lr.max(g.r);
+        lt = lt.max(g.t);
+        line_h = line_h.max(h);
+        prev = Some(g);
+    }
+    push_word(&mut word, &mut words);
+    push_line(&mut words, (ll, lb, lr, lt), page_h, &mut cells);
+    cells
+}
+
+fn is_close_punct(c: char) -> bool {
+    matches!(
+        c,
+        ',' | '.' | ';' | '!' | '?' | ')' | ']' | '}' | '%' | '\'' | '\u{2019}' | '\u{2018}'
+    )
+}
+
+fn is_open_punct(c: char) -> bool {
+    matches!(c, '(' | '[' | '{')
+}
+
+fn push_word(word: &mut String, words: &mut Vec<String>) {
+    if !word.is_empty() {
+        words.push(std::mem::take(word));
+    }
+}
+
+fn push_line(
+    words: &mut Vec<String>,
+    bbox: (f32, f32, f32, f32),
+    page_h: f32,
+    cells: &mut Vec<TextCell>,
+) {
+    if words.is_empty() {
+        return;
+    }
+    let text = std::mem::take(words).join(" ");
+    let (l, b, r, t) = bbox;
+    cells.push(TextCell {
+        text,
+        l,
+        t: page_h - t,
+        r,
+        b: page_h - b,
+    });
 }
