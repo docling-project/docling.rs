@@ -47,8 +47,10 @@ impl OcrModel {
             std::env::var("DOCLING_OCR_REC_ONNX").unwrap_or_else(|_| "models/ocr_rec.onnx".into());
         let dict_path =
             std::env::var("DOCLING_OCR_DICT").unwrap_or_else(|_| "models/ppocr_keys_v1.txt".into());
-        let mut builder = Session::builder().map_err(|e| format!("ocr: builder: {e}"))?;
-        let rec = builder
+        let rec = Session::builder()
+            .map_err(|e| format!("ocr: builder: {e}"))?
+            .with_intra_threads(crate::intra_threads())
+            .map_err(|e| format!("ocr: intra_threads: {e}"))?
             .commit_from_file(&rec_path)
             .map_err(|e| format!("ocr: load {rec_path}: {e}"))?;
         let dict = std::fs::read_to_string(&dict_path)

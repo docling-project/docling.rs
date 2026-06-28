@@ -28,6 +28,10 @@ fn find_pdfs(dir: &Path, out: &mut Vec<PathBuf>) {
     entries.sort();
     for p in entries {
         if p.is_dir() {
+            // Skip `large/` — big perf-test inputs with no conformance baseline.
+            if p.file_name().is_some_and(|n| n == "large") {
+                continue;
+            }
             find_pdfs(&p, out);
         } else if is_supported(&p) {
             out.push(p);

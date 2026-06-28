@@ -56,6 +56,9 @@ fn bind() -> Result<Pdfium, PdfiumError> {
 
 impl PdfDocument {
     /// Parse a PDF from bytes, optionally decrypting with `password`.
+    ///
+    /// Note: this materialises **every** page's rendered bitmap in memory at
+    /// once. For large documents prefer [`for_each_page`], which streams.
     pub fn open(bytes: &[u8], password: Option<&str>) -> Result<Self, PdfiumError> {
         let pdfium = bind()?;
         let doc = pdfium.load_pdf_from_byte_slice(bytes, password)?;
@@ -65,6 +68,28 @@ impl PdfDocument {
         }
         Ok(PdfDocument { pages })
     }
+}
+
+/// Render + extract pages one at a time, handing each (owned) [`PdfPage`] to `f`.
+/// Only one page bitmap is resident at a time — a rendered page is ~5 MB, so a
+/// large PDF would otherwise hold gigabytes of bitmaps at once. `f` receives the
+/// zero-based page index and the total page count.
+///
+/// `E` is the caller's error type; pdfium errors convert into it via `From`.
+pub fn for_each_page<E, F>(bytes: &[u8], password: Option<&str>, mut f: F) -> Result<(), E>
+where
+    E: From<PdfiumError>,
+    F: FnMut(usize, usize, PdfPage) -> Result<(), E>,
+{
+    let pdfium = bind()?;
+    let doc = pdfium.load_pdf_from_byte_slice(bytes, password)?;
+    let pages = doc.pages();
+    let total = pages.len() as usize;
+    for (i, page) in pages.iter().enumerate() {
+        let extracted = extract_page(&page)?;
+        f(i, total, extracted)?;
+    }
+    Ok(())
 }
 
 fn extract_page(page: &pdfium_render::prelude::PdfPage<'_>) -> Result<PdfPage, PdfiumError> {
