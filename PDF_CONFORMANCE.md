@@ -51,40 +51,57 @@ lost: `[ 37 , 36 ]` instead of `[37, 36]`, `function add ( a , b )` instead of
 (`FPDFText_GetText`), which inserts spaces from each glyph's *advance* and so
 reproduces the PDF's real spacing.
 
-**What was tried in this PR and why each failed** (all reverted):
+**Eight approaches were tried in this PR; all regressed the aggregate and were
+reverted.** The headline finding: real `FPDFText_GetText` **is reachable and
+works in isolation**, but no whole-line reconstruction built on top of it beats
+pdfium's native style segments.
 
 1. **Raw char API** (`PdfPageText::chars()` → `unicode_char()` + `loose_bounds()`,
-   concatenated per line). pdfium's per-char list is *unreliable*: some lines
-   come back with no space characters at all (`Thiscontentisextremelyvaluablefor`)
-   and the char order is occasionally scrambled. Net regression.
-2. **`inside_rect()`** (`FPDFText_GetBoundedText`) over a whole line's bounding
-   box. `GetBoundedText` ≠ `GetText`: it *drops* inter-run spaces on
-   multi-segment lines (`{ahn,nli,mly,taa}@zurich` vs docling's
-   `{ ahn,nli,mly,taa } @zurich`) and *bleeds* glyphs from vertically adjacent
-   lines (`nevertheless exLines of different…`). Net regression.
-3. **Hybrid** (segment text for single-segment lines, `inside_rect` only for
-   multi-segment lines). Same `GetBoundedText` divergence on exactly the lines
-   that need fixing.
+   concatenated per line). pdfium's per-char list is *unreliable*: some lines come
+   back with no space characters at all (`Thiscontentisextremelyvaluablefor`) and
+   the char order is occasionally scrambled.
+2. **Raw char API + gap-based spacing** (drop pdfium's spaces, re-insert from
+   glyph gaps). Fixes code perfectly but garbles prose (band mis-sort merges
+   glyphs from adjacent lines: `valuablefor`, stray glyphs).
+3. **`inside_rect()`** (`FPDFText_GetBoundedText`) over a whole line's bbox.
+   `GetBoundedText` ≠ `GetText`: it *drops* inter-run spaces on multi-segment
+   lines (`{ahn,nli,mly,taa}@zurich` vs docling's `{ ahn,nli,mly,taa } @zurich`)
+   and *bleeds* glyphs from vertically adjacent lines.
+4. **`inside_rect` hybrid** (segment text for single-segment lines only). Same
+   `GetBoundedText` divergence on the lines that need fixing.
+5. **Real `FPDFText_GetText`, char-detected lines.** Reached the raw call via the
+   public `PdfiumLibraryBindings` trait — `bindings()` on the `Pdfium`/`PdfPage`
+   exposes `FPDF_LoadMemDocument`/`FPDF_LoadPage`/`FPDFText_LoadPage`/`CountChars`/
+   `GetCharBox`/`GetText`, so a *second raw-FFI handle on the same bytes* drives
+   `GetText` directly (no fork, stays publishable). **Citations read correctly in
+   isolation** (`[37, 36, 18, 20]`). But my char-box line detection diverges from
+   pdfium's line structure, and `GetText` inserts letter-tracking spaces into
+   display text (`Fi gures` for a tracked title) — net regression.
+6. **+ U+FFFE de-hyphenation.** `GetText` encodes the wrap hyphen as **U+FFFE**
+   (not the segment path's U+0002); handling it recovered most prose, but the
+   title-tracking and line-detection issues remained.
+7. **+ single-segment override** (replace a GetText line with segment text when
+   one segment covers it). Helped marginally; line boundaries still diverged.
+8. **Segment-defined lines + `GetText` per multi-segment range** (group *segments*
+   into lines so the structure matches docling, `GetText` only the multi-segment
+   lines via a bbox→char-index range). Preserved the exact PDFs and improved
+   `multi_page`, but the bbox→range mapping mis-selects characters on dense
+   two-column pages, so citation lines on `2203`/`2206` came back wrong and
+   `normal_4pages` regressed (108→152).
 
-**Root cause / the real fix.** `segment.text()` is itself `inside_rect(segment.
-bounds())` — i.e. the *only* reliable text unit pdfium-render exposes is a single
-style run. What docling uses, `FPDFText_GetText(textpage, start_index, count, …)`
-for an arbitrary **character range**, is *not* wrapped by `pdfium-render`
-0.8.37. The path forward is to get that call:
+**Conclusion.** The blocker is *not* the missing binding — `GetText` is callable
+and correct. It is that **reconstructing docling's exact line + character ranges
+from glyph/segment geometry is itself the hard problem** (docling uses
+`docling-parse`, a purpose-built PDF text reconstructor, not raw `GetText`).
+pdfium's own style segments are a better-structured unit than anything rebuilt on
+top of them here, so the segment path stays in production. A real fix needs a
+faithful line/cell reconstructor (port `docling-parse`, or use pdfium's
+`FPDFText_GetTextObject`/structured APIs to get true line boundaries before
+`GetText`), not just the call this PR proved reachable.
 
-- add a thin binding for `FPDFText_GetText` over a char range (upstream PR to
-  `pdfium-render`, or call it through the crate's `PdfiumLibraryBindings` handle
-  directly), then
-- group segments into lines (by vertical band, splitting at column gutters — the
-  clustering already prototyped in this PR), map each line to its `[start, count]`
-  char range, and read the whole line with `GetText`.
-
-This is the single highest-leverage change for default-mode conformance: it
-fixes citations, inline code, fractions, and the justified-text double spaces,
-and unblocks `multi_page` and `code_and_formula` (the latter also needs code
-regions rendered as fenced blocks). **Stopgap shipped:** `--strict` tightens the
-citation/parenthetical spacing at serialization time, so strict Markdown already
-reads cleanly even though default mode still mirrors the segment spacing.
+**Stopgap shipped:** `--strict` tightens the citation/parenthetical spacing at
+serialization time, so strict Markdown reads cleanly even though default mode
+mirrors the segment spacing.
 
 Also needed alongside it:
 - **Line-wrap de-hyphenation for real hyphens.** We already drop the U+0002 soft
