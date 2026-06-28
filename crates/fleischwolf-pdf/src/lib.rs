@@ -45,6 +45,27 @@ impl fmt::Display for PdfError {
 
 impl std::error::Error for PdfError {}
 
+impl From<pdfium_render::prelude::PdfiumError> for PdfError {
+    fn from(e: pdfium_render::prelude::PdfiumError) -> Self {
+        PdfError::Pdfium(e.to_string())
+    }
+}
+
+/// Threads ONNX inference may use, capped by `FLEISCHWOLF_PDF_THREADS` if set.
+/// Defaults to the available parallelism (ort otherwise picks a low number).
+pub(crate) fn intra_threads() -> usize {
+    if let Some(n) = std::env::var("FLEISCHWOLF_PDF_THREADS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|&n| n > 0)
+    {
+        return n;
+    }
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
+}
+
 /// A reusable PDF pipeline: the layout model is loaded once and reused across
 /// documents; OCR loads lazily the first time a scanned page is seen.
 pub struct Pipeline {
@@ -70,9 +91,15 @@ impl Pipeline {
         password: Option<&str>,
         name: &str,
     ) -> Result<DoclingDocument, PdfError> {
-        let parsed =
-            PdfDocument::open(bytes, password).map_err(|e| PdfError::Pdfium(e.to_string()))?;
-        self.process_pages(parsed.pages, name)
+        // Stream pages: render → process → drop one at a time, so a large PDF
+        // holds ~one page bitmap (~5 MB) rather than every page at once (which
+        // is gigabytes for a multi-thousand-page document and drives the machine
+        // into swap).
+        let mut doc = DoclingDocument::new(name);
+        pdfium_backend::for_each_page(bytes, password, |n, _total, mut page| {
+            self.process_one_page(n, &mut page, &mut doc)
+        })?;
+        Ok(doc)
     }
 
     /// Convert a standalone image (PNG/JPEG/TIFF/WebP/…) as a single page —
@@ -94,7 +121,38 @@ impl Pipeline {
         self.process_pages(vec![page], name)
     }
 
-    /// Run layout (+ OCR for cell-less pages) and assemble each page.
+    /// Run layout (+ OCR for cell-less pages) and assemble one page into `doc`.
+    fn process_one_page(
+        &mut self,
+        n: usize,
+        page: &mut PdfPage,
+        doc: &mut DoclingDocument,
+    ) -> Result<(), PdfError> {
+        let regions = self
+            .layout
+            .predict(&page.image, page.width, page.height)
+            .map_err(|e| PdfError::Layout(format!("page {}: {e}", n + 1)))?;
+        // Resolve overlapping detections once, before OCR.
+        let regions = assemble::resolve(regions);
+        // No text layer → recognise text from the page image via OCR.
+        if page.cells.is_empty() {
+            if self.ocr.is_none() {
+                self.ocr = Some(ocr::OcrModel::load().map_err(PdfError::Ocr)?);
+            }
+            let cells = self
+                .ocr
+                .as_mut()
+                .unwrap()
+                .ocr_page(&page.image, &regions, page.scale)
+                .map_err(|e| PdfError::Ocr(format!("page {}: {e}", n + 1)))?;
+            page.cells = cells;
+        }
+        assemble::assemble_page(page, regions, doc);
+        Ok(())
+    }
+
+    /// Run layout (+ OCR for cell-less pages) and assemble each already-rendered
+    /// page (image / METS inputs, which are small and already materialised).
     fn process_pages(
         &mut self,
         mut pages: Vec<PdfPage>,
@@ -102,26 +160,7 @@ impl Pipeline {
     ) -> Result<DoclingDocument, PdfError> {
         let mut doc = DoclingDocument::new(name);
         for (n, page) in pages.iter_mut().enumerate() {
-            let regions = self
-                .layout
-                .predict(&page.image, page.width, page.height)
-                .map_err(|e| PdfError::Layout(format!("page {}: {e}", n + 1)))?;
-            // Resolve overlapping detections once, before OCR.
-            let regions = assemble::resolve(regions);
-            // No text layer → recognise text from the page image via OCR.
-            if page.cells.is_empty() {
-                if self.ocr.is_none() {
-                    self.ocr = Some(ocr::OcrModel::load().map_err(PdfError::Ocr)?);
-                }
-                let cells = self
-                    .ocr
-                    .as_mut()
-                    .unwrap()
-                    .ocr_page(&page.image, &regions, page.scale)
-                    .map_err(|e| PdfError::Ocr(format!("page {}: {e}", n + 1)))?;
-                page.cells = cells;
-            }
-            assemble::assemble_page(page, regions, &mut doc);
+            self.process_one_page(n, page, &mut doc)?;
         }
         Ok(doc)
     }

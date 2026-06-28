@@ -56,8 +56,12 @@ impl LayoutModel {
     pub fn load() -> Result<Self, String> {
         let path = std::env::var("DOCLING_LAYOUT_ONNX")
             .unwrap_or_else(|_| "models/layout_heron.onnx".to_string());
-        let mut builder = Session::builder().map_err(|e| format!("layout: builder: {e}"))?;
-        let session = builder
+        let session = Session::builder()
+            .map_err(|e| format!("layout: builder: {e}"))?
+            // Let inference use the available cores (ort otherwise defaults low);
+            // a large PDF runs this model once per page.
+            .with_intra_threads(crate::intra_threads())
+            .map_err(|e| format!("layout: intra_threads: {e}"))?
             .commit_from_file(&path)
             .map_err(|e| format!("layout: load {path}: {e}"))?;
         Ok(Self { session })
