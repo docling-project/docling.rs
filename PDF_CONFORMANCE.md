@@ -120,24 +120,37 @@ rows/columns); docling runs **TableFormer**, an autoregressive transformer that
 predicts the table structure as an OTSL/HTML tag sequence plus per-cell bounding
 boxes, which recovers spanning headers and merged cells we cannot.
 
-**Scope of a port** (large — own PR, likely staged over several):
+**Status — ONNX export DONE ✅.** `scripts/export_tableformer.py` loads
+`TableModel04_rs` (`accurate`, resnet18 + 6-layer encoder + 6-layer decoder) from
+the `docling-ibm-models` safetensors and exports two graphs, **both verified
+against PyTorch** (max abs diff < 1.5e-5):
 
-1. **Weights.** TableFormer ships in `docling-ibm-models` (`TableModel04_rs`,
-   "accurate"/"fast" variants). Export the encoder + the two decoders to ONNX
-   from the published checkpoint; confirm the license permits redistribution of
-   a converted model.
-2. **Inference loop.** Unlike the layout/OCR models (single `Session::run`),
-   TableFormer is **autoregressive**: encode the table-crop image once, then step
-   the structure decoder to emit OTSL tokens until `<end>`, feeding each token
-   back in. The cell-bbox decoder runs per predicted cell. This is a real
-   decoding loop in `fleischwolf-pdf`, not a one-shot call — budget for KV-cache
-   handling and a token vocabulary/OTSL grammar.
-3. **Cell content.** Map predicted cell bounding boxes back onto the PDF text
-   cells (we have these) to fill cell text — the same matching docling does for
-   "PDF" tables (it does not OCR programmatic tables).
-4. **Serialization.** Convert the predicted OTSL grid (with row/col spans) to the
-   `Table` node; the Markdown table serializer already exists but assumes a plain
-   grid, so spans need representing.
+- `encoder.onnx` — `image[1,3,448,448] → memory[784,1,512]`
+- `decoder.onnx` — `tags[seq,1] + memory → logits[1,13], hidden[1,512]`
+
+The OTSL vocabulary is only **13 tokens** (`wordmap.json`). The decoder runs with
+`cache=None` (re-embeds the full token prefix each step), so it exports cleanly
+with a dynamic `seq` axis and is driven as a simple loop from Rust — no KV-cache
+machinery needed. The ONNX/weights are gitignored (downloaded/exported, like the
+layout/OCR models).
+
+**Remaining (the Rust inference, staged):**
+
+1. **Decode loop** in `fleischwolf-pdf`: crop+resize the table region to 448²,
+   normalise, `encoder.onnx` once, then loop `decoder.onnx` — `argmax` the logits,
+   apply docling's two structure-correction rules (first-line `xcel→lcel`,
+   `ucel`-then-`lcel → fcel`), append, stop at `<end>`. Yields the OTSL tag run.
+2. **Bbox decoder** (`bbox.onnx`, not yet exported): per-cell hidden → box, for
+   matching. Interim: skip it and match by grid geometry.
+3. **OTSL → grid.** `docling_ibm_models/tableformer/otsl.py` is the reference
+   (`fcel/ched/rhed/srow/ecel/lcel/ucel/xcel/nl`); port it to a `Table` with
+   row/col spans (the Markdown serializer needs span support added).
+4. **Cell content.** Map the PDF text cells we already extract onto the grid
+   cells (docling does not OCR programmatic tables).
+
+A cheaper interim improvement (not docling-exact, but closes some diff): better
+geometric reconstruction — detect header rows, merge obvious spanning cells, and
+handle the multi-line header cells that currently shatter into many columns.
 
 A cheaper interim improvement (not docling-exact, but closes some diff): better
 geometric reconstruction — detect header rows, merge obvious spanning cells, and
