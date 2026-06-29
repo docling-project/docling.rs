@@ -667,30 +667,49 @@ pub fn assemble_page(
 /// Merge paragraph fragments split across a column or page break. docling joins a
 /// paragraph whose previous fragment ends mid-sentence (a letter, not sentence
 /// punctuation) with a lowercase continuation: `…definition of` + `lists in…` →
-/// `…definition of lists in…`. Only consecutive top-level paragraphs merge — a
-/// heading/table/figure between them ends the paragraph.
+/// `…definition of lists in…`. The fragments are consecutive paragraphs, or
+/// separated only by figure(s) the text wraps around: a column whose body flows
+/// past a figure resumes below it (`…The wing type that is` ⟶[figure]⟶ `the most
+/// common…`), and docling emits the whole paragraph before the figure. A heading,
+/// table, or list between them ends the paragraph (no merge).
 pub(crate) fn merge_continuations(nodes: &mut Vec<Node>) {
     let mut i = 0;
     while i + 1 < nodes.len() {
-        let merged = match (&nodes[i], &nodes[i + 1]) {
-            (Node::Paragraph { text: a }, Node::Paragraph { text: b }) => {
-                // Open if the fragment ends mid-word (a letter) or with a wrap
-                // hyphen/dash — docling joins `vocab-` + `ulary` → `vocab- ulary`.
-                let a_open = a.trim_end().chars().next_back().is_some_and(|c| {
-                    c.is_alphabetic() || matches!(c, '-' | '\u{2010}' | '\u{2013}' | '\u{2014}')
-                });
-                let b_cont = b
-                    .trim_start()
-                    .chars()
-                    .next()
-                    .is_some_and(|c| c.is_lowercase());
-                (a_open && b_cont).then(|| format!("{} {}", a.trim_end(), b.trim_start()))
-            }
-            _ => None,
+        let Node::Paragraph { text: a } = &nodes[i] else {
+            i += 1;
+            continue;
         };
-        if let Some(text) = merged {
-            nodes[i] = Node::Paragraph { text };
-            nodes.remove(i + 1);
+        // Open if the fragment ends mid-word (a letter) or with a wrap hyphen/dash
+        // — docling joins `vocab-` + `ulary` → `vocab- ulary`.
+        let a_open = a.trim_end().chars().next_back().is_some_and(|c| {
+            c.is_alphabetic() || matches!(c, '-' | '\u{2010}' | '\u{2013}' | '\u{2014}')
+        });
+        if !a_open {
+            i += 1;
+            continue;
+        }
+        // The continuation is the next paragraph, looking past any figures the
+        // text wraps around (but nothing else).
+        let mut j = i + 1;
+        while matches!(nodes.get(j), Some(Node::Picture { .. })) {
+            j += 1;
+        }
+        let cont = matches!(nodes.get(j), Some(Node::Paragraph { text: b })
+            if b.trim_start().chars().next().is_some_and(char::is_lowercase));
+        if cont {
+            let a = match &nodes[i] {
+                Node::Paragraph { text } => text.trim_end().to_string(),
+                _ => unreachable!(),
+            };
+            let b = match &nodes[j] {
+                Node::Paragraph { text } => text.trim_start().to_string(),
+                _ => unreachable!(),
+            };
+            nodes[i] = Node::Paragraph {
+                text: format!("{a} {b}"),
+            };
+            nodes.remove(j);
+            // Re-check i: the merged paragraph may continue further.
         } else {
             i += 1;
         }
