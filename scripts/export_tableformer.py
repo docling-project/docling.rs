@@ -55,11 +55,35 @@ start = word_map["<start>"]
 
 class Encode(nn.Module):
     def forward(self, img):
-        eo = m._encoder(img)
-        eo = tt._input_filter(eo.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
+        eo_raw = m._encoder(img)  # [1,28,28,512] — also feeds the bbox decoder
+        eo = tt._input_filter(eo_raw.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
         ei = eo.reshape(1, -1, eo.size(-1)).permute(1, 0, 2)
         pos = ei.shape[0]
-        return tt._encoder(ei, mask=torch.zeros((nh, pos, pos), dtype=torch.bool))
+        mem = tt._encoder(ei, mask=torch.zeros((nh, pos, pos), dtype=torch.bool))
+        return mem, eo_raw
+
+
+class BBoxDecode(nn.Module):
+    # docling's BBoxDecoder.inference, batched over cells: each cell's tag hidden
+    # state attends over the (bbox-decoder-filtered) encoder output to a box.
+    def forward(self, enc_out, tag_h):  # enc_out [1,28,28,512], tag_h [N,512]
+        bd = m._bbox_decoder
+        e = bd._input_filter(enc_out.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
+        e = e.reshape(1, -1, e.size(3))  # [1, 784, 512]
+        n = tag_h.shape[0]
+        h = bd._init_h(e.mean(dim=1)).expand(n, -1)  # [N, dim] (same for all cells)
+        a = bd._attention
+        att = a._full_att(
+            a._relu(
+                a._encoder_att(e)
+                + a._tag_decoder_att(tag_h).unsqueeze(1)
+                + a._language_att(h).unsqueeze(1)
+            )
+        ).squeeze(2)
+        alpha = a._softmax(att)  # [N, 784]
+        awe = (e * alpha.unsqueeze(2)).sum(dim=1)  # [N, 512]
+        h = (bd._sigmoid(bd._f_beta(h)) * awe) * h
+        return bd._bbox_embed(h).sigmoid(), bd._class_embed(h)
 
 
 class Decode(nn.Module):
@@ -88,12 +112,15 @@ def check(name, a, b):
     return d
 
 
+from torch.export import Dim  # noqa: E402
+
 img = torch.randn(1, 3, 448, 448)
 with torch.no_grad():
-    mem = Encode()(img)
+    mem, enc_out = Encode()(img)
 torch.onnx.export(
     Encode(), (img,), f"{OUT}/encoder.onnx",
-    input_names=["image"], output_names=["memory"], opset_version=17, dynamo=False,
+    input_names=["image"], output_names=["memory", "enc_out"],
+    opset_version=17, dynamo=False,
 )
 tags = torch.full((4, 1), start, dtype=torch.long)
 with torch.no_grad():
@@ -101,26 +128,41 @@ with torch.no_grad():
 # The dynamo exporter is needed here: the legacy tracer bakes the sequence length
 # into nn.MultiheadAttention's reshape, so a 1-token first step fails. dynamo keeps
 # the `seq` axis symbolic.
-from torch.export import Dim  # noqa: E402
-
 seq = Dim("seq", min=1, max=1024)
 torch.onnx.export(
     Decode(), (tags, mem), f"{OUT}/decoder.onnx",
     input_names=["tags", "memory"], output_names=["logits", "hidden"],
     dynamo=True, dynamic_shapes=({0: seq}, {}),
 )
+# bbox decoder: N cell hiddens → N boxes (+ classes). N is dynamic.
+tag_h = torch.randn(5, 512)
+with torch.no_grad():
+    boxes, classes = BBoxDecode()(enc_out, tag_h)
+ncells = Dim("ncells", min=1, max=1024)
+torch.onnx.export(
+    BBoxDecode(), (enc_out, tag_h), f"{OUT}/bbox.onnx",
+    input_names=["enc_out", "tag_h"], output_names=["boxes", "classes"],
+    dynamo=True, dynamic_shapes=({}, {0: ncells}),
+)
 
 import onnxruntime as ort  # noqa: E402
 
 print("encoder.onnx:")
-eo = ort.InferenceSession(f"{OUT}/encoder.onnx").run(None, {"image": img.numpy()})[0]
-check("memory", eo, mem.numpy())
+eres = ort.InferenceSession(f"{OUT}/encoder.onnx").run(None, {"image": img.numpy()})
+check("memory", eres[0], mem.numpy())
+check("enc_out", eres[1], enc_out.numpy())
 print("decoder.onnx:")
 do = ort.InferenceSession(f"{OUT}/decoder.onnx").run(
     None, {"tags": tags.numpy(), "memory": mem.numpy()}
 )
 check("logits", do[0], logits.numpy())
 check("hidden", do[1], hidden.numpy())
+print("bbox.onnx:")
+bo = ort.InferenceSession(f"{OUT}/bbox.onnx").run(
+    None, {"enc_out": enc_out.numpy(), "tag_h": tag_h.numpy()}
+)
+check("boxes", bo[0], boxes.numpy())
+check("classes", bo[1], classes.numpy())
 
 # word map → tokens file for the Rust decode loop
 json.dump(
