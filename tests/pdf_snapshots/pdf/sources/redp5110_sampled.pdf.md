@@ -8,9 +8,9 @@ Protect columns by defining column masks
 
 <!-- image -->
 
-## Row and Column Access Control
+## Row and Column Access Control Support in IBM DB2 for i
 
-Hernando Bedoya Rob Bestgen Mike Cain Dan Cruikshank Jim Denton Doug Mack Tom McKinley
+Jim Bainbridge Hernando Bedoya Rob Bestgen Mike Cain Dan Cruikshank Jim Denton Doug Mack Tom McKinley
 
 <!-- image -->
 
@@ -52,7 +52,9 @@ This IBM® Redpaper™ publication provides information about the IBM i 7.2 feat
 
 This paper is intended for database engineers, data-centric application developers, and secu rity officers who want to design and implement RCAC as a part of their data control and governance policy. A solid background in IBM i object level security, DB2 for i relational database concepts, and SQL is assumed.
 
-the International Technical Support Organization (ITSO), Rochester, Minnesota US.
+## Authors
+
+This paper was produced by the IBM DB2 for i Center of Excellence team in partnership with the International Technical Support Organization (ITSO), Rochester, Minnesota US.
 
 <!-- image -->
 
@@ -127,29 +129,29 @@ The FUNCTION_USAGE view contains function usage configuration details. Table 2-1
 
 Table 2- 1 FUNCTION _USAGE view
 
-| FUNCTION_ID VARCHAR(30) ID of the function.                                      |                                                              |
-|----------------------------------------------------------------------------------|--------------------------------------------------------------|
-| USER_NAME VARCHAR(10) Name of the user profile that has a usage setting for this |                                                              |
-|                                                                                  | function.                                                    |
-| USAGE VARCHAR(7) Usage setting:                                                  |                                                              |
-|                                                                                  | ALLOWED: The user profile is allowed to use the function.    |
-|                                                                                  | DENIED: The user profile is not allowed to use the function. |
-| USER_TYPE VARCHAR(5) Type of user profile:                                       |                                                              |
-|                                                                                  | USER: The user profile is a user.                            |
-|                                                                                  | GROUP: The user profile is a group.                          |
+| FUNCTION_ID VARCHAR(30) ID of the function. |  |
+| - | - |
+| USER_NAME VARCHAR(10) Name of the user profile that has a usage setting for this |  |
+|  | function. |
+| USAGE VARCHAR(7) Usage setting: |  |
+|  | ALLOWED: The user profile is allowed to use the function. |
+|  | DENIED: The user profile is not allowed to use the function. |
+| USER_TYPE VARCHAR(5) Type of user profile: |  |
+|  | USER: The user profile is a user. |
+|  | GROUP: The user profile is a group. |
 
 To discover who has authorization to define and manage RCAC, you can use the query that is shown in Example 2-1.
 
 Example 2-1 Query to determine who has authority to define and manage RCAC
 
-| SELECT functi on_i d,                |               |
-|--------------------------------------|---------------|
-|                                      | u s er_n ame, |
-|                                      | u s age,      |
-|                                      | u s er_type   |
-| FROM functi on_usage                 |               |
-| WHERE functi on_i d=’QIBM_DB_SECADM’ |               |
-| ORDER BY user_name;                  |               |
+| SELECT functi on_i d, |  |
+| - | - |
+|  | u s er_n ame, |
+|  | u s age, |
+|  | u s er_type |
+| FROM functi on_usage |  |
+| WHERE functi on_i d=’QIBM_DB_SECADM’ |  |
+| ORDER BY user_name; |  |
 
 ## 2.2 Separation of duties
 
@@ -169,8 +171,21 @@ Table 2-2 shows a comparison of the different function usage IDs and *JOBCTL aut
 
 Table 2-2 Comparison of the different function usage IDs and * JOBCTL authority
 
-| User action *JOBCTL QIBM_DB_SECADM QIBM_DB_SQLADM QIBM_DB_SYSMON No Authority SET CURRENT DEGREE (SQL statement) X X STRDBMON or ENDDBMON commands targeting a different user's job X X STRDBMON or ENDDBMON commands targeting a job that matches the current user X X X X CHGQRYA command targeting a different user's job X X Visual Explain within Run SQL scripts X X X X Visual Explain outside of Run SQL scripts X X ANALYZE PLAN CACHE procedure X X QUSRJOBI() API format 900 or System i Navigator's SQL Details for Job X X X CHANGE PLAN CACHE SIZE procedure (currently does not check authority) X X MODIFY PLAN CACHE procedure X X MODIFY PLAN CACHE PROPERTIES procedure (currently does not check authority) X X DUMP PLAN CACHE procedure X X   |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| User action |  | QIBM_DB_SECADM | QIBM_DB_SQLADM | QIBM_DB_SYSMON |  |
+| - | - | - | - | - | - |
+|  | *JOBCTL |  |  |  | No Authority |
+| SET CURRENT DEGREE (SQL statement) X X |  |  |  |  |  |
+| CHGQRYA command targeting a different user's job X X |  |  |  |  |  |
+| STRDBMON or ENDDBMON commands targeting a different user's job X X |  |  |  |  |  |
+| STRDBMON or ENDDBMON commands targeting a job that matches the current user X X X X |  |  |  |  |  |
+| QUSRJOBI() API format 900 or System i Navigator's SQL Details for Job X X X |  |  |  |  |  |
+| Visual Explain within Run SQL scripts X X X X |  |  |  |  |  |
+| Visual Explain outside of Run SQL scripts X X |  |  |  |  |  |
+| ANALYZE PLAN CACHE procedure X X |  |  |  |  |  |
+| DUMP PLAN CACHE procedure X X |  |  |  |  |  |
+| MODIFY PLAN CACHE procedure X X |  |  |  |  |  |
+| MODIFY PLAN CACHE PROPERTIES procedure (currently does not check authority) X X |  |  |  |  |  |
+| CHANGE PLAN CACHE SIZE procedure (currently does not check authority) X X |  |  |  |  |  |
 
 initially enable or disable the row access rules.
 
@@ -184,11 +199,11 @@ A column mask is a database object that manifests a column value access control 
 
 Table 3-1 Special registers and their corresponding values
 
-| SESSION_USER The effective user of the thread excluding adopted authority. USER or         |                                                        |
-|--------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| CURRENT_USER The effective user of the thread including adopted authority. When no adopted |                                                        |
-|                                                                                            | authority is present, this has the same value as USER. |
-| SYSTEM_USER The authorization ID that initiated the connection.                            |                                                        |
+| SESSION_USER The effective user of the thread excluding adopted authority. USER or |  |
+| - | - |
+| CURRENT_USER The effective user of the thread including adopted authority. When no adopted |  |
+|  | authority is present, this has the same value as USER. |
+| SYSTEM_USER The authorization ID that initiated the connection. |  |
 
 Figure 3-5 shows the difference in the special register values when an adopted authority is used:
 
@@ -210,8 +225,8 @@ IBM DB2 for i supports nine different built-in global variables that are read on
 
 Table 3-2 Built-in global variables
 
-| CLIENT_HOST VARCHAR(255) Host name of the current client as returned by the system CLIENT_IPADDR VARCHAR(128) IP address of the current client as returned by the system CLIENT_PORT INTEGER Port used by the current client to communicate with the server PACKAGE_NAME VARCHAR(128) Name of the currently running package PACKAGE_SCHEMA VARCHAR(128) Schema name of the currently running package PACKAGE_VERSION VARCHAR(64) Version identifier of the currently running package ROUTINE_SCHEMA VARCHAR(128) Schema name of the currently running routine ROUTINE_SPECIFIC_NAME VARCHAR(128) Name of the currently running routine ROUTINE_TYPE CHAR(1) Type of the currently running routine   |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| CLIENT_HOST VARCHAR(255) Host name of the current client as returned by the system CLIENT_IPADDR VARCHAR(128) IP address of the current client as returned by the system CLIENT_PORT INTEGER Port used by the current client to communicate with the server PACKAGE_NAME VARCHAR(128) Name of the currently running package PACKAGE_SCHEMA VARCHAR(128) Schema name of the currently running package PACKAGE_VERSION VARCHAR(64) Version identifier of the currently running package ROUTINE_SCHEMA VARCHAR(128) Schema name of the currently running routine ROUTINE_SPECIFIC_NAME VARCHAR(128) Name of the currently running routine ROUTINE_TYPE CHAR(1) Type of the currently running routine |
+| - |
 
 ## 3.3 VERIFY_GROUP_FOR_USER function
 
@@ -231,7 +246,9 @@ The following function invocation returns a value of 0:
 
 The following function invocation returns a value of 0:
 
-CASE WHEN VERI FY_GROUP_FOR_USER (SESSION_USER,' HR',' EMP') = 1 TH EN EMPLOYEES. DATE_OF_BI RTH WHEN VERI FY_GROUP_FOR_USER (SESSION_USER,' MGR') = 1 AND SESS ION_USER = EMPLOYEES. USER_I D TH EN EMPLOYEES. DATE_OF_BI RTH WHEN VERI FY_GROUP_FOR_USER (SESSION_USER,' MGR') = 1 AND SESS ION_USER <> EMPLOYEES. USER_I D TH EN (9999 | |' -' | | MONTH (EMPLOYEES. DATE_OF_BIRTH) | |' -' | | DAY (EMPLOYEES. DATE_OF_BIRTH)) END ELSE NULL ENABLE;
+```
+CASE WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'HR', 'EMP') = 1 THEN EMPLOYEES. DATE_OF_BIRTH WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'MGR') = 1 AND SESSION_USER = EMPLOYEES. USER_ID THEN EMPLOYEES. DATE_OF_BIRTH WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'MGR') = 1 AND SESSION_USER <> EMPLOYEES. USER_ID THEN( 9999 || '-' || MONTH( EMPLOYEES. DATE_OF_BIRTH) || '-' || DAY(EMPLOYEES.DATE_OF_BIRTH)) ELSE NULL END ENABLE;
+```
 
 - 2. The other column to mask in this example is the TAX_ID information. In this example, the rules to enforce include the following ones:
 - Human Resources can see the unmasked TAX_ID of the employees.
@@ -241,9 +258,11 @@ CASE WHEN VERI FY_GROUP_FOR_USER (SESSION_USER,' HR',' EMP') = 1 TH EN EMPLOYEES
 
 To implement this column mask, run the SQL statement that is shown in Example 3-9.
 
-Example 3-9 Creating a mask on the TAX _ID column
+```
+CREATE MASK HR_SCHEMA.MASK_TAX_ID_ON_EMPLOYEES ON HR_SCHEMA.EMPLOYEES AS EMPLOYEES FOR COLUMN TAX_ID RETURN CASE WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'HR') = 1 THEN EMPLOYEES. TAX_ID WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'MGR') = 1 AND SESSION_USER = EMPLOYEES. USER_ID THEN EMPLOYEES. TAX_ID WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'MGR') = 1 AND SESSION_USER <> EMPLOYEES. USER_ID THEN( 'XXX-XX-' CONCAT QSYS2. SUBSTR( EMPLOYEES. TAX_ID, 8, 4)) WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'EMP') = 1 THEN EMPLOYEES. TAX_ID ELSE 'XXX-XX-XXXX' END ENABLE;
+```
 
-CREATE MASK HR_SCHEMA. MASK_TAX_I D_ON_EMPLOYEES ON HR_SCHEMA. EMPLOYEES AS EMPLOYEES FOR COLUMN TAX_I D CASE WHEN VERI FY_GROUP_FOR_USER (SESSION_USER,' HR') = 1 RETURN TH EN EMPLOYEES. TAX_I D WHEN VERI FY_GROUP_FOR_USER (SESSION_USER,' MGR') = 1 AND SESS ION_USER = EMPLOYEES. USER_I D TH EN EMPLOYEES. TAX_I D AND SESS ION_USER <> EMPLOYEES. USER_I D WHEN VERI FY_GROUP_FOR_USER (SESSION_USER,' MGR') = 1 TH EN (' XXX-XX-' CONCAT QSYS2. SUBSTR (EMPLOYEES. TAX_ID, 8, 4)) WHEN VERI FY_GROUP_FOR_USER (SESSION_USER,' EMP') = 1 TH EN EMPLOYEES. TAX_I D END ELSE' XXX-XX-XXXX' ENABLE;
+Example 3-9 Creating a mask on the TAX _ID column
 
 Figure 3-10 Column masks shown in System i Navigator
 
@@ -257,7 +276,9 @@ Now that you have created the row permission and the two column masks, RCAC must
 
 Example 3-10 Activating RCAC on the EMPLOYEES table
 
-/* Acti ve Row Access Control (permi ssi ons) */ /* Acti ve Col umn Access Control (masks) */ ALTER TABLE HR_SCHEMA. EMPLOYEES ACT I VATE ROW ACCESS CONTROL ACT I VATE COLUMN ACCESS CONTROL;
+```
+/* Active Row Access Control(permissions) */ /* Active Column Access Control(masks) */ ALTER TABLE HR_SCHEMA.EMPLOYEES ACTIVATE ROW ACCESS CONTROL ACTIVATE COLUMN ACCESS CONTROL;
+```
 
 - 2. Look at the definition of the EMPLOYEE table, as shown in Figure 3-11. To do this, from the main navigation pane of System i Navigator, click Schemas  HR_SCHEMA  Tables, right-click the EMPLOYEES table, and click Definition.
 
@@ -277,7 +298,9 @@ Figure 4-69 Index advice with no RCAC
 
 <!-- image -->
 
-WHEN QSYS2. VERI FY_GROUP_FOR_USER (SESSION_USER,' TELLER') = 1 WHEN QSYS2. VERI FY_GROUP_FOR_USER (SESSION_USER,' CUSTOMER') = 1 WHEN QSYS2. VERI FY_GROUP_FOR_USER (SESSION_USER,' ADMIN') = 1 WHEN QSYS2. VERI FY_GROUP_FOR_USER (SESSION_USER,' TELLER') = 1 WHEN QSYS2. VERI FY_GROUP_FOR_USER (SESSION_USER,' CUSTOMER') = 1 124 Row and Column Access Control Support in IBM DB2 for iTHEN C. CUSTOMER_TAX_ID TH EN (' XXX-XX-' CONCAT QSYS2. SUBSTR (C. CUSTOMER_TAX_ID, 8, 4)) TH EN C. CUSTOMER_TAX_I D TH EN C. CUSTOMER_DRI VERS_LI CENSE_NUMBER TH EN C. CUSTOMER_DRI VERS_LI CENSE_NUMBER TH EN C. CUSTOMER_DRI VERS_LI CENSE_NUMBER CREATE MASK BANK_SCHEMA. MASK_DRI VERS_LI CENSE_ON_CUSTOMERS ON BANK_SCHEMA. CUSTOMERS AS C CREATE MASK BANK_SCHEMA. MASK_LOG I N_I D_ON_CUSTOMERS ON BANK_SCHEMA. CUSTOMERS AS C ELSE' XXX-XX-XXXX' END ENABLE; ELSE' *************' END ENABLE; RETURN CASE RETURN CASE FOR COLUMN CUSTOMER_DRIVERS_LI CENSE_NUMBER FOR COLUMN CUSTOMER_LOG I N_I D ALTER TABLE BANK_SCHEMA. CUSTOMERS WHEN QSYS2. VERI FY_GROUP_FOR_USER (SESSION_USER,' ADMIN') = 1 WHEN QSYS2. VERI FY_GROUP_FOR_USER (SESSION_USER,' CUSTOMER') = 1 WHEN QSYS2. VERI FY_GROUP_FOR_USER (SESSION_USER,' ADMIN') = 1 WHEN QSYS2. VERI FY_GROUP_FOR_USER (SESSION_USER,' CUSTOMER') = 1 WHEN QSYS2. VERI FY_GROUP_FOR_USER (SESSION_USER,' ADMIN') = 1 WHEN QSYS2. VERI FY_GROUP_FOR_USER (SESSION_USER,' CUSTOMER') = 1 TH EN C. CUSTOMER_LOG I N_I D TH EN C. CUSTOMER_LOG I N_I D TH EN C. CUSTOMER_SECURITY_QUESTION TH EN C. CUSTOMER_SECURITY_QUESTION TH EN C. CUSTOMER_SECURITY_QUESTION_ANSWER TH EN C. CUSTOMER_SECURITY_QUESTION_ANSWER CREATE MASK BANK_SCHEMA. MASK_SECURITY_QUESTION_ON_CUSTOMERS ON BANK_SCHEMA. CUSTOMERS AS C CREATE MASK BANK_SCHEMA. MASK_SECURITY_QUESTION_ANSWER_ON_CUSTOMERS ON BANK_SCHEMA. CUSTOMERS AS C ELSE' *****' END ENABLE; ELSE' *****' END ENABLE; ELSE' *****' END ENABLE; ACTI VATE ROW ACCESS CONTROL ACTI VATE COLUMN ACCESS CONTROL; RETURN CASE RETURN CASE FOR COLUMN CUSTOMER_SECURITY_QUESTION FOR COLUMN CUSTOMER_SECURITY_QUESTION_ANSWER
+```
+WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'TELLER') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'TELLER') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1 124 Row and Column Access Control Support in IBM DB2 for iTHEN C. CUSTOMER_TAX_ID THEN( 'XXX-XX-' CONCAT QSYS2. SUBSTR( C. CUSTOMER_TAX_ID, 8, 4)) THEN C. CUSTOMER_TAX_ID THEN C. CUSTOMER_DRIVERS_LICENSE_NUMBER THEN C. CUSTOMER_DRIVERS_LICENSE_NUMBER THEN C. CUSTOMER_DRIVERS_LICENSE_NUMBER CREATE MASK BANK_SCHEMA.MASK_DRIVERS_LICENSE_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS C CREATE MASK BANK_SCHEMA.MASK_LOGIN_ID_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS C ELSE 'XXX-XX-XXXX' END ELSE '*************' END RETURN CASE RETURN CASE ENABLE; FOR COLUMN CUSTOMER_DRIVERS_LICENSE_NUMBER ENABLE; FOR COLUMN CUSTOMER_LOGIN_ID ALTER TABLE BANK_SCHEMA.CUSTOMERS WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1 THEN C. CUSTOMER_LOGIN_ID THEN C. CUSTOMER_LOGIN_ID THEN C. CUSTOMER_SECURITY_QUESTION THEN C. CUSTOMER_SECURITY_QUESTION THEN C. CUSTOMER_SECURITY_QUESTION_ANSWER THEN C. CUSTOMER_SECURITY_QUESTION_ANSWER CREATE MASK BANK_SCHEMA.MASK_SECURITY_QUESTION_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS C CREATE MASK BANK_SCHEMA.MASK_SECURITY_QUESTION_ANSWER_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS C ELSE '*****' END ELSE '*****' END ELSE '*****' END ACTIVATE ROW ACCESS CONTROL ACTIVATE COLUMN ACCESS CONTROL; RETURN CASE RETURN CASE ENABLE; FOR COLUMN CUSTOMER_SECURITY_QUESTION ENABLE; FOR COLUMN CUSTOMER_SECURITY_QUESTION_ANSWER ENABLE;
+```
 
 ## Support in IBM DB2 for i
 

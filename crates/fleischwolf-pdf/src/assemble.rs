@@ -267,6 +267,40 @@ fn pair_captions(regions: &[Region]) -> Vec<Option<usize>> {
     pairs
 }
 
+/// Pair each `code` region with the `caption` region just **above** it (a
+/// `Listing N:` label). docling renders the code block first, then its caption,
+/// so the caption is consumed from its own (earlier) reading-order slot and
+/// re-emitted after the code.
+fn pair_code_captions(regions: &[Region]) -> Vec<Option<usize>> {
+    let mut pairs = vec![None; regions.len()];
+    let mut taken = vec![false; regions.len()];
+    for (pi, p) in regions.iter().enumerate() {
+        if p.label != "code" {
+            continue;
+        }
+        let mut best: Option<(usize, f32)> = None;
+        for (ci, c) in regions.iter().enumerate() {
+            if c.label != "caption" || taken[ci] {
+                continue;
+            }
+            let line_h = (c.b - c.t).abs().max(1.0);
+            let gap = p.t - c.b; // caption sits above the code
+            let h_overlap = (p.r.min(c.r) - p.l.max(c.l)).max(0.0);
+            if gap > -line_h && gap < line_h * 3.0 && h_overlap > 0.0 {
+                let dist = gap.abs();
+                if best.is_none_or(|(_, bd)| dist < bd) {
+                    best = Some((ci, dist));
+                }
+            }
+        }
+        if let Some((ci, _)) = best {
+            pairs[pi] = Some(ci);
+            taken[ci] = true;
+        }
+    }
+    pairs
+}
+
 /// Assemble one page from its (already overlap-resolved) layout regions and
 /// text cells.
 pub fn assemble_page(page: &PdfPage, mut regions: Vec<Region>, doc: &mut DoclingDocument) {
@@ -275,8 +309,12 @@ pub fn assemble_page(page: &PdfPage, mut regions: Vec<Region>, doc: &mut Docling
     // picture with the caption region nearest below it and consume that caption,
     // so it isn't also emitted in its own (lower) reading-order position.
     let caption_for = pair_captions(&regions);
+    let code_caption_for = pair_code_captions(&regions);
     let mut consumed = vec![false; regions.len()];
     for ci in caption_for.iter().flatten() {
+        consumed[*ci] = true;
+    }
+    for ci in code_caption_for.iter().flatten() {
         consumed[*ci] = true;
     }
 
@@ -331,7 +369,32 @@ pub fn assemble_page(page: &PdfPage, mut regions: Vec<Region>, doc: &mut Docling
             "formula" => doc.push(Node::Paragraph {
                 text: "<!-- formula-not-decoded -->".into(),
             }),
-            // text, caption, footnote, code → paragraph
+            // Code blocks: use the space-glyph-only grouping (monospace keeps its
+            // source spacing) and emit a fenced block. pdfium still inserts spaces
+            // around tight punctuation (`console .log`, `add (3 , 5)`); tighten
+            // them to match docling-parse's source spacing.
+            "code" => {
+                let code = region_text(region, &page.code_cells);
+                let code = if code.is_empty() { text } else { code };
+                let code = code
+                    .replace(" .", ".")
+                    .replace(" ,", ",")
+                    .replace(" ;", ";")
+                    .replace(" )", ")")
+                    .replace(" (", "(");
+                doc.push(Node::Code {
+                    language: None,
+                    text: code,
+                });
+                // docling emits the `Listing N:` caption after the code block.
+                if let Some(ci) = code_caption_for[i] {
+                    let cap = region_text(&regions[ci], &page.cells);
+                    if !cap.is_empty() {
+                        doc.push(Node::Paragraph { text: cap });
+                    }
+                }
+            }
+            // text, caption, footnote → paragraph
             _ => doc.push(Node::Paragraph { text }),
         }
     }

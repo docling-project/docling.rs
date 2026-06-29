@@ -118,6 +118,7 @@ impl Pipeline {
             height: h as f32,
             scale: 1.0,
             cells: Vec::new(),
+            code_cells: Vec::new(),
             image,
         };
         self.process_pages(vec![page], name)

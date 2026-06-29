@@ -38,6 +38,9 @@ pub struct PdfPage {
     pub height: f32,
     pub scale: f32,
     pub cells: Vec<TextCell>,
+    /// Same text grouped for code regions: split only at pdfium space glyphs, so
+    /// monospace runs keep their source spacing instead of the prose heuristic's.
+    pub code_cells: Vec<TextCell>,
     pub image: RgbImage,
 }
 
@@ -110,7 +113,7 @@ fn extract_page(
     let width = page.width().value;
     let height = page.height().value;
 
-    let mut cells = ffi.page_cells(index, height);
+    let (mut cells, code_cells) = ffi.page_cells(index, height);
     if cells.is_empty() {
         cells = segment_cells(&page.text()?, height);
     }
@@ -136,6 +139,7 @@ fn extract_page(
         height,
         scale: RENDER_SCALE,
         cells,
+        code_cells,
         image,
     })
 }
@@ -186,26 +190,31 @@ impl<'a> FfiText<'a> {
     }
 
     /// Reconstruct line cells for page `index` (zero-based) via the
-    /// chars→words→lines grouping. Empty on any failure (caller falls back).
-    fn page_cells(&self, index: i32, page_h: f32) -> Vec<TextCell> {
+    /// chars→words→lines grouping. Returns `(prose_cells, code_cells)` — the same
+    /// glyphs grouped two ways (gap-heuristic for prose, space-glyph-only for
+    /// code). Both empty on any failure (caller falls back).
+    fn page_cells(&self, index: i32, page_h: f32) -> (Vec<TextCell>, Vec<TextCell>) {
         if self.doc.is_null() {
-            return Vec::new();
+            return (Vec::new(), Vec::new());
         }
         let b = self.bindings;
         let page = b.FPDF_LoadPage(self.doc, index);
         if page.is_null() {
-            return Vec::new();
+            return (Vec::new(), Vec::new());
         }
         let tp = b.FPDFText_LoadPage(page);
-        let cells = if tp.is_null() {
-            Vec::new()
+        let out = if tp.is_null() {
+            (Vec::new(), Vec::new())
         } else {
             let g = glyphs(b, tp);
             b.FPDFText_ClosePage(tp);
-            lines_from_glyphs(&g, page_h)
+            (
+                lines_from_glyphs(&g, page_h, false),
+                lines_from_glyphs(&g, page_h, true),
+            )
         };
         b.FPDF_ClosePage(page);
-        cells
+        out
     }
 }
 
@@ -264,7 +273,12 @@ fn glyphs(b: &dyn PdfiumLibraryBindings, tp: FPDF_TEXTPAGE) -> Vec<Glyph> {
 /// tracking is smaller, so titles don't shatter); a new **line** starts where
 /// the baseline drops by ~half the font height (a superscript rises without
 /// dropping, so it stays on its line). Coordinates are flipped to top-left.
-fn lines_from_glyphs(gs: &[Glyph], page_h: f32) -> Vec<TextCell> {
+/// `code` mode splits words **only** at pdfium's own space glyphs and never glues
+/// punctuation — monospace code has wide inter-glyph advances that the prose
+/// gap heuristic mistakes for spaces (`f un c t i o n`), but pdfium emits a real
+/// space glyph at every true gap, so honoring just those reproduces the source
+/// spacing (`function add(a, b)`).
+fn lines_from_glyphs(gs: &[Glyph], page_h: f32, code: bool) -> Vec<TextCell> {
     let mut cells: Vec<TextCell> = Vec::new();
     let mut words: Vec<String> = Vec::new(); // words on the current line
     let mut word = String::new();
@@ -294,8 +308,11 @@ fn lines_from_glyphs(gs: &[Glyph], page_h: f32) -> Vec<TextCell> {
         let (mut new_word, mut new_line) = (false, false);
         if let Some(p) = prev {
             // A new line drops the baseline *and* resets x leftward; requiring the
-            // x-reset avoids a descending comma/semicolon faking a line break.
-            new_line = p.b - g.b > h * 0.5 && g.l < p.r;
+            // x-reset avoids a descending comma/semicolon faking a line break. A
+            // *large* drop (≥1.5× the line height — a skipped line, e.g. a centered
+            // page-number footer below a short last word) is always a new line,
+            // even without the x-reset.
+            new_line = (p.b - g.b > h * 0.5 && g.l < p.r) || (p.b - g.b > line_h.max(h) * 1.5);
             // Don't split before closing punctuation, after opening punctuation, or
             // after a period that runs into a digit/lowercase letter — docling
             // keeps `engines,` / `[37` / `i.e.` / `98.5` together even across a
@@ -307,7 +324,11 @@ fn lines_from_glyphs(gs: &[Glyph], page_h: f32) -> Vec<TextCell> {
                     && !pending_space
                     && (g.ch.is_ascii_digit() || g.ch.is_ascii_lowercase()));
             let word_gap = line_h.max(h) * 0.25;
-            new_word = new_line || ((pending_space || g.l - p.r > word_gap) && !glued);
+            new_word = if code {
+                new_line || pending_space
+            } else {
+                new_line || ((pending_space || g.l - p.r > word_gap) && !glued)
+            };
         }
         pending_space = false;
         if new_line {
