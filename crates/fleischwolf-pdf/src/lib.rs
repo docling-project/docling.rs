@@ -13,7 +13,7 @@ mod assemble;
 pub mod layout;
 mod mets;
 mod ocr;
-mod pdfium_backend;
+pub mod pdfium_backend;
 pub mod resample;
 pub mod tableformer;
 

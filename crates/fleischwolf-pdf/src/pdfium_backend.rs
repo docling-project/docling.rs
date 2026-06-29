@@ -237,6 +237,34 @@ impl Drop for FfiText<'_> {
 /// pdfium emits these on most lines and they pin word splits exactly. Hard line
 /// breaks are dropped (line structure comes from geometry); the gap heuristic in
 /// [`lines_from_glyphs`] is the fallback for the lines pdfium leaves space-less.
+/// Debug helper: the raw pdfium glyph stream (codepoint + native bottom-left
+/// box) for a page, in pdfium's character order. For comparing against
+/// docling-parse's char cells.
+pub fn debug_glyphs(bytes: &[u8], index: i32) -> Vec<(char, f32, f32, f32, f32)> {
+    let Ok(pdfium) = bind() else {
+        return Vec::new();
+    };
+    let ffi = FfiText::load(pdfium.bindings(), bytes, None);
+    if ffi.doc.is_null() {
+        return Vec::new();
+    }
+    let b = ffi.bindings;
+    let page = b.FPDF_LoadPage(ffi.doc, index);
+    if page.is_null() {
+        return Vec::new();
+    }
+    let tp = b.FPDFText_LoadPage(page);
+    let mut out = Vec::new();
+    if !tp.is_null() {
+        for g in glyphs(b, tp) {
+            out.push((g.ch, g.l, g.b, g.r, g.t));
+        }
+        b.FPDFText_ClosePage(tp);
+    }
+    b.FPDF_ClosePage(page);
+    out
+}
+
 fn glyphs(b: &dyn PdfiumLibraryBindings, tp: FPDF_TEXTPAGE) -> Vec<Glyph> {
     let n = b.FPDFText_CountChars(tp);
     let mut out = Vec::with_capacity(n.max(0) as usize);
@@ -269,6 +297,23 @@ fn glyphs(b: &dyn PdfiumLibraryBindings, tp: FPDF_TEXTPAGE) -> Vec<Glyph> {
             r: r as f32,
             t: top as f32,
         });
+    }
+    // pdfium splits the Arabic lam-alef ligature into two chars at the *same* x
+    // (it's one glyph) in visual order — `alef-variant, lam`. docling-parse and
+    // logical order are `lam, alef-variant`. Detect the ligature by the shared x
+    // and swap. The shared-x test reliably distinguishes a true ligature from a
+    // genuine `alef + lam` sequence (the article `ال`, or `فعالة`), whose two
+    // glyphs sit at different x and must NOT be reordered.
+    for i in 0..out.len().saturating_sub(1) {
+        let same_x = out[i].l.is_finite()
+            && out[i + 1].l.is_finite()
+            && (out[i].l - out[i + 1].l).abs() < 1.0;
+        if same_x
+            && matches!(out[i].ch, '\u{0622}' | '\u{0623}' | '\u{0625}' | '\u{0627}')
+            && out[i + 1].ch == '\u{0644}'
+        {
+            out.swap(i, i + 1);
+        }
     }
     out
 }
