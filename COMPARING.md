@@ -179,11 +179,12 @@ case — see the divergence table below.
 | **HTML** | **28 / 33** | 28 / 33 |
 | **PDF** | **4 / 14** † | 5 / 14 |
 
-> † The pure-parse backends above are scored against **live** docling. **PDF** is
-> scored against the committed groundtruth corpus (`tests/data/pdf/groundtruth`)
-> instead: it is a discriminative ML reconstruction pipeline (not a deterministic
-> parse), and the corpus predates docling-core's padded table serializer, so PDF
-> output uses the compact `| a | b |` table form.
+> † The pure-parse backends above are scored against **live** docling. **PDF** is a
+> discriminative ML reconstruction pipeline (not a deterministic parse), so it is
+> scored against a committed groundtruth corpus (`tests/data/pdf/groundtruth`) that
+> is **regenerated from live docling** and therefore matches `scripts/conformance.sh
+> pdf` (padded GitHub tables, current docling text). Within-one adds
+> `right_to_left_01` (a 2-line diff).
 
 **PDF** (`*.pdf`) ports docling's *standard* (discriminative) PDF pipeline. pdfium
 extracts the text layer (glyph cells + bounding boxes) and renders each page to a
@@ -201,8 +202,10 @@ that previously capped conformance (inter-run spacing like `LABEL :`, justified
 double-spacing, lam-alef ordering). Byte-exact today: `picture_classification`,
 `code_and_formula`, `2305.03393v1-pg9` (**including its TableFormer-reconstructed
 table, cell for cell**), and `multi_page`. The rest are structurally correct but
-not yet byte-exact — the remaining gaps are justified RTL double-spaces
-(`right_to_left_01`, within one line) and table reading-order on dense papers.
+not yet byte-exact; the remaining gaps are model-level — TableFormer multi-row
+header/span structure on dense papers, layout classification (a TOC read as a
+picture, a survey read as tables), title-page reading order, and justified RTL
+double-spaces (`right_to_left_01`, within one line).
 
 **DOCX** (`*.docx`) is a core port of `MsWordDocumentBackend` (`roxmltree` over
 the `ooxml` helper): paragraphs, headings (by style, incl. Title), **numbered
