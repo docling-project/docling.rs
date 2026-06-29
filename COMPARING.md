@@ -176,7 +176,32 @@ case — see the divergence table below.
 | **XLSX** | **9 / 9** ✅ | 9 / 9 |
 | **PPTX** | **7 / 7** ✅ | 7 / 7 |
 | **DOCX** | **25 / 26** | 25 / 26 |
-| **HTML** | **28 / 32** | 29 / 32 |
+| **HTML** | **28 / 33** | 28 / 33 |
+| **PDF** | **3 / 14** † | 4 / 14 |
+
+> † The pure-parse backends above are scored against **live** docling. **PDF** is
+> scored against the committed groundtruth corpus (`tests/data/pdf/groundtruth`)
+> instead: it is a discriminative ML reconstruction pipeline (not a deterministic
+> parse), and the corpus predates docling-core's padded table serializer, so PDF
+> output uses the compact `| a | b |` table form.
+
+**PDF** (`*.pdf`) ports docling's *standard* (discriminative) PDF pipeline. pdfium
+extracts the text layer (glyph cells + bounding boxes) and renders each page to a
+bitmap; an ONNX model stack then interprets it — **layout detection** (the
+`heron`/RT-DETR region model), **TableFormer** table-structure recognition (a full
+port: image encoder + autoregressive OTSL structure decoder + cell-bbox decoder,
+exported to ONNX — see `tableformer.rs`, with cv2-exact `INTER_AREA`/`INTER_LINEAR`
+preprocessing in `resample.rs`), and **PaddleOCR** recognition for scanned /
+image-only pages — and regions are assembled in reading order into a
+`DoclingDocument`. Byte-exact today: `picture_classification`, `code_and_formula`,
+and `2305.03393v1-pg9` (**including its TableFormer-reconstructed table, cell for
+cell**). The rest are structurally correct but not byte-exact, and the ceiling is
+the **text extractor**: pdfium differs from docling's own `docling-parse` C++
+parser at text-run boundaries (inter-run spacing such as `LABEL :`, `<td>`, and
+fractions) and on right-to-left scripts (bidi reordering + Arabic lam-alef ligature
+decomposition) — differences a pdfium-based port cannot close without porting
+docling-parse itself. Closest non-exact: `right_to_left_01` (within one line),
+`amt_handbook_sample` (~8 lines).
 
 **DOCX** (`*.docx`) is a core port of `MsWordDocumentBackend` (`roxmltree` over
 the `ooxml` helper): paragraphs, headings (by style, incl. Title), **numbered
@@ -218,9 +243,10 @@ the drawing parts via the shared `ooxml` zip/rels helper). The one miss
 all-empty table.
 
 CSV, Markdown, AsciiDoc, and the DeepSeek-OCR Markdown variant are fully
-one-to-one. HTML's 4 remaining misses all require docling-internal subsystems
-that depend on **headless-browser rendering** or are otherwise impractical to
-port — see below. 28/32 is effectively the ceiling for a pure-parse port.
+one-to-one. HTML's 5 remaining misses are a tail of docling-internal behaviours —
+some requiring **headless-browser rendering**, others (a large Wikipedia page,
+key-value form extraction) needing substantial structural work — see below. 28/33
+is roughly the ceiling for a pure-parse port.
 
 **AsciiDoc** (`*.asciidoc`/`*.adoc`) ports docling's line-oriented
 `AsciiDocBackend`: titles/sections, nested bullet/numbered lists (all rendered
