@@ -72,6 +72,7 @@ pub fn convert_mets_gbs(bytes: &[u8], name: &str) -> Result<DoclingDocument, Pdf
             code_cells: Vec::new(),
             word_cells: Vec::new(),
             image,
+            links: Vec::new(),
         });
     }
     if pages.is_empty() {

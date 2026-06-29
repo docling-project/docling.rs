@@ -273,8 +273,9 @@ tail of docling-specific quirks (below), each typically 1–2 lines.
 > These numbers are for **legacy** mode (`DocumentConverter::new()`), which aims
 > for byte-for-byte docling output. The Rust-only `strict(true)` mode instead
 > emits cleaner Markdown (code-fence languages kept, no `***x*** .` run-spacing,
-> no `\_`/entity re-escaping) — it deliberately *diverges* from docling, so don't
-> measure conformance against it.
+> no `\_`/entity re-escaping, and **PDF hyperlink annotations rendered as
+> `[anchor](href)`** — web/mail/tel targets that docling's pipeline drops) — it
+> deliberately *diverges* from docling, so don't measure conformance against it.
 
 ### HTML
 

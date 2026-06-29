@@ -55,13 +55,48 @@ pub fn to_markdown_images(
     };
     let mut blocks: Vec<String> = Vec::new();
     render(&doc.nodes, &mut blocks, &mut ctx);
-    let body = blocks.join("\n\n");
+    let mut body = blocks.join("\n\n");
+    // Strict mode only: turn recovered source hyperlinks into Markdown links.
+    // docling's standard pipeline drops them, so doing this in legacy mode would
+    // diverge from docling — hence strict-only, leaving conformance output intact.
+    if strict && !doc.links.is_empty() {
+        body = apply_links(&body, &doc.links);
+    }
     let md = if body.is_empty() {
         String::new()
     } else {
         format!("{body}\n")
     };
     (md, ctx.artifacts)
+}
+
+/// Wrap each recovered link's anchor text in Markdown `[anchor](href)`. Anchors
+/// arrive cleaned (curly quotes/dashes already normalized) but un-escaped, so we
+/// match against the body's HTML-escaped (`&`/`<`/`>`) form, the way prose nodes
+/// were serialized. Links are consumed in document order from a moving cursor, so
+/// a repeated anchor (e.g. two "issues") links its successive occurrences rather
+/// than all pointing at the first. An anchor that can't be located is skipped
+/// (its text may have been split across a line wrap or table cell).
+fn apply_links(body: &str, links: &[(String, String)]) -> String {
+    let mut out = body.to_string();
+    let mut cursor = 0usize;
+    for (anchor, href) in links {
+        let anchor = anchor
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;");
+        if anchor.is_empty() {
+            continue;
+        }
+        if let Some(rel) = out[cursor..].find(&anchor) {
+            let at = cursor + rel;
+            // Don't relink inside an already-emitted `](` Markdown link target.
+            let replacement = format!("[{anchor}]({href})");
+            out.replace_range(at..at + anchor.len(), &replacement);
+            cursor = at + replacement.len();
+        }
+    }
+    out
 }
 
 /// In `strict` mode, rewrite inline text for readability rather than byte-for-byte
@@ -362,6 +397,41 @@ mod tests {
         });
         let md = doc.export_to_markdown();
         assert_eq!(md, "# Title\n\nHello world.\n\n- first\n- second\n");
+    }
+
+    #[test]
+    fn strict_renders_recovered_links_legacy_does_not() {
+        let mut doc = DoclingDocument::new("cv");
+        doc.add_paragraph("Find me on LinkedIn or GitHub.");
+        doc.links = vec![
+            ("LinkedIn".into(), "https://www.linkedin.com/in/x/".into()),
+            ("GitHub".into(), "https://github.com/x/".into()),
+        ];
+        // Legacy/docling mode: links are left untouched (conformance preserved).
+        assert_eq!(doc.export_to_markdown(), "Find me on LinkedIn or GitHub.\n");
+        // Strict mode: anchors become Markdown links.
+        assert_eq!(
+            doc.export_to_markdown_with(true),
+            "Find me on [LinkedIn](https://www.linkedin.com/in/x/) or [GitHub](https://github.com/x/).\n"
+        );
+    }
+
+    #[test]
+    fn strict_links_match_escaped_anchor_and_consume_in_order() {
+        let mut doc = DoclingDocument::new("d");
+        // The PDF assembler HTML-escapes prose, so by serialization time the body
+        // already carries `&amp;`; the anchor is stored un-escaped. The matcher must
+        // escape the anchor to find it. Two identical anchors link in document order.
+        doc.add_paragraph("AI &amp; ML here, and issues here, then issues there.");
+        doc.links = vec![
+            ("AI & ML".into(), "https://a/".into()),
+            ("issues".into(), "https://first/".into()),
+            ("issues".into(), "https://second/".into()),
+        ];
+        assert_eq!(
+            doc.export_to_markdown_with(true),
+            "[AI &amp; ML](https://a/) here, and [issues](https://first/) here, then [issues](https://second/) there.\n"
+        );
     }
 
     #[test]

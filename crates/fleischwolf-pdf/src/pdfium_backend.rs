@@ -45,6 +45,20 @@ pub struct PdfPage {
     /// matching.
     pub word_cells: Vec<TextCell>,
     pub image: RgbImage,
+    /// Hyperlink annotations on the page (rect in top-left page coords + target
+    /// URI), restricted to web/mail/tel schemes. Used only by strict Markdown.
+    pub links: Vec<LinkAnnot>,
+}
+
+/// A PDF link annotation: its rectangle (top-left page coordinates, matching
+/// [`TextCell`]) and target URI.
+#[derive(Debug, Clone)]
+pub struct LinkAnnot {
+    pub l: f32,
+    pub t: f32,
+    pub r: f32,
+    pub b: f32,
+    pub uri: String,
 }
 
 /// A parsed PDF: per-page text cells and page images.
@@ -152,7 +166,41 @@ fn extract_page(
         code_cells,
         word_cells,
         image,
+        links: extract_links(page, height),
     })
+}
+
+/// Collect web/mail/tel hyperlink annotations on a page, mapping each link's
+/// rectangle into top-left page coordinates (like [`TextCell`]). `file://` and
+/// in-document destinations are skipped — only externally meaningful targets are
+/// rendered. pdfium occasionally lists a link twice; rects are kept as-is and the
+/// caller dedupes by resolved anchor text.
+fn extract_links(page: &pdfium_render::prelude::PdfPage<'_>, page_h: f32) -> Vec<LinkAnnot> {
+    let mut out = Vec::new();
+    for link in page.links().iter() {
+        let Some(uri) = link
+            .action()
+            .and_then(|a| a.as_uri_action().and_then(|u| u.uri().ok()))
+        else {
+            continue;
+        };
+        let scheme_ok = ["http://", "https://", "mailto:", "tel:"]
+            .iter()
+            .any(|s| uri.starts_with(s));
+        if !scheme_ok {
+            continue;
+        }
+        if let Ok(rect) = link.rect() {
+            out.push(LinkAnnot {
+                l: rect.left().value,
+                t: page_h - rect.top().value,
+                r: rect.right().value,
+                b: page_h - rect.bottom().value,
+                uri,
+            });
+        }
+    }
+    out
 }
 
 /// Fallback line cells from pdfium-render's style segments (one cell per

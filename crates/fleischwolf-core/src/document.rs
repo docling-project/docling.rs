@@ -24,6 +24,12 @@ pub struct DoclingDocument {
     /// (its committed groundtruth corpus predates the padded serializer); DOCX/HTML
     /// leave it `false` to match current published docling.
     pub compact_tables: bool,
+    /// Hyperlinks recovered from the source, as `(anchor_text, href)` pairs in
+    /// document order. docling's standard pipeline drops PDF link annotations, so
+    /// these are rendered as Markdown `[anchor](href)` **only in strict mode**
+    /// (legacy/docling output is left byte-for-byte unchanged). The PDF backend
+    /// populates this from pdfium link annotations; other backends leave it empty.
+    pub links: Vec<(String, String)>,
 }
 
 /// A single piece of document content.
@@ -98,6 +104,7 @@ impl DoclingDocument {
             nodes: Vec::new(),
             strict_markdown: false,
             compact_tables: false,
+            links: Vec::new(),
         }
     }
 

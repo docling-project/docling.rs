@@ -129,6 +129,7 @@ impl Pipeline {
             code_cells: Vec::new(),
             word_cells: Vec::new(),
             image,
+            links: Vec::new(),
         };
         self.process_pages(vec![page], name)
     }

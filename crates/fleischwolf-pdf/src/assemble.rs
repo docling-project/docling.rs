@@ -224,6 +224,58 @@ fn fix_arabic_lam_alef(s: &str) -> String {
     out.into_iter().collect()
 }
 
+/// Resolve each page hyperlink to the visible text it covers, as `(anchor, uri)`
+/// in reading order. The anchor is the cells whose centre falls in the link rect,
+/// joined left-to-right and cleaned the same way prose is (so it matches the
+/// serialized text), deduped against the immediately-preceding link so pdfium's
+/// occasional duplicate annotation doesn't double-list. Empty anchors are dropped.
+pub(crate) fn resolve_link_anchors(page: &PdfPage) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    // Use per-word cells, not the line-merged `cells`: a link rect covers a few
+    // words on a line, and a whole merged line cell would over-capture (its centre
+    // lands in one link's rect, grabbing the entire line as that link's anchor).
+    let words = if page.word_cells.is_empty() {
+        &page.cells
+    } else {
+        &page.word_cells
+    };
+    for link in &page.links {
+        let mut inside: Vec<&TextCell> = words
+            .iter()
+            .filter(|c| {
+                let (cx, cy) = ((c.l + c.r) / 2.0, (c.t + c.b) / 2.0);
+                cx >= link.l && cx <= link.r && cy >= link.t && cy <= link.b
+            })
+            .collect();
+        // Reading order: top band then left-to-right (link anchors are LTR).
+        let band = inside
+            .iter()
+            .map(|c| (c.b - c.t).abs())
+            .fold(0.0f32, f32::max)
+            .max(1.0);
+        inside.sort_by_key(|c| ((c.t / band).round() as i64, (c.l * 10.0) as i64));
+        let anchor = clean_text(
+            &inside
+                .iter()
+                .map(|c| c.text.trim())
+                .filter(|t| !t.is_empty())
+                .collect::<Vec<_>>()
+                .join(" "),
+        );
+        if anchor.is_empty() {
+            continue;
+        }
+        if out
+            .last()
+            .is_some_and(|(a, u)| a == &anchor && u == &link.uri)
+        {
+            continue;
+        }
+        out.push((anchor, link.uri.clone()));
+    }
+    out
+}
+
 /// Cells assigned to a region (best container), in reading order, joined.
 fn region_text(region: &Region, cells: &[TextCell]) -> String {
     let mut inside: Vec<&TextCell> = cells
@@ -483,6 +535,8 @@ pub fn assemble_page(
     table_rows: &[Option<Vec<Vec<String>>>],
     doc: &mut DoclingDocument,
 ) {
+    // Recover this page's hyperlinks (rendered only in strict Markdown).
+    doc.links.extend(resolve_link_anchors(page));
     // Pair each region with its precomputed TableFormer grid (indexed by original
     // order) and order by reading order together, so they stay aligned.
     let mut items: Vec<(Region, Option<Vec<Vec<String>>>)> = regions
