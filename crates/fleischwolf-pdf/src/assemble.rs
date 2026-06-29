@@ -101,17 +101,23 @@ fn order_regions<T>(items: &mut [T], page_w: f32, reg: impl Fn(&T) -> &Region) {
 /// `{ ahn }`, `Name 1 .`, `[ 9 ]`), and a geometric gap heuristic diverges from
 /// it more than a plain single-space join does.
 fn clean_text(text: &str) -> String {
-    let out = text
+    let replaced = text
         .replace("\u{2} ", "")
         .replace("\u{ad} ", "")
         .replace(['\u{2}', '\u{ad}'], "") // any stray wrap hyphens not at a join
         .replace(['\u{2018}', '\u{2019}'], "'") // ‘ ’ → '
         .replace(['\u{201c}', '\u{201d}'], "\"") // “ ” → "
         .replace(['\u{2013}', '\u{2014}'], "-") // – — → -
-        .replace('\u{2026}', "...") // … → ...
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
+        .replace('\u{2026}', "..."); // … → ...
+    let out = if std::env::var("DOCLING_DP_LINES").is_ok() {
+        // The docling-parse sanitizer already placed the correct spacing (e.g.
+        // justified double spaces); preserve internal runs of spaces, only
+        // normalizing line breaks/tabs and trimming the ends.
+        replaced.replace(['\n', '\r', '\t'], " ").trim().to_string()
+    } else {
+        // Legacy: collapse all whitespace runs to single spaces.
+        replaced.split_whitespace().collect::<Vec<_>>().join(" ")
+    };
     fix_arabic_lam_alef(&out)
 }
 
@@ -201,11 +207,13 @@ fn region_text(region: &Region, cells: &[TextCell]) -> String {
         let x = (c.l * 10.0) as i64;
         ((c.t / band).round() as i64, if rtl { -x } else { x })
     });
-    // Join cells in reading order. Cells on different line-bands join with a
-    // space (line break). Cells on the same band join with a space only if there
-    // is a real horizontal gap between them — an RTL line is split into adjacent
-    // segments mid-word (`الت`|`ي` → `التي`), so abutting same-band cells must not
-    // get a spurious space.
+    // Join cells in reading order. With the docling-parse sanitizer the cells are
+    // already correctly spaced words/lines, so adjacent cells join with a single
+    // space (docling joins its line cells with a space) — matching e.g. a bold
+    // label and its value, `LABEL` | `: value` → `LABEL : value`. The legacy
+    // reconstruction instead joins same-band cells with a space only across a real
+    // gap, because it can split a word into abutting segments (`الت`|`ي` → `التي`).
+    let dp = std::env::var("DOCLING_DP_LINES").is_ok();
     let mut joined = String::new();
     let mut prev: Option<&&TextCell> = None;
     for c in &inside {
@@ -213,7 +221,7 @@ fn region_text(region: &Region, cells: &[TextCell]) -> String {
             let same_band = ((p.t / band).round() as i64) == ((c.t / band).round() as i64);
             let h = (c.b - c.t).abs().max((p.b - p.t).abs()).max(1.0);
             let gap = if rtl { p.l - c.r } else { c.l - p.r };
-            if !same_band || gap > h * 0.25 {
+            if dp || !same_band || gap > h * 0.25 {
                 joined.push(' ');
             }
         }
