@@ -40,9 +40,15 @@ fn main() {
                 tail
             );
         }
-        // cells near the page bottom, to spot orphans below the last region
-        for c in page.cells.iter().filter(|c| c.t > 595.0 && c.t < 660.0) {
-            println!("   CELL t={:6.1} b={:6.1} | {}", c.t, c.b, c.text);
+        // raw line cells in extraction order (to inspect RTL ordering)
+        if std::env::var("DUMP_CELLS").is_ok() {
+            for (ci, c) in page.cells.iter().enumerate() {
+                let snip: String = c.text.chars().take(50).collect();
+                println!(
+                    "   CELL[{ci}] t={:6.1} l={:6.1} r={:6.1} | {}",
+                    c.t, c.l, c.r, snip
+                );
+            }
         }
     }
 }

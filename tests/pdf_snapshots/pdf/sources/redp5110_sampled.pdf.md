@@ -33,7 +33,7 @@ No one else has the vast consulting experiences, skills sharing and renown servi
 
 Because no one else is IBM.
 
-With combined experiences and direct access to development groups, we're the experts in IBM DB2® for i. The DB2 for i Center of Excellence (CoE) can help you achieve-perhaps reexamine and exceed- your business requirements and gain more confidence and satisfaction in IBM product data management products and solutions.
+With combined experiences and direct access to development groups, we're the experts in IBM DB2® for i. The DB2 for i Center of Excellence (CoE) can help you achieve-perhaps reexamine and exceed-your business requirements and gain more confidence and satisfaction in IBM product data management products and solutions.
 
 ## Who we are, some of what we do
 
@@ -62,13 +62,13 @@ Jim Bainbridge is a senior DB2 consultant on the DB2 for i Center of Excellence 
 
 <!-- image -->
 
-Hernando Bedoya is a Senior IT Specialist at STG Lab Services and Training in Rochester, Minnesota. He writes extensively and teaches IBM classes worldwide in all areas of DB2 for i. Before joining STG Lab Services, he worked in the ITSO for nine years writing multiple IBM Redbooks® publications. He also worked for IBM Colombia as an IBM AS/400® IT Specialist doing presales support for the Andean countries. He has 28 years of experience in the computing field and has taught database classes in Colombian universities. He holds a Master's degree in Computer Science from EAFIT , Colombia. His areas of expertise are database technology, performance, and data warehousing. Hernando can be contacted at hbedoya@us.i bm.com.
+Hernando Bedoya is a Senior IT Specialist at STG Lab Services and Training in Rochester, Minnesota. He writes extensively and teaches IBM classes worldwide in all areas of DB2 for i. Before joining STG Lab Services, he worked in the ITSO for nine years writing multiple IBM Redbooks® publications. He also worked for IBM Colombia as an IBM AS/400® IT Specialist doing presales support for the Andean countries. He has 28 years of experience in the computing field and has taught database classes in Colombian universities. He holds a Master's degree in Computer Science from EAFIT, Colombia. His areas of expertise are database technology, performance, and data warehousing. Hernando can be contacted at hbedoya@us.i bm.com.
 
 <!-- image -->
 
 ## data
 
-global businesses of all sizes. The Identity Theft Resource Center1 reports that almost 5000 Recent news headlines are filled with reports of data breaches and cyber-attacks impacting financial cost of these data breaches is skyrocketing. Studies from the Ponemon Institute2 data breaches have occurred since 2005, exposing over 600 million records of data. The revealed that the average cost of a data breach increased in 2013 by 15% globally and resulted in a brand equity loss of $9.4 million per attack. The average cost that is incurred for each lost record containing sensitive information increased more than 9% to $145 per record.
+global businesses of all sizes. The Identity Theft Resource Center1 reports that almost 5000Recent news headlines are filled with reports of data breaches and cyber-attacks impacting financial cost of these data breaches is skyrocketing. Studies from the Ponemon Institute2data breaches have occurred since 2005, exposing over 600 million records of data. The revealed that the average cost of a data breach increased in 2013 by 15% globally and resulted in a brand equity loss of $9.4 million per attack. The average cost that is incurred for each lost record containing sensitive information increased more than 9% to $145 per record.
 
 Businesses must make a serious effort to secure their data and recognize that securing information assets is a cost of doing business. In many parts of the world and in many industries, securing the data is required by law and subject to audits. Data security is no longer an option; it is a requirement.
 
@@ -127,7 +127,7 @@ CHGFCNUSG FCN I D(QIBM_DB_SECADM) USER(HBEDOYA) USAGE (*ALLOWED)
 
 The FUNCTION_USAGE view contains function usage configuration details. Table 2-1 describes the columns in the FUNCTION_USAGE view.
 
-Table 2- 1 FUNCTION _USAGE view
+Table 2- 1 FUNCTION_USAGE view
 
 | name | Data type | Description |
 | - | - | - |
@@ -161,7 +161,7 @@ A preferred practice is that the RCAC administrator has the QIBM_DB_SECADM funct
 
 Table 2-2 shows a comparison of the different function usage IDs and *JOBCTL authority to the different CL commands and DB2 for i tools.
 
-Table 2-2 Comparison of the different function usage IDs and * JOBCTL authority
+Table 2-2 Comparison of the different function usage IDs and *JOBCTL authority
 
 | User action | *JOBCTL | QIBM_DB_SECADM | QIBM_DB_SQLADM | QIBM_DB_SYSMON | No Authority |
 | - | - | - | - | - | - |
@@ -236,7 +236,7 @@ If a special register value is in the list of user profiles or it is a member of
 
 Here is an example of using the VERIFY_GROUP_FOR_USER function:
 
-- 1. There are user profiles for MGR, JANE, JUDY , and TONY.
+- 1. There are user profiles for MGR, JANE, JUDY, and TONY.
 - 2. The user profile JANE specifies a group profile of MGR.
 - 3. If a user is connected to the server using user profile JANE, all of the following function invocations return a value of 1 :
 
@@ -247,7 +247,7 @@ The following function invocation returns a value of 0:
 The following function invocation returns a value of 0:
 
 ```
-CASE WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'HR', 'EMP') = 1 THEN EMPLOYEES. DATE_OF_BIRTH WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'MGR') = 1 AND SESSION_USER = EMPLOYEES. USER_ID THEN EMPLOYEES. DATE_OF_BIRTH WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'MGR') = 1 AND SESSION_USER <> EMPLOYEES. USER_ID THEN( 9999 || '-' || MONTH( EMPLOYEES. DATE_OF_BIRTH) || '-' || DAY(EMPLOYEES.DATE_OF_BIRTH)) ELSE NULL END ENABLE;
+CASE WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'HR', 'EMP') = 1 THEN EMPLOYEES. DATE_OF_BIRTH WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'MGR') = 1 AND SESSION_USER = EMPLOYEES. USER_ID THEN EMPLOYEES. DATE_OF_BIRTH WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'MGR') = 1 AND SESSION_USER <> EMPLOYEES. USER_IDTHEN( 9999 || '-' || MONTH( EMPLOYEES. DATE_OF_BIRTH) || '-' || DAY(EMPLOYEES.DATE_OF_BIRTH)) ELSE NULL END ENABLE;
 ```
 
 - 2. The other column to mask in this example is the TAX_ID information. In this example, the rules to enforce include the following ones:
@@ -262,7 +262,7 @@ To implement this column mask, run the SQL statement that is shown in Example 3-
 CREATE MASK HR_SCHEMA.MASK_TAX_ID_ON_EMPLOYEES ON HR_SCHEMA.EMPLOYEES AS EMPLOYEES FOR COLUMN TAX_ID RETURN CASE WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'HR') = 1 THEN EMPLOYEES. TAX_ID WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'MGR') = 1 AND SESSION_USER = EMPLOYEES. USER_ID THEN EMPLOYEES. TAX_ID WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'MGR') = 1 AND SESSION_USER <> EMPLOYEES. USER_ID THEN( 'XXX-XX-' CONCAT QSYS2. SUBSTR( EMPLOYEES. TAX_ID, 8, 4)) WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'EMP') = 1 THEN EMPLOYEES. TAX_ID ELSE 'XXX-XX-XXXX' END ENABLE;
 ```
 
-Example 3-9 Creating a mask on the TAX _ID column
+Example 3-9 Creating a mask on the TAX_ID column
 
 Figure 3-10 Column masks shown in System i Navigator
 
@@ -299,7 +299,7 @@ Figure 4-69 Index advice with no RCAC
 <!-- image -->
 
 ```
-WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'TELLER') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'TELLER') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1 124 Row and Column Access Control Support in IBM DB2 for iTHEN C. CUSTOMER_TAX_ID THEN( 'XXX-XX-' CONCAT QSYS2. SUBSTR( C. CUSTOMER_TAX_ID, 8, 4)) THEN C. CUSTOMER_TAX_ID THEN C. CUSTOMER_DRIVERS_LICENSE_NUMBER THEN C. CUSTOMER_DRIVERS_LICENSE_NUMBER THEN C. CUSTOMER_DRIVERS_LICENSE_NUMBER CREATE MASK BANK_SCHEMA.MASK_DRIVERS_LICENSE_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS C CREATE MASK BANK_SCHEMA.MASK_LOGIN_ID_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS C ELSE 'XXX-XX-XXXX' END ELSE '*************' END RETURN CASE RETURN CASE ENABLE; FOR COLUMN CUSTOMER_DRIVERS_LICENSE_NUMBER ENABLE; FOR COLUMN CUSTOMER_LOGIN_ID ALTER TABLE BANK_SCHEMA.CUSTOMERS WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1 THEN C. CUSTOMER_LOGIN_ID THEN C. CUSTOMER_LOGIN_ID THEN C. CUSTOMER_SECURITY_QUESTION THEN C. CUSTOMER_SECURITY_QUESTION THEN C. CUSTOMER_SECURITY_QUESTION_ANSWER THEN C. CUSTOMER_SECURITY_QUESTION_ANSWER CREATE MASK BANK_SCHEMA.MASK_SECURITY_QUESTION_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS C CREATE MASK BANK_SCHEMA.MASK_SECURITY_QUESTION_ANSWER_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS C ELSE '*****' END ELSE '*****' END ELSE '*****' END ACTIVATE ROW ACCESS CONTROL ACTIVATE COLUMN ACCESS CONTROL; RETURN CASE RETURN CASE ENABLE; FOR COLUMN CUSTOMER_SECURITY_QUESTION ENABLE; FOR COLUMN CUSTOMER_SECURITY_QUESTION_ANSWER ENABLE;
+WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'TELLER') = 1WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'TELLER') = 1WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1124 Row and Column Access Control Support in IBM DB2 for iTHEN C. CUSTOMER_TAX_IDTHEN( 'XXX-XX-' CONCAT QSYS2. SUBSTR( C. CUSTOMER_TAX_ID, 8, 4))THEN C. CUSTOMER_TAX_IDTHEN C. CUSTOMER_DRIVERS_LICENSE_NUMBERTHEN C. CUSTOMER_DRIVERS_LICENSE_NUMBERTHEN C. CUSTOMER_DRIVERS_LICENSE_NUMBERCREATE MASK BANK_SCHEMA.MASK_DRIVERS_LICENSE_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS CCREATE MASK BANK_SCHEMA.MASK_LOGIN_ID_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS CELSE 'XXX-XX-XXXX'ENDELSE '*************'END RETURN CASERETURN CASEENABLE;FOR COLUMN CUSTOMER_DRIVERS_LICENSE_NUMBERENABLE;FOR COLUMN CUSTOMER_LOGIN_ID ALTER TABLE BANK_SCHEMA.CUSTOMERSWHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1THEN C. CUSTOMER_LOGIN_IDTHEN C. CUSTOMER_LOGIN_IDTHEN C. CUSTOMER_SECURITY_QUESTIONTHEN C. CUSTOMER_SECURITY_QUESTIONTHEN C. CUSTOMER_SECURITY_QUESTION_ANSWERTHEN C. CUSTOMER_SECURITY_QUESTION_ANSWERCREATE MASK BANK_SCHEMA.MASK_SECURITY_QUESTION_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS CCREATE MASK BANK_SCHEMA.MASK_SECURITY_QUESTION_ANSWER_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS CELSE '*****'ENDELSE '*****'ENDELSE '*****'ENDACTIVATE ROW ACCESS CONTROLACTIVATE COLUMN ACCESS CONTROL;RETURN CASERETURN CASEENABLE;FOR COLUMN CUSTOMER_SECURITY_QUESTIONENABLE;FOR COLUMN CUSTOMER_SECURITY_QUESTION_ANSWERENABLE;
 ```
 
 ## Support in IBM DB2 for i

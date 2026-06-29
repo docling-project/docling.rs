@@ -318,7 +318,15 @@ fn lines_from_glyphs(gs: &[Glyph], page_h: f32, code: bool) -> Vec<TextCell> {
             // *large* drop (≥1.5× the line height — a skipped line, e.g. a centered
             // page-number footer below a short last word) is always a new line,
             // even without the x-reset.
-            new_line = (p.b - g.b > h * 0.5 && g.l < p.r) || (p.b - g.b > line_h.max(h) * 1.5);
+            // LTR wraps reset x leftward (`g.l < p.r`); RTL (Arabic) wraps reset
+            // rightward (the new line begins at the far right). A large drop
+            // (≥1.5× line height) is a new line regardless of x.
+            let x_reset = if is_arabic(g.ch) || is_arabic(p.ch) {
+                g.l > p.r
+            } else {
+                g.l < p.r
+            };
+            new_line = (p.b - g.b > h * 0.5 && x_reset) || (p.b - g.b > line_h.max(h) * 1.5);
             // Don't split before closing punctuation, after opening punctuation, or
             // after a period that runs into a digit/lowercase letter — docling
             // keeps `engines,` / `[37` / `i.e.` / `98.5` together even across a
@@ -332,6 +340,12 @@ fn lines_from_glyphs(gs: &[Glyph], page_h: f32, code: bool) -> Vec<TextCell> {
             let word_gap = line_h.max(h) * 0.25;
             new_word = if code {
                 new_line || pending_space
+            } else if is_arabic(g.ch) || is_arabic(p.ch) {
+                // RTL runs right-to-left, so the inter-word gap is `p.l - g.r`. A
+                // real word space has a gap; pdfium also emits spurious zero-gap
+                // space glyphs inside words (`التي`), so require the gap rather
+                // than trusting a bare space glyph.
+                new_line || (p.l - g.r > word_gap && !glued)
             } else {
                 new_line || ((pending_space || g.l - p.r > word_gap) && !glued)
             };
@@ -389,7 +403,15 @@ fn words_from_glyphs(gs: &[Glyph], page_h: f32) -> Vec<TextCell> {
         let mut new_line = false;
         let mut new_word = false;
         if let Some(p) = prev {
-            new_line = (p.b - g.b > h * 0.5 && g.l < p.r) || (p.b - g.b > line_h.max(h) * 1.5);
+            // LTR wraps reset x leftward (`g.l < p.r`); RTL (Arabic) wraps reset
+            // rightward (the new line begins at the far right). A large drop
+            // (≥1.5× line height) is a new line regardless of x.
+            let x_reset = if is_arabic(g.ch) || is_arabic(p.ch) {
+                g.l > p.r
+            } else {
+                g.l < p.r
+            };
+            new_line = (p.b - g.b > h * 0.5 && x_reset) || (p.b - g.b > line_h.max(h) * 1.5);
             // No digit-digit glue here (unlike the prose grouping): table cells in
             // adjacent columns are numeric and a column gap must still split them
             // (`0.965` `0.934`, not `0.9650.934`). Intra-number digits have no gap
@@ -434,6 +456,10 @@ fn words_from_glyphs(gs: &[Glyph], page_h: f32) -> Vec<TextCell> {
         });
     }
     cells
+}
+
+fn is_arabic(c: char) -> bool {
+    ('\u{0600}'..='\u{06FF}').contains(&c)
 }
 
 fn is_close_punct(c: char) -> bool {

@@ -101,7 +101,8 @@ fn order_regions<T>(items: &mut [T], page_w: f32, reg: impl Fn(&T) -> &Region) {
 /// `{ ahn }`, `Name 1 .`, `[ 9 ]`), and a geometric gap heuristic diverges from
 /// it more than a plain single-space join does.
 fn clean_text(text: &str) -> String {
-    text.replace("\u{2} ", "")
+    let out = text
+        .replace("\u{2} ", "")
         .replace("\u{ad} ", "")
         .replace(['\u{2}', '\u{ad}'], "") // any stray wrap hyphens not at a join
         .replace(['\u{2018}', '\u{2019}'], "'") // ‘ ’ → '
@@ -110,7 +111,60 @@ fn clean_text(text: &str) -> String {
         .replace('\u{2026}', "...") // … → ...
         .split_whitespace()
         .collect::<Vec<_>>()
-        .join(" ")
+        .join(" ");
+    fix_arabic_lam_alef(&out)
+}
+
+/// pdfium decomposes the Arabic lam-alef ligature (لا / لإ / لأ / لآ) into its
+/// glyph constituents in *visual* order — `alef-variant, lam` — but docling keeps
+/// logical order, `lam, alef-variant`. Swap a mid-word `alef-variant + lam` back
+/// to `lam + alef-variant`. "Mid-word" (the previous char is an Arabic letter)
+/// distinguishes the ligature from the definite article `ال` (word-initial
+/// `alef + lam`), which must stay. No-op for non-Arabic text.
+fn fix_arabic_lam_alef(s: &str) -> String {
+    let is_arabic_letter = |c: char| ('\u{0620}'..='\u{064A}').contains(&c);
+    let chars: Vec<char> = s.chars().collect();
+    if !chars.iter().any(|&c| is_arabic_letter(c)) {
+        return s.to_string(); // no-op for non-Arabic text
+    }
+    // Pass 1: swap mid-word `alef-variant + lam` → `lam + alef-variant`. Only the
+    // hamza/madda alef variants (إ أ آ) are safe: the definite article is always
+    // plain `ا + ل`, so plain `alef + lam` is ambiguous (a legitimate `فعالة` vs a
+    // reversed `لا` ligature look identical) — leaving plain alef alone avoids
+    // corrupting legitimate words.
+    let mut a: Vec<char> = Vec::with_capacity(chars.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if matches!(c, '\u{0622}' | '\u{0623}' | '\u{0625}')
+            && chars.get(i + 1) == Some(&'\u{0644}')
+            && i > 0
+            && is_arabic_letter(chars[i - 1])
+        {
+            a.push('\u{0644}');
+            a.push(c);
+            i += 2;
+            continue;
+        }
+        a.push(c);
+        i += 1;
+    }
+    // Pass 2: insert a space at Arabic↔Latin boundaries (bidi script switch) that
+    // pdfium runs together — docling separates the embedded Latin run (`وPython`
+    // → `و Python`).
+    let mut out: Vec<char> = Vec::with_capacity(a.len());
+    for (j, &c) in a.iter().enumerate() {
+        if j > 0 {
+            let p = a[j - 1];
+            if (is_arabic_letter(p) && c.is_ascii_alphabetic())
+                || (p.is_ascii_alphabetic() && is_arabic_letter(c))
+            {
+                out.push(' ');
+            }
+        }
+        out.push(c);
+    }
+    out.into_iter().collect()
 }
 
 /// Cells assigned to a region (best container), in reading order, joined.
@@ -123,19 +177,49 @@ fn region_text(region: &Region, cells: &[TextCell]) -> String {
         })
         .collect();
     // Quantize the top coordinate into ~line bands so cells on the same line
-    // sort left-to-right; this is a strict total order (a raw fuzzy comparator
-    // is not transitive and makes Rust's sort panic).
+    // sort in reading order; this is a strict total order (a raw fuzzy comparator
+    // is not transitive and makes Rust's sort panic). For a right-to-left
+    // (Arabic-majority) region, cells on a line read right→left, so sort the band
+    // by descending left edge.
     let band = inside
         .iter()
         .map(|c| (c.b - c.t).abs())
         .fold(0.0f32, f32::max)
         .max(1.0);
-    inside.sort_by_key(|c| ((c.t / band).round() as i64, (c.l * 10.0) as i64));
-    let joined = inside
+    let arabic = inside
         .iter()
-        .map(|c| c.text.trim())
-        .collect::<Vec<_>>()
-        .join(" ");
+        .flat_map(|c| c.text.chars())
+        .filter(|&c| ('\u{0600}'..='\u{06FF}').contains(&c))
+        .count();
+    let latin = inside
+        .iter()
+        .flat_map(|c| c.text.chars())
+        .filter(|c| c.is_ascii_alphabetic())
+        .count();
+    let rtl = arabic > latin;
+    inside.sort_by_key(|c| {
+        let x = (c.l * 10.0) as i64;
+        ((c.t / band).round() as i64, if rtl { -x } else { x })
+    });
+    // Join cells in reading order. Cells on different line-bands join with a
+    // space (line break). Cells on the same band join with a space only if there
+    // is a real horizontal gap between them — an RTL line is split into adjacent
+    // segments mid-word (`الت`|`ي` → `التي`), so abutting same-band cells must not
+    // get a spurious space.
+    let mut joined = String::new();
+    let mut prev: Option<&&TextCell> = None;
+    for c in &inside {
+        if let Some(p) = prev {
+            let same_band = ((p.t / band).round() as i64) == ((c.t / band).round() as i64);
+            let h = (c.b - c.t).abs().max((p.b - p.t).abs()).max(1.0);
+            let gap = if rtl { p.l - c.r } else { c.l - p.r };
+            if !same_band || gap > h * 0.25 {
+                joined.push(' ');
+            }
+        }
+        joined.push_str(c.text.trim());
+        prev = Some(c);
+    }
     clean_text(&joined)
 }
 

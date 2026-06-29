@@ -159,7 +159,7 @@ From a technical point of view, the llncs document class does not require any sp
 The llncs document class supports some additional special characters:
 
 ```
-\grole yields > < \getsto yields ← → \lid yields < = \gid yields > =
+\grole yields >< \getsto yields ← → \lid yields <= \gid yields >=
 ```
 
 If you need blackboard bold characters, i.e. for sets of numbers, please load the related AMS-TEXfonts. If for some reason this is not possible you can also use the following commands from the llncs class:
@@ -192,7 +192,7 @@ cas e (env.) Other theorem-like environments render the text in roman, while the
 example (env.)
 
 ```
-property(env.) question(env.) exercise(env.) solution(env.)heading is bold as well: problem(env.) note(env.) \begin{case} <text> \end{case} \begin{conjecture} <text> \end{conjecture} \begin{example} <text> \end{example} \begin{exercise} <text> \end{exercise} \begin{note} <text> \end{note} \begin{problem} <text> \end{problem} remark(env.) \begin{property} <text> \end{property} \begin{question} <text> \end{question} \begin{remark} <text> \end{remark} \begin{solution} <text> \end{solution}
+property(env.)question(env.)exercise(env.)solution(env.)heading is bold as well:problem(env.)note(env.) \begin{case} <text> \end{case}\begin{conjecture} <text> \end{conjecture}\begin{example} <text> \end{example}\begin{exercise} <text> \end{exercise}\begin{note} <text> \end{note}\begin{problem} <text> \end{problem} remark(env.) \begin{property} <text> \end{property}\begin{question} <text> \end{question}\begin{remark} <text> \end{remark}\begin{solution} <text> \end{solution}
 ```
 
 claim (env.) Finally, there are also two unnumbered environments that have the run-in headproof (env.) ing in italics and the text in upright roman.
