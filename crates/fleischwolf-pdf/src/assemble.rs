@@ -587,6 +587,39 @@ pub fn assemble_page(
     }
 }
 
+/// Merge paragraph fragments split across a column or page break. docling joins a
+/// paragraph whose previous fragment ends mid-sentence (a letter, not sentence
+/// punctuation) with a lowercase continuation: `…definition of` + `lists in…` →
+/// `…definition of lists in…`. Only consecutive top-level paragraphs merge — a
+/// heading/table/figure between them ends the paragraph.
+pub(crate) fn merge_continuations(nodes: &mut Vec<Node>) {
+    let mut i = 0;
+    while i + 1 < nodes.len() {
+        let merged = match (&nodes[i], &nodes[i + 1]) {
+            (Node::Paragraph { text: a }, Node::Paragraph { text: b }) => {
+                let a_open = a
+                    .trim_end()
+                    .chars()
+                    .next_back()
+                    .is_some_and(|c| c.is_alphabetic());
+                let b_cont = b
+                    .trim_start()
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_lowercase());
+                (a_open && b_cont).then(|| format!("{} {}", a.trim_end(), b.trim_start()))
+            }
+            _ => None,
+        };
+        if let Some(text) = merged {
+            nodes[i] = Node::Paragraph { text };
+            nodes.remove(i + 1);
+        } else {
+            i += 1;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::clean_text;

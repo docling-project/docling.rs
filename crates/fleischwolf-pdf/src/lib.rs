@@ -108,6 +108,7 @@ impl Pipeline {
         pdfium_backend::for_each_page(bytes, password, |n, _total, mut page| {
             self.process_one_page(n, &mut page, &mut doc)
         })?;
+        assemble::merge_continuations(&mut doc.nodes);
         Ok(doc)
     }
 
@@ -187,6 +188,7 @@ impl Pipeline {
         for (n, page) in pages.iter_mut().enumerate() {
             self.process_one_page(n, page, &mut doc)?;
         }
+        assemble::merge_continuations(&mut doc.nodes);
         Ok(doc)
     }
 }
