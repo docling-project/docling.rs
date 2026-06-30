@@ -86,18 +86,38 @@ attached to the prior word — but must NOT break the cases docling keeps spaced
 wrap**; docling's textline ends at the wrapped `1` with a double space. Needs the
 line-wrap join to reproduce docling's trailing-space behaviour.
 
-## Roadmap to 7/14
+## Status: blocker A DONE (commit a036133)
 
-1. Fix blocker A (bidi neutral) → right_to_left_01 exact.
-2. Fix blocker B (fraction wrap) → amt exact → **6/14**.
-3. **`right_to_left_02` layout**: top `11` page number mis-classified as a
-   picture; the recovered orphan lands at the bottom; docling labels it `text`
-   first → fix → **7/14**.
-4. Make the parser the default for the conformance path (it keeps the 3 text-
-   exact files and pdfium word cells for tables; validate the heavy docs
-   2203/2206/redp5110 don't regress the exact count — they're far from exact
-   either way).
-5. Long term: drop pdfium's text path entirely (keep it for rasterisation).
+A lone punctuation glyph in a separate punctuation font now bridges fonts next to
+RTL text, so the Arabic sentence period attaches (`العمل.`). **right_to_left_01 is
+EXACT.** Parser path now: code_and_formula, multi_page, picture_classification,
+right_to_left_01 exact (+ 2305-pg9 in a full env with TableFormer) = **5/14**;
+amt=2, right_to_left_02=8.
+
+## Blocker B — amt fraction double space (still open, hard)
+`up to  1 / 4` has a double space; `1 / 6` (mid-line) stays single. Pinned down:
+docling splits the textline at the TT0→C2_0 **font boundary** inside the `1⁄4`
+glyph (`up to  1` | `⁄ 4 …`), and the `up to  1` textline carries *two literal
+spaces* before the `1` even though the char cells have one. The extra space does
+not fit the documented `merge_with` gap rule — it appears only at this
+wrap+font-boundary. A docling fraction/line-wrap idiosyncrasy; mechanism not yet
+reproduced.
+
+## Blocker C — right_to_left_02 (still open, two parts)
+1. Layout: the top `11` page number is classified as a picture (`<!-- image -->`);
+   the recovered orphan lands at the bottom. docling labels it `text`, first.
+2. Text: the parser's kashida/elongation count differs from docling on the
+   scanned-garbled Arabic (`قويووووة` vs `قويوووة` — one extra `و`), so even with
+   the layout fixed the line still differs. Needs the parser to match docling's
+   tatweel handling.
+
+## Roadmap to 7/14
+1. ~~Blocker A~~ — DONE.
+2. Blocker B (fraction double space) → amt exact → 6/14.
+3. Blocker C (layout `11` + kashida) → right_to_left_02 exact → 7/14.
+4. Make the parser the conformance default (keeps the exact files + pdfium word
+   cells for tables; validate heavy docs don't regress the exact count).
+5. Long term: drop pdfium's text path (keep it for rasterisation).
 
 ## Tooling (under `scripts/`)
 
