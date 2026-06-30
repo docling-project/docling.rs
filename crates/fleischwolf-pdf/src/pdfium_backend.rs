@@ -108,10 +108,15 @@ impl PdfDocument {
     }
 }
 
-/// Per-page prose line cells from the pure-Rust text parser, when opted in via
-/// `DOCLING_RUST_PARSER`. `None` keeps the default pdfium text layer.
+/// Per-page prose line cells from the pure-Rust text parser. This is the
+/// **default** text layer (it matches docling-parse's char geometry and is a
+/// strict improvement on byte-conformance — e.g. it recovers the Arabic
+/// sentence-period attachment in `right_to_left_01`). Set `DOCLING_PDFIUM_TEXT`
+/// to fall back to pdfium's text layer. The parser returns an empty page when a
+/// PDF (or a page) has no parseable text layer; the caller keeps pdfium's cells
+/// in that case, so scanned/edge-case pages are unaffected.
 fn rust_parser_cells(bytes: &[u8]) -> Option<Vec<Vec<TextCell>>> {
-    if std::env::var("DOCLING_RUST_PARSER").is_err() {
+    if std::env::var("DOCLING_PDFIUM_TEXT").is_ok() {
         return None;
     }
     Some(
@@ -160,9 +165,9 @@ fn extract_page(
     if cells.is_empty() {
         cells = segment_cells(&page.text()?, height);
     }
-    // Opt-in (`DOCLING_RUST_PARSER`): use the pure-Rust text parser's prose line
-    // cells instead of pdfium's. Word/code cells stay on pdfium so TableFormer
-    // cell-matching is unaffected while the parser is validated.
+    // Default: use the pure-Rust text parser's prose line cells instead of
+    // pdfium's (override with `DOCLING_PDFIUM_TEXT`). Word/code cells stay on
+    // pdfium so TableFormer cell-matching is unaffected.
     if let Some(rc) = rust_cells {
         if !rc.is_empty() {
             cells = rc;

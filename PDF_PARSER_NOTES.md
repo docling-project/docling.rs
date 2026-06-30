@@ -37,94 +37,125 @@ cells, fed through the existing `dp_lines` sanitizer.
   structural tokenizer for back-to-back `<..><..>` hex); WinAnsi + MacRoman base
   encodings; `/Differences` via a small Adobe-glyph-name subset.
 
-## Current result: 3/14 (matches pdfium's text quality)
+## Current result: 5/14 — and the parser is now the DEFAULT text layer
 
-`code_and_formula`, `multi_page`, `picture_classification` exact; `amt`=2,
-`right_to_left_01`=2 (same as pdfium). The parser extracts Latin + Arabic
-correctly and no longer regresses any text-exact file.
+`code_and_formula`, `multi_page`, `picture_classification`, `2305.03393v1-pg9`,
+**`right_to_left_01`** byte-exact (the last is parser-only — pdfium gives 4/14).
+The parser is wired as the default; set `DOCLING_PDFIUM_TEXT=1` to fall back to
+pdfium's text layer. A page with no parseable text layer falls back to pdfium
+automatically, so scanned/edge-case pages are unaffected.
 
-## Why it isn't 6/14 yet — the next lever is the SANITIZER
+Remaining: `amt`=2 (blocker B), `right_to_left_02`=8 (blocker C). Everything else
+is a heavy multi-column doc that is not byte-exact for layout/table reasons
+independent of the text parser.
 
-amt/rtl_01 are stuck at 2 **identical to pdfium**, because their remaining diffs
-(the justified tanwin spacing, the fraction line-wrap double space) are produced
-by the `dp_lines` sanitizer, which is shared by both the pdfium and Rust paths.
-The 6/14 ceiling used docling-parse's *post-sanitizer* textlines. So reaching it
-needs `dp_lines` to match docling-parse's C++ contraction on those cases — a
-separate fidelity effort, independent of the parser.
+## Blocker A — DONE (commit a036133)
 
-## Progress: sanitizer fidelity (commit f5a80ef)
+A lone punctuation glyph set in a separate punctuation font now bridges fonts
+next to RTL text, so the Arabic sentence period attaches (`العمل.`).
+`right_to_left_01` is **EXACT**.
 
-The parser path now reproduces docling-parse's char cells *and* most of its
-spacing. Two `dp_lines`/`textparse` fixes landed:
-- **Euclidean d0** for space insertion on the clean-box parser path (matches
-  docling-parse's `merge_with`); fixed the standalone tanwin.
-- **q/Q restore the full text state** (Tc/Tw/Tz/TL/Tfs/Trise/font); fixed the
-  character-spacing drift that broke multi_page.
+## Completeness validation — "nothing is skipped"
 
-Parser path now: code_and_formula / multi_page / picture_classification exact;
-**amt = 2**, **right_to_left_01 = 2**. The two remaining diffs are precisely:
+`scripts/parser_completeness.py` compares, per PDF, the *multiset* of characters
+docling-parse emits against the parser's (alignment-free, so garbled RTL doesn't
+confuse it). It surfaced two whole classes of silently-dropped text, both fixed:
 
-### Remaining blocker A — end-of-line period fragments (right_to_left_01)
-Root-caused: my char cells match docling's **exactly** (the sentence period is a
-separate font `/F4` glyph sitting at the justified line's left end, x≈394, while
-the preceding word is at x≈519). docling emits the **whole visual line as one
-textline cell** (baseline grouping + x-sort), so the period is *inside* the line
-and orders correctly (`العمل.`). My `dp_lines` contraction is **adjacency**-based
-(corner distance) and additionally gated by `enforce_same_font`, so the period
-(font change + a justification x-gap) does **not** merge — it stays a separate
-cell. Then `assemble::region_text` in dp mode joins *every* cell with a single
-space, inserting one before the period (`العمل .`).
+1. **Form XObject text** (`Do` operator). Bulk body text in heavy PDFs lives
+   inside a Form XObject, reached only via `Do`; the parser walked just the page
+   content stream and dropped it (2206 p1 dropped ~9000 chars). `page_glyphs` is
+   now a recursive `run_content` that decodes the form's stream, concatenates its
+   `/Matrix`, and recurses with the form's own `/Resources` (depth-guarded).
 
-Fix options: (a) group the contraction by baseline into one line cell like
-docling (bigger change), or (b) in `region_text`, when the parser path produced
-fragmented cells, suppress the inter-cell space for a lone trailing punctuation
-attached to the prior word — but must NOT break the cases docling keeps spaced
-(`Name 1 .`, `[ 9 ]`). Needs care + the snapshot suite as a guard.
+2. **Glyph-name fallback.** docling emits an unresolvable `/Differences` glyph
+   name verbatim (`/g115`, `/SM590000`) when a subsetted font has no usable
+   Unicode mapping (redp5110's bulleted list, IBM BookMaster). The parser dropped
+   them (low codes outside WinAnsi). `decode_code` now mirrors docling for
+   synthetic GID-style names; `glyph_name_to_char` was widened to the AGL
+   algorithmic subset (single letters, digit/punctuation names, `.suffix`).
 
-### Remaining blocker B — fraction line-wrap double space (amt)
-`up to  1 / 4` (double) only on the two fractions that fall at a **column line
-wrap**; docling's textline ends at the wrapped `1` with a double space. Needs the
-line-wrap join to reproduce docling's trailing-space behaviour.
+After both fixes every previously text-exact fixture stays `dropped=0
+invented=0`, and the heavy docs are near-complete (redp5110 33070/33073 chars).
+The residue is the punctuation-normalization class below.
 
-## Status: blocker A DONE (commit a036133)
+## Blocker B — amt fraction double space (ROOT-CAUSED; blocked on font metrics)
 
-A lone punctuation glyph in a separate punctuation font now bridges fonts next to
-RTL text, so the Arabic sentence period attaches (`العمل.`). **right_to_left_01 is
-EXACT.** Parser path now: code_and_formula, multi_page, picture_classification,
-right_to_left_01 exact (+ 2305-pg9 in a full env with TableFormer) = **5/14**;
-amt=2, right_to_left_02=8.
+Diff: `up to  1 / 4` / `from  1 / 4` have a **double** space; `1 / 6` and
+`3 / 8` stay single. Fully traced through docling's contraction:
 
-## Blocker B — amt fraction double space (still open, hard)
-`up to  1 / 4` has a double space; `1 / 6` (mid-line) stays single. Pinned down:
-docling splits the textline at the TT0→C2_0 **font boundary** inside the `1⁄4`
-glyph (`up to  1` | `⁄ 4 …`), and the `up to  1` textline carries *two literal
-spaces* before the `1` even though the char cells have one. The extra space does
-not fit the documented `merge_with` gap rule — it appears only at this
-wrap+font-boundary. A docling fraction/line-wrap idiosyncrasy; mechanism not yet
-reproduced.
+- The fractions are separate glyphs (`1`, `⁄`, `4`); the `⁄` (U+2044) is in a
+  **different font**, so the contraction fragments there. The numerator `1` is a
+  small **raised** glyph (~4 pt above the baseline).
+- docling **absorbs** the raised `1` into the preceding line. Because the
+  Euclidean corner gap (≈4.0, dominated by the vertical raise) exceeds
+  `delta = avg·0.33`, `merge_with` inserts a *generated* space — on top of the
+  explicit space char → **double**. Whether it absorbs hinges on `eps0 = avg·1.0`
+  vs that ≈4.0 gap, a knife-edge that flips per line on `avg_char_width`. ¼'s
+  lines clear it; ⅙/⅜'s don't (their numerator stays a standalone cell → single).
 
-## Blocker C — right_to_left_02 (still open, two parts)
+- **Why the parser misses it:** docling boxes every glyph with the embedded
+  font's *typographic* ascent/descent (TrueType **OS/2 sTypoAscender/Descender**,
+  e.g. Times 693/−216), proven by every glyph on a line sharing one box height
+  (8.47 pt) while the raised fraction digit gets its own (4.7 pt). The parser
+  uses the PDF descriptor's `/Ascent 897 /Descent −250` (≈30 % taller), so the
+  loose box hangs ~0.3 pt lower and the gap reads 4.30 instead of 4.00 — just
+  past `eps0`, so nothing absorbs and every fraction stays single.
+
+- **Attempted fix + why reverted:** reading OS/2 metrics from `/FontFile2` (a
+  compact sfnt reader) moved the gap to 4.17 and flipped *one* of the two ¼'s to
+  double — but it **regressed `right_to_left_01`** (Arabic box geometry shifted)
+  and still didn't fix the second ¼. A faithful fix needs the embedded font's
+  exact per-font metrics *and* a way to keep the Arabic path stable — i.e. the
+  box-geometry layer has to match docling globally, not per-case. Left for a
+  dedicated font-metrics effort; a magic-number nudge is too fragile to ship.
+
+## Blocker C — right_to_left_02 (open, two parts)
 1. Layout: the top `11` page number is classified as a picture (`<!-- image -->`);
    the recovered orphan lands at the bottom. docling labels it `text`, first.
-2. Text: the parser's kashida/elongation count differs from docling on the
-   scanned-garbled Arabic (`قويووووة` vs `قويوووة` — one extra `و`), so even with
-   the layout fixed the line still differs. Needs the parser to match docling's
-   tatweel handling.
+   This is an RT-DETR layout-model classification difference, not a text issue.
+2. Text: the parser emits ~25 extra `و` (waw) on the scanned-garbled Arabic
+   (`قويووووة` vs `قويوووة`) — a kashida/tatweel elongation the parser renders as
+   repeated glyphs where docling collapses them. Needs the parser to match
+   docling's tatweel handling.
+
+## Future improvements (validated by the completeness pass)
+
+- **Punctuation normalization.** docling-parse normalizes typographic punctuation
+  to ASCII in its C++ layer (`’`→`'`, `–`/`—`→`-`, curly→straight quotes) while
+  the parser faithfully emits ToUnicode's forms. This is the dominant residual
+  diff on the Latin heavy docs (2305: 38→93 vs pdfium; normal_4pages = 74, almost
+  all apostrophes) and the main reason the parser *raises* diff-lines on a few
+  non-exact docs even though it raises the exact count. A normalization table
+  matching docling's would help broadly — but must be verified not to disturb the
+  5 exact files.
+- **Embedded-font metrics** (OS/2 typo ascent/descent, see blocker B) — needed for
+  fraction/superscript box fidelity, but globally entangled with RTL geometry.
+- **Embedded TrueType `cmap`/`post` recovery.** Identity-H fonts with a *stub*
+  ToUnicode (only a codespacerange) need the embedded font program's cmap to
+  recover Unicode (2206 p1 drops ~591 caps). Requires a TrueType table reader.
 
 ## Roadmap to 7/14
-1. ~~Blocker A~~ — DONE.
-2. Blocker B (fraction double space) → amt exact → 6/14.
-3. Blocker C (layout `11` + kashida) → right_to_left_02 exact → 7/14.
-4. Make the parser the conformance default (keeps the exact files + pdfium word
-   cells for tables; validate heavy docs don't regress the exact count).
+1. ~~Blocker A~~ — DONE (rtl_01 exact).
+2. ~~Make the parser the conformance default~~ — DONE (5/14; opt-out via
+   `DOCLING_PDFIUM_TEXT`).
+3. Blocker B (fraction double space) → amt exact → 6/14. **Blocked on a
+   font-metrics layer** (see above); not a knob-twist.
+4. Blocker C (layout `11` + kashida) → right_to_left_02 exact → 7/14.
 5. Long term: drop pdfium's text path (keep it for rasterisation).
 
 ## Tooling (under `scripts/`)
 
+- `parser_completeness.py` — per-PDF char-frequency diff docling-parse vs the
+  parser; the "nothing skipped" validator that surfaced the Form-XObject and
+  glyph-name drops. Run after `cargo build --example textparse_glyphs`.
 - `dump_parse_cells.py` — docling-parse textline cells → JSON/TSV (the oracle).
 - `docling_dump_all.py` — full docling items (label/page/bbox/text) per PDF.
 - `textparse_dump` example — the Rust parser's cells; `TSV_OUT=1` emits the
   injection TSV for ceiling experiments.
+- `textparse_glyphs` example — `<pdf> <page>`: raw glyph chars (stdout) + boxes
+  (stderr), for char-cell comparison.
+- `probe_page` example — `<pdf> <page>`: operator histogram, fonts (with
+  BaseFont), and XObject subtypes for a page (debugging dropped text).
 
 Also in this branch: `assemble::add_orphan_regions` — docling-parity orphan-cell
 clustering (emits text the layout detector missed, e.g. amt's stray `.`).

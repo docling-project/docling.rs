@@ -4,15 +4,15 @@ llncs , Version 2.22, Sep 05, 2022
 
 ## 1 Installation
 
-Copy llncs.cls to a directory that is searched by L A TEX, e.g. either your texmf tree or the local work directory with your main L A TEX file.
+Copy llncs.cls to a directory that is searched by L A T E X, e.g. either your texmf tree or the local work directory with your main L A T E X file.
 
 ## 2 Working with the llncs Document Class
 
 ## 2.1 General Information
 
-The llncs class is an extension of the standard L A TEX article class. Therefore you may use all article commands in your manuscript.
+The llncs class is an extension of the standard L A T E X article class. Therefore you may use all article commands in your manuscript.
 
-If you are already familiar with L A TEX, the class should not give you llncs any major difficulties. It basically adjusts the layout to the required standard, defining styles and spacing of headings and captions and setting the printing area to 122mm horizontally by 193 mm vertically. To keep the layout consistent, we kindly ask you to refrain from using any L A TEX or TEX command that modifies these settings (i.e. \textheight , \vspace , baselinestretch , etc.). Such manual layout adjustments should be limited to very exceptional cases.
+If you are already familiar with L A T E X, the llncs class should not give you any major difficulties. It basically adjusts the layout to the required standard, defining styles and spacing of headings and captions and setting the printing area to 122mm horizontally by 193 mm vertically. To keep the layout consistent, we kindly ask you to refrain from using any L A T E X or T E X command that modifies these settings (i.e. \textheight , \vspace , baselinestretch , etc.). Such manual layout adjustments should be limited to very exceptional cases.
 
 In addition to defining the general layout, the llncs document class provides some special commands for typesetting the contribution header, i.e. title, authors, affiliations, abstract, and additional metadata. These special commands are described in Sect. 3.
 
@@ -20,7 +20,7 @@ For a more detailed description of how to prepare your text, illustrations, and 
 
 ## 2.2 How to Use the llncs Document Class
 
-The llncs class is invoked by replacing article by llncs in the first line of your L A TEX document:
+The llncs class is invoked by replacing article by llncs in the first line of your L A T E X document:
 
 \documentclass{llncs}
 
@@ -32,7 +32,7 @@ The llncs class is invoked by replacing article by llncs in the first line of yo
 \begin{document} <Your contribution> \end{document}
 ```
 
-If your file is already coded with L A TEX, you can easily adapt it to the llncs document class by replacing
+If your file is already coded with L A T E X, you can easily adapt it to the llncs document class by replacing
 
 \documentclass{article}
 
@@ -110,6 +110,8 @@ might add some clarity about the correct representation of author names, in the 
 
 Multiple affiliations are separated by \and , which automatically assures correct numbering:
 
+\and
+
 ```
 \institute{<name of an institute> \and <name of the next institute> \and <name of the next institute>} \email Inside \institute you can use \email{<email address>} \url and \url{<url>}
 ```
@@ -158,7 +160,7 @@ The keyword separator will then be properly rendered as a middle dot.
 
 ## 4.1 General Rules
 
-From a technical point of view, the llncs document class does not require any specific L A TEX coding in the body of your paper. You can simply use the commands provided by the 'article' document class. For more information about what will be done with your manuscript before publication, please refer to the Springer Guidelines for Authors of Proceedings .
+From a technical point of view, the llncs document class does not require any specific L A T E X coding in the body of your paper. You can simply use the commands provided by the 'article' document class. For more information about what will be done with your manuscript before publication, please refer to the Springer Guidelines for Authors of Proceedings .
 
 ## 4.2 Special Math Characters
 
@@ -168,7 +170,7 @@ The llncs document class supports some additional special characters:
 \grole yields > < \getsto yields ← → \lid yields < = \gid yields > =
 ```
 
-If you need blackboard bold characters, i.e. for sets of numbers, please load the related AMS -TEXfonts. If for some reason this is not possible you can also use the following commands from the llncs class:
+If you need blackboard bold characters, i.e. for sets of numbers, please load the related -T E Xfonts. If for some reason this is not possible you can also use the following commands from the llncs class:
 
 | \bbbc   | yields   | C   | \bbbf   | yields   | IF   |
 |---------|----------|-----|---------|----------|------|
@@ -185,15 +187,15 @@ Please note that all these characters are only available in math mode.
 
 ## 5.1 Predefined Theorem-Like Environments
 
-corollary ( env. ) Several theorem-like environments are predefined in the llncs document class. ( ) The following environments have a bold run-in heading, while the following text definition env. lemma ( env. ) is in italics:
+( env. ) Several theorem-like environments are predefined in the llncs document class. corollary definition ( env. ) The following environments have a bold run-in heading, while the following text lemma ( env. ) is in italics:
 
-( env. ) proposition
+proposition ( env. )
 
 ```
 \begin{corollary} <text> \end{corollary} \begin{definition} <text> \end{definition} \begin{lemma} <text> \end{lemma} \begin{proposition} <text> \end{proposition} \begin{theorem} <text> \end{theorem}
 ```
 
-case ( env. ) Other theorem-like environments render the text in roman, while the run-in conjecture ( env. ) heading is bold as well:
+( env. ) Other theorem-like environments render the text in roman, while the run-in case conjecture ( env. ) heading is bold as well:
 
 example ( env. )
 
@@ -261,11 +263,11 @@ Please note that this option does not automatically change your citations to the
 \bibitem[2016]{vdaalst:2016} van der Aalst, W.: Process Mining, 2nd ed. Springer, Heidelberg(2016) and is cited as follows:... is shown by van der Aalst(\cite{vdaalst:2016}) the resulting text will be: "... is shown by van der Aalst(2016)."
 ```
 
-We encourage you to use Bib TEX for typesetting your references. For formatting the bibliography according to Springer's standard (for mathematics, physical sciences, and computer science), please use the bibliography style file splncs04.bst that comes with the llncs document class. You simply need to add \bibliographystyle{splncs04} to your document. DOIs should be provided in the doi field of your .bib database. Bib TEX will then automatically add them to your references. Please note that we do not provide an option to implement splncs04.bst
+We encourage you to use Bib T E X for typesetting your references. For formatting the bibliography according to Springer's standard (for mathematics, physical sciences, and computer science), please use the bibliography style file splncs04.bst that comes with the llncs document class. You simply need to add \bibliographystyle{splncs04} to your document. DOIs should be provided in the doi field of your .bib database. Bib T E X will then automatically add them to your references. Please note that we do not provide an option to implement splncs04.bst
 
-\doi If you do not use Bib TEX, you can include a DOI with the \doi command:
+\doi If you do not use Bib T E X, you can include a DOI with the \doi command:
 
-- \doi If you do not use Bib TEX, you can include a DOI with the \doi command: \doi{&lt;DOI&gt;}
+- \doi If you do not use Bib T E X, you can include a DOI with the \doi command: \doi{&lt;DOI&gt;}
 
 \doi{&lt;DOI&gt;}
 
@@ -275,7 +277,7 @@ The DOI will be expanded to the URL https://doi.org/&lt;DOI&gt; in accordance wi
 
 The llncs document class contains several class options that have become obsolete over the years. We only mention them for completeness:
 
-- The document class changes the formatting of vectors coded with orivec llncs \vec to boldface italics. If you absolutely need the original L A TEX design for vectors, i.e. an arrow above the related variable, you can restore it with the orivec option.
+- The document class changes the formatting of vectors coded with orivec llncs \vec to boldface italics. If you absolutely need the original L A T E X design for vectors, i.e. an arrow above the related variable, you can restore it with the option. orivec
 - All theorem-like environments share one counter, i.e. Theorem 1, Lemma 2, Corollary 3, etc.
 
 envcountsame
@@ -288,8 +290,8 @@ envcountreset
 
 envcountsect
 
-- This option produces the "open" bibliography style, in which each block starts on a new line, and succeeding lines in a block are indented by \bibindent .
+- This option produces the "open" bibliography style, in which each block starts on a new line, and succeeding lines in a block are indented by . \bibindent
 
 openbib
 
-- This option restores the original L A TEX definitions for the bibliography and oribibl the \cite mechanism that some Bib TEX applications rely on.
+- oribibl - This option restores the original L A T E X definitions for the bibliography and the \cite mechanism that some Bib T E X applications rely on.

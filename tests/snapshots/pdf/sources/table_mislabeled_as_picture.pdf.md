@@ -23,7 +23,7 @@
 - \_\_\_\_\_\_\_ at the national (federal) level
 - \_\_\_\_\_\_\_ at the regional (district) level
 - \_\_\_\_\_\_\_ at the local (municipal) level
--  There is no such limitation
+-  ‐There is no such limitation
 
 24. If your country has an institutional legal aid provider (e.g. public defender), do the staff lawyers coordinate to uniformly challenge common violations of national and international due process rights and human rights?
 

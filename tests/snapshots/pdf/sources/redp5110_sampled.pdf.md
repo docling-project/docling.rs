@@ -1,5 +1,7 @@
 <!-- image -->
 
+Front cover
+
 ## Row and Column Access Control Support in IBM DB2 for i
 
 Implement roles and separation of duties
@@ -16,26 +18,19 @@ Redpaper
 
 ## Contents
 
+DB2 for i Center of Excellence
+
 <!-- image -->
 
-Solution Brief
+IBM Systems Lab Services and Training
 
 <!-- image -->
 
 ## Highlights
 
--                    
--                            
--          !    "  # 
--  ! #      " "         
-
 <!-- image -->
 
 Power Services
-
-## DB2 for i Center of Excellence
-
-Expert help to achieve your business requirements
 
 ## We build confident, satisfied clients
 
@@ -49,19 +44,19 @@ With combined experiences and direct access to development groups, we're the exp
 
 Global CoE engagements cover topics including:
 
-- r Database performance and scalability
-- r Advanced SQL knowledge and skills transfer
-- r Business intelligence and analytics
-- r DB2 Web Query
-- r Query/400 modernization for better reporting and analysis capabilities
-- r Database modernization and re-engineering
-- r Data-centric architecture and design
-- r Extremely large database and overcoming limits to growth
-- ISV education and enablement r
+- Database performance and scalability
+- Advanced SQL knowledge and skills transfer
+- Business intelligence and analytics
+- DB2 Web Query
+- Query/400 modernization for better reporting and analysis capabilities
+- Database modernization and re-engineering
+- Data-centric architecture and design
+- Extremely large database and overcoming limits to growth
+- ISV education and enablement
 
 ## Preface
 
-This IBM® Redpaper™ publication provides information about the IBM i 7.2 feature of IBM DB2® for i Row and Column Access Control (RCAC). It offers a broad description of the function and advantages of controlling access to data in a comprehensive and transparent way. This publication helps you understand the capabilities of RCAC and provides examples of defining, creating, and implementing the row permissions and column masks in a relational database environment.
+This IBM® Redpaper publication provides information about the IBM i 7.2 feature of IBM DB2® for i Row and Column Access Control (RCAC). It offers a broad description of the function and advantages of controlling access to data in a comprehensive and transparent way. This publication helps you understand the capabilities of RCAC and provides examples of defining, creating, and implementing the row permissions and column masks in a relational database environment.
 
 This paper is intended for database engineers, data-centric application developers, and security officers who want to design and implement RCAC as a part of their data control and governance policy. A solid background in IBM i object level security, DB2 for i relational database concepts, and SQL is assumed.
 
@@ -83,17 +78,19 @@ Hernando Bedoya is a Senior IT Specialist at STG Lab Services and Training in Ro
 
 ## Securing and protecting IBM DB2 data
 
-Recent news headlines are filled with reports of data breaches and cyber-attacks impacting 1 reports that almost 5000 global businesses of all sizes. The Identity Theft Resource Center data breaches have occurred since 2005, exposing over 600 million records of data. The financial cost of these data breaches is skyrocketing. Studies from the Ponemon Institute2 revealed that the average cost of a data breach increased in 2013 by 15% globally and resulted in a brand equity loss of $9.4 million per attack. The average cost that is incurred for each lost record containing sensitive information increased more than 9% to $145 per record.
+Chapter 1.
+
+Recent news headlines are filled with reports of data breaches and cyber-attacks impacting 1  reports that almost 5000 global businesses of all sizes. The Identity Theft Resource Center data breaches have occurred since 2005, exposing over 600 million records of data. The 2 financial cost of these data breaches is skyrocketing. Studies from the Ponemon Institute revealed that the average cost of a data breach increased in 2013 by 15% globally and resulted in a brand equity loss of $9.4 million per attack. The average cost that is incurred for each lost record containing sensitive information increased more than 9% to $145 per record.
 
 Businesses must make a serious effort to secure their data and recognize that securing information assets is a cost of doing business. In many parts of the world and in many industries, securing the data is required by law and subject to audits. Data security is no longer an option; it is a requirement.
 
 This chapter describes how you can secure and protect data in DB2 for i. The following topics are covered in this chapter:
 
-- Security fundamentals
-- Current state of IBM i security
-- DB2 for i security controls
+- Security fundamentals /SM590000
+- /SM590000 Current state of IBM i security
+- /SM590000 DB2 for i security controls
 
-1 http://www.idtheftcenter.org
+1   http://www.idtheftcenter.org
 
 2 http://www.ponemon.org /
 
@@ -101,13 +98,13 @@ This chapter describes how you can secure and protect data in DB2 for i. The fol
 
 Before reviewing database security techniques, there are two fundamental steps in securing information assets that must be described:
 
-- First, and most important, is the definition of a company's security policy . Without a security policy, there is no definition of what are acceptable practices for using, accessing, and storing information by who, what, when, where, and how. A security policy should minimally address three things: confidentiality, integrity, and availability.
+- First, and most important, is the definition of a company's security policy . Without a /SM590000 security policy, there is no definition of what are acceptable practices for using, accessing, and storing information by who, what, when, where, and how. A security policy should minimally address three things: confidentiality, integrity, and availability.
 
 The monitoring and assessment of adherence to the security policy determines whether your security strategy is working. Often, IBM security consultants are asked to perform security assessments for companies without regard to the security policy. Although these assessments can be useful for observing how the system is defined and how data is being accessed, they cannot determine the level of security without a security policy. Without a security policy, it really is not an assessment as much as it is a baseline for monitoring the changes in the security settings that are captured.
 
 A security policy is what defines whether the system and its settings are secure (or not).
 
-- The second fundamental in securing data assets is the use of resource security . If implemented properly, resource security prevents data breaches from both internal and external intrusions. Resource security controls are closely tied to the part of the security policy that defines who should have access to what information resources. A hacker might be good enough to get through your company firewalls and sift his way through to your system, but if they do not have explicit access to your database, the hacker cannot compromise your information assets.
+- /SM590000 The second fundamental in securing data assets is the use of resource security . If implemented properly, resource security prevents data breaches from both internal and external intrusions. Resource security controls are closely tied to the part of the security policy that defines who should have access to what information resources. A hacker might be good enough to get through your company firewalls and sift his way through to your system, but if they do not have explicit access to your database, the hacker cannot compromise your information assets.
 
 With your eyes now open to the importance of securing information assets, the rest of this chapter reviews the methods that are available for securing database resources on IBM i.
 
@@ -129,7 +126,7 @@ Using SQL views to limit access to a subset of the data in a table also has its 
 
 Even if you are willing to live with these performance and management issues, a user with *ALLOBJ access still can directly access all of the data in the underlying DB2 table and easily bypass the security controls that are built into an SQL view.
 
-Figure 1-2 Existing row and column controls
+Figure 1-2   Existing row and column controls
 
 <!-- image -->
 
@@ -137,9 +134,9 @@ Figure 1-2 Existing row and column controls
 
 The following CL commands can be used to work with, display, or change function usage IDs:
 
-- Work Function Usage ( WRKFCNUSG )
-- Change Function Usage ( CHGFCNUSG )
-- Display Function Usage ( DSPFCNUSG )
+- /SM590000 Work Function Usage ( WRKFCNUSG )
+- /SM590000 Change Function Usage ( CHGFCNUSG )
+- /SM590000 Display Function Usage ( DSPFCNUSG )
 
 For example, the following CHGFCNUSG command shows granting authorization to user HBEDOYA to administer and manage RCAC rules:
 
@@ -149,7 +146,7 @@ CHGFCNUSG FCNID(QIBM\_DB\_SECADM) USER(HBEDOYA) USAGE(*ALLOWED)
 
 The FUNCTION\_USAGE view contains function usage configuration details. Table 2-1 describes the columns in the FUNCTION\_USAGE view.
 
-Table 2-1  FUNCTION\_USAGE view
+Table 2-1   FUNCTION\_USAGE view
 
 | name        | Data type   | Description                                                                                                                                                |
 |-------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -160,7 +157,7 @@ Table 2-1  FUNCTION\_USAGE view
 
 To discover who has authorization to define and manage RCAC, you can use the query that is shown in Example 2-1.
 
-Example 2-1 Query to determine who has authority to define and manage RCAC
+Example 2-1   Query to determine who has authority to define and manage RCAC
 
 | SELECT   | functi on_i d, u s er_n ame, u s age, er_type                                     |
 |----------|-----------------------------------------------------------------------------------|
@@ -183,7 +180,7 @@ A preferred practice is that the RCAC administrator has the QIBM\_DB\_SECADM fun
 
 Table 2-2 shows a comparison of the different function usage IDs and *JOBCTL authority to the different CL commands and DB2 for i tools.
 
-Table 2-2 Comparison of the different function usage IDs and *JOBCTL authority
+Table 2-2    Comparison of the different function usage IDs and *JOBCTL authority
 
 | User action                                                                      | *JOBCTL   | QIBM_DB_SECADM   | QIBM_DB_SQLADM   | QIBM_DB_SYSMON   | No Authority   |
 |----------------------------------------------------------------------------------|-----------|------------------|------------------|------------------|----------------|
@@ -202,7 +199,7 @@ Table 2-2 Comparison of the different function usage IDs and *JOBCTL authority
 
 The SQL CREATE PERMISSION statement that is shown in Figure 3-1 is used to define and initially enable or disable the row access rules.
 
-Figure 3-1  CREATE PERMISSION SQL statement
+Figure 3-1   CREATE PERMISSION SQL statement
 
 <!-- image -->
 
@@ -212,7 +209,7 @@ A column mask is a database object that manifests a column value access control 
 
 Table 3-1 summarizes these special registers and their values.
 
-Table 3-1 Special registers and their corresponding values
+Table 3-1   Special registers and their corresponding values
 
 | register             | Corresponding value                                                                                                                                       |
 |----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -222,13 +219,13 @@ Table 3-1 Special registers and their corresponding values
 
 Figure 3-5 shows the difference in the special register values when an adopted authority is used:
 
-- A user connects to the server using the user profile ALICE.
-- USER and CURRENT USER initially have the same value of ALICE.
-- ALICE calls an SQL procedure that is named proc1, which is owned by user profile JOE and was created to adopt JOE's authority when it is called.
-- While the procedure is running, the special register USER still contains the value of ALICE because it excludes any adopted authority. The special register CURRENT USER contains the value of JOE because it includes any adopted authority.
-- When proc1 ends, the session reverts to its original state with both USER and CURRENT USER having the value of ALICE.
+- /SM590000 A user connects to the server using the user profile ALICE.
+- /SM590000 USER and CURRENT USER initially have the same value of ALICE.
+- /SM590000 ALICE calls an SQL procedure that is named proc1, which is owned by user profile JOE and was created to adopt JOE's authority when it is called.
+- /SM590000 While the procedure is running, the special register USER still contains the value of ALICE because it excludes any adopted authority. The special register CURRENT USER contains the value of JOE because it includes any adopted authority.
+- /SM590000 When proc1 ends, the session reverts to its original state with both USER and CURRENT USER having the value of ALICE.
 
-Figure 3-5 Special registers and adopted authority
+Figure 3-5   Special registers and adopted authority
 
 <!-- image -->
 
@@ -240,7 +237,7 @@ IBM DB2 for i supports nine different built-in global variables that are read on
 
 Table 3-2 lists the nine built-in global variables.
 
-Table 3-2 Built-in global variables
+Table 3-2   Built-in global variables
 
 | variable              | Type                | Description                                                             |
 |-----------------------|---------------------|-------------------------------------------------------------------------|
@@ -291,11 +288,11 @@ To implement this column mask, run the SQL statement that is shown in Example 3-
 CREATE MASK HR_SCHEMA.MASK_TAX_ID_ON_EMPLOYEES ON HR_SCHEMA.EMPLOYEES AS EMPLOYEES FOR COLUMN TAX_ID RETURN CASE WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'HR') = 1 THEN EMPLOYEES. TAX_ID WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'MGR') = 1 AND SESSION_USER = EMPLOYEES. USER_ID THEN EMPLOYEES. TAX_ID WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'MGR') = 1 AND SESSION_USER <> EMPLOYEES. USER_ID THEN( 'XXX-XX-' CONCAT QSYS2. SUBSTR( EMPLOYEES. TAX_ID, 8, 4)) WHEN VERIFY_GROUP_FOR_USER( SESSION_USER, 'EMP') = 1 THEN EMPLOYEES. TAX_ID ELSE 'XXX-XX-XXXX' END ENABLE;
 ```
 
-Example 3-9 Creating a mask on the TAX_ID column
+Example 3-9   Creating a mask on the TAX_ID column
 
 3. Figure 3-10 shows the masks that are created in the HR\_SCHEMA.
 
-Figure 3-10 Column masks shown in System i Navigator
+Figure 3-10   Column masks shown in System i Navigator
 
 <!-- image -->
 
@@ -305,7 +302,7 @@ Now that you have created the row permission and the two column masks, RCAC must
 
 1. Run the SQL statements that are shown in Example 3-10.
 
-Example 3-10 Activating RCAC on the EMPLOYEES table
+Example 3-10   Activating RCAC on the EMPLOYEES table
 
 ```
 /* Active Row Access Control(permissions) */ /* Active Column Access Control(masks) */ ALTER TABLE HR_SCHEMA.EMPLOYEES ACTIVATE ROW ACCESS CONTROL ACTIVATE COLUMN ACCESS CONTROL;
@@ -313,19 +310,19 @@ Example 3-10 Activating RCAC on the EMPLOYEES table
 
 2. Look at the definition of the EMPLOYEE table, as shown in Figure 3-11. To do this, from the main navigation pane of System i Navigator, click Schemas  HR\_SCHEMA  Tables , right-click the EMPLOYEES table, and click Definition .
 
-Figure 3-11 Selecting the EMPLOYEES table from System i Navigator
+Figure 3-11   Selecting the EMPLOYEES table from System i Navigator
 
 <!-- image -->
 
 2. Figure 4-68 shows the Visual Explain of the same SQL statement, but with RCAC enabled. It is clear that the implementation of the SQL statement is more complex because the row permission rule becomes part of the WHERE clause.
 
-Figure 4-68 Visual Explain with RCAC enabled
+Figure 4-68   Visual Explain with RCAC enabled
 
 <!-- image -->
 
 3. Compare the advised indexes that are provided by the Optimizer without RCAC and with RCAC enabled. Figure 4-69 shows the index advice for the SQL statement without RCAC enabled. The index being advised is for the ORDER BY clause.
 
-Figure 4-69 Index advice with no RCAC
+Figure 4-69   Index advice with no RCAC
 
 <!-- image -->
 
@@ -334,6 +331,8 @@ WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'TELLER') = 1 WHEN QSYS2. VERIF
 ```
 
 <!-- image -->
+
+Back cover
 
 ## Row and Column Access Control Support in IBM DB2 for i
 
