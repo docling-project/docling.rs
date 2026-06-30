@@ -17,6 +17,10 @@ const MEAN: [f32; 3] = [0.94247851, 0.94254675, 0.94292611];
 #[allow(clippy::excessive_precision)]
 const STD: [f32; 3] = [0.17910956, 0.17940403, 0.17931663];
 const MAX_STEPS: usize = 1024;
+/// Decoder geometry, fixed by the exported TableModel04_rs graph: the cached
+/// decoder threads a `[N_LAYERS, past, 1, EMBED_DIM]` per-layer state cache.
+const N_LAYERS: usize = 6;
+const EMBED_DIM: usize = 512;
 
 /// OTSL structure tokens (TableModel04_rs wordmap indices).
 pub const START: i64 = 2;
@@ -50,6 +54,18 @@ pub struct TableFormer {
     encoder: Session,
     decoder: Session,
     bbox: Session,
+}
+
+/// Encoder outputs that drive the cached decode loop: the per-layer cross-attention
+/// K/V (projected from the image memory once, constant across decode steps) and
+/// `enc_out` for the bbox decoder. Each is a `(shape, flattened data)` pair.
+struct EncodeOut {
+    ck_shape: Vec<usize>,
+    ck: Vec<f32>,
+    cv_shape: Vec<usize>,
+    cv: Vec<f32>,
+    eo_shape: Vec<usize>,
+    eo: Vec<f32>,
 }
 
 impl TableFormer {
@@ -94,43 +110,107 @@ impl TableFormer {
         }
     }
 
-    /// Predict the OTSL structure-token sequence for a table-region image.
-    pub fn predict_otsl(&mut self, img: &RgbImage) -> Result<Vec<i64>, String> {
+    /// Run the image encoder and capture what the cached decoder loop needs: each
+    /// decoder layer's cross-attention K/V (projected from the image memory once,
+    /// shape `[N_LAYERS,1,H,S,head_dim]`) and `enc_out` for the bbox decoder.
+    fn encode(&mut self, img: &RgbImage) -> Result<EncodeOut, String> {
         let input = preprocess(img)?;
         let enc_out = self
             .encoder
             .run(ort::inputs!["image" => input])
             .map_err(|e| format!("tableformer: encode: {e}"))?;
-        let (mshape, mem) = enc_out["memory"]
-            .try_extract_tensor::<f32>()
-            .map_err(|e| format!("tableformer: memory: {e}"))?;
-        let mshape: Vec<usize> = mshape.iter().map(|&x| x as usize).collect();
-        let mem: Vec<f32> = mem.to_vec();
+        let grab = |name: &str| -> Result<(Vec<usize>, Vec<f32>), String> {
+            let (sh, data) = enc_out[name]
+                .try_extract_tensor::<f32>()
+                .map_err(|e| format!("tableformer: {name}: {e}"))?;
+            Ok((sh.iter().map(|&x| x as usize).collect(), data.to_vec()))
+        };
+        let (ck_shape, ck) = grab("cross_k")?;
+        let (cv_shape, cv) = grab("cross_v")?;
+        let (eo_shape, eo) = grab("enc_out")?;
+        Ok(EncodeOut {
+            ck_shape,
+            ck,
+            cv_shape,
+            cv,
+            eo_shape,
+            eo,
+        })
+    }
 
-        // Autoregressive decode: the decoder graph re-applies the layers to the
-        // whole prefix under a causal mask (statelessly reproducing the model's
-        // per-layer cache), so we just feed the growing token list back in. The
-        // two structure corrections mirror docling's `predict` exactly — note its
-        // `line_num` is never incremented, so `xcel→lcel` applies on every row.
+    /// One doubly-cached decode step: feed the current `tags`, the constant cross
+    /// K/V views, and the growing self-attention `cache`; return the raw argmax tag
+    /// and the last token's hidden state, advancing the cache. `empty_cache` is the
+    /// zero-`past` value used on the first step (ort's array constructors reject a
+    /// 0-length dim, so it is allocated through the session allocator by the caller).
+    fn decode_step(
+        &mut self,
+        tags: &[i64],
+        enc: &EncodeOut,
+        cache: &mut Vec<f32>,
+        cache_past: &mut usize,
+        empty_cache: &Tensor<f32>,
+    ) -> Result<(i64, Vec<f32>), String> {
+        let tags_t = Tensor::from_array(([tags.len(), 1usize], tags.to_vec()))
+            .map_err(|e| format!("tableformer: tags: {e}"))?;
+        // Constant per-table cross-attention K/V — zero-copy views each step.
+        let ck_t = TensorRef::from_array_view((enc.ck_shape.as_slice(), enc.ck.as_slice()))
+            .map_err(|e| format!("tableformer: cross_k: {e}"))?;
+        let cv_t = TensorRef::from_array_view((enc.cv_shape.as_slice(), enc.cv.as_slice()))
+            .map_err(|e| format!("tableformer: cross_v: {e}"))?;
+        let dout = if *cache_past == 0 {
+            self.decoder.run(ort::inputs![
+                "tags" => tags_t, "cross_k" => ck_t, "cross_v" => cv_t, "cache" => empty_cache])
+        } else {
+            let cache_t = TensorRef::from_array_view((
+                [N_LAYERS, *cache_past, 1, EMBED_DIM],
+                cache.as_slice(),
+            ))
+            .map_err(|e| format!("tableformer: cache: {e}"))?;
+            self.decoder.run(ort::inputs![
+                "tags" => tags_t, "cross_k" => ck_t, "cross_v" => cv_t, "cache" => cache_t])
+        }
+        .map_err(|e| format!("tableformer: decode: {e}"))?;
+        let (_, logits) = dout["logits"]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| format!("tableformer: logits: {e}"))?;
+        let raw = argmax(logits) as i64;
+        let (oshape, ocache) = dout["out_cache"]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| format!("tableformer: out_cache: {e}"))?;
+        let next_cache = ocache.to_vec();
+        let next_past = oshape[1] as usize;
+        let (_, hidden) = dout["hidden"]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| format!("tableformer: hidden: {e}"))?;
+        let hidden = hidden.to_vec();
+        *cache = next_cache;
+        *cache_past = next_past;
+        Ok((raw, hidden))
+    }
+
+    /// The zero-`past` first-step cache, allocated through the session allocator
+    /// (ort's array constructors reject a 0-length dim; the C API does allow it).
+    fn empty_cache(&self) -> Result<Tensor<f32>, String> {
+        Tensor::<f32>::new(self.decoder.allocator(), [N_LAYERS, 0usize, 1, EMBED_DIM])
+            .map_err(|e| format!("tableformer: empty cache: {e}"))
+    }
+
+    /// Predict the OTSL structure-token sequence for a table-region image.
+    pub fn predict_otsl(&mut self, img: &RgbImage) -> Result<Vec<i64>, String> {
+        let enc = self.encode(img)?;
+        // The two structure corrections mirror docling's `predict` exactly — note
+        // its `line_num` is never incremented, so `xcel→lcel` applies on every row.
         let mut tags: Vec<i64> = vec![START];
         let mut out: Vec<i64> = Vec::new();
         let mut prev_ucel = false;
+        let mut cache: Vec<f32> = Vec::new();
+        let mut cache_past = 0usize;
+        let empty = self.empty_cache()?;
         while out.len() < MAX_STEPS {
-            let tags_t = Tensor::from_array(([tags.len(), 1usize], tags.clone()))
-                .map_err(|e| format!("tableformer: tags: {e}"))?;
-            // The cross-attention memory is constant across decode steps; pass it as
-            // a zero-copy view instead of re-cloning the (large) encoder output and
-            // re-allocating a tensor on every one of the autoregressive steps.
-            let mem_t = TensorRef::from_array_view((mshape.as_slice(), mem.as_slice()))
-                .map_err(|e| format!("tableformer: mem: {e}"))?;
-            let dout = self
-                .decoder
-                .run(ort::inputs!["tags" => tags_t, "memory" => mem_t])
-                .map_err(|e| format!("tableformer: decode: {e}"))?;
-            let (_, logits) = dout["logits"]
-                .try_extract_tensor::<f32>()
-                .map_err(|e| format!("tableformer: logits: {e}"))?;
-            let mut tag = argmax(logits) as i64;
+            let (raw, _hidden) =
+                self.decode_step(&tags, &enc, &mut cache, &mut cache_past, &empty)?;
+            let mut tag = raw;
             if tag == XCEL {
                 tag = LCEL;
             }
@@ -153,21 +233,7 @@ impl TableFormer {
     /// horizontal span), runs the bbox decoder, merges span boxes, then lays the
     /// cells onto the OTSL grid with row/col spans.
     pub fn predict_table_structure(&mut self, img: &RgbImage) -> Result<Vec<TableCell>, String> {
-        let input = preprocess(img)?;
-        let enc_out = self
-            .encoder
-            .run(ort::inputs!["image" => input])
-            .map_err(|e| format!("tableformer: encode: {e}"))?;
-        let (mshape, mem) = enc_out["memory"]
-            .try_extract_tensor::<f32>()
-            .map_err(|e| format!("tableformer: memory: {e}"))?;
-        let mshape: Vec<usize> = mshape.iter().map(|&x| x as usize).collect();
-        let mem: Vec<f32> = mem.to_vec();
-        let (eshape, eo) = enc_out["enc_out"]
-            .try_extract_tensor::<f32>()
-            .map_err(|e| format!("tableformer: enc_out: {e}"))?;
-        let eshape: Vec<usize> = eshape.iter().map(|&x| x as usize).collect();
-        let eo: Vec<f32> = eo.to_vec();
+        let enc = self.encode(img)?;
 
         let mut tags: Vec<i64> = vec![START];
         let mut otsl: Vec<i64> = Vec::new();
@@ -179,20 +245,13 @@ impl TableFormer {
         let mut bbox_ind = 0usize;
         let mut cur_bbox_ind = 0usize;
         let mut merge: std::collections::HashMap<usize, i64> = std::collections::HashMap::new();
+        let mut cache: Vec<f32> = Vec::new();
+        let mut cache_past = 0usize;
+        let empty = self.empty_cache()?;
         while otsl.len() < MAX_STEPS {
-            let tags_t = Tensor::from_array(([tags.len(), 1usize], tags.clone()))
-                .map_err(|e| format!("tableformer: tags: {e}"))?;
-            // Zero-copy view of the constant cross-attention memory (see `predict_otsl`).
-            let mem_t = TensorRef::from_array_view((mshape.as_slice(), mem.as_slice()))
-                .map_err(|e| format!("tableformer: mem: {e}"))?;
-            let dout = self
-                .decoder
-                .run(ort::inputs!["tags" => tags_t, "memory" => mem_t])
-                .map_err(|e| format!("tableformer: decode: {e}"))?;
-            let (_, logits) = dout["logits"]
-                .try_extract_tensor::<f32>()
-                .map_err(|e| format!("tableformer: logits: {e}"))?;
-            let mut tag = argmax(logits) as i64;
+            let (raw, hidden) =
+                self.decode_step(&tags, &enc, &mut cache, &mut cache_past, &empty)?;
+            let mut tag = raw;
             if tag == XCEL {
                 tag = LCEL;
             }
@@ -202,12 +261,9 @@ impl TableFormer {
             if tag == END {
                 break;
             }
-            let (_, hidden) = dout["hidden"]
-                .try_extract_tensor::<f32>()
-                .map_err(|e| format!("tableformer: hidden: {e}"))?;
             // docling's tag_H_buf / bboxes_to_merge bookkeeping.
             if !skip && matches!(tag, FCEL | ECEL | CHED | RHED | SROW | NL | UCEL) {
-                hiddens.extend_from_slice(hidden);
+                hiddens.extend_from_slice(&hidden);
                 n += 1;
                 if !first_lcel {
                     merge.insert(cur_bbox_ind, bbox_ind as i64);
@@ -217,7 +273,7 @@ impl TableFormer {
             if tag != LCEL {
                 first_lcel = true;
             } else if first_lcel {
-                hiddens.extend_from_slice(hidden);
+                hiddens.extend_from_slice(&hidden);
                 n += 1;
                 first_lcel = false;
                 cur_bbox_ind = bbox_ind;
@@ -234,7 +290,8 @@ impl TableFormer {
         }
         let tag_h = Tensor::from_array(([n, 512usize], hiddens))
             .map_err(|e| format!("tableformer: tag_h: {e}"))?;
-        let eo_t = Tensor::from_array((eshape, eo)).map_err(|e| format!("tableformer: eo: {e}"))?;
+        let eo_t = Tensor::from_array((enc.eo_shape.clone(), enc.eo.clone()))
+            .map_err(|e| format!("tableformer: eo: {e}"))?;
         let bout = self
             .bbox
             .run(ort::inputs!["enc_out" => eo_t, "tag_h" => tag_h])
