@@ -5,7 +5,7 @@
 //! assigned to its best-containing region, regions are ordered in reading order
 //! (two-column aware), and each becomes a typed node by its layout label.
 
-use fleischwolf_core::{DoclingDocument, Node, PictureImage, Table};
+use fleischwolf_core::{Node, PictureImage, Table};
 
 use crate::layout::Region;
 use crate::pdfium_backend::{PdfPage, TextCell};
@@ -663,10 +663,10 @@ pub fn assemble_page(
     page: &PdfPage,
     regions: Vec<Region>,
     table_rows: &[Option<Vec<Vec<String>>>],
-    doc: &mut DoclingDocument,
-) {
+) -> (Vec<Node>, Vec<(String, String)>) {
+    let mut nodes: Vec<Node> = Vec::new();
     // Recover this page's hyperlinks (rendered only in strict Markdown).
-    doc.links.extend(resolve_link_anchors(page));
+    let links = resolve_link_anchors(page);
     // Pair each region with its precomputed TableFormer grid (indexed by original
     // order) and order by reading order together, so they stay aligned.
     let mut items: Vec<(Region, Option<Vec<Vec<String>>>)> = regions
@@ -704,9 +704,9 @@ pub fn assemble_page(
             let caption = caption_for[i]
                 .map(|ci| region_text(&regions[ci], &page.cells))
                 .filter(|t| !t.is_empty());
-            doc.push(Node::Picture {
+            nodes.push(Node::Picture {
                 caption,
-                image: crop_region(page, region),
+                image: crate::timing::timed("crop_region", || crop_region(page, region)),
             });
             continue;
         }
@@ -717,7 +717,7 @@ pub fn assemble_page(
         match region.label {
             // docling renders both the document title and section headers as
             // `##` (it never emits a top-level `#` for PDFs), so match that.
-            "title" | "section_header" => doc.push(Node::Heading {
+            "title" | "section_header" => nodes.push(Node::Heading {
                 level: 2,
                 text: md_escape(&text),
             }),
@@ -730,7 +730,7 @@ pub fn assemble_page(
                     .trim_start()
                     .to_string();
                 if let Some((number, rest)) = parse_ordered_marker(&stripped) {
-                    doc.push(Node::ListItem {
+                    nodes.push(Node::ListItem {
                         ordered: true,
                         number,
                         first_in_list: false,
@@ -738,7 +738,7 @@ pub fn assemble_page(
                         level: 0,
                     });
                 } else {
-                    doc.push(Node::ListItem {
+                    nodes.push(Node::ListItem {
                         ordered: false,
                         number: 0,
                         first_in_list: false,
@@ -759,11 +759,11 @@ pub fn assemble_page(
                         vec![vec![text.clone()]]
                     }
                 });
-                doc.push(Node::Table(Table { rows }));
+                nodes.push(Node::Table(Table { rows }));
             }
             // docling does not decode formulas in the standard pipeline; it emits
             // a placeholder comment rather than the (garbled) raw glyph text.
-            "formula" => doc.push(Node::Paragraph {
+            "formula" => nodes.push(Node::Paragraph {
                 text: "<!-- formula-not-decoded -->".into(),
             }),
             // Code blocks: use the space-glyph-only grouping (monospace keeps its
@@ -779,7 +779,7 @@ pub fn assemble_page(
                     .replace(" ;", ";")
                     .replace(" )", ")")
                     .replace(" (", "(");
-                doc.push(Node::Code {
+                nodes.push(Node::Code {
                     language: None,
                     text: code,
                 });
@@ -787,16 +787,17 @@ pub fn assemble_page(
                 if let Some(ci) = code_caption_for[i] {
                     let cap = region_text(&regions[ci], &page.cells);
                     if !cap.is_empty() {
-                        doc.push(Node::Paragraph { text: cap });
+                        nodes.push(Node::Paragraph { text: cap });
                     }
                 }
             }
             // text, caption, footnote → paragraph
-            _ => doc.push(Node::Paragraph {
+            _ => nodes.push(Node::Paragraph {
                 text: md_escape(&text),
             }),
         }
     }
+    (nodes, links)
 }
 
 /// Merge paragraph fragments split across a column or page break. docling joins a

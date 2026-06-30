@@ -119,12 +119,20 @@ fn rust_parser_cells(bytes: &[u8]) -> Option<Vec<Vec<TextCell>>> {
     if std::env::var("DOCLING_PDFIUM_TEXT").is_ok() {
         return None;
     }
-    Some(
+    Some(crate::timing::timed("textparse", || {
         crate::textparse::pdf_textlines(bytes)
             .into_iter()
             .map(|(_, _, cells)| cells)
-            .collect(),
-    )
+            .collect()
+    }))
+}
+
+/// Number of pages in a PDF, without rendering any of them — used to decide
+/// whether a document is worth spinning up the parallel worker pool.
+pub fn page_count(bytes: &[u8], password: Option<&str>) -> Result<usize, PdfiumError> {
+    let pdfium = bind()?;
+    let doc = pdfium.load_pdf_from_byte_slice(bytes, password)?;
+    Ok(doc.pages().len() as usize)
 }
 
 /// Render + extract pages one at a time, handing each (owned) [`PdfPage`] to `f`.
@@ -161,7 +169,8 @@ fn extract_page(
     let width = page.width().value;
     let height = page.height().value;
 
-    let (mut cells, code_cells, word_cells) = ffi.page_cells(index, height);
+    let (mut cells, code_cells, word_cells) =
+        crate::timing::timed("ffi.page_cells", || ffi.page_cells(index, height));
     if cells.is_empty() {
         cells = segment_cells(&page.text()?, height);
     }
@@ -184,11 +193,15 @@ fn extract_page(
     let cfg = PdfRenderConfig::new()
         .set_target_width(tw)
         .set_target_height(th);
-    let bitmap = page.render_with_config(&cfg)?;
-    let big = bitmap.as_image().into_rgb8();
+    let big = crate::timing::timed("pdfium.render", || {
+        page.render_with_config(&cfg)
+            .map(|b| b.as_image().into_rgb8())
+    })?;
     let dw = (width * RENDER_SCALE).round().max(1.0) as u32;
     let dh = (height * RENDER_SCALE).round().max(1.0) as u32;
-    let image = image::imageops::resize(&big, dw, dh, image::imageops::FilterType::CatmullRom);
+    let image = crate::timing::timed("image.resize", || {
+        image::imageops::resize(&big, dw, dh, image::imageops::FilterType::CatmullRom)
+    });
 
     Ok(PdfPage {
         width,

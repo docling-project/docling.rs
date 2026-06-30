@@ -54,13 +54,20 @@ pub struct LayoutModel {
 impl LayoutModel {
     /// Load the ONNX model from `DOCLING_LAYOUT_ONNX` (or `models/layout_heron.onnx`).
     pub fn load() -> Result<Self, String> {
+        Self::load_with(crate::intra_threads())
+    }
+
+    /// Like [`load`](Self::load) but with an explicit intra-op thread count. A
+    /// parallel page-worker pool loads its helper models on a single thread each
+    /// and gets its speed-up from running pages concurrently instead.
+    pub fn load_with(intra: usize) -> Result<Self, String> {
         let path = std::env::var("DOCLING_LAYOUT_ONNX")
             .unwrap_or_else(|_| "models/layout_heron.onnx".to_string());
         let session = Session::builder()
             .map_err(|e| format!("layout: builder: {e}"))?
             // Let inference use the available cores (ort otherwise defaults low);
             // a large PDF runs this model once per page.
-            .with_intra_threads(crate::intra_threads())
+            .with_intra_threads(intra)
             .map_err(|e| format!("layout: intra_threads: {e}"))?
             .commit_from_file(&path)
             .map_err(|e| format!("layout: load {path}: {e}"))?;

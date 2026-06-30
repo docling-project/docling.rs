@@ -18,10 +18,13 @@ pub mod pdfium_backend;
 pub mod resample;
 pub mod tableformer;
 pub mod textparse;
+pub mod timing;
 
 use std::fmt;
+use std::sync::mpsc::{sync_channel, Receiver};
+use std::sync::{Arc, Mutex};
 
-use fleischwolf_core::DoclingDocument;
+use fleischwolf_core::{DoclingDocument, Node};
 
 pub use mets::convert_mets_gbs;
 pub use pdfium_backend::{PdfDocument, PdfPage, TextCell};
@@ -70,9 +73,14 @@ pub(crate) fn intra_threads() -> usize {
         .unwrap_or(1)
 }
 
-/// A reusable PDF pipeline: the layout model is loaded once and reused across
-/// documents; OCR loads lazily the first time a scanned page is seen.
-pub struct Pipeline {
+/// One page's assembled output: typed nodes plus the page's hyperlinks, kept
+/// separate so pages processed out of order can be stitched back in page order.
+type PageOut = (Vec<Node>, Vec<(String, String)>);
+
+/// A self-contained set of the per-page models (layout, OCR, TableFormer). Each
+/// parallel page-worker owns its own `Worker` so inference runs concurrently
+/// without sharing an ONNX session (`ort`'s `Session::run` is `&mut self`).
+struct Worker {
     layout: layout::LayoutModel,
     ocr: Option<ocr::OcrModel>,
     /// TableFormer structure model; `None` when its ONNX graphs aren't present
@@ -80,37 +88,248 @@ pub struct Pipeline {
     tables: Option<tableformer::TableFormer>,
 }
 
-impl Pipeline {
-    /// Load the layout model (the only always-required model). TableFormer loads
-    /// if its exported graphs are present, else table regions use the geometric
-    /// fallback.
-    pub fn new() -> Result<Self, PdfError> {
+impl Worker {
+    fn load(intra: usize) -> Result<Self, PdfError> {
         Ok(Self {
-            layout: layout::LayoutModel::load().map_err(PdfError::Layout)?,
+            layout: layout::LayoutModel::load_with(intra).map_err(PdfError::Layout)?,
             ocr: None,
-            tables: tableformer::TableFormer::load(),
+            tables: tableformer::TableFormer::load_with(intra),
         })
     }
 
-    /// Convert a PDF (bytes) to a [`DoclingDocument`] via the discriminative
-    /// pipeline: pdfium text cells (or OCR for scanned pages) + per-page layout
-    /// detection, assembled in reading order. Errors are detailed and surfaced.
+    /// Run layout (+ OCR for cell-less pages) + TableFormer and assemble page `n`
+    /// into its nodes and links. Pure given the page (mutates only the worker's
+    /// lazily-loaded OCR model), so it is safe to run concurrently across pages.
+    fn process(&mut self, n: usize, page: &mut PdfPage) -> Result<PageOut, PdfError> {
+        let regions = timing::timed("layout.predict", || {
+            self.layout.predict(&page.image, page.width, page.height)
+        })
+        .map_err(|e| PdfError::Layout(format!("page {}: {e}", n + 1)))?;
+        // Resolve overlapping detections once, before OCR.
+        let mut regions = assemble::resolve(regions);
+        // Emit text the detector missed as orphan text regions (docling parity).
+        assemble::add_orphan_regions(&mut regions, &page.cells);
+        // Drop phantom empty low-confidence picture boxes (docling parity).
+        assemble::drop_false_pictures(&mut regions, &page.cells, page.width, page.height);
+        // No text layer → recognise text from the page image via OCR.
+        if page.cells.is_empty() {
+            if self.ocr.is_none() {
+                self.ocr = Some(ocr::OcrModel::load().map_err(PdfError::Ocr)?);
+            }
+            let cells = self
+                .ocr
+                .as_mut()
+                .unwrap()
+                .ocr_page(&page.image, &regions, page.scale)
+                .map_err(|e| PdfError::Ocr(format!("page {}: {e}", n + 1)))?;
+            page.cells = cells;
+        }
+        // TableFormer structure per table region (else geometric fallback).
+        let mut table_rows: Vec<Option<Vec<Vec<String>>>> = vec![None; regions.len()];
+        if let Some(tf) = self.tables.as_mut() {
+            timing::timed("tableformer", || {
+                for (i, r) in regions.iter().enumerate() {
+                    if r.label == "table" {
+                        table_rows[i] = tf.predict_table_rows(
+                            &page.image,
+                            page.height,
+                            [r.l, r.t, r.r, r.b],
+                            &page.word_cells,
+                        );
+                    }
+                }
+            });
+        }
+        Ok(timing::timed("assemble_page", || {
+            assemble::assemble_page(page, regions, &table_rows)
+        }))
+    }
+}
+
+/// Per-worker ONNX intra-op threads. The layout model is memory-bandwidth bound,
+/// so on a typical machine two threads per worker (sharing one in-cache copy of
+/// the weights) extracts more throughput than one fat model or many single-thread
+/// workers. `FLEISCHWOLF_PDF_INTRA` overrides for per-machine tuning.
+fn pdf_intra() -> usize {
+    if let Some(n) = std::env::var("FLEISCHWOLF_PDF_INTRA")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|&n| n > 0)
+    {
+        return n;
+    }
+    if intra_threads() >= 2 {
+        2
+    } else {
+        1
+    }
+}
+
+/// How many page-workers to spin up for a multi-page PDF. `FLEISCHWOLF_PDF_WORKERS`
+/// overrides; otherwise size the pool so `workers × intra ≈ cores`, capped at 4 so
+/// a worst-case pool holds a bounded amount of model memory (~0.4 GB per worker)
+/// and does not oversaturate the memory bus with model-weight traffic.
+fn pdf_worker_count() -> usize {
+    if let Some(n) = std::env::var("FLEISCHWOLF_PDF_WORKERS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|&n| n > 0)
+    {
+        return n;
+    }
+    (intra_threads() / pdf_intra()).clamp(1, 4)
+}
+
+/// A reusable PDF pipeline. A primary worker is loaded eagerly (with full
+/// intra-op threading, so single-page / image inputs stay fast); a multi-page
+/// PDF additionally spins up helper workers — each running its models on a single
+/// thread — and processes pages concurrently. OCR loads lazily per worker.
+pub struct Pipeline {
+    /// The model pool. `workers[0]` is the primary (full intra threads), the rest
+    /// are single-threaded helpers added lazily for the parallel path.
+    workers: Vec<Worker>,
+    /// Desired pool size for multi-page documents.
+    target_workers: usize,
+}
+
+impl Pipeline {
+    /// Load the primary worker's models (layout always; TableFormer if its graphs
+    /// are present, else the geometric fallback). Helper workers load lazily the
+    /// first time a multi-page PDF is converted.
+    pub fn new() -> Result<Self, PdfError> {
+        Ok(Self {
+            // The primary doubles as the single-page / image / METS worker, so it
+            // loads at the same modest intra count the pool uses.
+            workers: vec![Worker::load(pdf_intra())?],
+            target_workers: pdf_worker_count(),
+        })
+    }
+
+    /// Convert a PDF (bytes) to a [`DoclingDocument`]. A single-page document (or a
+    /// pool size of 1) streams through the primary worker; a multi-page document
+    /// renders on this thread (pdfium is not thread-safe) and fans the pages out
+    /// across the worker pool, reassembling them in page order.
     pub fn convert(
         &mut self,
         bytes: &[u8],
         password: Option<&str>,
         name: &str,
     ) -> Result<DoclingDocument, PdfError> {
-        // Stream pages: render → process → drop one at a time, so a large PDF
-        // holds ~one page bitmap (~5 MB) rather than every page at once (which
-        // is gigabytes for a multi-thousand-page document and drives the machine
-        // into swap).
+        let pages = pdfium_backend::page_count(bytes, password)?;
+        let doc = if pages >= 2 && self.target_workers >= 2 {
+            self.convert_parallel(bytes, password, name)?
+        } else {
+            self.convert_serial(bytes, password, name)?
+        };
+        timing::report();
+        Ok(doc)
+    }
+
+    /// Stream pages one at a time through the primary worker — render → process →
+    /// drop — so the document holds ~one page bitmap (~5 MB) at a time.
+    fn convert_serial(
+        &mut self,
+        bytes: &[u8],
+        password: Option<&str>,
+        name: &str,
+    ) -> Result<DoclingDocument, PdfError> {
         let mut doc = DoclingDocument::new(name);
+        let worker = &mut self.workers[0];
         pdfium_backend::for_each_page(bytes, password, |n, _total, mut page| {
-            self.process_one_page(n, &mut page, &mut doc)
+            let (nodes, links) = worker.process(n, &mut page)?;
+            doc.nodes.extend(nodes);
+            doc.links.extend(links);
+            Ok::<(), PdfError>(())
         })?;
         assemble::merge_continuations(&mut doc.nodes);
         Ok(doc)
+    }
+
+    /// Render pages serially on this thread (pdfium) and process them in parallel
+    /// across the worker pool. A bounded channel applies backpressure so only a
+    /// handful of page bitmaps are resident at once; results carry their page
+    /// index and are reassembled in order, so the output is byte-identical to the
+    /// serial path.
+    fn convert_parallel(
+        &mut self,
+        bytes: &[u8],
+        password: Option<&str>,
+        name: &str,
+    ) -> Result<DoclingDocument, PdfError> {
+        self.ensure_workers()?;
+        let n_workers = self.workers.len();
+        let (work_tx, work_rx) = sync_channel::<(usize, PdfPage)>(n_workers * 2);
+        let work_rx: Arc<Mutex<Receiver<(usize, PdfPage)>>> = Arc::new(Mutex::new(work_rx));
+        let results: Arc<Mutex<Vec<(usize, PageOut)>>> = Arc::new(Mutex::new(Vec::new()));
+        let first_err: Arc<Mutex<Option<PdfError>>> = Arc::new(Mutex::new(None));
+
+        // Move the pool into the scope so each worker gets an exclusive `&mut`.
+        let mut workers = std::mem::take(&mut self.workers);
+        std::thread::scope(|s| {
+            for worker in workers.iter_mut() {
+                let work_rx = Arc::clone(&work_rx);
+                let results = Arc::clone(&results);
+                let first_err = Arc::clone(&first_err);
+                s.spawn(move || loop {
+                    // Hold the receiver lock only for the recv; release before the
+                    // (long) per-page work so other workers can pull concurrently.
+                    let item = work_rx.lock().unwrap().recv();
+                    let Ok((idx, mut page)) = item else { break };
+                    match worker.process(idx, &mut page) {
+                        Ok(out) => results.lock().unwrap().push((idx, out)),
+                        Err(e) => {
+                            let mut slot = first_err.lock().unwrap();
+                            if slot.is_none() {
+                                *slot = Some(e);
+                            }
+                        }
+                    }
+                });
+            }
+            // Render on this thread and feed the workers; backpressure blocks here
+            // when the channel is full. Dropping `work_tx` afterwards signals the
+            // workers (recv → Err) to finish.
+            let render = pdfium_backend::for_each_page(bytes, password, |i, _total, page| {
+                work_tx
+                    .send((i, page))
+                    .map_err(|_| PdfError::Pdfium("page-worker channel closed".into()))
+            });
+            drop(work_tx);
+            if let Err(e) = render {
+                let mut slot = first_err.lock().unwrap();
+                if slot.is_none() {
+                    *slot = Some(e);
+                }
+            }
+        });
+        // Threads have joined; restore the pool for the next conversion.
+        self.workers = workers;
+
+        if let Some(e) = first_err.lock().unwrap().take() {
+            return Err(e);
+        }
+        let mut results = Arc::try_unwrap(results)
+            .unwrap_or_else(|arc| Mutex::new(arc.lock().unwrap().clone()))
+            .into_inner()
+            .unwrap();
+        results.sort_by_key(|(idx, _)| *idx);
+        let mut doc = DoclingDocument::new(name);
+        for (_, (nodes, links)) in results {
+            doc.nodes.extend(nodes);
+            doc.links.extend(links);
+        }
+        assemble::merge_continuations(&mut doc.nodes);
+        Ok(doc)
+    }
+
+    /// Lazily grow the pool to `target_workers`. Helpers run single-threaded — the
+    /// throughput comes from processing pages concurrently, not from one model
+    /// using every core. Loaded once and cached for reuse across documents.
+    fn ensure_workers(&mut self) -> Result<(), PdfError> {
+        while self.workers.len() < self.target_workers {
+            self.workers.push(Worker::load(pdf_intra())?);
+        }
+        Ok(())
     }
 
     /// Convert a standalone image (PNG/JPEG/TIFF/WebP/…) as a single page —
@@ -135,54 +354,6 @@ impl Pipeline {
         self.process_pages(vec![page], name)
     }
 
-    /// Run layout (+ OCR for cell-less pages) and assemble one page into `doc`.
-    fn process_one_page(
-        &mut self,
-        n: usize,
-        page: &mut PdfPage,
-        doc: &mut DoclingDocument,
-    ) -> Result<(), PdfError> {
-        let regions = self
-            .layout
-            .predict(&page.image, page.width, page.height)
-            .map_err(|e| PdfError::Layout(format!("page {}: {e}", n + 1)))?;
-        // Resolve overlapping detections once, before OCR.
-        let mut regions = assemble::resolve(regions);
-        // Emit text the detector missed as orphan text regions (docling parity).
-        assemble::add_orphan_regions(&mut regions, &page.cells);
-        // Drop phantom empty low-confidence picture boxes (docling parity).
-        assemble::drop_false_pictures(&mut regions, &page.cells, page.width, page.height);
-        // No text layer → recognise text from the page image via OCR.
-        if page.cells.is_empty() {
-            if self.ocr.is_none() {
-                self.ocr = Some(ocr::OcrModel::load().map_err(PdfError::Ocr)?);
-            }
-            let cells = self
-                .ocr
-                .as_mut()
-                .unwrap()
-                .ocr_page(&page.image, &regions, page.scale)
-                .map_err(|e| PdfError::Ocr(format!("page {}: {e}", n + 1)))?;
-            page.cells = cells;
-        }
-        // TableFormer structure per table region (else geometric fallback).
-        let mut table_rows: Vec<Option<Vec<Vec<String>>>> = vec![None; regions.len()];
-        if let Some(tf) = self.tables.as_mut() {
-            for (i, r) in regions.iter().enumerate() {
-                if r.label == "table" {
-                    table_rows[i] = tf.predict_table_rows(
-                        &page.image,
-                        page.height,
-                        [r.l, r.t, r.r, r.b],
-                        &page.word_cells,
-                    );
-                }
-            }
-        }
-        assemble::assemble_page(page, regions, &table_rows, doc);
-        Ok(())
-    }
-
     /// Run layout (+ OCR for cell-less pages) and assemble each already-rendered
     /// page (image / METS inputs, which are small and already materialised).
     fn process_pages(
@@ -191,8 +362,11 @@ impl Pipeline {
         name: &str,
     ) -> Result<DoclingDocument, PdfError> {
         let mut doc = DoclingDocument::new(name);
+        let worker = &mut self.workers[0];
         for (n, page) in pages.iter_mut().enumerate() {
-            self.process_one_page(n, page, &mut doc)?;
+            let (nodes, links) = worker.process(n, page)?;
+            doc.nodes.extend(nodes);
+            doc.links.extend(links);
         }
         assemble::merge_continuations(&mut doc.nodes);
         Ok(doc)

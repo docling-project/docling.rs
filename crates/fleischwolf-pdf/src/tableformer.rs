@@ -57,6 +57,13 @@ impl TableFormer {
     /// `models/tableformer/{encoder,decoder,bbox}.onnx`). Returns `None` if any is
     /// absent, so the pipeline falls back to geometric reconstruction.
     pub fn load() -> Option<Self> {
+        Self::load_with(crate::intra_threads())
+    }
+
+    /// Like [`load`](Self::load) but with an explicit intra-op thread count, so a
+    /// parallel page-worker pool can run each table model on fewer threads (the
+    /// throughput comes from running pages concurrently, not from one fat model).
+    pub fn load_with(intra: usize) -> Option<Self> {
         let enc = std::env::var("DOCLING_TABLEFORMER_ENCODER")
             .unwrap_or_else(|_| "models/tableformer/encoder.onnx".to_string());
         let dec = std::env::var("DOCLING_TABLEFORMER_DECODER")
@@ -72,7 +79,7 @@ impl TableFormer {
         let build = |path: &str| -> Result<Session, String> {
             Session::builder()
                 .map_err(|e| e.to_string())?
-                .with_intra_threads(crate::intra_threads())
+                .with_intra_threads(intra)
                 .map_err(|e| e.to_string())?
                 .commit_from_file(path)
                 .map_err(|e| format!("tableformer load {path}: {e}"))
