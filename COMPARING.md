@@ -54,9 +54,14 @@ FIXTURE                                        DIFF-LINES
 example_01.html                                         5
 example_02.html                                      EXACT
 ...
-Exact matches:             10 / 32
-Exact or 1-line-different:  12 / 32
+Exact (strict):                10 / 32
+Whitespace-normalized matches: 12 / 32
 ```
+
+The second metric ignores spacing-only differences (collapsing runs of
+whitespace, trimming line ends) — useful when our output is the more faithful
+one, e.g. dropping docling's spurious double space in a fraction. A row that
+matches only after normalization is flagged `N (ws-ok)`.
 
 > The reference is always the installed docling. The committed groundtruth `.md`
 > is used only as a fallback for sources docling can't convert — it predates
@@ -167,7 +172,7 @@ case — see the divergence table below.
 
 ## Current conformance (vs **live** docling, byte-for-byte)
 
-| Backend | Exact matches | Within one line |
+| Backend | Exact matches | Whitespace-normalized |
 |---|---|---|
 | **CSV** | **9 / 9** ✅ | 9 / 9 |
 | **Markdown** | **10 / 10** ✅ | 10 / 10 |
@@ -288,7 +293,7 @@ tail of docling-specific quirks (below), each typically 1–2 lines.
 
 ### HTML
 
-Against live docling: **10 / 32** exact, **12 / 32** exact-or-one-line. (The
+Against live docling: **10 / 32** exact, **12 / 32** whitespace-normalized. (The
 older committed groundtruth would report a lower 6/32 — it predates docling's
 padded-table serializer; see §A.) The remaining real differences trace to a
 small number of *systematic* behaviours below, not to parsing errors — closing
@@ -328,9 +333,11 @@ Already aligned with docling (previously diverged, now fixed):
 ## How to read the numbers
 
 `conformance.sh` counts **diff lines** (`diff` `<`/`>` markers): one changed line
-shows as `2`. So "≤ 2 diff lines" means "differs by at most one line". The point
-isn't the absolute score — it's the trend as gaps in the table get closed, and
-catching regressions when a change makes a previously-matching fixture diverge.
+shows as `2`. It reports two summary counts — **Exact (strict)** byte-for-byte and
+**Whitespace-normalized matches** (spacing-only diffs ignored; a fixture that
+matches only after normalization is flagged `N (ws-ok)`). The point isn't the
+absolute score — it's the trend as gaps in the table get closed, and catching
+regressions when a change makes a previously-matching fixture diverge.
 
 For CI, gate on the summary (e.g. fail if the exact-match count drops): it
 compares against the docling version actually installed, so it won't flag
