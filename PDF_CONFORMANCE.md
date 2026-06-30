@@ -48,6 +48,27 @@ to ONNX in `tableformer.rs`) on a cv2-exact preprocessed crop (`resample.rs`); t
 structure + matched cell text reproduce docling's padded GitHub tables (2305-pg9
 is cell-for-cell exact).
 
+### Performance / parallelism
+
+Profiling a 14-page document (`FLEISCHWOLF_TIMING=1` prints an env-gated per-stage
+wall-clock breakdown) shows ~80 % of the time is the two ONNX models (layout ~58 %,
+TableFormer ~22 %) and ~16 % the page-image downsample — all per-page work that is
+independent across pages. A multi-page PDF therefore renders on one thread (pdfium
+is not thread-safe) and fans the pages out across a **pool of page-workers**, each
+owning its own model set (`ort`'s `Session::run` is `&mut self`, so sessions can't
+be shared), reassembled in page order. A bounded channel keeps only a handful of
+page bitmaps resident, so the streaming memory profile is preserved; the output is
+byte-identical to the serial path (verified across all PDF snapshots). Single-page /
+image / METS inputs keep the serial path and load no helper models.
+
+The layout model is **memory-bandwidth bound** (even one model at four intra-op
+threads only reaches ~2.1× core utilisation), so the pool defaults to two intra-op
+threads per worker with `workers ≈ cores / 2` (capped at 4): two threads sharing one
+in-cache copy of the weights beats both one fat model and many single-thread workers.
+The speed-up scales with cores and memory bandwidth. Tune per machine with
+`FLEISCHWOLF_PDF_WORKERS` (pool size) and `FLEISCHWOLF_PDF_INTRA` (intra-op threads
+per worker).
+
 ### Text reconstruction: a pure-Rust PDF text parser (default)
 
 The byte-exact ceiling was the **text extractor** — pdfium's *rendered* glyph
