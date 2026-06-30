@@ -455,20 +455,27 @@ fn region_text(region: &Region, cells: &[TextCell]) -> String {
             let h = (c.b - c.t).abs().max((p.b - p.t).abs()).max(1.0);
             let gap = if rtl { p.l - c.r } else { c.l - p.r };
             // Dehyphenate a wrapped word: a line ending in a hyphen/dash followed
-            // by a lowercase continuation joins without the dash or a space
-            // (`platforms—` + `reflects` → `platformsreflects`). The dash is still
-            // raw here (clean_text normalizes em/en dashes later), so match them all.
+            // by a continuation joins without the dash or a space (`platforms—` +
+            // `reflects` → `platformsreflects`). The dash is still raw here
+            // (clean_text normalizes em/en dashes later), so match them all.
             let ends_dash = matches!(
                 joined.chars().last(),
                 Some('-' | '\u{2010}' | '\u{2013}' | '\u{2014}')
             );
+            let before = joined.chars().nth_back(1); // char before the dash
+            let next = t.chars().next();
             let dehyph = dp
                 && ends_dash
-                && joined
-                    .chars()
-                    .nth_back(1)
-                    .is_some_and(|c| c.is_alphabetic())
-                && t.chars().next().is_some_and(|c| c.is_lowercase());
+                && before.is_some_and(|c| c.is_alphabetic())
+                && next.is_some_and(|n| {
+                    // Ordinary hyphenation (lowercase continuation), or a CamelCase
+                    // compound name wrapped at the hyphen — a lowercase letter before
+                    // the dash continuing with an uppercase one (`PubTab-Net` →
+                    // `PubTabNet`, `Table-Former` → `TableFormer`). Excludes runs like
+                    // `MS-COCO` (uppercase before the dash) and `PubTables-1M` (digit).
+                    n.is_lowercase()
+                        || (n.is_uppercase() && before.is_some_and(|b| b.is_lowercase()))
+                });
             if dehyph {
                 joined.pop();
             } else if dp || !same_band || gap > h * 0.25 {
@@ -800,6 +807,15 @@ pub fn assemble_page(
 /// past a figure resumes below it (`…The wing type that is` ⟶[figure]⟶ `the most
 /// common…`), and docling emits the whole paragraph before the figure. A heading,
 /// table, or list between them ends the paragraph (no merge).
+/// A paragraph that is really a figure/table caption (`Fig. 1. …`, `Table 2 …`).
+/// Used to skip an unpaired caption when stitching a paragraph that wraps around
+/// a figure.
+fn looks_like_caption(text: &str) -> bool {
+    let head: String = text.trim_start().chars().take(14).collect();
+    (head.starts_with("Fig") || head.starts_with("Table"))
+        && head.contains(|c: char| c.is_ascii_digit())
+}
+
 pub(crate) fn merge_continuations(nodes: &mut Vec<Node>) {
     let mut i = 0;
     while i + 1 < nodes.len() {
@@ -817,9 +833,13 @@ pub(crate) fn merge_continuations(nodes: &mut Vec<Node>) {
             continue;
         }
         // The continuation is the next paragraph, looking past any figures the
-        // text wraps around (but nothing else).
+        // text wraps around — and a figure/table caption that was emitted as its
+        // own paragraph (an above-the-figure caption that didn't pair), since the
+        // body text resumes after the whole figure+caption block.
         let mut j = i + 1;
-        while matches!(nodes.get(j), Some(Node::Picture { .. })) {
+        while matches!(nodes.get(j), Some(Node::Picture { .. }))
+            || matches!(nodes.get(j), Some(Node::Paragraph { text }) if looks_like_caption(text))
+        {
             j += 1;
         }
         let cont = matches!(nodes.get(j), Some(Node::Paragraph { text: b })
