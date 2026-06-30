@@ -180,35 +180,61 @@ fn pdf_worker_count() -> usize {
     (intra_threads() / pdf_intra()).clamp(1, 4)
 }
 
-/// A reusable PDF pipeline. A primary worker is loaded eagerly (with full
-/// intra-op threading, so single-page / image inputs stay fast); a multi-page
-/// PDF additionally spins up helper workers — each running its models on a single
-/// thread — and processes pages concurrently. OCR loads lazily per worker.
+/// Minimum page count before a PDF is worth the parallel worker pool. Below this,
+/// the serial primary (running its model on every core) is faster than fanning out
+/// — the helper pool's one-time model-load cost only pays off once enough pages
+/// share it. `FLEISCHWOLF_PDF_PARALLEL_MIN` overrides.
+fn pdf_parallel_min() -> usize {
+    std::env::var("FLEISCHWOLF_PDF_PARALLEL_MIN")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(6)
+}
+
+/// A reusable PDF pipeline. The **primary** worker runs its models on every core,
+/// so a single-page / small / image / METS input is converted at full intra-op
+/// speed with no pool to load. A document with enough pages instead fans out
+/// across a **pool** of narrower workers processed concurrently. Both load lazily
+/// and are cached for reuse, so a one-shot conversion only pays for what it uses.
 pub struct Pipeline {
-    /// The model pool. `workers[0]` is the primary (full intra threads), the rest
-    /// are single-threaded helpers added lazily for the parallel path.
-    workers: Vec<Worker>,
+    /// Full-intra worker for the serial path; loaded on first serial use.
+    primary: Option<Worker>,
+    /// Narrower workers (≈cores/`target_workers` threads each) for the parallel
+    /// path; loaded on first multi-page use and cached.
+    pool: Vec<Worker>,
     /// Desired pool size for multi-page documents.
     target_workers: usize,
+    /// Page count at/above which the parallel pool is worth its load cost.
+    parallel_min: usize,
 }
 
 impl Pipeline {
-    /// Load the primary worker's models (layout always; TableFormer if its graphs
-    /// are present, else the geometric fallback). Helper workers load lazily the
-    /// first time a multi-page PDF is converted.
+    /// Construct the pipeline. Models load lazily on first use (full-intra primary
+    /// for serial inputs, the helper pool for multi-page PDFs), so nothing is
+    /// loaded that a given document doesn't need.
     pub fn new() -> Result<Self, PdfError> {
         Ok(Self {
-            // The primary doubles as the single-page / image / METS worker, so it
-            // loads at the same modest intra count the pool uses.
-            workers: vec![Worker::load(pdf_intra())?],
+            primary: None,
+            pool: Vec::new(),
             target_workers: pdf_worker_count(),
+            parallel_min: pdf_parallel_min(),
         })
     }
 
-    /// Convert a PDF (bytes) to a [`DoclingDocument`]. A single-page document (or a
-    /// pool size of 1) streams through the primary worker; a multi-page document
-    /// renders on this thread (pdfium is not thread-safe) and fans the pages out
-    /// across the worker pool, reassembling them in page order.
+    /// The full-intra serial worker, loaded on first use.
+    fn primary(&mut self) -> Result<&mut Worker, PdfError> {
+        if self.primary.is_none() {
+            self.primary = Some(Worker::load(intra_threads())?);
+        }
+        Ok(self.primary.as_mut().unwrap())
+    }
+
+    /// Convert a PDF (bytes) to a [`DoclingDocument`]. A document with fewer than
+    /// `parallel_min` pages (or a pool size of 1) streams through the full-intra
+    /// primary; a larger one renders on this thread (pdfium is not thread-safe) and
+    /// fans the pages out across the worker pool, reassembled in page order so the
+    /// output is byte-identical to the serial path.
     pub fn convert(
         &mut self,
         bytes: &[u8],
@@ -216,7 +242,7 @@ impl Pipeline {
         name: &str,
     ) -> Result<DoclingDocument, PdfError> {
         let pages = pdfium_backend::page_count(bytes, password)?;
-        let doc = if pages >= 2 && self.target_workers >= 2 {
+        let doc = if self.target_workers >= 2 && pages >= self.parallel_min {
             self.convert_parallel(bytes, password, name)?
         } else {
             self.convert_serial(bytes, password, name)?
@@ -234,7 +260,7 @@ impl Pipeline {
         name: &str,
     ) -> Result<DoclingDocument, PdfError> {
         let mut doc = DoclingDocument::new(name);
-        let worker = &mut self.workers[0];
+        let worker = self.primary()?;
         pdfium_backend::for_each_page(bytes, password, |n, _total, mut page| {
             let (nodes, links) = worker.process(n, &mut page)?;
             doc.nodes.extend(nodes);
@@ -256,15 +282,15 @@ impl Pipeline {
         password: Option<&str>,
         name: &str,
     ) -> Result<DoclingDocument, PdfError> {
-        self.ensure_workers()?;
-        let n_workers = self.workers.len();
+        self.ensure_pool()?;
+        let n_workers = self.pool.len();
         let (work_tx, work_rx) = sync_channel::<(usize, PdfPage)>(n_workers * 2);
         let work_rx: Arc<Mutex<Receiver<(usize, PdfPage)>>> = Arc::new(Mutex::new(work_rx));
         let results: Arc<Mutex<Vec<(usize, PageOut)>>> = Arc::new(Mutex::new(Vec::new()));
         let first_err: Arc<Mutex<Option<PdfError>>> = Arc::new(Mutex::new(None));
 
         // Move the pool into the scope so each worker gets an exclusive `&mut`.
-        let mut workers = std::mem::take(&mut self.workers);
+        let mut workers = std::mem::take(&mut self.pool);
         std::thread::scope(|s| {
             for worker in workers.iter_mut() {
                 let work_rx = Arc::clone(&work_rx);
@@ -303,7 +329,7 @@ impl Pipeline {
             }
         });
         // Threads have joined; restore the pool for the next conversion.
-        self.workers = workers;
+        self.pool = workers;
 
         if let Some(e) = first_err.lock().unwrap().take() {
             return Err(e);
@@ -322,12 +348,23 @@ impl Pipeline {
         Ok(doc)
     }
 
-    /// Lazily grow the pool to `target_workers`. Helpers run single-threaded — the
-    /// throughput comes from processing pages concurrently, not from one model
-    /// using every core. Loaded once and cached for reuse across documents.
-    fn ensure_workers(&mut self) -> Result<(), PdfError> {
-        while self.workers.len() < self.target_workers {
-            self.workers.push(Worker::load(pdf_intra())?);
+    /// Lazily grow the pool to `target_workers`, loading the new workers
+    /// concurrently (model load is mostly I/O + mmap, so N loads overlap to roughly
+    /// one load's wall-time). Cached for reuse across documents.
+    fn ensure_pool(&mut self) -> Result<(), PdfError> {
+        let need = self.target_workers.saturating_sub(self.pool.len());
+        if need == 0 {
+            return Ok(());
+        }
+        let intra = pdf_intra();
+        let loaded: Vec<Result<Worker, PdfError>> = std::thread::scope(|s| {
+            let handles: Vec<_> = (0..need)
+                .map(|_| s.spawn(move || Worker::load(intra)))
+                .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        for w in loaded {
+            self.pool.push(w?);
         }
         Ok(())
     }
@@ -362,7 +399,7 @@ impl Pipeline {
         name: &str,
     ) -> Result<DoclingDocument, PdfError> {
         let mut doc = DoclingDocument::new(name);
-        let worker = &mut self.workers[0];
+        let worker = self.primary()?;
         for (n, page) in pages.iter_mut().enumerate() {
             let (nodes, links) = worker.process(n, page)?;
             doc.nodes.extend(nodes);

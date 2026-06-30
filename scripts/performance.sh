@@ -111,20 +111,25 @@ print(f"{avg:.6f} {rss_kb}")
 PY
 }
 
-# Pick the Python docling that can convert this input. The lightweight
-# .venv-compare handles declarative/Office formats with no torch. PDFs and images
-# need the full ML pipeline (layout + tables + OCR), so when the lightweight env
-# can't produce output we fall back to the heavier .venv-compare-pdf and run the
-# real DocumentConverter. Only if neither works do we report Rust-only numbers.
+# Pick the Python docling that can convert this input and label which pipeline it
+# runs. The env (`.venv-compare`) now does everything, so the label is driven by
+# the input format, not by which env answered: a PDF/image/audio input goes
+# through docling's full ML pipeline (layout + tables + OCR), every other format
+# through the torch-free declarative backend. A probe still gates whether a
+# head-to-head is shown at all (some formats the local docling can't convert).
+case "${INPUT,,}" in
+  *.pdf | *.png | *.jpg | *.jpeg | *.tif | *.tiff | *.bmp | *.webp | *.gif | *.wav | *.mp3 | *.flac | *.m4a)
+    PY_KIND="full ML pipeline (layout + tables + OCR)" ;;
+  *)
+    PY_KIND="declarative backend (no torch)" ;;
+esac
 PY_USED="$PYBIN"
-PY_KIND="declarative backend (no torch)"
 PY_OK=1
 probe="$(mktemp)"
 if ! "$PYBIN" "$PY_RUNNER" "$INPUT" "$probe" >/dev/null 2>&1 || [[ ! -s "$probe" ]]; then
   : >"$probe"
   if ensure_docling_pdf && "$PYBIN_PDF" "$PY_RUNNER" "$INPUT" "$probe" >/dev/null 2>&1 && [[ -s "$probe" ]]; then
     PY_USED="$PYBIN_PDF"
-    PY_KIND="full ML pipeline (layout + tables + OCR)"
   else
     PY_OK=0
   fi
@@ -157,15 +162,17 @@ if [[ "$PY_OK" -eq 1 ]]; then
   echo
   echo "================ conversion only (startup excluded) ========"
   printf "  python (warm, in-process): %ss/doc, peak %s MB\n" "$(fmtt "$pyw_avg")" "$(mb "$pyw_rss")"
-  printf "  rust   (whole process incl. startup): %ss/doc — startup is negligible\n" "$(fmtt "$rs_avg")"
+  printf "  rust   (whole process incl. startup): %ss/doc\n" "$(fmtt "$rs_avg")"
   echo "  warm-conversion speedup:   $(ratio "$pyw_avg" "$rs_avg")x faster (rust)"
   echo
-  if [[ "$PY_USED" == "$PYBIN_PDF" ]]; then
+  if [[ "$PY_KIND" == full* ]]; then
     echo "Note: this PDF/image head-to-head runs docling's full pipeline (layout +"
     echo "tables + OCR). The Python end-to-end figure re-pays torch import and a cold"
     echo "model load on every process, which dominates; the warm number reuses one"
-    echo "loaded pipeline and is the fair conversion-only comparison. The Rust binary"
-    echo "loads its ONNX models per process too, so its end-to-end figure is honest."
+    echo "loaded pipeline. The Rust 'warm' figure above is NOT startup-excluded — it"
+    echo "is the whole process, including a per-run ONNX model load (~2-4s), which on"
+    echo "a small document is most of the time. Compare warm-vs-warm only as a rough"
+    echo "lower bound; use a larger document to see steady-state conversion speed."
   else
     echo "Note: Python end-to-end time includes interpreter + import startup"
     echo "(~0.3-0.6s), which dominates on small inputs. The warm number isolates the"
