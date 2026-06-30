@@ -55,6 +55,13 @@ if diff -u --label "python/docling" "$OUT_DIR/python.md" \
 else
   echo
   echo "ℹ️  outputs differ (see diff above)"
+  # If the only differences are whitespace (collapsing runs of spaces/tabs and
+  # trimming line ends), say so — e.g. docling's spurious double space in a
+  # fraction, where our single-spaced output is the more faithful rendering.
+  norm() { sed -E 's/[[:space:]]+/ /g; s/^ +//; s/ +$//' "$1"; }
+  if diff <(norm "$OUT_DIR/python.md") <(norm "$OUT_DIR/rust.md") >/dev/null; then
+    echo "✅ IDENTICAL after whitespace normalization (spacing-only differences)"
+  fi
   # Quick similarity stat: shared lines / python lines.
   shared=$(comm -12 <(sort "$OUT_DIR/python.md") <(sort "$OUT_DIR/rust.md") | grep -c . || true)
   total=$(grep -c . "$OUT_DIR/python.md" || true)

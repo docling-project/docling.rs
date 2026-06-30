@@ -51,12 +51,19 @@ reference_into() {
   return 1
 }
 
-printf "%-44s %12s\n" "FIXTURE" "DIFF-LINES"
-printf "%-44s %12s\n" "-------" "----------"
+# Collapse every run of whitespace to a single space and trim line ends, so a
+# difference that is *only* spacing (e.g. docling's spurious double space before
+# the `amt` fraction `up to  1 / 4`, where our single-spaced `up to 1 / 4` is in
+# fact the more faithful rendering) counts as a match. Reported alongside — never
+# instead of — the strict byte comparison.
+norm() { sed -E 's/[[:space:]]+/ /g; s/^ +//; s/ +$//'; }
+
+printf "%-44s %14s\n" "FIXTURE" "DIFF-LINES"
+printf "%-44s %14s\n" "-------" "----------"
 
 total=0
 exact=0
-close=0
+nmatch=0
 ref="$(mktemp)"
 trap 'rm -f "$ref"' EXIT
 for src in "$SRC_DIR"/*; do
@@ -64,19 +71,24 @@ for src in "$SRC_DIR"/*; do
   total=$((total + 1))
 
   out="$(cargo run --quiet --manifest-path "$MANIFEST" -p fleischwolf-cli -- "$src" 2>/dev/null || echo '<ERROR>')"
-  # Compare trailing-newline-insensitively.
+  # Strict, trailing-newline-insensitive byte comparison.
   d="$(diff <(printf '%s' "$out") <(printf '%s' "$(cat "$ref")") | grep -cE '^[<>]' || true)"
+  # Whitespace-normalized comparison (spacing-only diffs ignored).
+  dn="$(diff <(printf '%s' "$out" | norm) <(printf '%s' "$(cat "$ref")" | norm) | grep -cE '^[<>]' || true)"
 
   if [[ "$d" -eq 0 ]]; then
     exact=$((exact + 1))
+    nmatch=$((nmatch + 1))
     mark="EXACT"
+  elif [[ "$dn" -eq 0 ]]; then
+    nmatch=$((nmatch + 1))
+    mark="$d (ws-ok)"
   else
-    [[ "$d" -le 2 ]] && close=$((close + 1))
     mark="$d"
   fi
-  printf "%-44s %12s\n" "$(basename "$src")" "$mark"
+  printf "%-44s %14s\n" "$(basename "$src")" "$mark"
 done
 
 echo
-echo "Exact matches:             $exact / $total"
-echo "Exact or 1-line-different: $((exact + close)) / $total"
+echo "Exact (strict):                $exact / $total"
+echo "Whitespace-normalized matches: $nmatch / $total"
