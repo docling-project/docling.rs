@@ -2,9 +2,10 @@
 #
 # Master-only release step (run by .github/workflows/ci.yml after the lint/test
 # gates pass). Computes the next version from conventional commits; if there is
-# one, it bumps the workspace version, commits + tags it, pushes to master, and
-# publishes the changed crates. A clean no-op when no release-worthy commit
-# landed since the last tag.
+# one, it bumps the workspace version, commits + tags it, pushes to master,
+# publishes the changed crates, and assembles the GitHub Release notes (a commit
+# list since the previous tag) for the workflow to publish. A clean no-op when no
+# release-worthy commit landed since the last tag.
 #
 # The release commit is pushed with RELEASE_PAT (an admin token, so it satisfies
 # the master branch ruleset) and carries `[skip ci]`, so it does not re-trigger CI.
@@ -26,6 +27,24 @@ fi
 
 current="$(grep -m1 '^version = ' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
 echo ">> releasing v$new (was v$current)"
+
+# Assemble the GitHub Release notes BEFORE the version-bump commit lands, so the
+# range is exactly the feature commits going into this release (everything since
+# the previous tag, the release chore commit excluded). The workflow turns this
+# into the Release description.
+prev_tag="$(git tag --list 'v*' --sort=-version:refname | head -n1)"
+notes_range="${prev_tag:+$prev_tag..}HEAD"
+notes_file="$(pwd)/release-notes.md"
+repo="${GITHUB_REPOSITORY:-artiz/fleischwolf}"
+{
+  echo "## What's changed"
+  echo
+  git log "$notes_range" --no-merges --format='- %s (%h)'
+  if [[ -n "$prev_tag" ]]; then
+    echo
+    echo "**Full changelog**: https://github.com/$repo/compare/$prev_tag...v$new"
+  fi
+} >"$notes_file"
 
 # Bump the single version key in the root manifest's [workspace.package].
 sed -i -E "0,/^version = \"[^\"]+\"/ s//version = \"$new\"/" Cargo.toml
@@ -57,5 +76,16 @@ git push origin "v$new"
 # Publish every crate at the new version (idempotent: skips any already on
 # crates.io), in dependency order.
 scripts/ci_publish.sh
+
+# Hand the released version + notes file to the workflow, which cuts the GitHub
+# Release for the tag we just pushed. Guarded so the script still runs locally
+# (where $GITHUB_OUTPUT is unset).
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  {
+    echo "released=true"
+    echo "version=$new"
+    echo "notes_file=$notes_file"
+  } >>"$GITHUB_OUTPUT"
+fi
 
 echo ">> released v$new"

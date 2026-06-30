@@ -94,7 +94,26 @@ jobs:
       # it satisfies the master ruleset) and carries [skip ci], so it does not
       # re-trigger CI.
       - name: Release & publish
+        id: release
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           FORCE_VERSION: ${{ github.event.inputs.force_version }}
         run: bash scripts/release.sh
+
+      # Cut a GitHub Release for the tag release.sh just pushed, using the commit
+      # list it assembled as the description. Skipped when the release step was a
+      # no-op (no release-worthy commits). Idempotent: if a release for the tag
+      # already exists (e.g. a forced re-publish), refresh its notes instead of
+      # failing.
+      - name: Create GitHub Release
+        if: steps.release.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          tag="v${{ steps.release.outputs.version }}"
+          notes="${{ steps.release.outputs.notes_file }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --title "$tag" --notes-file "$notes"
+          else
+            gh release create "$tag" --title "$tag" --notes-file "$notes" --verify-tag
+          fi
