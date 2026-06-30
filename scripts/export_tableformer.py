@@ -24,9 +24,13 @@ TableFormer weights differ and produce different OTSL. Point the arg at:
 Verified: with these weights the exported graphs reproduce docling's OTSL token
 sequence byte-exact on docling's own preprocessed table tensor.
 
-Run inside the docling venv:
-  .venv-compare/bin/python scripts/export_tableformer.py <accurate-artifacts-dir> [out_dir]
+Run inside a Python env with docling (`docling_ibm_models` + torch) plus
+`onnx onnxscript onnxruntime`. The accurate-artifacts dir auto-resolves from the
+HuggingFace cache (downloading `docling-project/docling-models` if absent), or
+pass it explicitly:
+  .venv-compare/bin/python scripts/export_tableformer.py [accurate-artifacts-dir] [out_dir]
 """
+import glob
 import json
 import os
 import sys
@@ -37,8 +41,33 @@ import torch.nn as nn
 
 warnings.filterwarnings("ignore")
 
-ART = sys.argv[1]
-OUT = sys.argv[2] if len(sys.argv) > 2 else "models/tableformer"
+
+def resolve_artifacts():
+    """The `accurate` TableFormer artifacts dir from the published docling models.
+    Uses the HF cache if present, else downloads `docling-project/docling-models`
+    (the checkpoint current docling runs — its OTSL differs from the older ds4sd
+    weights, so the exported graphs must come from this one)."""
+    pat = "models--docling-project--docling-models/snapshots/*/model_artifacts/tableformer/accurate"
+    hits = glob.glob(os.path.expanduser(f"~/.cache/huggingface/hub/{pat}"))
+    if hits:
+        return sorted(hits)[-1]
+    from huggingface_hub import snapshot_download
+
+    root = snapshot_download("docling-project/docling-models")
+    return os.path.join(root, "model_artifacts", "tableformer", "accurate")
+
+
+# Optional positional args: [artifacts-dir] [out-dir]. The artifacts dir is
+# recognised by its `tm_config.json`; anything else is the out-dir, so both
+# `… <artifacts> <out>` and the bare `… <out>` (auto-resolve) calls work.
+_args = sys.argv[1:]
+ART = _args[0] if _args and os.path.isfile(os.path.join(_args[0], "tm_config.json")) else None
+if ART:
+    _args = _args[1:]
+OUT = _args[0] if _args else "models/tableformer"
+if ART is None:
+    ART = resolve_artifacts()
+print(f"tableformer artifacts: {ART}")
 os.makedirs(OUT, exist_ok=True)
 
 cfg = json.load(open(f"{ART}/tm_config.json"))

@@ -143,7 +143,11 @@ The ML formats (PDF, images, METS) need pdfium + the ONNX models, so they are
 covered by a separate **deterministic snapshot** harness rather than `cargo test`:
 
 ```bash
-bash scripts/pdf_setup.sh           # one-time: fetch pdfium + the ONNX models
+bash scripts/pdf_setup.sh           # one-time: fetch pdfium + export the ONNX models
+                                    # (layout + TableFormer; needs a torch/docling Python)
+# Updating an existing checkout after a model-format change (e.g. the cached
+# TableFormer decoder): `rm -rf models/tableformer && bash scripts/pdf_setup.sh`,
+# or re-run `python scripts/export_tableformer.py models/tableformer` directly.
 
 export PDFIUM_DYNAMIC_LIB_PATH="$(pwd)/.pdfium/lib"
 export DOCLING_LAYOUT_ONNX="$(pwd)/models/layout_heron.onnx"

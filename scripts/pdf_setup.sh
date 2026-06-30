@@ -7,8 +7,13 @@
 #   - libpdfium (bblanchon prebuilt) -> .pdfium/lib/libpdfium.so
 #   - PP-OCRv3 recognition model     -> models/ocr_rec.onnx
 #   - PP-OCR character dictionary     -> models/ppocr_keys_v1.txt
-# And exports the RT-DETR layout model -> models/layout_heron.onnx
-#   (needs a Python with torch+transformers+onnx; set $PYTHON, default `python3`).
+# And exports two ONNX model sets (need a Python with torch+onnx; set $PYTHON,
+# default `python3`):
+#   - the RT-DETR layout model -> models/layout_heron.onnx (torch+transformers)
+#   - TableFormer encoder/decoder/bbox -> models/tableformer/*.onnx (needs
+#     docling_ibm_models + onnxscript onnxruntime; auto-downloads the docling
+#     weights). Skipped with a note if those deps are missing — the pipeline then
+#     falls back to geometric table reconstruction.
 set -euo pipefail
 cd "$(dirname "$0")/.."   # fleischwolf/
 mkdir -p .pdfium models
@@ -35,6 +40,14 @@ fi
 if [ ! -f models/layout_heron.onnx ]; then
   echo "→ exporting RT-DETR layout model (needs torch+transformers+onnx)"
   "${PYTHON:-python3}" scripts/export_layout.py models/layout_heron.onnx
+fi
+
+if [ ! -f models/tableformer/decoder.onnx ]; then
+  echo "→ exporting TableFormer (needs docling_ibm_models + onnxscript onnxruntime)"
+  if ! "${PYTHON:-python3}" scripts/export_tableformer.py models/tableformer; then
+    echo "  ! TableFormer export failed (missing deps or weights). Tables will use"
+    echo "    the geometric fallback. Re-run after: pip install docling onnx onnxscript onnxruntime"
+  fi
 fi
 
 echo "done. export these before running the pipeline:"
