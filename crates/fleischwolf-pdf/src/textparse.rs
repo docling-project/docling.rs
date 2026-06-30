@@ -84,17 +84,41 @@ impl Font {
             .copied()
             .unwrap_or(self.default_width);
         if let Some(s) = self.to_unicode.get(&code) {
-            return (Some(s.clone()), w);
+            return (Some(decompose_ligatures(s)), w);
         }
         if !self.two_byte {
             if let Some(enc) = &self.simple_encoding {
                 if let Some(&ch) = enc.get(&(code as u8)) {
-                    return (Some(ch.to_string()), w);
+                    return (Some(decompose_ligatures(&ch.to_string())), w);
                 }
             }
         }
         (None, w)
     }
+}
+
+/// Spell out Latin presentation-form ligatures (`ﬁ`→`fi`, `ﬃ`→`ffi`, …) the way
+/// docling does, so `configuration`/`difficult` don't keep the ligature glyph.
+/// The chars share the ligature's box, so the line sanitizer recomposes them.
+fn decompose_ligatures(s: &str) -> String {
+    if !s.chars().any(|c| ('\u{FB00}'..='\u{FB06}').contains(&c)) {
+        return s.to_string();
+    }
+    s.chars()
+        .map(|c| {
+            match c {
+                '\u{FB00}' => "ff",
+                '\u{FB01}' => "fi",
+                '\u{FB02}' => "fl",
+                '\u{FB03}' => "ffi",
+                '\u{FB04}' => "ffl",
+                '\u{FB05}' => "ft",
+                '\u{FB06}' => "st",
+                _ => return c.to_string(),
+            }
+            .to_string()
+        })
+        .collect()
 }
 
 fn hash_name(name: &[u8]) -> u64 {
