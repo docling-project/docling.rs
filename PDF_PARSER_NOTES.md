@@ -64,14 +64,22 @@ spacing. Two `dp_lines`/`textparse` fixes landed:
 Parser path now: code_and_formula / multi_page / picture_classification exact;
 **amt = 2**, **right_to_left_01 = 2**. The two remaining diffs are precisely:
 
-### Remaining blocker A — bidi-neutral ordering (right_to_left_01)
-A period (or other neutral) *between two RTL letters* must take RTL direction so
-it orders with the word (`…ت . space…` → `العمل.` + trailing space). My
-contraction creates the period cell as LTR (`ltr = !is_right_to_left(".")`), so
-`space+period` merge as `" ."` and the space lands *before* the period
-(`العمل .`). Fix: resolve a neutral cell's direction from its RTL neighbours
-(Unicode bidi rule) before/within the contraction. Char cells already match
-docling exactly — this is purely contraction ordering.
+### Remaining blocker A — end-of-line period fragments (right_to_left_01)
+Root-caused: my char cells match docling's **exactly** (the sentence period is a
+separate font `/F4` glyph sitting at the justified line's left end, x≈394, while
+the preceding word is at x≈519). docling emits the **whole visual line as one
+textline cell** (baseline grouping + x-sort), so the period is *inside* the line
+and orders correctly (`العمل.`). My `dp_lines` contraction is **adjacency**-based
+(corner distance) and additionally gated by `enforce_same_font`, so the period
+(font change + a justification x-gap) does **not** merge — it stays a separate
+cell. Then `assemble::region_text` in dp mode joins *every* cell with a single
+space, inserting one before the period (`العمل .`).
+
+Fix options: (a) group the contraction by baseline into one line cell like
+docling (bigger change), or (b) in `region_text`, when the parser path produced
+fragmented cells, suppress the inter-cell space for a lone trailing punctuation
+attached to the prior word — but must NOT break the cases docling keeps spaced
+(`Name 1 .`, `[ 9 ]`). Needs care + the snapshot suite as a guard.
 
 ### Remaining blocker B — fraction line-wrap double space (amt)
 `up to  1 / 4` (double) only on the two fractions that fall at a **column line
