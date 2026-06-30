@@ -138,6 +138,13 @@ if [[ "$PY_OK" -eq 1 ]]; then
   read -r py_min py_avg py_rss py_cpu < <(bench_process "$PYBIN" "$PY_RUNNER" "$INPUT")
   echo ">> measuring Python docling (warm, in-process) ..."
   read -r pyw_avg pyw_rss < <(bench_python_warm 2>/dev/null) || { pyw_avg=""; pyw_rss=0; }
+  # Rust warm conversion (pipeline loaded once, startup excluded) — the fair
+  # counterpart to Python's warm number. Only the PDF/image pipeline supports it.
+  rsw_avg=""
+  if [[ "$PY_KIND" == full* ]]; then
+    echo ">> measuring Rust fleischwolf (warm, in-process) ..."
+    rsw_avg=$("$RUST_BIN" --bench-warm "$RUNS" "$INPUT" 2>/dev/null || echo "")
+  fi
 fi
 
 mb() { awk -v k="$1" 'BEGIN { printf "%.1f", k / 1024 }'; }
@@ -156,17 +163,20 @@ if [[ "$PY_OK" -eq 1 ]]; then
   echo
   echo "================ conversion only (startup excluded) ========"
   printf "  python (warm, in-process): %ss/doc, peak %s MB\n" "$(fmtt "$pyw_avg")" "$(mb "$pyw_rss")"
-  printf "  rust   (whole process incl. startup): %ss/doc\n" "$(fmtt "$rs_avg")"
-  echo "  warm-conversion speedup:   $(ratio "$pyw_avg" "$rs_avg")x faster (rust)"
+  if [[ -n "$rsw_avg" ]]; then
+    printf "  rust   (warm, in-process): %ss/doc\n" "$(fmtt "$rsw_avg")"
+    echo "  warm-conversion speedup:   $(ratio "$pyw_avg" "$rsw_avg")x faster (rust)"
+  else
+    printf "  rust   (whole process incl. startup): %ss/doc\n" "$(fmtt "$rs_avg")"
+    echo "  warm-conversion speedup:   $(ratio "$pyw_avg" "$rs_avg")x faster (rust) [rust incl. startup]"
+  fi
   echo
   if [[ "$PY_KIND" == full* ]]; then
     echo "Note: this PDF/image head-to-head runs docling's full pipeline (layout +"
-    echo "tables + OCR). The Python end-to-end figure re-pays torch import and a cold"
-    echo "model load on every process, which dominates; the warm number reuses one"
-    echo "loaded pipeline. The Rust 'warm' figure above is NOT startup-excluded — it"
-    echo "is the whole process, including a per-run ONNX model load (~2-4s), which on"
-    echo "a small document is most of the time. Compare warm-vs-warm only as a rough"
-    echo "lower bound; use a larger document to see steady-state conversion speed."
+    echo "tables + OCR). The end-to-end figures re-pay process startup (torch import +"
+    echo "cold ONNX model load) on every run; the warm figures load the pipeline once"
+    echo "and time conversion only, so warm-vs-warm is the fair conversion-speed"
+    echo "comparison. (Rust warm = 'fleischwolf --bench-warm'.)"
   else
     echo "Note: Python end-to-end time includes interpreter + import startup"
     echo "(~0.3-0.6s), which dominates on small inputs. The warm number isolates the"

@@ -33,3 +33,7 @@ pub use source::SourceDocument;
 // Re-export the core model so callers only need the one crate, and so
 // `result.document.export_to_markdown()` works without an extra import.
 pub use fleischwolf_core::{DocItemLabel, DoclingDocument, ImageMode, Node, PictureImage, Table};
+
+// The reusable PDF/image pipeline (models loaded once, reused across documents),
+// for callers that convert many files or want a warm, startup-excluded measurement.
+pub use fleischwolf_pdf::Pipeline;

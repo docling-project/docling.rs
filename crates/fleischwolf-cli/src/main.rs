@@ -19,13 +19,14 @@
 use std::path::Path;
 use std::process::ExitCode;
 
-use fleischwolf::{DocumentConverter, ImageMode, SourceDocument};
+use fleischwolf::{DocumentConverter, ImageMode, InputFormat, Pipeline, SourceDocument};
 
 fn main() -> ExitCode {
     let mut strict = false;
     let mut to = "md".to_string();
     let mut images = "placeholder".to_string();
     let mut fetch_images = false;
+    let mut bench_warm: Option<usize> = None;
     let mut path: Option<String> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -34,6 +35,17 @@ fn main() -> ExitCode {
             "--fetch-images" => fetch_images = true,
             "--to" => to = args.next().unwrap_or_default(),
             "--images" => images = args.next().unwrap_or_default(),
+            // Hidden benchmarking aid: load the PDF/image pipeline once, then time
+            // N warm conversions (models already loaded), printing the avg seconds
+            // per conversion to stdout. This is the startup-excluded counterpart to
+            // Python docling's in-process "warm" measurement, for a fair head-to-head.
+            "--bench-warm" => {
+                bench_warm = args.next().and_then(|n| n.parse::<usize>().ok());
+                if bench_warm.is_none() {
+                    eprintln!("error: --bench-warm needs a positive run count");
+                    return ExitCode::from(2);
+                }
+            }
             _ => path = Some(arg),
         }
     }
@@ -66,6 +78,24 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+
+    if let Some(runs) = bench_warm {
+        return match bench_warm_conversion(&source, runs) {
+            Ok(avg) => {
+                // Bare seconds on stdout for the benchmark harness; a human line on stderr.
+                println!("{avg:.6}");
+                eprintln!(
+                    "warm conversion: {:.4}s/doc over {runs} runs (startup excluded)",
+                    avg
+                );
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
 
     let document = match DocumentConverter::new()
         .strict(strict)
@@ -108,4 +138,36 @@ fn main() -> ExitCode {
     }
     print!("{md}");
     ExitCode::SUCCESS
+}
+
+/// Build the PDF/image pipeline once (loading the ONNX models), then time `runs`
+/// warm conversions and return the average seconds per conversion. The first
+/// conversion is a discarded warm-up that triggers the lazy model loads, so the
+/// timed runs reuse them — the startup-excluded figure comparable to docling's
+/// in-process warm number.
+fn bench_warm_conversion(source: &SourceDocument, runs: usize) -> Result<f64, String> {
+    let mut pipeline = Pipeline::new().map_err(|e| e.to_string())?;
+    let once = |p: &mut Pipeline| -> Result<(), String> {
+        match source.format {
+            InputFormat::Pdf => p
+                .convert(&source.bytes, None, &source.name)
+                .map(|_| ())
+                .map_err(|e| e.to_string()),
+            InputFormat::Image => p
+                .convert_image(&source.bytes, &source.name)
+                .map(|_| ())
+                .map_err(|e| e.to_string()),
+            other => Err(format!(
+                "--bench-warm supports PDF/image only, not {other:?}"
+            )),
+        }
+    };
+    once(&mut pipeline)?; // warm-up: load models, prime caches
+    let mut total = 0.0f64;
+    for _ in 0..runs {
+        let t = std::time::Instant::now();
+        once(&mut pipeline)?;
+        total += t.elapsed().as_secs_f64();
+    }
+    Ok(total / runs as f64)
 }
