@@ -12,6 +12,13 @@
 //! println!("{}", result.document.export_to_markdown());
 //! ```
 //!
+//! For the PDF/image ML pipeline (pdfium + layout/TableFormer/OCR ONNX), reuse a
+//! [`Pipeline`] across documents to amortize model loading, instead of the
+//! per-call [`DocumentConverter`]. Deploying as a service: `examples/Dockerfile`
+//! is a 3-stage build that bakes the binary, native libs, and exported models
+//! (including the KV-cached TableFormer decoder) into a slim, Python-free runtime
+//! image — see the "Deploy in a container" section of the README.
+//!
 //! See `MIGRATION.md` for the architecture, the Python → Rust mapping, and the
 //! phased plan. Phase 0 ships the converter plumbing plus Markdown and CSV
 //! backends; PDF/DOCX/HTML and the ML pipeline land in later phases.

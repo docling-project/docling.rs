@@ -163,7 +163,19 @@ numbering and footnote reading order.)
 4. ~~Korean quote normalization~~ — DONE (normal_4pages 74→54).
 5. **Now: 6/14 strict, 7/14 whitespace-normalized.** Blocker B (amt) needs a
    font-metrics layer for strict 7/14.
-6. Long term: drop pdfium's text path (keep it for rasterisation).
+6. **Investigated — drop pdfium's text path (keep it for rasterisation).** The
+   parser is already the sole *prose* source (item 2). Moving the *word* and
+   *code* cells off pdfium too — by running the parser's glyph stream through the
+   same `words_from_glyphs` / `lines_from_glyphs` grouping — was trialled and
+   **reverted**: it regresses vs the docling groundtruth (`2305` 34→46, `code_and_formula`
+   2→4 ws-normalized; 10 of 91 snapshots drift). TableFormer matches predicted cell
+   boxes against the page's word cells by overlap, and the parser's font-advance
+   *loose* boxes differ from the *ink* boxes pdfium reports — which the table
+   matching was validated against — so the cell text shifts. Fully retiring
+   pdfium's text path needs a docling-parse-faithful word/cell grouping in the
+   parser (a `dp_lines` equivalent for words, not the legacy gap-heuristic on
+   parser glyphs) — a dedicated effort. Until then pdfium stays for word/code
+   cells (alongside page rasterization + link annotations).
 
 ## Tooling (under `scripts/`)
 

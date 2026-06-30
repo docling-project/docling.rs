@@ -188,6 +188,25 @@ The comparison scripts install the latest published Python `docling` from PyPI
 into `.venv-compare` automatically on first run. See
 [`COMPARING.md`](./COMPARING.md).
 
+## Deploy in a container
+
+For a real-world service, bake the binary, native libs, and models into one image
+so the runtime needs no Python. [`examples/Dockerfile`](./examples/Dockerfile) is a
+3-stage build that does exactly this — a `models` stage exports the layout +
+**TableFormer** (KV-cached decoder) ONNX with torch and fetches the OCR model +
+pdfium, a `builder` stage compiles the CLI, and a slim `runtime` stage carries just
+the binary, `libonnxruntime`, pdfium, and the models, with the `DOCLING_*` env vars
+preset:
+
+```bash
+docker build -f examples/Dockerfile -t fleischwolf .
+docker run --rm -v "$PWD:/data" fleischwolf /data/input.pdf          # Markdown to stdout
+docker run --rm -v "$PWD:/data" fleischwolf /data/input.pdf --to json
+```
+
+The image converts PDFs/images fully offline; the model export (torch +
+`docling-ibm-models`) happens only at build time, never at runtime.
+
 ## Performance
 
 `scripts/performance.sh` runs the **largest fixture of each supported type** through
