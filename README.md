@@ -192,16 +192,8 @@ const json = await convertFileAsync('report.docx', { to: 'json' })
 
 Declarative formats (Markdown, HTML, DOCX, XLSX, …) work out of the box. The
 PDF/image pipeline needs pdfium + the ONNX models (not bundled), so it throws
-until you fetch them — a one-liner from your app's directory (pdfium and OCR
-from their own upstream releases; the layout model and TableFormer —
-PyTorch→ONNX exports of docling-project's own models,
-Apache-2.0/CDLA-Permissive-2.0, see [`MODELS_NOTICE.md`](./MODELS_NOTICE.md) —
-from fleischwolf's own hosted release), straight into `./models` and
-`./.pdfium`, which the package looks for by default — no env vars needed:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/artiz/fleischwolf/master/scripts/download_dependencies.sh | sh
-```
+until you fetch them with `scripts/download_dependencies.sh` — see
+[Getting the ML models](#getting-the-ml-models) below.
 
 A reusable `Pipeline` keeps those models warm across many PDFs.
 
@@ -210,6 +202,68 @@ Runnable Node + Bun examples are in
 (`npm install && node node-basic.mjs`). See
 [`crates/fleischwolf-node/README.md`](./crates/fleischwolf-node/README.md) for
 the full API.
+
+## Getting the ML models
+
+The PDF/image pipeline needs native assets that aren't bundled in the crate or
+the npm addon: [pdfium](https://pdfium.googlesource.com/pdfium/) (text
+extraction + page rendering) and three ONNX models — RT-DETR layout, PP-OCRv3
+recognition, and TableFormer (optional; tables fall back to geometric
+reconstruction without it). `scripts/download_dependencies.sh` fetches all of
+them from this repo's [GitHub Releases](https://github.com/artiz/fleischwolf/releases)
+(tag `models-v1`) straight into `./models` and `./.pdfium`, relative to the
+current directory — both the Rust CLI/library and the Node.js/Bun bindings
+look there by default, so no env vars or extra setup are needed afterwards:
+
+```bash
+# from a checkout of this repo, or any directory you'll run fleischwolf from:
+scripts/download_dependencies.sh
+
+# or, without a checkout — e.g. a container build step, or a fresh npm project:
+curl -fsSL https://raw.githubusercontent.com/artiz/fleischwolf/master/scripts/download_dependencies.sh | sh
+```
+
+| Asset | Destination |
+| --- | --- |
+| pdfium (Linux x64) | `.pdfium/lib/libpdfium.so` |
+| RT-DETR layout | `models/layout_heron.onnx` |
+| PP-OCRv3 rec + dictionary | `models/ocr_rec.onnx`, `models/ppocr_keys_v1.txt` |
+| TableFormer (optional) | `models/tableformer/{encoder,decoder,bbox}.onnx` (+ `.data` sidecars where the export needs them) |
+
+Idempotent — safe to re-run; it skips files already on disk. Pass `--force` to
+re-fetch everything, or set `$FLEISCHWOLF_MODELS_URL` to fetch from a
+different host (your own export, an internal mirror, …). pdfium is Linux x64
+only for now — other platforms, or building the models from source, need
+[`scripts/pdf_setup.sh`](#testing) instead.
+
+Then either:
+
+```bash
+cargo run -p fleischwolf-cli -- document.pdf
+```
+
+or, in a Node.js/Bun app:
+
+```bash
+npm i fleischwolf
+```
+
+```js
+import { convertFileAsync } from 'fleischwolf'
+const { content } = await convertFileAsync('document.pdf', { to: 'markdown' })
+console.log(content)
+```
+
+The layout model and TableFormer are PyTorch→ONNX exports of docling-project's
+own models (Apache-2.0 / CDLA-Permissive-2.0 — see
+[`MODELS_NOTICE.md`](./MODELS_NOTICE.md) for full attribution); pdfium and the
+OCR model are re-hosted, unmodified, from their own public releases — all on
+one host for convenience.
+
+To point at files you exported or placed elsewhere instead, set the env vars
+directly: `DOCLING_LAYOUT_ONNX`, `DOCLING_OCR_REC_ONNX`, `DOCLING_OCR_DICT`,
+`DOCLING_TABLEFORMER_{ENCODER,DECODER,BBOX}`, `PDFIUM_DYNAMIC_LIB_PATH` — an
+env var always wins over the `./models` / `./.pdfium` default.
 
 ## Testing
 
@@ -268,8 +322,7 @@ cargo run -p fleischwolf-cli -- --strict crates/fleischwolf/sample.html
 cargo run -p fleischwolf-cli -- --to json crates/fleischwolf/sample.html
 cargo run -p fleischwolf-cli -- --to json crates/fleischwolf/sample.html > out.json
 
-# PDF/image conversion needs the ML models: scripts/download_dependencies.sh once,
-# then it just works — models/ and .pdfium/lib are picked up automatically.
+# PDF/image conversion needs the ML models — see "Getting the ML models" above.
 scripts/download_dependencies.sh
 cargo run -p fleischwolf-cli -- document.pdf
 
