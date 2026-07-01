@@ -35,8 +35,6 @@
       "additional": [
         "x86_64-unknown-linux-gnu",
         "aarch64-unknown-linux-gnu",
-        "x86_64-apple-darwin",
-        "aarch64-apple-darwin",
         "x86_64-pc-windows-msvc"
       ]
     }
@@ -59,8 +57,8 @@
     "prepublishOnly": "napi prepublish -t npm --skip-gh-release",
     "version": "napi version",
     "test": "node test/smoke.mjs",
-    "example": "node examples/node-basic.mjs",
-    "example:bun": "bun run examples/bun-basic.ts"
+    "example": "npm --prefix examples install && node examples/node-basic.mjs",
+    "example:bun": "npm --prefix examples install && bun run examples/bun-basic.ts"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.4"

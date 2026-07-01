@@ -5,10 +5,12 @@
 # package plus per-platform `optionalDependencies` (fleischwolf-<triple>) via
 # napi-rs and publishes them all.
 #
-# Trigger: manual only (workflow_dispatch). Pick the release tag to build — the
-# workflow checks out that tag and publishes the npm version derived from it, so
-# npm releases stay decoupled from the crates.io release on every master push.
-# Run it from the Actions tab (or `gh workflow run npm-publish.yml -f tag=v0.7.0`).
+# Trigger: manual only (workflow_dispatch). By default it builds the latest
+# master (the version in the workspace Cargo.toml); optionally pass a release
+# tag to build that instead. Either way the workflow checks out the chosen ref
+# and publishes, so npm releases stay decoupled from the crates.io release on
+# every master push. Run it from the Actions tab (or
+# `gh workflow run npm-publish.yml`, optionally `-f tag=v0.7.0`).
 #
 # Requires one repository secret: NPM_TOKEN — an npm automation token with
 # publish rights to `fleischwolf` and the `fleischwolf-*` platform packages.
@@ -19,15 +21,16 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to build and publish (e.g. v0.7.0)."
-        required: true
+        description: "Release tag to build (e.g. v0.7.0). Blank = latest master."
+        required: false
+        default: ""
       version:
-        description: "Override the npm version (e.g. 0.7.0). Blank = derive from the tag."
+        description: "Override the npm version (e.g. 0.7.0). Blank = tag, or workspace version on master."
         required: false
         default: ""
 
 concurrency:
-  group: npm-publish-${{ inputs.tag }}
+  group: npm-publish-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
 
 defaults:
@@ -48,16 +51,19 @@ jobs:
           # ONNX/ort build). Requires the arm64 runner image to be available.
           - target: aarch64-unknown-linux-gnu
             host: ubuntu-24.04-arm
-          - target: x86_64-apple-darwin
-            host: macos-13
-          - target: aarch64-apple-darwin
-            host: macos-14
+          # macOS (darwin) prebuilds are omitted: GitHub-hosted macOS runners are
+          # blocked in this environment, and darwin can't be cross-compiled on
+          # Linux (needs the Apple SDK). macOS users build from source. To re-add
+          # when macOS runners are available, add the darwin targets back here AND
+          # to `napi.triples.additional` in package.json:
+          #   - { target: aarch64-apple-darwin, host: macos-14 }
+          #   - { target: x86_64-apple-darwin,  host: macos-14 }  # cross via --target
           - target: x86_64-pc-windows-msvc
             host: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -69,7 +75,7 @@ jobs:
           key: ${{ matrix.target }}
           workspaces: "."
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
 
@@ -88,7 +94,7 @@ jobs:
         run: npx napi build --platform --release --target ${{ matrix.target }} --js native.js --dts native.d.ts
 
       - name: Upload prebuilt binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bindings-${{ matrix.target }}
           path: crates/fleischwolf-node/fleischwolf.*.node
@@ -98,7 +104,7 @@ jobs:
       # linux-x64 build) for the publish job to include in the main package.
       - name: Upload JS binding
         if: matrix.target == 'x86_64-unknown-linux-gnu'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: js-binding
           path: |
@@ -111,11 +117,11 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ inputs.tag || github.ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           registry-url: "https://registry.npmjs.org"
@@ -125,26 +131,33 @@ jobs:
 
       # Prebuilt binaries → artifacts/<name>/fleischwolf.<triple>.node
       - name: Download prebuilt binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: bindings-*
           path: crates/fleischwolf-node/artifacts
 
       # The JS loader + types → the package root.
       - name: Download JS binding
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: js-binding
           path: crates/fleischwolf-node
 
-      # Version = the explicit override, else the selected tag with its leading `v`.
+      # Version = the explicit override, else the selected tag (sans leading `v`),
+      # else the workspace version from the root Cargo.toml (latest-master run).
       - name: Resolve version
         id: ver
         run: |
           v="${{ inputs.version }}"
-          if [ -z "$v" ]; then v="${{ inputs.tag }}"; v="${v#v}"; fi
+          if [ -z "$v" ]; then
+            if [ -n "${{ inputs.tag }}" ]; then
+              v="${{ inputs.tag }}"; v="${v#v}"
+            else
+              v="$(grep -m1 '^version = ' ../../Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
+            fi
+          fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "Publishing fleischwolf@$v from tag ${{ inputs.tag }}"
+          echo "Publishing fleischwolf@$v (ref: ${{ inputs.tag || github.ref }})"
 
       # Skip cleanly if this version is already on npm (idempotent re-runs).
       - name: Check if already published

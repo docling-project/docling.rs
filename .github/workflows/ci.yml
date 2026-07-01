@@ -33,7 +33,7 @@ jobs:
     name: fmt · clippy (pinned)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -52,7 +52,7 @@ jobs:
     name: test (stable)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Tests stay on the current stable so they catch real compiler breakage.
       - uses: dtolnay/rust-toolchain@stable
@@ -75,7 +75,7 @@ jobs:
     permissions:
       contents: write # push the version-bump commit + tag
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # full history + tags, for the semantic version bump
           # Push the release commit + tag as an admin PAT so it satisfies the

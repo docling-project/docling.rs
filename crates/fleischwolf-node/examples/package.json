@@ -1,0 +1,16 @@
+{
+  "name": "fleischwolf-examples",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runnable examples for the fleischwolf npm package. Run `npm install` here, then the scripts below.",
+  "type": "module",
+  "scripts": {
+    "start": "node node-basic.mjs",
+    "node": "node node-basic.mjs",
+    "bun": "bun run bun-basic.ts",
+    "pdf": "node pdf-pipeline.mjs"
+  },
+  "dependencies": {
+    "fleischwolf": "^0.6.1"
+  }
+}

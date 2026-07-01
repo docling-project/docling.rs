@@ -154,32 +154,45 @@ The CLI streams Markdown by default (`--no-stream` opts back into buffering;
 
 ## Node.js / Bun bindings
 
-Native TypeScript bindings live in
-[`crates/fleischwolf-node`](./crates/fleischwolf-node) (built with
-[napi-rs](https://napi.rs)). They ship a real `.node` addon that loads in both
-Node.js and Bun (Bun implements N-API — same binary, no rebuild), exposing the
-converter with the same knobs as the Rust API: Markdown / docling JSON output,
-`strict` mode, image modes, allowed-format restriction, `fetchImages`, sync +
-async (`Promise`) calls, and a `streamFileMarkdown` async generator.
+Fleischwolf ships as an npm package, [**`fleischwolf`**](https://www.npmjs.com/package/fleischwolf)
+— native TypeScript bindings (built with [napi-rs](https://napi.rs)) that live in
+[`crates/fleischwolf-node`](./crates/fleischwolf-node). It's a real `.node` addon
+that loads in both Node.js and Bun (Bun implements N-API — same binary, no
+rebuild), exposing the converter with the same knobs as the Rust API: Markdown /
+docling JSON output, `strict` mode, image modes, allowed-format restriction,
+`fetchImages`, sync + async (`Promise`) calls, and a `streamFileMarkdown` async
+generator.
+
+Install — no Rust toolchain needed, the prebuilt binary for your platform (Linux
+x64/arm64, Windows x64) is pulled in automatically:
 
 ```bash
-cd crates/fleischwolf-node && npm install && npm run build
+npm install fleischwolf   # or: bun add fleischwolf
 ```
 
 ```ts
-import { convertFile, convertFileAsync, streamFileMarkdown } from 'fleischwolf'
+import { convert, convertFile, convertFileAsync } from 'fleischwolf'
 
-const { content } = convertFile('report.docx')          // Markdown
-const json = await convertFileAsync('paper.pdf', { to: 'json' })
-for await (const chunk of streamFileMarkdown('paper.pdf')) process.stdout.write(chunk)
+// in-memory bytes → Markdown
+const md = convert({ name: 'notes.md', data: Buffer.from('# Hello\n\nWorld **bold**') })
+console.log(md.content)
+
+// a file → Markdown or docling JSON (format detected from the extension)
+const { content } = convertFile('report.docx')
+const json = await convertFileAsync('report.docx', { to: 'json' })
 ```
 
-Declarative formats work out of the box. The PDF/image pipeline needs pdfium +
-the ONNX models (not bundled), so it throws until you call `installDependencies()`
-— which auto-downloads pdfium/OCR and fetches the layout/TableFormer ONNX from a
-`modelsUrl` you host. A reusable `Pipeline` keeps those models warm across many
-PDFs. See [`crates/fleischwolf-node/README.md`](./crates/fleischwolf-node/README.md)
-for the full API and runnable Node + Bun examples.
+Declarative formats (Markdown, HTML, DOCX, XLSX, …) work out of the box. The
+PDF/image pipeline needs pdfium + the ONNX models (not bundled), so it throws
+until you call `installDependencies()` — which auto-downloads pdfium/OCR and
+fetches the layout/TableFormer ONNX from a `modelsUrl` you host. A reusable
+`Pipeline` keeps those models warm across many PDFs.
+
+Runnable Node + Bun examples are in
+[`crates/fleischwolf-node/examples`](./crates/fleischwolf-node/examples)
+(`npm install && node node-basic.mjs`). See
+[`crates/fleischwolf-node/README.md`](./crates/fleischwolf-node/README.md) for
+the full API.
 
 ## Testing
 
