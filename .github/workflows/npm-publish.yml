@@ -1,9 +1,9 @@
-# Publish the `@artiz.ru/fleischwolf` npm package (Node.js / Bun native bindings)
-# for a chosen release. The package is a native N-API addon, so it can't be a
-# one-line `npm publish`: it's built on a matrix of native runners (one per
-# OS/arch), each producing a platform `.node`, then a publish job assembles the
-# main package plus per-platform `optionalDependencies`
-# (@artiz.ru/fleischwolf-<triple>) via napi-rs and publishes them all.
+# Publish the `fleischwolf` npm package (Node.js / Bun native bindings) for a
+# chosen release. The package is a native N-API addon, so it can't be a one-line
+# `npm publish`: it's built on a matrix of native runners (one per OS/arch),
+# each producing a platform `.node`, then a publish job assembles the main
+# package plus per-platform `optionalDependencies` (fleischwolf-<triple>) via
+# napi-rs and publishes them all.
 #
 # Trigger: manual only (workflow_dispatch). By default it builds the latest
 # master (the version in the workspace Cargo.toml); optionally pass a release
@@ -12,8 +12,8 @@
 # every master push. Run it from the Actions tab (or
 # `gh workflow run npm-publish.yml`, optionally `-f tag=v0.7.0`).
 #
-# Requires one repository secret: NPM_TOKEN — an npm token with publish rights to
-# the `@artiz.ru` scope (covers @artiz.ru/fleischwolf and the platform packages).
+# Requires one repository secret: NPM_TOKEN — an npm automation token with
+# publish rights to `fleischwolf` and the `fleischwolf-*` platform packages.
 
 name: npm publish
 
@@ -157,16 +157,16 @@ jobs:
             fi
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "Publishing @artiz.ru/fleischwolf@$v (ref: ${{ inputs.tag || github.ref }})"
+          echo "Publishing fleischwolf@$v (ref: ${{ inputs.tag || github.ref }})"
 
       # Skip cleanly if this version is already on npm (idempotent re-runs).
       - name: Check if already published
         id: check
         run: |
           v="${{ steps.ver.outputs.version }}"
-          if npm view "@artiz.ru/fleischwolf@$v" version >/dev/null 2>&1; then
+          if npm view "fleischwolf@$v" version >/dev/null 2>&1; then
             echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "@artiz.ru/fleischwolf@$v is already on npm — skipping."
+            echo "fleischwolf@$v is already on npm — skipping."
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi

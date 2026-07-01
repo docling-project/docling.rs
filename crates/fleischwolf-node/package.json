@@ -1,5 +1,5 @@
 {
-  "name": "@artiz.ru/fleischwolf",
+  "name": "fleischwolf",
   "version": "0.6.1",
   "description": "Node.js / Bun bindings for Fleischwolf — a Rust port of docling. Convert Markdown, HTML, DOCX, PPTX, XLSX, PDF, images and more into a unified DoclingDocument (Markdown or docling-core JSON).",
   "keywords": [

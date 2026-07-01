@@ -91,7 +91,7 @@ export interface InstallOptions {
  * ready (e.g. no models URL and no local layout model).
  *
  * @example
- * import { installDependencies, convertFileAsync } from '@artiz.ru/fleischwolf'
+ * import { installDependencies, convertFileAsync } from 'fleischwolf'
  * await installDependencies({ modelsUrl: 'https://example.com/fleischwolf-models' })
  * const res = await convertFileAsync('paper.pdf', { to: 'markdown' })
  */

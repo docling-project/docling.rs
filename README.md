@@ -167,7 +167,7 @@ cd crates/fleischwolf-node && npm install && npm run build
 ```
 
 ```ts
-import { convertFile, convertFileAsync, streamFileMarkdown } from '@artiz.ru/fleischwolf'
+import { convertFile, convertFileAsync, streamFileMarkdown } from 'fleischwolf'
 
 const { content } = convertFile('report.docx')          // Markdown
 const json = await convertFileAsync('paper.pdf', { to: 'json' })

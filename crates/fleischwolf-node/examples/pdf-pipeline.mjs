@@ -7,7 +7,7 @@
 // (pdfium + the layout/OCR/TableFormer ONNX models). `installDependencies()`
 // provisions them; without it, converting a PDF throws a clear error.
 
-import { installDependencies, checkDependencies, convertFileAsync, Pipeline } from '@artiz.ru/fleischwolf'
+import { installDependencies, checkDependencies, convertFileAsync, Pipeline } from 'fleischwolf'
 
 const file = process.argv[2] ?? 'document.pdf'
 

@@ -16,12 +16,12 @@ Released versions ship **prebuilt** native binaries, so no Rust toolchain is
 needed to use the package:
 
 ```bash
-npm install @artiz.ru/fleischwolf   # or: bun add @artiz.ru/fleischwolf
+npm install fleischwolf   # or: bun add fleischwolf
 ```
 
 Prebuilt platforms: Linux x64 / arm64 (glibc) and Windows x64. (macOS isn't
 prebuilt — build from source, see below.) The right binary is pulled in
-automatically as a platform-specific `optionalDependency` (`@artiz.ru/fleischwolf-<triple>`). Releases are published to npm by
+automatically as a platform-specific `optionalDependency` (`fleischwolf-<triple>`). Releases are published to npm by
 manually running the `npm publish` workflow
 (`.github/workflows/npm-publish.yml`) — by default it builds the latest master
 (the workspace version); optionally pass a release tag to build that instead.
@@ -48,7 +48,7 @@ npm run build        # release build → fleischwolf.<platform>.node + native.js
 ## Quick start
 
 ```js
-import { convertFile, convert, DocumentConverter } from '@artiz.ru/fleischwolf'
+import { convertFile, convert, DocumentConverter } from 'fleischwolf'
 
 // Convert a file — format detected from the extension.
 const { content } = convertFile('report.docx')
@@ -65,7 +65,7 @@ const converter = new DocumentConverter({ strict: true })
 const a = converter.convert({ name: 'a.md', data: Buffer.from('# A\n') })
 ```
 
-CommonJS works too: `const { convertFile } = require('@artiz.ru/fleischwolf')`.
+CommonJS works too: `const { convertFile } = require('fleischwolf')`.
 
 ### Async (off the event loop)
 
@@ -73,7 +73,7 @@ Conversion is CPU-bound; the `*Async` variants run it on the libuv thread pool
 so the event loop stays free. Prefer these for PDF/image and for servers.
 
 ```js
-import { convertFileAsync } from '@artiz.ru/fleischwolf'
+import { convertFileAsync } from 'fleischwolf'
 
 const res = await convertFileAsync('paper.pdf', { to: 'json' })
 ```
@@ -86,7 +86,7 @@ before the whole document is done; concatenating the chunks reproduces the
 buffered `content` byte-for-byte.
 
 ```js
-import { streamFileMarkdown } from '@artiz.ru/fleischwolf'
+import { streamFileMarkdown } from 'fleischwolf'
 
 for await (const chunk of streamFileMarkdown('paper.pdf')) {
   process.stdout.write(chunk)
@@ -102,7 +102,7 @@ Python docling downloads its models on first use. Converting a PDF/image/METS
 input **throws** until they're installed:
 
 ```js
-import { installDependencies, checkDependencies, convertFileAsync } from '@artiz.ru/fleischwolf'
+import { installDependencies, checkDependencies, convertFileAsync } from 'fleischwolf'
 
 await convertFileAsync('paper.pdf') // ❌ throws: "requires the PDF/ML dependencies … call installDependencies()"
 
@@ -147,7 +147,7 @@ every ONNX model — on each call. To convert many PDFs/images, reuse a `Pipelin
 so the models load **once**:
 
 ```js
-import { Pipeline } from '@artiz.ru/fleischwolf'
+import { Pipeline } from 'fleischwolf'
 
 const pipeline = new Pipeline({ strict: true })
 for (const path of pdfPaths) {
