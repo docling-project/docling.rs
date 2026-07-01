@@ -25,11 +25,20 @@ The llncs class is invoked by replacing article by llncs in the first line of yo
 \documentclass{llncs}
 
 ```
-\begin{document} <Your contribution> \end{document} If your file is already coded with LATEX, you can easily adapt it to the llncs document class by replacing \documentclass{article} with \documentclass{llncs}
+\begin{document}
+  <Your contribution>
+\end{document}
+If your file is already coded with LATEX, you can easily adapt it to the llncs
+document class by replacing
+\documentclass{article}
+with
+\documentclass{llncs}
 ```
 
 ```
-\begin{document} <Your contribution> \end{document}
+\begin{document}
+  <Your contribution>
+\end{document}
 ```
 
 If your file is already coded with L A T E X, you can easily adapt it to the llncs document class by replacing
@@ -89,7 +98,8 @@ The ORCID (Open Researcher and Contributor ID) registry provides authors with un
 If you have done this correctly, the author line now reads, for example:
 
 ```
-\author{First Author\inst{1}\orcidID{0000-1111-2222-3333} \and Second Author\inst{2,3}\orcidID{1111-2222-3333-4444}}
+\author{First Author\inst{1}\orcidID{0000-1111-2222-3333} \and
+Second Author\inst{2,3}\orcidID{1111-2222-3333-4444}}
 ```
 
 The given name(s) should always be followed by the family name(s). Authors who have more than one family name should indicate which part of their name represents the family name(s), for example by non-breaking spaces Jos\'{e} Martinez~Perez or curly braces Jos\'{e} {Martinez Perez} .
@@ -113,11 +123,19 @@ Multiple affiliations are separated by \and , which automatically assures correc
 \and
 
 ```
-\institute{<name of an institute> \and <name of the next institute> \and <name of the next institute>} Inside \institute you can use\email \email{<email address>} and\url \url{<url>}
+       \institute{<name of an institute>
+       \and <name of the next institute>
+       \and <name of the next institute>}
+Inside \institute you can use\email
+       \email{<email address>}
+  and\url
+       \url{<url>}
 ```
 
 ```
-\institute{<name of an institute> \and <name of the next institute> \and <name of the next institute>}
+\institute{<name of an institute>
+\and <name of the next institute>
+\and <name of the next institute>}
 ```
 
 \email Inside \institute you can use
@@ -143,11 +161,16 @@ Please note that, if email addresses are given in your paper, they will also be 
 abstract ( env. ) The abstract is coded as follows:
 
 ```
-The abstract is coded as follows:abstract(env.) \begin{abstract} <Text of the summary of your paper> \end{abstract}
+The abstract is coded as follows:abstract(env.)
+               \begin{abstract}
+               <Text of the summary of your paper>
+               \end{abstract}
 ```
 
 ```
-\begin{abstract} <Text of the summary of your paper> \end{abstract}
+\begin{abstract}
+<Text of the summary of your paper>
+\end{abstract}
 ```
 
 \keywords Keywords should be specified inside the abstract environment. Please capitalize \and the first letter of each keyword and again separate them with \and :
@@ -167,7 +190,8 @@ From a technical point of view, the llncs document class does not require any sp
 The llncs document class supports some additional special characters:
 
 ```
-\grole yields > \lid yields < < \getsto yields ←→ = \gid yields > =
+\grole yields > \lid yields < < \getsto yields ←→ = \gid yields >
+                             =
 ```
 
 If you need blackboard bold characters, i.e. for sets of numbers, please load the related A M S -T E Xfonts. If for some reason this is not possible you can also use the following commands from the llncs class:
@@ -192,7 +216,11 @@ Please note that all these characters are only available in math mode.
 proposition ( env. )
 
 ```
-\begin{corollary} <text> \end{corollary} \begin{definition} <text> \end{definition} \begin{lemma} <text> \end{lemma} \begin{proposition} <text> \end{proposition} \begin{theorem} <text> \end{theorem}
+\begin{corollary} <text> \end{corollary}
+\begin{definition} <text> \end{definition}
+\begin{lemma} <text> \end{lemma}
+\begin{proposition} <text> \end{proposition}
+\begin{theorem} <text> \end{theorem}
 ```
 
 ( env. ) Other theorem-like environments render the text in roman, while the run-in case conjecture ( env. ) heading is bold as well:
@@ -200,13 +228,15 @@ proposition ( env. )
 example ( env. )
 
 ```
-exercise(env.) property(env.) question(env.) solution(env.) heading is bold as well: problem(env.) note(env.) \begin{case} <text> \end{case} \begin{conjecture} <text> \end{conjecture} \begin{example} <text> \end{example} \begin{exercise} <text> \end{exercise} \begin{note} <text> \end{note} \begin{problem} <text> \end{problem} remark(env.) \begin{property} <text> \end{property} \begin{question} <text> \end{question} \begin{remark} <text> \end{remark} \begin{solution} <text> \end{solution}
+exercise(env.) property(env.) question(env.) solution(env.) heading is bold as well: problem(env.) note(env.) \begin{case} <text> \end{case} \begin{conjecture} <text> \end{conjecture} \begin{example} <text> \end{example} \begin{exercise} <text> \end{exercise} \begin{note} <text> \end{note} \begin{problem} <text> \end{problem}
+  remark(env.) \begin{property} <text> \end{property} \begin{question} <text> \end{question} \begin{remark} <text> \end{remark} \begin{solution} <text> \end{solution}
 ```
 
 claim ( env. ) Finally, there are also two unnumbered environments that have the run-in headproof ( env. ) ing in italics and the text in upright roman.
 
 ```
-\begin{claim} <text> \end{claim} \begin{proof} <text> \end{proof}
+\begin{claim} <text> \end{claim}
+\begin{proof} <text> \end{proof}
 ```
 
 \qed Proofs may contain an eye catching square, which can be inserted with \qed ) before the environment ends.
@@ -218,7 +248,9 @@ claim ( env. ) Finally, there are also two unnumbered environments that have the
 \spnewtheorem{&lt;env\_nam&gt;}[&lt;num\_like&gt;]{&lt;caption&gt;}{&lt;cap\_font&gt;}{&lt;body\_font&gt;}
 
 ```
-\spnewtheorem{<env_nam>}[<num_like>]{<caption>}{<cap_font>}{<body_font>} For example, \spnewtheorem{maintheorem}[theorem]{Main Theorem}{\bfseries}{\itshape}
+\spnewtheorem{<env_nam>}[<num_like>]{<caption>}{<cap_font>}{<body_font>}
+For example,
+\spnewtheorem{maintheorem}[theorem]{Main Theorem}{\bfseries}{\itshape}
 ```
 
 For example,
@@ -244,7 +276,9 @@ If you wish to add an unnumbered environment, please use the syntax
 There are three options for citing references:
 
 ```
-- arabic numbers, i.e. [1], [3-5], [4-6,9], - labels, i.e. [CE1], [AB1,XY2], - author/year system,(Smith et al. 2000),(Miller 1999a, 12; Brown 2018).
+- arabic numbers, i.e. [1], [3-5], [4-6,9],
+- labels, i.e. [CE1], [AB1,XY2],
+- author/year system,(Smith et al. 2000),(Miller 1999a, 12; Brown 2018).
 ```
 
 - arabic numbers, i.e. [1], [3-5], [4-6,9],
@@ -260,7 +294,12 @@ citeauthoryear
 Please note that this option does not automatically change your citations to the author/year style. It basically redefines the \bibitem command to take the publication year as an optional parameter that is displayed instead of an arabic number. Author name(s) and, if necessary, parentheses are to be typed manually. If your reference reads
 
 ```
-\bibitem[2016]{vdaalst:2016} van der Aalst, W.: Process Mining, 2nd ed. Springer, Heidelberg(2016) and is cited as follows:... is shown by van der Aalst(\cite{vdaalst:2016}) the resulting text will be: "...is shown by van der Aalst(2016)."
+\bibitem[2016]{vdaalst:2016}
+van der Aalst, W.: Process Mining, 2nd ed. Springer, Heidelberg(2016)
+and is cited as follows:
+... is shown by van der Aalst(\cite{vdaalst:2016})
+the resulting text will be:
+    "...is shown by van der Aalst(2016)."
 ```
 
 We encourage you to use Bib T E X for typesetting your references. For formatting the bibliography according to Springer's standard (for mathematics, physical sciences, and computer science), please use the bibliography style file splncs04.bst that comes with the llncs document class. You simply need to add \bibliographystyle{splncs04} to your document. DOIs should be provided in the doi field of your .bib database. Bib T E X will then automatically add them to your references. Please note that we do not provide an option to implement splncs04.bst
