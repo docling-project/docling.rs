@@ -1,0 +1,62 @@
+{
+  "name": "fleischwolf",
+  "version": "0.6.1",
+  "description": "Node.js / Bun bindings for Fleischwolf — a Rust port of docling. Convert Markdown, HTML, DOCX, PPTX, XLSX, PDF, images and more into a unified DoclingDocument (Markdown or docling-core JSON).",
+  "keywords": [
+    "docling",
+    "document",
+    "pdf",
+    "markdown",
+    "docx",
+    "converter",
+    "napi",
+    "bun"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/artiz/fleischwolf.git",
+    "directory": "crates/fleischwolf-node"
+  },
+  "homepage": "https://github.com/artiz/fleischwolf",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "require": "./index.js"
+    }
+  },
+  "napi": {
+    "binaryName": "fleischwolf",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc"
+    ]
+  },
+  "engines": {
+    "node": ">= 14"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "native.js",
+    "native.d.ts",
+    "index.*.node",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "napi build --platform --release --js native.js --dts native.d.ts",
+    "build:debug": "napi build --platform --js native.js --dts native.d.ts",
+    "test": "node test/smoke.mjs",
+    "example": "node examples/node-basic.mjs",
+    "example:bun": "bun run examples/bun-basic.ts"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.4"
+  }
+}
