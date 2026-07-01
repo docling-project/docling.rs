@@ -16,4 +16,4 @@ name = "fleischwolf"
 path = "src/main.rs"
 
 [dependencies]
-fleischwolf = { path = "../fleischwolf", version = "0.7.1" }
+fleischwolf = { path = "../fleischwolf", version = "0.8.0" }

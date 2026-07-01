@@ -13,7 +13,7 @@ categories.workspace = true
 rust-version = "1.82"
 
 [dependencies]
-fleischwolf-core = { path = "../fleischwolf-core", version = "0.7.1" }
+fleischwolf-core = { path = "../fleischwolf-core", version = "0.8.0" }
 pdfium-render = "0.8"
 ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "download-binaries", "tls-rustls"] }
 image = "0.25"
