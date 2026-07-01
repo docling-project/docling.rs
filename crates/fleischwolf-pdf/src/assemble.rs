@@ -44,6 +44,122 @@ pub fn resolve(mut regions: Vec<Region>) -> Vec<Region> {
     kept
 }
 
+/// True for a bare, single-token source-code language label (`XML`, `C#`, `JSON`,
+/// `bash`, …) — the little header the docs render above a code block. Matched
+/// case-insensitively; anything with whitespace or longer than a token is out.
+fn is_code_language(t: &str) -> bool {
+    let t = t.trim();
+    if t.is_empty() || t.chars().any(char::is_whitespace) || t.chars().count() > 12 {
+        return false;
+    }
+    const LANGS: &[&str] = &[
+        "xml",
+        "html",
+        "xhtml",
+        "json",
+        "jsonc",
+        "yaml",
+        "yml",
+        "toml",
+        "ini",
+        "c#",
+        "csharp",
+        "f#",
+        "fsharp",
+        "vb",
+        "c",
+        "c++",
+        "cpp",
+        "java",
+        "kotlin",
+        "scala",
+        "go",
+        "golang",
+        "rust",
+        "swift",
+        "javascript",
+        "js",
+        "typescript",
+        "ts",
+        "jsx",
+        "tsx",
+        "python",
+        "py",
+        "ruby",
+        "rb",
+        "php",
+        "perl",
+        "lua",
+        "r",
+        "dart",
+        "bash",
+        "sh",
+        "shell",
+        "powershell",
+        "zsh",
+        "batch",
+        "cmd",
+        "sql",
+        "tsql",
+        "plsql",
+        "graphql",
+        "dockerfile",
+        "makefile",
+        "css",
+        "scss",
+        "sass",
+        "less",
+        "markdown",
+        "md",
+        "tex",
+        "latex",
+        "diff",
+        "proto",
+        "razor",
+        "cshtml",
+        "xaml",
+        "aspx",
+        "http",
+    ];
+    let lower = t.to_ascii_lowercase();
+    LANGS.contains(&lower.as_str())
+}
+
+/// Mark the region indices that are a code block's **language label** — a bare
+/// `XML`/`C#`/… token sitting directly above a `code` region — so they are consumed
+/// rather than emitted as their own stray paragraph/heading. The label may also be
+/// captured inside a wider code box (rendered as the fence's first line); dropping
+/// the standalone copy just removes the duplicate.
+fn code_language_labels(regions: &[Region], cells: &[TextCell]) -> Vec<bool> {
+    let mut drop = vec![false; regions.len()];
+    for (i, r) in regions.iter().enumerate() {
+        if matches!(r.label, "code" | "picture" | "table") {
+            continue;
+        }
+        if !is_code_language(&region_text(r, cells)) {
+            continue;
+        }
+        // The label sits just above the code (a blank line's gap) or is swallowed
+        // into the top of a wider code box; either way it is that block's label.
+        // The window is generous because the label's own font is small, so a
+        // one-line gap is several times its height.
+        let line_h = (r.b - r.t).abs().max(1.0);
+        let window = (line_h * 4.0).max(28.0);
+        let labels_code = regions.iter().enumerate().any(|(j, c)| {
+            if j == i || c.label != "code" {
+                return false;
+            }
+            let gap = c.t - r.b; // >0 when the code is below the label
+            let h_overlap = (r.r.min(c.r) - r.l.max(c.l)).max(0.0);
+            gap > -line_h * 3.0 && gap < window && h_overlap > 0.0
+        });
+        if labels_code {
+            drop[i] = true;
+        }
+    }
+    drop
+}
+
 /// Collapse `code` regions where one is nested inside another, keeping the larger.
 ///
 /// RT-DETR sometimes emits a tight code box *and* a wider near-duplicate that also
@@ -821,6 +937,16 @@ pub fn assemble_page(
     for ci in code_caption_for.iter().flatten() {
         consumed[*ci] = true;
     }
+    // A code block's language label (`XML`, `C#`, …) is chrome, not content — the
+    // detector emits it as its own region above the code; consume it.
+    for (i, is_label) in code_language_labels(&regions, &page.cells)
+        .into_iter()
+        .enumerate()
+    {
+        if is_label {
+            consumed[i] = true;
+        }
+    }
 
     for (i, region) in regions.iter().enumerate() {
         if is_skipped(region.label) || consumed[i] {
@@ -1099,11 +1225,9 @@ mod tests {
 
     #[test]
     fn resolve_collapses_nested_code_keeping_the_larger_box() {
-        // The detector emitted a tight high-score `code` box and a taller
-        // lower-score near-duplicate that contains it (the wider one also captures
-        // the language label). They must collapse to one — and it must be the
-        // *larger* box, so every cell stays covered and nothing leaks out as orphan
-        // text.
+        // A tight high-score `code` box and a taller lower-score near-duplicate that
+        // contains it must collapse to one — the *larger* box, so every cell stays
+        // covered and nothing leaks out as orphan text.
         let tight = region("code", 0.95, 78.0, 292.0, 300.0, 330.0);
         let wide = region("code", 0.66, 63.0, 260.0, 320.0, 346.0);
         let kept = super::resolve(vec![tight, wide]);
@@ -1116,7 +1240,7 @@ mod tests {
 
     #[test]
     fn resolve_keeps_distinct_and_differently_typed_regions() {
-        // A text box fully inside a lower-score table must NOT be collapsed (the
+        // A text box fully inside a lower-score *table* must NOT be collapsed (the
         // code dedup is code-only), and two separate code blocks stay separate.
         let text = region("text", 0.95, 90.0, 210.0, 200.0, 230.0);
         let table = region("table", 0.60, 80.0, 200.0, 400.0, 500.0);
@@ -1125,6 +1249,40 @@ mod tests {
         let code_a = region("code", 0.9, 78.0, 100.0, 300.0, 140.0);
         let code_b = region("code", 0.9, 78.0, 300.0, 300.0, 360.0); // far below, no overlap
         assert_eq!(super::resolve(vec![code_a, code_b]).len(), 2);
+    }
+
+    #[test]
+    fn code_language_label_above_code_is_detected() {
+        // A bare "XML" token directly above a code box is a language label; a real
+        // heading above the same code is not; a language word with no code below is
+        // left alone.
+        let label = region("section_header", 0.9, 76.0, 540.0, 96.0, 549.0);
+        let code = region("code", 0.7, 77.0, 552.0, 290.0, 640.0);
+        let heading = region("section_header", 0.9, 76.0, 500.0, 260.0, 512.0);
+        let cells = vec![
+            cell("XML", 78.0, 541.0, 94.0, 548.0),       // inside `label`
+            cell("Overview", 78.0, 501.0, 250.0, 511.0), // inside `heading`
+        ];
+        let drop = super::code_language_labels(&[label, code, heading], &cells);
+        assert_eq!(drop, vec![true, false, false], "only the label is consumed");
+
+        // Same label with no code region present → not consumed.
+        let label2 = region("section_header", 0.9, 76.0, 540.0, 96.0, 549.0);
+        let only = vec![cell("XML", 78.0, 541.0, 94.0, 548.0)];
+        assert_eq!(super::code_language_labels(&[label2], &only), vec![false]);
+
+        // A label swallowed into the top of a wider code box (negative gap) is still
+        // recognized.
+        let inside_lbl = region("text", 0.9, 76.0, 540.0, 96.0, 549.0);
+        let wide_code = region("code", 0.7, 63.0, 531.0, 320.0, 654.0);
+        let cells2 = vec![cell("XML", 78.0, 541.0, 94.0, 548.0)];
+        assert_eq!(
+            super::code_language_labels(&[inside_lbl, wide_code], &cells2),
+            vec![true, false]
+        );
+
+        assert!(super::is_code_language("XML") && super::is_code_language("c#"));
+        assert!(!super::is_code_language("Configure") && !super::is_code_language("XML schema"));
     }
 
     #[test]

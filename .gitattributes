@@ -1,0 +1,7 @@
+# GitHub Linguist: the test corpora and generated snapshots are fixtures, not
+# project source. Without this they dwarf the actual code and GitHub reports the
+# repo as ~87% HTML / LaTeX. Marking them vendored/generated excludes them from
+# the language breakdown so the repo reads as the Rust project it is.
+tests/data/**             linguist-vendored
+tests/snapshots/**        linguist-generated
+crates/*/tests/data/**    linguist-vendored
