@@ -99,6 +99,128 @@ fn apply_links(body: &str, links: &[(String, String)]) -> String {
     out
 }
 
+/// Like [`apply_links`] but over a single chunk, consuming from a shared queue so
+/// the same `[anchor](href)` rewriting can be applied incrementally as Markdown is
+/// streamed out. Each queued link is matched (in document order) against `chunk`
+/// and rewritten in place; a link whose anchor is not in this chunk is carried
+/// forward in the queue for a later chunk. Anchors are recovered in document
+/// order and a chunk is always a contiguous run of whole blocks, so this
+/// reproduces [`apply_links`]' single moving cursor: the link lands in whichever
+/// chunk contains its anchor, identically to the buffered path. (A link whose
+/// anchor never appears is carried to the end and dropped — the same no-op
+/// `apply_links` performs for an unlocatable anchor.)
+fn apply_links_chunk(chunk: &str, queue: &mut Vec<(String, String)>) -> String {
+    let mut out = chunk.to_string();
+    let mut cursor = 0usize;
+    let mut carried: Vec<(String, String)> = Vec::new();
+    for (anchor_raw, href) in std::mem::take(queue) {
+        let anchor = anchor_raw
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;");
+        if anchor.is_empty() {
+            continue;
+        }
+        if let Some(rel) = out[cursor..].find(&anchor) {
+            let at = cursor + rel;
+            let replacement = format!("[{anchor}]({href})");
+            out.replace_range(at..at + anchor.len(), &replacement);
+            cursor = at + replacement.len();
+        } else {
+            // Not in this chunk; try again when its block is flushed.
+            carried.push((anchor_raw, href));
+        }
+    }
+    *queue = carried;
+    out
+}
+
+/// Incremental Markdown serializer: feed finalized, in-document-order batches of
+/// [`Node`]s and receive Markdown chunks whose concatenation is **byte-identical**
+/// to [`to_markdown_images`] over the same nodes. This is the streaming
+/// counterpart of the buffered serializer — used to emit a document's Markdown in
+/// chunks (e.g. page by page, as the parallel PDF pipeline finishes pages) instead
+/// of building the whole string up front.
+///
+/// Only [`ImageMode::Placeholder`] and [`ImageMode::Embedded`] are streamable:
+/// [`ImageMode::Referenced`] needs a side-channel for the image bytes, which only
+/// the buffered [`to_markdown_images`] provides.
+///
+/// Each [`push`](Self::push) must contain whole blocks in reading order: a caller
+/// must not split a run of list items across two pushes (the run would render as
+/// two separate lists). Finalized PDF page batches already satisfy this.
+pub struct MarkdownStreamer {
+    strict: bool,
+    images: ImageMode,
+    compact_tables: bool,
+    /// Whether any non-empty chunk has been emitted yet (drives `\n\n` joins and
+    /// the trailing newline).
+    emitted_any: bool,
+    /// Recovered links not yet placed (strict mode), consumed in document order.
+    links: Vec<(String, String)>,
+}
+
+impl MarkdownStreamer {
+    /// Create a streamer. `compact_tables` mirrors [`DoclingDocument::compact_tables`].
+    pub fn new(strict: bool, images: ImageMode, compact_tables: bool) -> Self {
+        debug_assert!(
+            images != ImageMode::Referenced,
+            "referenced image mode is not streamable; use to_markdown_images"
+        );
+        Self {
+            strict,
+            images,
+            compact_tables,
+            emitted_any: false,
+            links: Vec::new(),
+        }
+    }
+
+    /// Render one finalized batch of nodes (plus any links recovered from the same
+    /// span, in document order) into the next Markdown chunk. Returns an empty
+    /// string when the batch produces no output (e.g. empty tables/pictures), in
+    /// which case nothing should be written.
+    pub fn push(&mut self, nodes: &[Node], links: &[(String, String)]) -> String {
+        self.links.extend(links.iter().cloned());
+        let mut ctx = Ctx {
+            strict: self.strict,
+            compact_tables: self.compact_tables,
+            images: self.images,
+            // Referenced mode is rejected at construction, so the artifact sink is
+            // never touched.
+            artifacts_dir: String::new(),
+            artifacts: Vec::new(),
+            pic_index: 0,
+        };
+        let mut blocks: Vec<String> = Vec::new();
+        render(nodes, &mut blocks, &mut ctx);
+        if blocks.is_empty() {
+            return String::new();
+        }
+        let mut body = blocks.join("\n\n");
+        if self.strict && !self.links.is_empty() {
+            body = apply_links_chunk(&body, &mut self.links);
+        }
+        let chunk = if self.emitted_any {
+            format!("\n\n{body}")
+        } else {
+            body
+        };
+        self.emitted_any = true;
+        chunk
+    }
+
+    /// Emit the trailing newline that finishes the document (empty if no content
+    /// was produced). Call exactly once, after the final [`push`](Self::push).
+    pub fn finish(self) -> String {
+        if self.emitted_any {
+            "\n".to_string()
+        } else {
+            String::new()
+        }
+    }
+}
+
 /// In `strict` mode, rewrite inline text for readability rather than byte-for-byte
 /// docling fidelity: undo the legacy `\_` underscore escaping, and tighten stray
 /// spaces around punctuation (`[ 37 , 36 ]` → `[37, 36]`, `( x )` → `(x)`). This
@@ -474,6 +596,101 @@ mod tests {
         assert_eq!(doc.export_to_markdown(), "# a\\_b\n\nx\\_y\n\n- i\\_j\n");
         // Strict prefers literal underscores (Rust-only readability mode).
         assert_eq!(doc.export_to_markdown_with(true), "# a_b\n\nx_y\n\n- i_j\n");
+    }
+
+    /// Drive a document's nodes through [`MarkdownStreamer`] in the given page
+    /// splits and assert the concatenated chunks equal the buffered serializer.
+    fn assert_stream_matches(
+        doc: &DoclingDocument,
+        strict: bool,
+        images: ImageMode,
+        splits: &[usize],
+    ) {
+        let want = to_markdown_images(doc, strict, images, "artifacts").0;
+        let mut streamer = MarkdownStreamer::new(strict, images, doc.compact_tables);
+        let mut got = String::new();
+        let mut start = 0;
+        for &end in splits {
+            // Links only matter in strict mode; feed them all with the first batch
+            // that has content (document order is preserved by the queue).
+            let links = if start == 0 {
+                doc.links.as_slice()
+            } else {
+                &[]
+            };
+            got.push_str(&streamer.push(&doc.nodes[start..end], links));
+            start = end;
+        }
+        got.push_str(&streamer.push(
+            &doc.nodes[start..],
+            if start == 0 {
+                doc.links.as_slice()
+            } else {
+                &[]
+            },
+        ));
+        got.push_str(&streamer.finish());
+        assert_eq!(
+            got, want,
+            "streamed output diverged (splits={splits:?}, strict={strict})"
+        );
+    }
+
+    #[test]
+    fn streaming_is_byte_identical_to_buffered() {
+        let mut doc = DoclingDocument::new("d");
+        doc.add_heading(1, "Title");
+        doc.add_paragraph("First paragraph.");
+        doc.push(Node::ListItem {
+            ordered: false,
+            number: 1,
+            first_in_list: true,
+            text: "a".into(),
+            level: 0,
+        });
+        doc.push(Node::ListItem {
+            ordered: false,
+            number: 2,
+            first_in_list: false,
+            text: "b".into(),
+            level: 0,
+        });
+        doc.push(Node::Code {
+            language: Some("rust".into()),
+            text: "let x = 1;".into(),
+        });
+        doc.push(Node::Table(Table {
+            rows: vec![vec!["a".into(), "b".into()], vec!["1".into(), "2".into()]],
+        }));
+        doc.push(Node::Picture {
+            caption: Some("Fig 1".into()),
+            image: None,
+        });
+        doc.add_paragraph("Last paragraph.");
+
+        // A run of list items must never straddle a split, so try splits that fall
+        // on safe block boundaries (the streaming PDF assembler guarantees this).
+        for &strict in &[false, true] {
+            for &images in &[ImageMode::Placeholder, ImageMode::Embedded] {
+                for splits in [&[][..], &[1][..], &[2][..], &[4][..], &[1, 4, 6][..]] {
+                    assert_stream_matches(&doc, strict, images, splits);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn streaming_applies_recovered_links_in_strict_mode() {
+        let mut doc = DoclingDocument::new("d");
+        doc.add_paragraph("See LinkedIn for details.");
+        doc.add_paragraph("And GitHub too.");
+        doc.links = vec![
+            ("LinkedIn".into(), "https://lnkd/".into()),
+            ("GitHub".into(), "https://gh/".into()),
+        ];
+        // The second anchor lives in the second block, so it must be carried across
+        // the page boundary and placed when that block streams out.
+        assert_stream_matches(&doc, true, ImageMode::Placeholder, &[1]);
     }
 
     #[test]

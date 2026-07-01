@@ -20,6 +20,7 @@ pub mod tableformer;
 pub mod textparse;
 pub mod timing;
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::mpsc::{sync_channel, Receiver};
 use std::sync::{Arc, Mutex};
@@ -346,6 +347,155 @@ impl Pipeline {
         }
         assemble::merge_continuations(&mut doc.nodes);
         Ok(doc)
+    }
+
+    /// Convert a PDF in **streaming** mode: `emit` is called with each finalized,
+    /// in-document-order batch of nodes (and that span's recovered links) as pages
+    /// complete, so a caller can serialize Markdown page by page instead of waiting
+    /// for the whole document. The batches are exactly the buffered [`convert`]'s
+    /// nodes, split at safe block boundaries by [`assemble::StreamAssembler`] — the
+    /// parallel path reorders pages back into document order before emitting, so
+    /// the output is identical regardless of worker scheduling.
+    ///
+    /// `emit` runs on the calling thread (never a worker), so it needn't be `Send`
+    /// and its backpressure throttles the whole pipeline. Returning `Err` from
+    /// `emit` aborts the conversion with that error.
+    pub fn convert_streaming<F>(
+        &mut self,
+        bytes: &[u8],
+        password: Option<&str>,
+        name: &str,
+        emit: F,
+    ) -> Result<(), PdfError>
+    where
+        F: FnMut(Vec<Node>, Vec<(String, String)>) -> Result<(), PdfError>,
+    {
+        let _ = name; // page nodes carry no name; the caller owns the document name.
+        let pages = pdfium_backend::page_count(bytes, password)?;
+        let r = if self.target_workers >= 2 && pages >= self.parallel_min {
+            self.convert_streaming_parallel(bytes, password, emit)
+        } else {
+            self.convert_streaming_serial(bytes, password, emit)
+        };
+        timing::report();
+        r
+    }
+
+    /// Serial streaming: render → process → emit, one page at a time, holding back
+    /// only the tail that might still merge into the next page.
+    fn convert_streaming_serial<F>(
+        &mut self,
+        bytes: &[u8],
+        password: Option<&str>,
+        mut emit: F,
+    ) -> Result<(), PdfError>
+    where
+        F: FnMut(Vec<Node>, Vec<(String, String)>) -> Result<(), PdfError>,
+    {
+        let mut asm = assemble::StreamAssembler::new();
+        let worker = self.primary()?;
+        pdfium_backend::for_each_page(bytes, password, |n, _total, mut page| {
+            let (nodes, links) = worker.process(n, &mut page)?;
+            emit(asm.push(nodes), links)
+        })?;
+        emit(asm.finish(), Vec::new())
+    }
+
+    /// Parallel streaming: pages render serially on a dedicated thread (pdfium is
+    /// not thread-safe) and process across the worker pool; results carry their
+    /// page index and are reordered on the calling thread into a
+    /// [`assemble::StreamAssembler`], which emits each page in document order as
+    /// soon as its predecessors have arrived. Bounded channels keep only a handful
+    /// of pages resident and let `emit`'s backpressure reach the renderer.
+    fn convert_streaming_parallel<F>(
+        &mut self,
+        bytes: &[u8],
+        password: Option<&str>,
+        mut emit: F,
+    ) -> Result<(), PdfError>
+    where
+        F: FnMut(Vec<Node>, Vec<(String, String)>) -> Result<(), PdfError>,
+    {
+        self.ensure_pool()?;
+        let n_workers = self.pool.len();
+        let (work_tx, work_rx) = sync_channel::<(usize, PdfPage)>(n_workers * 2);
+        let work_rx: Arc<Mutex<Receiver<(usize, PdfPage)>>> = Arc::new(Mutex::new(work_rx));
+        // Workers and the renderer report here; the calling thread drains it in
+        // page order. Bounded so workers block (bounding resident bitmaps) when the
+        // consumer falls behind.
+        let (res_tx, res_rx) = sync_channel::<Result<(usize, PageOut), PdfError>>(n_workers * 2);
+
+        let mut workers = std::mem::take(&mut self.pool);
+        let mut asm = assemble::StreamAssembler::new();
+        let mut first_err: Option<PdfError> = None;
+
+        std::thread::scope(|s| {
+            // Workers: pull a page, process it, report (index-tagged) result.
+            for worker in workers.iter_mut() {
+                let work_rx = Arc::clone(&work_rx);
+                let res_tx = res_tx.clone();
+                s.spawn(move || loop {
+                    let item = work_rx.lock().unwrap().recv();
+                    let Ok((idx, mut page)) = item else { break };
+                    let out = worker.process(idx, &mut page).map(|o| (idx, o));
+                    if res_tx.send(out).is_err() {
+                        break; // consumer gone
+                    }
+                });
+            }
+            // Renderer: feed pages to the pool on its own thread (pdfium stays on a
+            // single thread); report a render error through the same channel.
+            {
+                let res_tx = res_tx.clone();
+                s.spawn(move || {
+                    let render =
+                        pdfium_backend::for_each_page(bytes, password, |i, _total, page| {
+                            work_tx
+                                .send((i, page))
+                                .map_err(|_| PdfError::Pdfium("page-worker channel closed".into()))
+                        });
+                    drop(work_tx); // signal workers to finish
+                    if let Err(e) = render {
+                        let _ = res_tx.send(Err(e));
+                    }
+                });
+            }
+            // Drop our own sender so the channel closes once the threads finish.
+            drop(res_tx);
+
+            // Collector (this thread): reorder into document order and emit.
+            let mut buffer: BTreeMap<usize, PageOut> = BTreeMap::new();
+            let mut next = 0usize;
+            for msg in res_rx.iter() {
+                match msg {
+                    Err(e) => {
+                        if first_err.is_none() {
+                            first_err = Some(e);
+                        }
+                    }
+                    Ok((idx, out)) => {
+                        buffer.insert(idx, out);
+                        if first_err.is_some() {
+                            continue; // keep draining so the threads can exit
+                        }
+                        while let Some((nodes, links)) = buffer.remove(&next) {
+                            if let Err(e) = emit(asm.push(nodes), links) {
+                                first_err = Some(e);
+                                break;
+                            }
+                            next += 1;
+                        }
+                    }
+                }
+            }
+        });
+        // Threads have joined; restore the pool for the next conversion.
+        self.pool = workers;
+
+        if let Some(e) = first_err {
+            return Err(e);
+        }
+        emit(asm.finish(), Vec::new())
     }
 
     /// Lazily grow the pool to `target_workers`, loading the new workers

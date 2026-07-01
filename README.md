@@ -118,6 +118,40 @@ strict:  Foo ***both***.    |   ```rust (lang kept)  |   Name: ___
 `result.document.export_to_markdown_with(strict)` overrides the mode per call.
 Python docling has no such switch.
 
+### Streaming Markdown
+
+For embedding in real apps, `convert_streaming` returns the document's Markdown
+as an iterator of chunks instead of one big string — handy for piping a long
+document straight to stdout, an HTTP response, or a socket as it is produced:
+
+```rust
+use std::io::Write;
+use fleischwolf::{DocumentConverter, SourceDocument};
+
+let source = SourceDocument::from_file("input.pdf").unwrap();
+let mut out = std::io::stdout();
+for chunk in DocumentConverter::new().convert_streaming(source).unwrap() {
+    out.write_all(chunk.unwrap().as_bytes()).unwrap();
+}
+```
+
+The headline win is PDF. The ML pipeline already processes pages **in parallel**;
+streaming emits each page's Markdown **in document order, as soon as it is ready**
+(with a one-page look-ahead so paragraphs that wrap across a page break still
+merge), so output starts flowing before the last page is done. The conversion
+runs on a background thread and the chunk iterator applies backpressure; dropping
+it cancels the work. Concatenating every chunk is **byte-identical** to the
+buffered `export_to_markdown()`.
+
+Streaming is Markdown-only — JSON serializes docling-core's reference-based tree
+and needs every node up front. Picture placeholders and `embedded` data-URI
+images stream; the `referenced` mode writes sidecar files, so it stays on the
+buffered `export_to_markdown_with_images` path. Use
+`convert_streaming_images(source, ImageMode::Embedded)` to pick the image mode.
+
+The CLI streams Markdown by default (`--no-stream` opts back into buffering;
+`--to json` and `--images referenced` always buffer).
+
 ## Testing
 
 All commands run from the `fleischwolf/` workspace root.
@@ -171,8 +205,13 @@ cargo run -p fleischwolf-cli -- --to json crates/fleischwolf/sample.html > out.j
 cargo run -p fleischwolf-cli -- --images embedded   document.pdf
 cargo run -p fleischwolf-cli -- --images referenced document.pdf > out.md
 
-# or via the example
+# stream Markdown to stdout page by page (the CLI's default; --no-stream to buffer)
+cargo run -p fleischwolf-cli -- document.pdf
+cargo run -p fleischwolf-cli -- --no-stream document.pdf
+
+# or via the examples
 cargo run -p fleischwolf --example convert -- crates/fleischwolf/sample.md
+cargo run -p fleischwolf --example stream  -- crates/fleischwolf/sample.md
 
 # score HTML output against the latest published docling (installed from PyPI)
 scripts/conformance.sh html

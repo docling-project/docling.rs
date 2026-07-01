@@ -39,6 +39,10 @@ zip = { version = "2.2", default-features = false, features = ["deflate"] }
 name = "convert"
 path = "examples/convert.rs"
 
+[[example]]
+name = "stream"
+path = "examples/stream.rs"
+
 [dev-dependencies]
 criterion = "0.5"
 

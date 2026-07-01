@@ -15,6 +15,9 @@ pub enum ConversionError {
     UnsupportedFormat(InputFormat),
     /// The backend recognized the format but failed to parse the content.
     Parse(String),
+    /// The requested streaming conversion is not supported (e.g. JSON, or the
+    /// referenced image mode, which both need the whole document up front).
+    Streaming(String),
 }
 
 impl fmt::Display for ConversionError {
@@ -32,6 +35,7 @@ impl fmt::Display for ConversionError {
                 )
             }
             ConversionError::Parse(msg) => write!(f, "parse error: {msg}"),
+            ConversionError::Streaming(msg) => write!(f, "streaming not supported: {msg}"),
         }
     }
 }

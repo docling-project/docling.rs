@@ -817,6 +817,15 @@ fn looks_like_caption(text: &str) -> bool {
         && head.contains(|c: char| c.is_ascii_digit())
 }
 
+/// A paragraph fragment is "open" — i.e. it might continue into the next
+/// paragraph — when it ends mid-word (a letter) or with a wrap hyphen/dash.
+/// docling joins `vocab-` + `ulary` → `vocab- ulary`.
+fn paragraph_is_open(text: &str) -> bool {
+    text.trim_end().chars().next_back().is_some_and(|c| {
+        c.is_alphabetic() || matches!(c, '-' | '\u{2010}' | '\u{2013}' | '\u{2014}')
+    })
+}
+
 pub(crate) fn merge_continuations(nodes: &mut Vec<Node>) {
     let mut i = 0;
     while i + 1 < nodes.len() {
@@ -833,12 +842,7 @@ pub(crate) fn merge_continuations(nodes: &mut Vec<Node>) {
             i += 1;
             continue;
         }
-        // Open if the fragment ends mid-word (a letter) or with a wrap hyphen/dash
-        // — docling joins `vocab-` + `ulary` → `vocab- ulary`.
-        let a_open = a.trim_end().chars().next_back().is_some_and(|c| {
-            c.is_alphabetic() || matches!(c, '-' | '\u{2010}' | '\u{2013}' | '\u{2014}')
-        });
-        if !a_open {
+        if !paragraph_is_open(a) {
             i += 1;
             continue;
         }
@@ -874,9 +878,137 @@ pub(crate) fn merge_continuations(nodes: &mut Vec<Node>) {
     }
 }
 
+/// How many leading nodes of `nodes` are safe to flush now — i.e. cannot be
+/// rewritten by a future [`merge_continuations`] once more pages are appended.
+///
+/// A forward merge can only start from an "open" paragraph (ends mid-word) and
+/// only reaches across trailing pictures and figure/table captions. So we scan
+/// from the end past those skippable trailers: if the first non-skippable node is
+/// an open paragraph, it (and the trailers after it) must be held; anything else —
+/// a closed paragraph, a heading, a table, a list — blocks any forward merge, so
+/// the whole buffer is safe to flush.
+fn hold_start(nodes: &[Node]) -> usize {
+    for k in (0..nodes.len()).rev() {
+        match &nodes[k] {
+            // Skippable trailers: a forward merge looks straight past them.
+            Node::Picture { .. } => continue,
+            Node::Paragraph { text } if looks_like_caption(text) => continue,
+            // An open body paragraph might still pull a continuation off the next
+            // page — hold from here to the end.
+            Node::Paragraph { text } if paragraph_is_open(text) => return k,
+            // A closed paragraph, heading, table, list, etc. ends the paragraph:
+            // nothing after it can merge backwards across it. Flush everything.
+            _ => return nodes.len(),
+        }
+    }
+    // Only skippable trailers (or empty) and no open paragraph to anchor a merge.
+    nodes.len()
+}
+
+/// Streaming counterpart of [`merge_continuations`]: feed per-page node batches in
+/// document order and get back the prefix that is final (its cross-page merges are
+/// resolved and no future page can change it), holding back only the small tail
+/// that might still merge into the next page. Concatenating every flushed batch
+/// (then [`finish`](Self::finish)) yields exactly the same nodes as running
+/// [`merge_continuations`] once over the whole document.
+pub(crate) struct StreamAssembler {
+    pending: Vec<Node>,
+}
+
+impl StreamAssembler {
+    pub(crate) fn new() -> Self {
+        Self {
+            pending: Vec::new(),
+        }
+    }
+
+    /// Append one page's nodes, resolve merges within the buffer, and return the
+    /// now-final prefix to emit (possibly empty).
+    pub(crate) fn push(&mut self, mut nodes: Vec<Node>) -> Vec<Node> {
+        self.pending.append(&mut nodes);
+        merge_continuations(&mut self.pending);
+        let cut = hold_start(&self.pending);
+        let tail = self.pending.split_off(cut);
+        std::mem::replace(&mut self.pending, tail)
+    }
+
+    /// Flush whatever is left after the last page (the held tail is final once no
+    /// more pages can follow).
+    pub(crate) fn finish(self) -> Vec<Node> {
+        self.pending
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::clean_text;
+    use super::{merge_continuations, StreamAssembler};
+    use fleischwolf_core::Node;
+
+    fn para(text: &str) -> Node {
+        Node::Paragraph { text: text.into() }
+    }
+
+    /// Run a node sequence through [`StreamAssembler`] with the given page splits
+    /// and assert the flushed result equals one-shot [`merge_continuations`].
+    fn assert_stream_eq(nodes: &[Node], splits: &[usize]) {
+        let mut want = nodes.to_vec();
+        merge_continuations(&mut want);
+
+        let mut asm = StreamAssembler::new();
+        let mut got = Vec::new();
+        let mut start = 0;
+        for &end in splits {
+            got.extend(asm.push(nodes[start..end].to_vec()));
+            start = end;
+        }
+        got.extend(asm.push(nodes[start..].to_vec()));
+        got.extend(asm.finish());
+        assert_eq!(got, want, "stream assembly diverged (splits={splits:?})");
+    }
+
+    #[test]
+    fn stream_assembler_matches_merge_continuations() {
+        // Open fragment + lowercase continuation split across a page boundary.
+        let cross = [para("the definition of"), para("lists in scope")];
+        assert_stream_eq(&cross, &[1]);
+        assert_stream_eq(&cross, &[]);
+
+        // Continuation that wraps around a figure (+ its caption) on the boundary.
+        let wrap = [
+            para("the wing type that is"),
+            Node::Picture {
+                caption: None,
+                image: None,
+            },
+            para("Fig. 1. a diagram"),
+            para("the most common kind"),
+        ];
+        for splits in [&[][..], &[1][..], &[2][..], &[3][..], &[1, 3][..]] {
+            assert_stream_eq(&wrap, splits);
+        }
+
+        // A heading between fragments blocks the merge (must still flush correctly).
+        let blocked = [
+            para("ends mid word and"),
+            Node::Heading {
+                level: 2,
+                text: "New Section".into(),
+            },
+            para("more body here"),
+        ];
+        for splits in [&[][..], &[1][..], &[2][..]] {
+            assert_stream_eq(&blocked, splits);
+        }
+
+        // A chain across three pages: each page is one open lowercase fragment.
+        let chain = [
+            para("alpha beta"),
+            para("gamma delta"),
+            para("epsilon zeta"),
+        ];
+        assert_stream_eq(&chain, &[1, 2]);
+    }
 
     #[test]
     fn clean_text_dehyphenates_and_normalizes_typography() {

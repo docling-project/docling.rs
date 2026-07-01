@@ -18,4 +18,4 @@ mod markdown;
 
 pub use document::{DoclingDocument, Node, PictureImage, Table};
 pub use labels::DocItemLabel;
-pub use markdown::ImageMode;
+pub use markdown::{ImageMode, MarkdownStreamer};

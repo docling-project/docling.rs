@@ -3,7 +3,7 @@
 //! A stand-in for `docling.cli.main`; the full Typer-style CLI (batch mode,
 //! pipeline options) is a later phase.
 //!
-//! Usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] <input-file>
+//! Usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] <input-file>
 //!   --to md|json       output format (default: md). `json` emits docling-core's
 //!                      native DoclingDocument JSON (export_to_dict).
 //!   --images MODE      picture handling for Markdown (mirrors docling's
@@ -15,7 +15,12 @@
 //!                      the bytes. Off by default; fetches over the network.
 //!   --strict           cleaner, more conformant Markdown instead of byte-for-byte
 //!                      docling-legacy output (Markdown only).
+//!   --no-stream        build the whole document before printing Markdown instead
+//!                      of streaming it page by page. Streaming is the default for
+//!                      Markdown (placeholder/embedded images); JSON and referenced
+//!                      images always use the buffered path.
 
+use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -26,6 +31,7 @@ fn main() -> ExitCode {
     let mut to = "md".to_string();
     let mut images = "placeholder".to_string();
     let mut fetch_images = false;
+    let mut no_stream = false;
     let mut bench_warm: Option<usize> = None;
     let mut path: Option<String> = None;
     let mut args = std::env::args().skip(1);
@@ -33,6 +39,7 @@ fn main() -> ExitCode {
         match arg.as_str() {
             "--strict" => strict = true,
             "--fetch-images" => fetch_images = true,
+            "--no-stream" => no_stream = true,
             "--to" => to = args.next().unwrap_or_default(),
             "--images" => images = args.next().unwrap_or_default(),
             // Hidden benchmarking aid: load the PDF/image pipeline once, then time
@@ -67,7 +74,7 @@ fn main() -> ExitCode {
     };
 
     let Some(path) = path else {
-        eprintln!("usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] <input-file>");
+        eprintln!("usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] <input-file>");
         return ExitCode::from(2);
     };
 
@@ -97,11 +104,48 @@ fn main() -> ExitCode {
         };
     }
 
-    let document = match DocumentConverter::new()
+    let converter = DocumentConverter::new()
         .strict(strict)
-        .fetch_images(fetch_images)
-        .convert(source)
-    {
+        .fetch_images(fetch_images);
+
+    // Stream Markdown by default: print each chunk as the converter produces it
+    // (page by page for PDF). JSON needs the whole tree, and the referenced image
+    // mode writes sidecar files, so both keep the buffered path. `--no-stream` opts
+    // back into buffering for the streamable cases too.
+    let is_markdown = matches!(to.as_str(), "md" | "markdown");
+    if is_markdown && image_mode != ImageMode::Referenced && !no_stream {
+        let stream = match converter.convert_streaming_images(source, image_mode) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("error: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
+        let stdout = io::stdout();
+        let mut out = io::BufWriter::new(stdout.lock());
+        for chunk in stream {
+            match chunk {
+                Ok(s) => {
+                    if let Err(e) = out.write_all(s.as_bytes()) {
+                        eprintln!("error: writing output: {e}");
+                        return ExitCode::FAILURE;
+                    }
+                }
+                Err(e) => {
+                    let _ = out.flush();
+                    eprintln!("error: {e}");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+        if let Err(e) = out.flush() {
+            eprintln!("error: writing output: {e}");
+            return ExitCode::FAILURE;
+        }
+        return ExitCode::SUCCESS;
+    }
+
+    let document = match converter.convert(source) {
         Ok(result) => result.document,
         Err(e) => {
             eprintln!("error: {e}");

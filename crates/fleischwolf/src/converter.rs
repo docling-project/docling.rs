@@ -29,6 +29,8 @@ use crate::error::ConversionError;
 use crate::format::InputFormat;
 use crate::result::{ConversionResult, ConversionStatus};
 use crate::source::SourceDocument;
+use crate::stream::MarkdownStream;
+use fleischwolf_core::ImageMode;
 
 /// Routes a [`SourceDocument`] to the backend for its format and returns a
 /// [`ConversionResult`].
@@ -86,6 +88,59 @@ impl DocumentConverter {
     pub fn fetch_images(mut self, fetch: bool) -> Self {
         self.fetch_images = fetch;
         self
+    }
+
+    /// Convert a source document to Markdown **incrementally**, returning an
+    /// iterator of Markdown chunks (with picture placeholders).
+    ///
+    /// Concatenating every `Ok` chunk reproduces
+    /// [`convert`](Self::convert)`(...).document.export_to_markdown()`
+    /// byte-for-byte. The win is for PDF, whose pages are processed in parallel:
+    /// each page's Markdown is emitted in document order as soon as it is ready, so
+    /// output starts before the whole document is converted. Other formats build
+    /// their document up front and stream it through the same interface.
+    ///
+    /// Streaming is Markdown-only — JSON needs the whole node tree, so there is no
+    /// streaming JSON. The conversion runs on a background thread; dropping the
+    /// returned [`MarkdownStream`] cancels it.
+    pub fn convert_streaming(
+        &self,
+        source: SourceDocument,
+    ) -> Result<MarkdownStream, ConversionError> {
+        self.convert_streaming_images(source, ImageMode::Placeholder)
+    }
+
+    /// Like [`convert_streaming`](Self::convert_streaming) but with an explicit
+    /// picture [`ImageMode`]. Only [`ImageMode::Placeholder`] and
+    /// [`ImageMode::Embedded`] are streamable; [`ImageMode::Referenced`] writes
+    /// separate image files and needs the buffered
+    /// [`DoclingDocument::export_to_markdown_with_images`] path, so it is rejected
+    /// here.
+    ///
+    /// [`DoclingDocument::export_to_markdown_with_images`]: fleischwolf_core::DoclingDocument::export_to_markdown_with_images
+    pub fn convert_streaming_images(
+        &self,
+        source: SourceDocument,
+        image_mode: ImageMode,
+    ) -> Result<MarkdownStream, ConversionError> {
+        if image_mode == ImageMode::Referenced {
+            return Err(ConversionError::Streaming(
+                "referenced image mode writes image files; use convert(...).document.\
+                 export_to_markdown_with_images(ImageMode::Referenced, ..) instead"
+                    .into(),
+            ));
+        }
+        if let Some(allowed) = &self.allowed_formats {
+            if !allowed.contains(&source.format) {
+                return Err(ConversionError::UnsupportedFormat(source.format));
+            }
+        }
+        Ok(crate::stream::spawn(
+            self.clone(),
+            source,
+            image_mode,
+            self.strict,
+        ))
     }
 
     /// Convert a single source document.

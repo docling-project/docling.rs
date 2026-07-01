@@ -78,6 +78,55 @@ fn convert(src: &Path, strict: bool) -> Result<fleischwolf::DoclingDocument, Str
         .map_err(|e| e.to_string())
 }
 
+/// Convert via the streaming API and concatenate every chunk.
+fn stream_to_string(src: &Path, strict: bool) -> Result<String, String> {
+    let source = SourceDocument::from_file(src).map_err(|e| e.to_string())?;
+    let stream = DocumentConverter::new()
+        .strict(strict)
+        .convert_streaming(source)
+        .map_err(|e| e.to_string())?;
+    let mut out = String::new();
+    for chunk in stream {
+        out.push_str(&chunk.map_err(|e| e.to_string())?);
+    }
+    Ok(out)
+}
+
+/// Streaming Markdown must be byte-identical to the buffered export for every
+/// (non-PDF) source — the streaming serializer and the buffered one are held to
+/// the same output. (PDF, the format with real page-level streaming, is covered by
+/// the snapshot harness and the `StreamAssembler` unit tests in `fleischwolf-pdf`.)
+#[test]
+fn streaming_matches_buffered_markdown() {
+    let srcs = sources();
+    let mut failures = Vec::new();
+    for src in &srcs {
+        let rel = src.strip_prefix(data_dir()).unwrap().display().to_string();
+        for strict in [false, true] {
+            let buffered = match convert(src, strict) {
+                Ok(d) => d.export_to_markdown(),
+                Err(e) => {
+                    failures.push(format!("{rel}: convert error: {e}"));
+                    continue;
+                }
+            };
+            match stream_to_string(src, strict) {
+                Ok(streamed) if streamed == buffered => {}
+                Ok(_) => failures.push(format!(
+                    "{rel} (strict={strict}): streamed Markdown != buffered export"
+                )),
+                Err(e) => failures.push(format!("{rel} (strict={strict}): stream error: {e}")),
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} streaming mismatch(es):\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
 #[test]
 fn outputs_match_fixtures() {
     let regen = std::env::var_os("FLEISCHWOLF_REGEN").is_some();

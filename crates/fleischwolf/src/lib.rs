@@ -28,6 +28,7 @@ mod error;
 mod format;
 mod result;
 mod source;
+mod stream;
 
 pub mod backend;
 
@@ -36,10 +37,13 @@ pub use error::ConversionError;
 pub use format::InputFormat;
 pub use result::{ConversionResult, ConversionStatus};
 pub use source::SourceDocument;
+pub use stream::MarkdownStream;
 
 // Re-export the core model so callers only need the one crate, and so
 // `result.document.export_to_markdown()` works without an extra import.
-pub use fleischwolf_core::{DocItemLabel, DoclingDocument, ImageMode, Node, PictureImage, Table};
+pub use fleischwolf_core::{
+    DocItemLabel, DoclingDocument, ImageMode, MarkdownStreamer, Node, PictureImage, Table,
+};
 
 // The reusable PDF/image pipeline (models loaded once, reused across documents),
 // for callers that convert many files or want a warm, startup-excluded measurement.
