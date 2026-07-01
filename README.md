@@ -158,7 +158,11 @@ buffered `export_to_markdown_with_images` path. Use
 `convert_streaming_images(source, ImageMode::Embedded)` to pick the image mode.
 
 The CLI streams Markdown by default (`--no-stream` opts back into buffering;
-`--to json` and `--images referenced` always buffer).
+`--to json` and `--images referenced` always buffer). `--no-table-former` skips
+loading/running the TableFormer table-structure model, falling back to simple
+geometric table reconstruction from cell positions — no model load, no
+per-table inference, which can noticeably speed up parsing (especially in
+streaming mode) at the cost of table fidelity.
 
 ## Node.js / Bun bindings
 

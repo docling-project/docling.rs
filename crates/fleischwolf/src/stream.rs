@@ -75,9 +75,12 @@ pub(crate) fn spawn(
     source: SourceDocument,
     image_mode: ImageMode,
     strict: bool,
+    no_table_former: bool,
 ) -> MarkdownStream {
     let (tx, rx) = sync_channel::<Result<String, ConversionError>>(CHANNEL_DEPTH);
-    let handle = std::thread::spawn(move || run(converter, source, image_mode, strict, &tx));
+    let handle = std::thread::spawn(move || {
+        run(converter, source, image_mode, strict, no_table_former, &tx)
+    });
     MarkdownStream {
         rx: Some(rx),
         handle: Some(handle),
@@ -92,12 +95,13 @@ fn run(
     source: SourceDocument,
     image_mode: ImageMode,
     strict: bool,
+    no_table_former: bool,
     tx: &std::sync::mpsc::SyncSender<Result<String, ConversionError>>,
 ) {
     match source.format {
         // PDF is the format with internal page-level parallelism, so it gets the
         // true streaming path: emit each page's Markdown in order as it completes.
-        InputFormat::Pdf => run_pdf(&source, image_mode, strict, tx),
+        InputFormat::Pdf => run_pdf(&source, image_mode, strict, no_table_former, tx),
         // Every other backend builds the whole `DoclingDocument` synchronously, so
         // there is no latency to stream away; serialize it through the same chunk
         // API for a uniform interface (one chunk plus the trailing newline).
@@ -109,19 +113,21 @@ fn run_pdf(
     source: &SourceDocument,
     image_mode: ImageMode,
     strict: bool,
+    no_table_former: bool,
     tx: &std::sync::mpsc::SyncSender<Result<String, ConversionError>>,
 ) {
     // The PDF pipeline builds its document from `DoclingDocument::new` defaults, so
     // tables use the padded GitHub serializer (compact_tables = false), matching the
     // buffered PDF path.
     let mut streamer = MarkdownStreamer::new(strict, image_mode, false);
-    let mut pipeline = match fleischwolf_pdf::Pipeline::new() {
-        Ok(p) => p,
-        Err(e) => {
-            let _ = tx.send(Err(ConversionError::Parse(e.to_string())));
-            return;
-        }
-    };
+    let mut pipeline =
+        match fleischwolf_pdf::Pipeline::new().map(|p| p.no_table_former(no_table_former)) {
+            Ok(p) => p,
+            Err(e) => {
+                let _ = tx.send(Err(ConversionError::Parse(e.to_string())));
+                return;
+            }
+        };
 
     let result = pipeline.convert_streaming(&source.bytes, None, &source.name, |nodes, links| {
         let chunk = streamer.push(&nodes, &links);

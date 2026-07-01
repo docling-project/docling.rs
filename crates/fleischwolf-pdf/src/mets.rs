@@ -17,9 +17,19 @@ use tar::Archive;
 use fleischwolf_core::DoclingDocument;
 
 use crate::pdfium_backend::{PdfPage, TextCell};
-use crate::{convert_pages, PdfError};
+use crate::{convert_pages_with_options, PdfError};
 
 pub fn convert_mets_gbs(bytes: &[u8], name: &str) -> Result<DoclingDocument, PdfError> {
+    convert_mets_gbs_with_options(bytes, name, false)
+}
+
+/// Like [`convert_mets_gbs`], but optionally skips loading/running TableFormer
+/// (see [`crate::Pipeline::no_table_former`]).
+pub fn convert_mets_gbs_with_options(
+    bytes: &[u8],
+    name: &str,
+    no_table_former: bool,
+) -> Result<DoclingDocument, PdfError> {
     let mut html: BTreeMap<String, String> = BTreeMap::new();
     let mut tiff: BTreeMap<String, Vec<u8>> = BTreeMap::new();
 
@@ -80,7 +90,7 @@ pub fn convert_mets_gbs(bytes: &[u8], name: &str) -> Result<DoclingDocument, Pdf
             "mets: no hOCR/TIFF page pairs found in archive".into(),
         ));
     }
-    convert_pages(pages, name)
+    convert_pages_with_options(pages, name, no_table_former)
 }
 
 /// Parse an hOCR page: the `ocr_page` bbox gives the page geometry (cells are in

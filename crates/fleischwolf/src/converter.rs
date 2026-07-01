@@ -44,6 +44,7 @@ pub struct DocumentConverter {
     allowed_formats: Option<HashSet<InputFormat>>,
     strict: bool,
     fetch_images: bool,
+    no_table_former: bool,
 }
 
 impl DocumentConverter {
@@ -59,6 +60,7 @@ impl DocumentConverter {
             allowed_formats: Some(formats.into_iter().collect()),
             strict: false,
             fetch_images: false,
+            no_table_former: false,
         }
     }
 
@@ -87,6 +89,20 @@ impl DocumentConverter {
     /// you trust (it can otherwise be used to make the process issue requests).
     pub fn fetch_images(mut self, fetch: bool) -> Self {
         self.fetch_images = fetch;
+        self
+    }
+
+    /// Skip loading and running the TableFormer table-structure model for
+    /// PDF/image/METS sources.
+    ///
+    /// Off by default. When enabled, table regions are still detected and
+    /// emitted, but their structure is reconstructed geometrically from cell
+    /// positions instead of the ONNX model's predicted structure — no model
+    /// load and no per-table inference, at the cost of table fidelity. Useful
+    /// when parsing speed matters more than exact table structure, especially
+    /// with [`convert_streaming`](Self::convert_streaming).
+    pub fn no_table_former(mut self, disable: bool) -> Self {
+        self.no_table_former = disable;
         self
     }
 
@@ -140,6 +156,7 @@ impl DocumentConverter {
             source,
             image_mode,
             self.strict,
+            self.no_table_former,
         ))
     }
 
@@ -194,12 +211,25 @@ impl DocumentConverter {
             InputFormat::Odt | InputFormat::Ods | InputFormat::Odp => {
                 OdfBackend.convert(&source)?
             }
-            InputFormat::Pdf => fleischwolf_pdf::convert(&source.bytes, None, &source.name)
-                .map_err(|e| ConversionError::Parse(e.to_string()))?,
-            InputFormat::Image => fleischwolf_pdf::convert_image(&source.bytes, &source.name)
-                .map_err(|e| ConversionError::Parse(e.to_string()))?,
-            InputFormat::MetsGbs => fleischwolf_pdf::convert_mets_gbs(&source.bytes, &source.name)
-                .map_err(|e| ConversionError::Parse(e.to_string()))?,
+            InputFormat::Pdf => fleischwolf_pdf::convert_with_options(
+                &source.bytes,
+                None,
+                &source.name,
+                self.no_table_former,
+            )
+            .map_err(|e| ConversionError::Parse(e.to_string()))?,
+            InputFormat::Image => fleischwolf_pdf::convert_image_with_options(
+                &source.bytes,
+                &source.name,
+                self.no_table_former,
+            )
+            .map_err(|e| ConversionError::Parse(e.to_string()))?,
+            InputFormat::MetsGbs => fleischwolf_pdf::convert_mets_gbs_with_options(
+                &source.bytes,
+                &source.name,
+                self.no_table_former,
+            )
+            .map_err(|e| ConversionError::Parse(e.to_string()))?,
             other => return Err(ConversionError::UnsupportedFormat(other)),
         };
         // Carry the mode so `result.document.export_to_markdown()` reflects it.

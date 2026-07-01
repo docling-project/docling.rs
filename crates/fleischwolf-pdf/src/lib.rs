@@ -27,7 +27,7 @@ use std::sync::{Arc, Mutex};
 
 use fleischwolf_core::{DoclingDocument, Node};
 
-pub use mets::convert_mets_gbs;
+pub use mets::{convert_mets_gbs, convert_mets_gbs_with_options};
 pub use pdfium_backend::{PdfDocument, PdfPage, TextCell};
 
 /// Errors from the PDF backend. Detailed and surfaced (never silently skipped).
@@ -90,11 +90,15 @@ struct Worker {
 }
 
 impl Worker {
-    fn load(intra: usize) -> Result<Self, PdfError> {
+    fn load(intra: usize, no_table_former: bool) -> Result<Self, PdfError> {
         Ok(Self {
             layout: layout::LayoutModel::load_with(intra).map_err(PdfError::Layout)?,
             ocr: None,
-            tables: tableformer::TableFormer::load_with(intra),
+            tables: if no_table_former {
+                None
+            } else {
+                tableformer::TableFormer::load_with(intra)
+            },
         })
     }
 
@@ -208,6 +212,9 @@ pub struct Pipeline {
     target_workers: usize,
     /// Page count at/above which the parallel pool is worth its load cost.
     parallel_min: usize,
+    /// Skip loading/running TableFormer; table regions fall back to geometric
+    /// reconstruction. See [`Pipeline::no_table_former`].
+    no_table_former: bool,
 }
 
 impl Pipeline {
@@ -220,13 +227,25 @@ impl Pipeline {
             pool: Vec::new(),
             target_workers: pdf_worker_count(),
             parallel_min: pdf_parallel_min(),
+            no_table_former: false,
         })
+    }
+
+    /// Skip loading and running the TableFormer table-structure model. Table
+    /// regions still get emitted, but reconstructed geometrically from cell
+    /// positions instead of via the ONNX model's predicted structure — faster
+    /// (no model load, no per-table inference) at the cost of table fidelity.
+    /// No effect if a worker is already loaded; set this before the first
+    /// conversion.
+    pub fn no_table_former(mut self, disable: bool) -> Self {
+        self.no_table_former = disable;
+        self
     }
 
     /// The full-intra serial worker, loaded on first use.
     fn primary(&mut self) -> Result<&mut Worker, PdfError> {
         if self.primary.is_none() {
-            self.primary = Some(Worker::load(intra_threads())?);
+            self.primary = Some(Worker::load(intra_threads(), self.no_table_former)?);
         }
         Ok(self.primary.as_mut().unwrap())
     }
@@ -507,9 +526,10 @@ impl Pipeline {
             return Ok(());
         }
         let intra = pdf_intra();
+        let no_table_former = self.no_table_former;
         let loaded: Vec<Result<Worker, PdfError>> = std::thread::scope(|s| {
             let handles: Vec<_> = (0..need)
-                .map(|_| s.spawn(move || Worker::load(intra)))
+                .map(|_| s.spawn(move || Worker::load(intra, no_table_former)))
                 .collect();
             handles.into_iter().map(|h| h.join().unwrap()).collect()
         });
@@ -567,16 +587,53 @@ pub fn convert(
     password: Option<&str>,
     name: &str,
 ) -> Result<DoclingDocument, PdfError> {
-    Pipeline::new()?.convert(bytes, password, name)
+    convert_with_options(bytes, password, name, false)
+}
+
+/// Like [`convert`], but optionally skips loading/running TableFormer (see
+/// [`Pipeline::no_table_former`]).
+pub fn convert_with_options(
+    bytes: &[u8],
+    password: Option<&str>,
+    name: &str,
+    no_table_former: bool,
+) -> Result<DoclingDocument, PdfError> {
+    Pipeline::new()?
+        .no_table_former(no_table_former)
+        .convert(bytes, password, name)
 }
 
 /// Convenience one-shot image conversion (loads the pipeline per call).
 pub fn convert_image(bytes: &[u8], name: &str) -> Result<DoclingDocument, PdfError> {
-    Pipeline::new()?.convert_image(bytes, name)
+    convert_image_with_options(bytes, name, false)
+}
+
+/// Like [`convert_image`], but optionally skips loading/running TableFormer (see
+/// [`Pipeline::no_table_former`]).
+pub fn convert_image_with_options(
+    bytes: &[u8],
+    name: &str,
+    no_table_former: bool,
+) -> Result<DoclingDocument, PdfError> {
+    Pipeline::new()?
+        .no_table_former(no_table_former)
+        .convert_image(bytes, name)
 }
 
 /// Convert pre-segmented pages (image + already-known text cells, e.g. METS/hOCR
 /// scans) through the shared layout + assembly pipeline.
 pub fn convert_pages(pages: Vec<PdfPage>, name: &str) -> Result<DoclingDocument, PdfError> {
-    Pipeline::new()?.process_pages(pages, name)
+    convert_pages_with_options(pages, name, false)
+}
+
+/// Like [`convert_pages`], but optionally skips loading/running TableFormer (see
+/// [`Pipeline::no_table_former`]).
+pub fn convert_pages_with_options(
+    pages: Vec<PdfPage>,
+    name: &str,
+    no_table_former: bool,
+) -> Result<DoclingDocument, PdfError> {
+    Pipeline::new()?
+        .no_table_former(no_table_former)
+        .process_pages(pages, name)
 }

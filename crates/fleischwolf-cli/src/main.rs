@@ -3,7 +3,7 @@
 //! A stand-in for `docling.cli.main`; the full Typer-style CLI (batch mode,
 //! pipeline options) is a later phase.
 //!
-//! Usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] <input-file>
+//! Usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] <input-file>
 //!   --to md|json       output format (default: md). `json` emits docling-core's
 //!                      native DoclingDocument JSON (export_to_dict).
 //!   --images MODE      picture handling for Markdown (mirrors docling's
@@ -19,6 +19,11 @@
 //!                      of streaming it page by page. Streaming is the default for
 //!                      Markdown (placeholder/embedded images); JSON and referenced
 //!                      images always use the buffered path.
+//!   --no-table-former  skip loading/running the TableFormer table-structure
+//!                      model for PDF/image input; tables fall back to simple
+//!                      geometric reconstruction from cell positions. Faster
+//!                      (no model load, no per-table inference) at the cost of
+//!                      table fidelity — helps most in streaming mode.
 
 use std::io::{self, Write};
 use std::path::Path;
@@ -32,6 +37,7 @@ fn main() -> ExitCode {
     let mut images = "placeholder".to_string();
     let mut fetch_images = false;
     let mut no_stream = false;
+    let mut no_table_former = false;
     let mut bench_warm: Option<usize> = None;
     let mut path: Option<String> = None;
     let mut args = std::env::args().skip(1);
@@ -40,6 +46,7 @@ fn main() -> ExitCode {
             "--strict" => strict = true,
             "--fetch-images" => fetch_images = true,
             "--no-stream" => no_stream = true,
+            "--no-table-former" => no_table_former = true,
             "--to" => to = args.next().unwrap_or_default(),
             "--images" => images = args.next().unwrap_or_default(),
             // Hidden benchmarking aid: load the PDF/image pipeline once, then time
@@ -74,7 +81,7 @@ fn main() -> ExitCode {
     };
 
     let Some(path) = path else {
-        eprintln!("usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] <input-file>");
+        eprintln!("usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] <input-file>");
         return ExitCode::from(2);
     };
 
@@ -87,7 +94,7 @@ fn main() -> ExitCode {
     };
 
     if let Some(runs) = bench_warm {
-        return match bench_warm_conversion(&source, runs) {
+        return match bench_warm_conversion(&source, runs, no_table_former) {
             Ok(avg) => {
                 // Bare seconds on stdout for the benchmark harness; a human line on stderr.
                 println!("{avg:.6}");
@@ -106,7 +113,8 @@ fn main() -> ExitCode {
 
     let converter = DocumentConverter::new()
         .strict(strict)
-        .fetch_images(fetch_images);
+        .fetch_images(fetch_images)
+        .no_table_former(no_table_former);
 
     // Stream Markdown by default: print each chunk as the converter produces it
     // (page by page for PDF). JSON needs the whole tree, and the referenced image
@@ -189,8 +197,14 @@ fn main() -> ExitCode {
 /// conversion is a discarded warm-up that triggers the lazy model loads, so the
 /// timed runs reuse them — the startup-excluded figure comparable to docling's
 /// in-process warm number.
-fn bench_warm_conversion(source: &SourceDocument, runs: usize) -> Result<f64, String> {
-    let mut pipeline = Pipeline::new().map_err(|e| e.to_string())?;
+fn bench_warm_conversion(
+    source: &SourceDocument,
+    runs: usize,
+    no_table_former: bool,
+) -> Result<f64, String> {
+    let mut pipeline = Pipeline::new()
+        .map_err(|e| e.to_string())?
+        .no_table_former(no_table_former);
     let once = |p: &mut Pipeline| -> Result<(), String> {
         match source.format {
             InputFormat::Pdf => p
