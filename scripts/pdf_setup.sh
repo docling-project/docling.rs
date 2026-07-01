@@ -55,3 +55,12 @@ echo "  export PDFIUM_DYNAMIC_LIB_PATH=$(pwd)/.pdfium/lib"
 echo "  export DOCLING_LAYOUT_ONNX=$(pwd)/models/layout_heron.onnx"
 echo "  export DOCLING_OCR_REC_ONNX=$(pwd)/models/ocr_rec.onnx"
 echo "  export DOCLING_OCR_DICT=$(pwd)/models/ppocr_keys_v1.txt"
+if [ -f models/tableformer/decoder.onnx ]; then
+  # These default to a *relative* path if unset, which only resolves when the
+  # process's CWD is this repo root — export them explicitly so TableFormer
+  # still loads (instead of silently falling back to geometric reconstruction)
+  # no matter where the binary/binding is actually invoked from.
+  echo "  export DOCLING_TABLEFORMER_ENCODER=$(pwd)/models/tableformer/encoder.onnx"
+  echo "  export DOCLING_TABLEFORMER_DECODER=$(pwd)/models/tableformer/decoder.onnx"
+  echo "  export DOCLING_TABLEFORMER_BBOX=$(pwd)/models/tableformer/bbox.onnx"
+fi

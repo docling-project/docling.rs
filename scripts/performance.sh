@@ -46,6 +46,9 @@ RUST_BIN="$(build_rust_release)"
 [[ -e "$WORKSPACE_DIR/models/layout_heron.onnx" ]] && export DOCLING_LAYOUT_ONNX="${DOCLING_LAYOUT_ONNX:-$WORKSPACE_DIR/models/layout_heron.onnx}"
 [[ -e "$WORKSPACE_DIR/models/ocr_rec.onnx" ]] && export DOCLING_OCR_REC_ONNX="${DOCLING_OCR_REC_ONNX:-$WORKSPACE_DIR/models/ocr_rec.onnx}"
 [[ -e "$WORKSPACE_DIR/models/ppocr_keys_v1.txt" ]] && export DOCLING_OCR_DICT="${DOCLING_OCR_DICT:-$WORKSPACE_DIR/models/ppocr_keys_v1.txt}"
+[[ -e "$WORKSPACE_DIR/models/tableformer/encoder.onnx" ]] && export DOCLING_TABLEFORMER_ENCODER="${DOCLING_TABLEFORMER_ENCODER:-$WORKSPACE_DIR/models/tableformer/encoder.onnx}"
+[[ -e "$WORKSPACE_DIR/models/tableformer/decoder.onnx" ]] && export DOCLING_TABLEFORMER_DECODER="${DOCLING_TABLEFORMER_DECODER:-$WORKSPACE_DIR/models/tableformer/decoder.onnx}"
+[[ -e "$WORKSPACE_DIR/models/tableformer/bbox.onnx" ]] && export DOCLING_TABLEFORMER_BBOX="${DOCLING_TABLEFORMER_BBOX:-$WORKSPACE_DIR/models/tableformer/bbox.onnx}"
 
 # Run a command RUNS times under GNU time; echo "min avg peak_rss_kb cpu%".
 # GNU time format: %e elapsed seconds, %P CPU percent, %M max RSS in KB.
