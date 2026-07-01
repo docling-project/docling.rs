@@ -51,10 +51,13 @@ jobs:
           # ONNX/ort build). Requires the arm64 runner image to be available.
           - target: aarch64-unknown-linux-gnu
             host: ubuntu-24.04-arm
-          - target: x86_64-apple-darwin
-            host: macos-13
-          - target: aarch64-apple-darwin
-            host: macos-14
+          # macOS (darwin) prebuilds are omitted: GitHub-hosted macOS runners are
+          # blocked in this environment, and darwin can't be cross-compiled on
+          # Linux (needs the Apple SDK). macOS users build from source. To re-add
+          # when macOS runners are available, add the darwin targets back here AND
+          # to `napi.triples.additional` in package.json:
+          #   - { target: aarch64-apple-darwin, host: macos-14 }
+          #   - { target: x86_64-apple-darwin,  host: macos-14 }  # cross via --target
           - target: x86_64-pc-windows-msvc
             host: windows-latest
     steps:
