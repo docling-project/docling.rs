@@ -1,0 +1,115 @@
+# Export the RT-DETR layout model + TableFormer to ONNX, re-host pdfium + the
+# OCR model, and publish everything as GitHub Release assets, so
+# `scripts/download_dependencies.sh` can fetch the whole PDF/image ML stack
+# from a single host (this repo's releases) with zero configuration.
+#
+# The layout model and TableFormer are PyTorch→ONNX *format conversions* of
+# docling-project's own models (Apache-2.0 / CDLA-Permissive-2.0 — see
+# MODELS_NOTICE.md); no weights are retrained or modified here. pdfium and the
+# OCR model are re-hosted third-party binaries, unmodified, from their own
+# public releases — mirrored here only so `download_dependencies.sh` needs one
+# host instead of three.
+#
+# Trigger: manual only (workflow_dispatch) — it installs torch and exports two
+# models, several GB and 10-20 minutes, not something to run on every push.
+# Re-running with the same tag re-uploads (clobbers) matching asset names, so
+# it's safe to retry after fixing a failed export.
+#
+#   gh workflow run publish-models.yml                    # tag = models-v1
+#   gh workflow run publish-models.yml -f tag=models-v2    # a future re-export
+
+name: publish models
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish/update (bump only when the export itself changes)."
+        required: false
+        default: "models-v1"
+
+permissions:
+  contents: write # create the release + upload assets
+
+jobs:
+  publish-models:
+    name: export + publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # --- layout model (required) --------------------------------------
+      - name: Install layout export deps
+        run: pip install --upgrade pip && pip install torch transformers onnx
+
+      - name: Export layout model
+        run: python scripts/export_layout.py models/layout_heron.onnx
+
+      # --- TableFormer (optional — a failure here doesn't block layout) ---
+      - name: Install TableFormer export deps
+        continue-on-error: true
+        id: tf-deps
+        run: pip install docling_ibm_models onnxscript onnxruntime huggingface_hub
+
+      - name: Export TableFormer
+        if: steps.tf-deps.outcome == 'success'
+        continue-on-error: true
+        id: tf-export
+        run: python scripts/export_tableformer.py models/tableformer
+
+      # --- pdfium + OCR (re-hosted third-party binaries, not exports) -----
+      - name: Fetch pdfium + OCR assets
+        run: |
+          mkdir -p third-party
+          curl -fsSL -o /tmp/pdfium.tgz \
+            "https://github.com/bblanchon/pdfium-binaries/releases/latest/download/pdfium-linux-x64.tgz"
+          tar -xzf /tmp/pdfium.tgz -C third-party
+          curl -fsSL -o third-party/ocr_rec.onnx \
+            "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/ch_PP-OCRv3_rec_infer.onnx"
+          curl -fsSL -o third-party/ppocr_keys_v1.txt \
+            "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt"
+
+      # --- stage + publish -------------------------------------------------
+      # GitHub release assets can't contain "/", so tableformer/*.onnx is
+      # flattened to bare encoder.onnx / decoder.onnx / bbox.onnx (no naming
+      # collision with anything else in this release; download_dependencies.sh
+      # downloads these exact names). Each file is staged only if the export
+      # produced it, including the optional `.onnx.data` external-weights
+      # sidecar some exports need above ONNX's ~2GB protobuf limit (currently
+      # just the TableFormer decoder, but checked for every file since that's
+      # export-size dependent, not fixed).
+      - name: Stage release assets
+        run: |
+          mkdir -p release-assets
+          stage() { # <source-path> <asset-name>
+            [ -f "$1" ] && cp "$1" "release-assets/$2"
+            [ -f "$1.data" ] && cp "$1.data" "release-assets/$2.data"
+          }
+          stage third-party/lib/libpdfium.so libpdfium.so
+          stage third-party/ocr_rec.onnx ocr_rec.onnx
+          stage third-party/ppocr_keys_v1.txt ppocr_keys_v1.txt
+          stage models/layout_heron.onnx layout_heron.onnx
+          stage models/tableformer/encoder.onnx encoder.onnx
+          stage models/tableformer/decoder.onnx decoder.onnx
+          stage models/tableformer/bbox.onnx bbox.onnx
+          echo "staged:"
+          ls -la release-assets/
+
+      - name: Publish release
+        run: |
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-assets/* --repo "${{ github.repository }}" --clobber
+          else
+            gh release create "$TAG" release-assets/* \
+              --repo "${{ github.repository }}" \
+              --title "fleischwolf ML models ($TAG)" \
+              --notes-file MODELS_NOTICE.md
+          fi

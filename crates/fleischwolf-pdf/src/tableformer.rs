@@ -90,17 +90,31 @@ impl TableFormer {
             .iter()
             .any(|p| !std::path::Path::new(p).exists())
         {
+            // The geometric fallback is a supported, intentional configuration
+            // (docling has no ML table-structure equivalent baked in either), so
+            // this stays a single quiet stderr note rather than an error — but it
+            // fires every process (not per-worker) so a CWD-relative default that
+            // silently misses its files (a very easy mistake for anything not run
+            // from the repo root, e.g. an embedding app) is at least visible once.
+            warn_missing_once(&enc, &dec, &bbx);
             return None;
         }
-        let build = |path: &str| -> Result<Session, String> {
+        // The decoder's KV-cache grows by one entry every autoregressive step, so
+        // its input shapes differ on every `run()` call. ONNX Runtime's memory
+        // pattern optimizer assumes stable shapes to plan buffer reuse; disabling
+        // it for this session avoids repeatedly re-validating/re-touching that
+        // plan (and the external-weights file) on each step.
+        let build = |path: &str, mem_pattern: bool| -> Result<Session, String> {
             Session::builder()
                 .map_err(|e| e.to_string())?
                 .with_intra_threads(intra)
                 .map_err(|e| e.to_string())?
+                .with_memory_pattern(mem_pattern)
+                .map_err(|e| e.to_string())?
                 .commit_from_file(path)
                 .map_err(|e| format!("tableformer load {path}: {e}"))
         };
-        match (build(&enc), build(&dec), build(&bbx)) {
+        match (build(&enc, true), build(&dec, false), build(&bbx, true)) {
             (Ok(encoder), Ok(decoder), Ok(bbox)) => Some(Self {
                 encoder,
                 decoder,
@@ -395,6 +409,24 @@ impl TableFormer {
         }
         Some(grid)
     }
+}
+
+/// Note once per process that TableFormer's ONNX graphs weren't found, so tables
+/// fall back to geometric reconstruction. The default paths are relative
+/// (`models/tableformer/*.onnx`), which only resolves when the process's current
+/// directory happens to be the repo root — a very easy miss for anything else
+/// (an embedding app, a binding invoked from a different working directory, …),
+/// and previously failed with no signal at all.
+fn warn_missing_once(enc: &str, dec: &str, bbx: &str) {
+    static WARNED: std::sync::Once = std::sync::Once::new();
+    WARNED.call_once(|| {
+        eprintln!(
+            "fleischwolf: TableFormer models not found (checked {enc}, {dec}, {bbx}); \
+             tables will use geometric reconstruction instead of ML table-structure \
+             recognition. Set DOCLING_TABLEFORMER_ENCODER / DOCLING_TABLEFORMER_DECODER \
+             / DOCLING_TABLEFORMER_BBOX to enable it (see README.md)."
+        );
+    });
 }
 
 /// docling's preprocessing: bilinear (cv2.INTER_LINEAR) resize the crop to 448²,

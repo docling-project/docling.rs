@@ -93,50 +93,58 @@ for await (const chunk of streamFileMarkdown('paper.pdf')) {
 }
 ```
 
-### PDF / images: installing the ML models
+### PDF / images: getting the ML models
 
 Declarative formats (Markdown, HTML, DOCX, XLSX, …) are pure Rust and need
 nothing. The **PDF/image** path needs native assets that are *not* bundled in the
-addon — pdfium plus the ONNX models (layout, OCR, TableFormer) — the same way
-Python docling downloads its models on first use. Converting a PDF/image/METS
-input **throws** until they're installed:
+addon — pdfium plus the ONNX models (layout, OCR, TableFormer). Converting a
+PDF/image/METS input **throws** until they're on disk. Fetch them with a
+one-liner from your app's directory (where you'll `npm install fleischwolf`):
 
-```js
-import { installDependencies, checkDependencies, convertFileAsync } from 'fleischwolf'
-
-await convertFileAsync('paper.pdf') // ❌ throws: "requires the PDF/ML dependencies … call installDependencies()"
-
-await installDependencies()          // provisions everything, then:
-await convertFileAsync('paper.pdf')  // ✅ works
+```bash
+curl -fsSL https://raw.githubusercontent.com/artiz/fleischwolf/master/scripts/download_dependencies.sh | sh
 ```
 
-What `installDependencies()` fetches, into `~/.cache/fleischwolf` (override with
-`dir` or `$FLEISCHWOLF_HOME`), wiring the matching `DOCLING_*` /
-`PDFIUM_DYNAMIC_LIB_PATH` env vars in-process:
+```js
+import { convertFileAsync } from 'fleischwolf'
 
-| Asset | Source | Required for |
-| --- | --- | --- |
-| **pdfium** | bblanchon prebuilt (auto, platform-detected) | PDF |
-| **OCR** rec model + dictionary | HuggingFace / GitHub (auto) | scanned pages |
-| **layout** (`layout_heron.onnx`) | your `modelsUrl` (see below) | PDF **and** image |
-| **TableFormer** (`tableformer/*.onnx`) | your `modelsUrl` | tables (else geometric fallback) |
+const res = await convertFileAsync('paper.pdf', { to: 'markdown' }) // ✅ works
+```
 
-> **layout + TableFormer have no public prebuilt download.** They're PyTorch→ONNX
-> exports (`docling-project/docling-layout-heron`, `docling_ibm_models`). Host the
-> exported `.onnx` yourself and point `installDependencies` at the base URL via
-> `{ modelsUrl }` or `FLEISCHWOLF_MODELS_URL` — it fetches `layout_heron.onnx` and
-> `tableformer/{encoder,decoder,bbox}.onnx` from there. Or export them locally
-> (repo `scripts/export_layout.py`, `scripts/export_tableformer.py`) and set
-> `DOCLING_LAYOUT_ONNX` / `DOCLING_TABLEFORMER_*` — `installDependencies` detects
-> those as already installed. Without a layout source it installs pdfium/OCR and
-> throws, naming what's missing.
+`scripts/download_dependencies.sh` fetches everything from this repo's
+[GitHub Releases](https://github.com/artiz/fleischwolf/releases) straight into
+`./models` and `./.pdfium` — which this package (and the Rust CLI) look for by
+default, relative to the process's current directory, so no env vars or setup
+call are needed afterwards:
+
+| Asset | Destination |
+| --- | --- |
+| **pdfium** | `.pdfium/lib/libpdfium.so` |
+| **layout** (`layout_heron.onnx`) | `models/layout_heron.onnx` |
+| **OCR** rec model + dictionary | `models/ocr_rec.onnx`, `models/ppocr_keys_v1.txt` |
+| **TableFormer** | `models/tableformer/{encoder,decoder,bbox}.onnx` |
+
+> **layout + TableFormer are PyTorch→ONNX exports**
+> (`docling-project/docling-layout-heron`, Apache-2.0;
+> `docling-project/docling-models`, CDLA-Permissive-2.0/Apache-2.0 — see
+> [`MODELS_NOTICE.md`](../../MODELS_NOTICE.md) for full attribution), not
+> fleischwolf's own weights — fleischwolf hosts the converted `.onnx` as a
+> GitHub Release purely so you don't need a local Python/torch toolchain.
+> pdfium and the OCR model are re-hosted, unmodified, from their own public
+> releases, on the same host for convenience.
+>
+> Run it from wherever your app lives — the script only writes to `./models`
+> and `./.pdfium` under the current directory, e.g. in a container build step:
+> ```bash
+> cd /path/to/your/app && curl -fsSL https://raw.githubusercontent.com/artiz/fleischwolf/master/scripts/download_dependencies.sh | sh
+> ```
+>
+> To use your own export/host instead, point the env vars at it directly:
+> `DOCLING_LAYOUT_ONNX`, `DOCLING_OCR_REC_ONNX`, `DOCLING_OCR_DICT`,
+> `DOCLING_TABLEFORMER_{ENCODER,DECODER,BBOX}`, `PDFIUM_DYNAMIC_LIB_PATH` — an
+> env var always wins over the `./models` / `./.pdfium` default.
 
 ```js
-await installDependencies({
-  modelsUrl: 'https://you.example/fleischwolf-models', // serves layout_heron.onnx, tableformer/*.onnx
-  onProgress: (m) => console.log(m),
-})
-
 checkDependencies() // { home, pdfium, layout, ocr, tableformer, ready, missing }
 ```
 
@@ -188,7 +196,6 @@ JSON output always embeds extracted images as data URIs.
 | `streamFileMarkdown(path, options?)` | `AsyncGenerator<string>` | Markdown chunks in document order. |
 | `supportedFormats()` | `string[]` | Supported input format ids. |
 | `formatFromName(name)` | `string \| null` | Detect a format id from a filename/extension. |
-| `installDependencies(options?)` | `Promise<DependencyStatus>` | Download/validate the PDF/image models + pdfium. |
 | `checkDependencies(options?)` | `DependencyStatus` | Report which PDF/image deps are present. |
 
 `Pipeline` is the reusable warm PDF/image converter: `new Pipeline(converterOptions)`
@@ -235,12 +242,12 @@ cd examples
 npm install
 node node-basic.mjs        # ESM: file, bytes, JSON, reuse
 bun run bun-basic.ts       # Bun + TypeScript: async + streaming
-node pdf-pipeline.mjs       # installDependencies + warm Pipeline for PDFs
+node pdf-pipeline.mjs       # warm Pipeline for PDFs (run scripts/download_dependencies.sh first)
 ```
 
 - [`examples/node-basic.mjs`](examples/node-basic.mjs) — Node.js (ESM): file, bytes, JSON, reuse.
 - [`examples/bun-basic.ts`](examples/bun-basic.ts) — Bun + TypeScript, with async and streaming.
-- [`examples/pdf-pipeline.mjs`](examples/pdf-pipeline.mjs) — `installDependencies` + warm `Pipeline` for PDFs.
+- [`examples/pdf-pipeline.mjs`](examples/pdf-pipeline.mjs) — warm `Pipeline` for PDFs.
 
 The smoke test exercises the locally-built addon instead: `npm run build` once at
 the package root, then `node test/smoke.mjs` (or `bun test/smoke.mjs`).

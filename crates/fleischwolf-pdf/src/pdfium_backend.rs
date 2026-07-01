@@ -66,9 +66,6 @@ pub struct PdfDocument {
     pub pages: Vec<PdfPage>,
 }
 
-/// Bind to the pdfium dynamic library. Honors `PDFIUM_DYNAMIC_LIB_PATH` (a
-/// directory or file), else the directory of the current exe, else the system
-/// library — mirroring how a deployment ships `libpdfium` alongside the binary.
 /// Whether to use the docling-parse line sanitizer ([`crate::dp_lines`]) for prose
 /// reconstruction — the default. Set `DOCLING_LEGACY_LINES` to fall back to the
 /// older gap-heuristic `lines_from_glyphs`.
@@ -97,15 +94,33 @@ pub(crate) fn use_parser_code() -> bool {
     std::env::var("DOCLING_PDFIUM_WORDS").is_err() && std::env::var("DOCLING_PDFIUM_TEXT").is_err()
 }
 
+/// Try binding pdfium from a directory (or a literal library file path):
+/// `<dir>/<platform library name>` first, else `<dir>` itself as the file.
+fn try_bind_dir(path: &str) -> Option<Box<dyn pdfium_render::prelude::PdfiumLibraryBindings>> {
+    let name = Pdfium::pdfium_platform_library_name_at_path(path);
+    if let Ok(b) = Pdfium::bind_to_library(&name) {
+        return Some(b);
+    }
+    Pdfium::bind_to_library(path).ok()
+}
+
+/// Bind to the pdfium dynamic library. Honors `PDFIUM_DYNAMIC_LIB_PATH` (a
+/// directory or file) first; else falls back to `.pdfium/lib` relative to the
+/// current directory (the layout `scripts/download_dependencies.sh` and
+/// `scripts/pdf_setup.sh` both produce); else the system library.
 fn bind() -> Result<Pdfium, PdfiumError> {
     if let Ok(path) = std::env::var("PDFIUM_DYNAMIC_LIB_PATH") {
-        let name = Pdfium::pdfium_platform_library_name_at_path(&path);
-        if let Ok(b) = Pdfium::bind_to_library(&name) {
+        if let Some(b) = try_bind_dir(&path) {
             return Ok(Pdfium::new(b));
         }
-        if let Ok(b) = Pdfium::bind_to_library(&path) {
-            return Ok(Pdfium::new(b));
-        }
+    }
+    // No env var (or it didn't resolve): fall back to `.pdfium/lib` relative to
+    // the current directory — mirroring `layout.rs`/`ocr.rs`'s `models/…`
+    // defaults — the layout `scripts/download_dependencies.sh` (and
+    // `scripts/pdf_setup.sh`) produce, so a checkout with the dependencies
+    // downloaded next to it needs no env var at all.
+    if let Some(b) = try_bind_dir(".pdfium/lib") {
+        return Ok(Pdfium::new(b));
     }
     Pdfium::bind_to_system_library().map(Pdfium::new)
 }

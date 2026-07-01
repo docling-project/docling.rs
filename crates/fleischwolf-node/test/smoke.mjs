@@ -96,24 +96,24 @@ async function main() {
   // These assume the ML models are NOT installed (true on a fresh CI checkout).
   const depsInstalled = checkDependencies().ready
   if (!depsInstalled) {
-    await check('convert PDF (sync) throws pointing at installDependencies', () => {
+    await check('convert PDF (sync) throws pointing at download_dependencies.sh', () => {
       assert.throws(
         () => convert({ name: 'doc.pdf', data: Buffer.from('%PDF-1.4') }),
-        /installDependencies/,
+        /download_dependencies\.sh/,
       )
     })
 
     await check('convertFileAsync PDF rejects (not a sync throw)', async () => {
-      await assert.rejects(convertFileAsync('missing.pdf'), /installDependencies/)
+      await assert.rejects(convertFileAsync('missing.pdf'), /download_dependencies\.sh/)
     })
 
     await check('image bytes are guarded too', () => {
-      assert.throws(() => convert({ name: 'scan.png', data: Buffer.from([0]) }), /installDependencies/)
+      assert.throws(() => convert({ name: 'scan.png', data: Buffer.from([0]) }), /download_dependencies\.sh/)
     })
 
     await check('Pipeline convertFile is guarded', () => {
       const pipe = new Pipeline()
-      assert.throws(() => pipe.convertFile('x.pdf'), /installDependencies/)
+      assert.throws(() => pipe.convertFile('x.pdf'), /download_dependencies\.sh/)
     })
   } else {
     console.log('  --  ML deps installed; skipping guard checks')

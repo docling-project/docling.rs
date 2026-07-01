@@ -3,7 +3,8 @@
 // Wraps the native N-API binding (loaded by `native.js`, which picks the right
 // prebuilt `.node` for the host platform) with two things:
 //   1. dependency guards — converting a PDF/image/METS input throws a clear
-//      error unless the ML models + pdfium are installed (see installDependencies);
+//      error unless the ML models + pdfium are on disk (see
+//      scripts/download_dependencies.sh);
 //   2. a `streamFileMarkdown` async generator over Markdown chunks.
 //
 // Works in Node.js and Bun (Bun implements N-API).
@@ -11,11 +12,7 @@
 'use strict'
 
 const native = require('./native.js')
-const {
-  installDependencies,
-  checkDependencies,
-  assertMlReady,
-} = require('./deps.js')
+const { checkDependencies, assertMlReady } = require('./deps.js')
 
 // Resolve the format id of an input for the ML guard. Uses the native
 // extension→format map; falls back to an explicitly-passed format string.
@@ -170,7 +167,6 @@ module.exports.convertFileAsync = convertFileAsync
 module.exports.DocumentConverter = DocumentConverter
 module.exports.Pipeline = Pipeline
 module.exports.streamFileMarkdown = streamFileMarkdown
-module.exports.installDependencies = installDependencies
 module.exports.checkDependencies = checkDependencies
 module.exports.supportedFormats = native.supportedFormats
 module.exports.formatFromName = native.formatFromName

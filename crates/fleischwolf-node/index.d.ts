@@ -68,36 +68,11 @@ export interface DependencyStatus {
   missing: string[]
 }
 
-/** Options for {@link installDependencies}. */
-export interface InstallOptions {
-  /** Install home (default `~/.cache/fleischwolf` or `$FLEISCHWOLF_HOME`). */
-  dir?: string
-  /** Base URL serving `layout_heron.onnx` and `tableformer/*.onnx`. Falls back to `$FLEISCHWOLF_MODELS_URL`. */
-  modelsUrl?: string
-  /** Also fetch the OCR model + dictionary (default true). */
-  ocr?: boolean
-  /** Also fetch TableFormer from `modelsUrl` if provided (default true). */
-  tableformer?: boolean
-  /** Re-download assets that already exist (default false). */
-  force?: boolean
-  /** Progress callback. */
-  onProgress?: (message: string) => void
-}
-
 /**
- * Download and install everything the PDF/image pipeline needs (pdfium + OCR
- * always; layout + TableFormer from `modelsUrl`/`FLEISCHWOLF_MODELS_URL`), then
- * point the process at it. Idempotent. Rejects if PDF conversion cannot be made
- * ready (e.g. no models URL and no local layout model).
- *
- * @example
- * import { installDependencies, convertFileAsync } from 'fleischwolf'
- * await installDependencies({ modelsUrl: 'https://example.com/fleischwolf-models' })
- * const res = await convertFileAsync('paper.pdf', { to: 'markdown' })
+ * Report which PDF/image dependencies are present on disk. Fetch them with
+ * `scripts/download_dependencies.sh` (see the package README) — this function
+ * only reports status, it does not download anything.
  */
-export declare function installDependencies(options?: InstallOptions): Promise<DependencyStatus>
-
-/** Report which PDF/image dependencies are present, without downloading. */
 export declare function checkDependencies(options?: { dir?: string }): DependencyStatus
 
 // --- streaming --------------------------------------------------------------
