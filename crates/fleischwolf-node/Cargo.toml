@@ -1,0 +1,37 @@
+# Node.js / Bun bindings for Fleischwolf, built with napi-rs.
+#
+# Produces a native N-API addon (`.node`) that loads in both Node.js and Bun
+# (Bun implements N-API). The TypeScript surface mirrors the Rust
+# `DocumentConverter`: convert a file or in-memory bytes to Markdown or docling
+# JSON, with the same knobs (strict Markdown, image modes, allowed formats,
+# external image fetching) plus incremental Markdown streaming.
+#
+# This crate is intentionally kept OUT of the default workspace members' publish
+# flow (it ships to npm, not crates.io). It is a `cdylib` — the only artifact is
+# the addon, there is no Rust library API here.
+[package]
+name = "fleischwolf-node"
+description = "Node.js / Bun bindings for Fleischwolf (a Rust port of docling)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+# ort (via fleischwolf-pdf) needs a newer compiler than the std-only crates.
+rust-version = "1.82"
+# Not a crates.io library — the deliverable is the npm package.
+publish = false
+
+[lib]
+# napi addons are C-ABI dynamic libraries loaded by the JS runtime.
+crate-type = ["cdylib"]
+
+[dependencies]
+fleischwolf = { path = "../fleischwolf", version = "0.6.1" }
+# Node-API bindings. `napi4` enables threadsafe functions, used for streaming.
+napi = { version = "2", default-features = false, features = ["napi4"] }
+napi-derive = "2"
+
+[build-dependencies]
+napi-build = "2"

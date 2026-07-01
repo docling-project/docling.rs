@@ -14,6 +14,8 @@ members = [
     "crates/fleischwolf",
     "crates/fleischwolf-cli",
     "crates/fleischwolf-pdf",
+    # Node.js / Bun N-API bindings (published to npm, not crates.io).
+    "crates/fleischwolf-node",
 ]
 
 [workspace.package]

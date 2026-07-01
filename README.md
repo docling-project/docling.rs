@@ -152,6 +152,35 @@ buffered `export_to_markdown_with_images` path. Use
 The CLI streams Markdown by default (`--no-stream` opts back into buffering;
 `--to json` and `--images referenced` always buffer).
 
+## Node.js / Bun bindings
+
+Native TypeScript bindings live in
+[`crates/fleischwolf-node`](./crates/fleischwolf-node) (built with
+[napi-rs](https://napi.rs)). They ship a real `.node` addon that loads in both
+Node.js and Bun (Bun implements N-API — same binary, no rebuild), exposing the
+converter with the same knobs as the Rust API: Markdown / docling JSON output,
+`strict` mode, image modes, allowed-format restriction, `fetchImages`, sync +
+async (`Promise`) calls, and a `streamFileMarkdown` async generator.
+
+```bash
+cd crates/fleischwolf-node && npm install && npm run build
+```
+
+```ts
+import { convertFile, convertFileAsync, streamFileMarkdown } from 'fleischwolf'
+
+const { content } = convertFile('report.docx')          // Markdown
+const json = await convertFileAsync('paper.pdf', { to: 'json' })
+for await (const chunk of streamFileMarkdown('paper.pdf')) process.stdout.write(chunk)
+```
+
+Declarative formats work out of the box. The PDF/image pipeline needs pdfium +
+the ONNX models (not bundled), so it throws until you call `installDependencies()`
+— which auto-downloads pdfium/OCR and fetches the layout/TableFormer ONNX from a
+`modelsUrl` you host. A reusable `Pipeline` keeps those models warm across many
+PDFs. See [`crates/fleischwolf-node/README.md`](./crates/fleischwolf-node/README.md)
+for the full API and runnable Node + Bun examples.
+
 ## Testing
 
 All commands run from the `fleischwolf/` workspace root.
@@ -286,7 +315,9 @@ fleischwolf — bigger means Rust wins by more.
 |---|---|---|
 | `fleischwolf-core` | `DoclingDocument` model + serializers | `docling-core` |
 | `fleischwolf` | `DocumentConverter`, source loading, backends | `docling` |
+| `fleischwolf-pdf` | PDF/image ML pipeline (pdfium + ONNX layout/table/OCR) | `docling` PDF pipeline |
 | `fleischwolf-cli` | command-line interface | `docling.cli` |
+| `fleischwolf-node` | Node.js / Bun N-API bindings (npm package) | — |
 
 ## License
 
