@@ -36,8 +36,11 @@ with [`mail-parser`](https://crates.io/crates/mail-parser) (which conforms to
 routed through the HTML backend, with embedded images resolved from the
 archive by `Content-Location`/`cid:`. The discriminative PDF/image pipeline
 lives in `fleischwolf-pdf`: a pure-Rust PDF text parser, pdfium for page
-rasterization, and an ONNX layout/TableFormer/OCR stack. Audio/ASR is the main
-format still on the roadmap (see `MIGRATION.md`).
+rasterization, and an ONNX layout/TableFormer/OCR stack. TableFormer is ported
+to ONNX and run on every detected table region to recover its structure;
+geometric reconstruction from cell positions remains only as the fallback when
+the TableFormer graphs aren't present (see `PDF_CONFORMANCE.md`). Audio/ASR is
+the main format still on the roadmap (see `MIGRATION.md`).
 
 Output is checked against upstream Python docling — declarative formats
 byte-for-byte against live docling, the ML pipeline against a deterministic

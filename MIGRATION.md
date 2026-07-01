@@ -203,9 +203,6 @@ Explicitly **not done**, with the reason:
   classification, formula understanding, code understanding). Model-bound; out of
   scope for the discriminative port.
 
-(**TableFormer is now done** — ported to ONNX and run on every table region; see
-§5 and `PDF_CONFORMANCE.md`. Geometric reconstruction remains only as the fallback
-when the TableFormer graphs aren't present.)
 - **XML DocLang / DocTags** input backend — no `.dclg` sources in the corpus to
   verify against, and not in the requested scope.
 - **Older patent schemas.** USPTO covers the modern `v4x` XML only; the
