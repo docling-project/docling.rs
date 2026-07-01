@@ -57,7 +57,7 @@ jobs:
       - name: Install TableFormer export deps
         continue-on-error: true
         id: tf-deps
-        run: pip install docling_ibm_models onnxscript onnxruntime huggingface_hub
+        run: pip install docling_ibm_models onnxscript onnxruntime huggingface_hub opencv-python-headless
 
       - name: Export TableFormer
         if: steps.tf-deps.outcome == 'success'
