@@ -50,10 +50,12 @@ if [ ! -f models/tableformer/decoder.onnx ]; then
   fi
 fi
 
-# Optional: INT8-quantize the layout model + TableFormer decoder for faster CPU
-# inference (validated conformance-neutral — see PDF_PERFORMANCE.md). Opt in
-# with FLEISCHWOLF_INT8=1; needs onnx onnxruntime sympy pypdfium2 pillow numpy.
-if [ "${FLEISCHWOLF_INT8:-0}" = "1" ] && [ ! -f models/layout_heron_int8.onnx ]; then
+# INT8-quantize the layout model + TableFormer decoder for faster CPU
+# inference (validated conformance-neutral — see PDF_PERFORMANCE.md). The
+# pipeline prefers the int8 files automatically once they exist; skip building
+# them with FLEISCHWOLF_FP32=1. Needs onnx onnxruntime sympy pypdfium2 pillow
+# numpy — a missing-deps failure is non-fatal (fp32 keeps working).
+if [ "${FLEISCHWOLF_FP32:-0}" != "1" ] && [ ! -f models/layout_heron_int8.onnx ]; then
   echo "→ INT8-quantizing layout + TableFormer decoder"
   if ! "${PYTHON:-python3}" scripts/quantize_models.py; then
     echo "  ! quantization failed (missing deps?). The fp32 models still work;"
@@ -64,7 +66,7 @@ fi
 echo "done. export these before running the pipeline:"
 echo "  export PDFIUM_DYNAMIC_LIB_PATH=$(pwd)/.pdfium/lib"
 if [ -f models/layout_heron_int8.onnx ]; then
-  echo "  export DOCLING_LAYOUT_ONNX=$(pwd)/models/layout_heron_int8.onnx   # int8 (fp32: layout_heron.onnx)"
+  echo "  export DOCLING_LAYOUT_ONNX=$(pwd)/models/layout_heron_int8.onnx   # int8 default (fp32: layout_heron.onnx, or FLEISCHWOLF_FP32=1)"
 else
   echo "  export DOCLING_LAYOUT_ONNX=$(pwd)/models/layout_heron.onnx"
 fi
@@ -77,7 +79,7 @@ if [ -f models/tableformer/decoder.onnx ]; then
   # no matter where the binary/binding is actually invoked from.
   echo "  export DOCLING_TABLEFORMER_ENCODER=$(pwd)/models/tableformer/encoder.onnx"
   if [ -f models/tableformer/decoder_int8.onnx ]; then
-    echo "  export DOCLING_TABLEFORMER_DECODER=$(pwd)/models/tableformer/decoder_int8.onnx   # int8 (fp32: decoder.onnx)"
+    echo "  export DOCLING_TABLEFORMER_DECODER=$(pwd)/models/tableformer/decoder_int8.onnx   # int8 default (fp32: decoder.onnx, or FLEISCHWOLF_FP32=1)"
   else
     echo "  export DOCLING_TABLEFORMER_DECODER=$(pwd)/models/tableformer/decoder.onnx"
   fi

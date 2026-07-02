@@ -306,25 +306,30 @@ come from Hugging Face (`$FLEISCHWOLF_ASR_MODELS_URL` overrides, or point
 only for now — other platforms, or building the models from source, need
 [`scripts/pdf_setup.sh`](#testing) instead.
 
-### INT8 models (faster PDF conversion on CPU)
+### INT8 models (faster PDF conversion on CPU — the default)
 
-The optional `*_int8` assets are post-training quantizations of the same
-models: Conv-only static INT8 of the layout detector (calibrated on this
-repo's PDF corpus) and dynamic INT8 of the TableFormer decoder. On CPUs with
-AVX-512 VNNI they make layout inference — the dominant PDF cost — **~2.4×
-faster** (~1.4–1.7× end-to-end) at conformance validated as unchanged against
-the corpus groundtruth; the TableFormer output is byte-identical. See
-[`PDF_PERFORMANCE.md`](./PDF_PERFORMANCE.md) for the measurements. They are
-opt-in — point the pipeline at them explicitly:
+The `*_int8` assets are post-training quantizations of the same models:
+Conv-only static INT8 of the layout detector (calibrated on this repo's PDF
+corpus) and dynamic INT8 of the TableFormer decoder. On CPUs with AVX-512
+VNNI they make layout inference — the dominant PDF cost — **~2.4× faster**
+(~1.4–1.8× end-to-end) at conformance validated as unchanged against the
+corpus groundtruth; the TableFormer output is byte-identical. See
+[`PDF_PERFORMANCE.md`](./PDF_PERFORMANCE.md) for the measurements.
+
+**The pipeline uses them automatically** whenever they sit next to the fp32
+files at the default paths (`download_dependencies.sh` fetches them by
+default; `--no-int8` skips, or build them with `python
+scripts/quantize_models.py`). To force full precision:
 
 ```bash
-scripts/download_dependencies.sh --int8   # or: python scripts/quantize_models.py
-export DOCLING_LAYOUT_ONNX=$PWD/models/layout_heron_int8.onnx
-export DOCLING_TABLEFORMER_DECODER=$PWD/models/tableformer/decoder_int8.onnx
+FLEISCHWOLF_FP32=1 fleischwolf input.pdf          # keep the int8 files, use fp32
+# or pin a model explicitly — an explicit path always wins:
+export DOCLING_LAYOUT_ONNX=$PWD/models/layout_heron.onnx
+export DOCLING_TABLEFORMER_DECODER=$PWD/models/tableformer/decoder.onnx
 ```
 
-(The [example Dockerfile](./examples/Dockerfile) bakes and defaults to the
-INT8 models; build with `--build-arg INT8=0` for pure fp32.)
+(The [example Dockerfile](./examples/Dockerfile) bakes both precisions and
+defaults to INT8; build with `--build-arg INT8=0` for pure fp32.)
 
 Then either:
 

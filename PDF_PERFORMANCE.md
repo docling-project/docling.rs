@@ -43,6 +43,13 @@ default 2×2 on 4 cores) was re-validated: 2×2 beat both 4×1 and 1×4 on the
 `scripts/quantize_models.py` produces two quantized models. Point
 `DOCLING_LAYOUT_ONNX` / `DOCLING_TABLEFORMER_DECODER` at them to opt in.
 
+**These are now the default:** when the `*_int8` files sit next to the fp32
+models at the default paths, the pipeline loads them automatically.
+`FLEISCHWOLF_FP32=1` forces full precision, and an explicit
+`DOCLING_LAYOUT_ONNX` / `DOCLING_TABLEFORMER_DECODER` always wins (the
+conformance/groundtruth scripts pin fp32 explicitly, so snapshots stay
+deterministic).
+
 ### Layout: static QDQ INT8, **Conv ops only** (~2.4× faster layout)
 
 Calibrated on 42 real corpus pages preprocessed exactly like
@@ -103,10 +110,12 @@ item 2), which is why quantization helps so little there.
 
 Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.
 
-1. **Ship/document the INT8 layout model as the default CPU configuration**
-   (done here as an opt-in; consider making `download_dependencies.sh` fetch a
-   pre-quantized `layout_heron_int8.onnx` so users don't need the Python
-   tooling). Biggest single validated win: ~1.4–2× end-to-end.
+1. ~~**Ship/document the INT8 layout model as the default CPU
+   configuration**~~ **Done on this branch:** the pipeline prefers the int8
+   models when present (`FLEISCHWOLF_FP32=1` opts out),
+   `download_dependencies.sh` fetches them by default, and
+   `publish-models.yml` builds them. Biggest single validated win: ~1.4–2×
+   end-to-end.
 2. **TableFormer decode-loop overhead** (~800 ms/table, ~60–500 steps):
    - ~~`decode_step` copies the whole KV cache out (`ocache.to_vec()`) and back
      in every step — O(steps²·6·512) float traffic.~~ **Done on this branch:**
@@ -180,18 +189,19 @@ cargo build --release
 # stage timing
 FLEISCHWOLF_TIMING=1 ./target/release/fleischwolf input.pdf > /dev/null
 
-# quantize + opt in
+# build the int8 models (used automatically once present)
 uv venv .venv-quant && uv pip install --python .venv-quant/bin/python \
     onnx onnxruntime sympy pypdfium2 pillow numpy
 .venv-quant/bin/python scripts/quantize_models.py
-export DOCLING_LAYOUT_ONNX=$PWD/models/layout_heron_int8.onnx
-export DOCLING_TABLEFORMER_DECODER=$PWD/models/tableformer/decoder_int8.onnx
+
+# force full precision for a run
+FLEISCHWOLF_FP32=1 ./target/release/fleischwolf input.pdf > /dev/null
 ```
 
-Integration points: `scripts/download_dependencies.sh --int8` fetches
-pre-quantized assets from the models release (published by
+Integration points: `scripts/download_dependencies.sh` fetches the
+pre-quantized assets by default (`--no-int8` skips; published by
 `.github/workflows/publish-models.yml`, which quantizes after export);
-`scripts/pdf_setup.sh` quantizes locally with `FLEISCHWOLF_INT8=1`;
-`scripts/performance.sh` benchmarks the int8 stack with `FLEISCHWOLF_INT8=1`;
-`examples/Dockerfile` bakes both precisions and defaults to int8
-(`--build-arg INT8=0` for fp32).
+`scripts/pdf_setup.sh` quantizes locally unless `FLEISCHWOLF_FP32=1`;
+`scripts/performance.sh` benchmarks whatever the pipeline default resolves to
+(int8 when present, `FLEISCHWOLF_FP32=1` for fp32); `examples/Dockerfile`
+bakes both precisions and defaults to int8 (`--build-arg INT8=0` for fp32).

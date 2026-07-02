@@ -80,8 +80,13 @@ impl TableFormer {
     pub fn load_with(intra: usize) -> Option<Self> {
         let enc = std::env::var("DOCLING_TABLEFORMER_ENCODER")
             .unwrap_or_else(|_| "models/tableformer/encoder.onnx".to_string());
-        let dec = std::env::var("DOCLING_TABLEFORMER_DECODER")
-            .unwrap_or_else(|_| "models/tableformer/decoder.onnx".to_string());
+        // Prefer the INT8 decoder when present (byte-identical output, faster
+        // decode; FLEISCHWOLF_FP32=1 opts out) unless explicitly overridden.
+        let dec = crate::model_path(
+            "DOCLING_TABLEFORMER_DECODER",
+            "models/tableformer/decoder.onnx",
+            "models/tableformer/decoder_int8.onnx",
+        );
         let bbx = std::env::var("DOCLING_TABLEFORMER_BBOX")
             .unwrap_or_else(|_| "models/tableformer/bbox.onnx".to_string());
         if [&enc, &dec, &bbx]

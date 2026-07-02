@@ -29,13 +29,15 @@
 #   models/asr/{encoder_model,decoder_model}.onnx + vocab.json   (Whisper tiny,
 #     from Hugging Face; skip with --no-asr)
 #
-# With --int8, additionally fetches the INT8-quantized CPU models (see
+# Also fetches the INT8-quantized CPU models when the release hosts them (see
 # PDF_PERFORMANCE.md — ~2.4x faster layout inference at unchanged conformance):
 #   models/layout_heron_int8.onnx
 #   models/tableformer/decoder_int8.onnx
-# and prints the DOCLING_* exports that opt the pipeline into them. If the
-# release doesn't host the int8 assets (older tag), it falls back to telling
-# you how to produce them locally with scripts/quantize_models.py.
+# The pipeline picks these up automatically when they sit next to the fp32
+# files (no env vars needed); set FLEISCHWOLF_FP32=1 at runtime to force full
+# precision, or skip fetching them entirely with --no-int8. If the release
+# doesn't host the int8 assets (older tag), a note explains how to produce
+# them locally with scripts/quantize_models.py.
 #
 # pdfium is Linux x64 only for now, matching what's hosted in the release; for
 # other platforms (or to build the models from source) see scripts/pdf_setup.sh.
@@ -52,14 +54,15 @@ ASR_BASE_URL="${FLEISCHWOLF_ASR_MODELS_URL:-https://huggingface.co/onnx-communit
 
 FORCE=false
 WITH_ASR=true
-WITH_INT8=false
+WITH_INT8=true
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=true ;;
     --no-asr) WITH_ASR=false ;;
-    --int8) WITH_INT8=true ;;
+    --int8) WITH_INT8=true ;; # accepted for compatibility; int8 is the default
+    --no-int8) WITH_INT8=false ;;
     *)
-      echo "usage: download_dependencies.sh [--force] [--no-asr] [--int8]" >&2
+      echo "usage: download_dependencies.sh [--force] [--no-asr] [--no-int8]" >&2
       exit 2
       ;;
   esac
@@ -120,20 +123,18 @@ if [ "$WITH_ASR" = true ]; then
 fi
 
 if [ "$WITH_INT8" = true ]; then
-  # INT8-quantized CPU models (optional release assets). The pipeline stays on
-  # fp32 unless the DOCLING_* env vars below point at these files.
+  # INT8-quantized CPU models (optional release assets). The pipeline prefers
+  # them automatically when they sit at the default paths; FLEISCHWOLF_FP32=1
+  # forces the fp32 models at runtime.
   fetch_optional "$BASE_URL/layout_heron_int8.onnx" models/layout_heron_int8.onnx
   fetch_optional "$BASE_URL/decoder_int8.onnx" models/tableformer/decoder_int8.onnx
   if [ -f models/layout_heron_int8.onnx ]; then
-    echo "int8 models fetched — opt in with:"
-    echo "  export DOCLING_LAYOUT_ONNX=$(pwd)/models/layout_heron_int8.onnx"
-    if [ -f models/tableformer/decoder_int8.onnx ]; then
-      echo "  export DOCLING_TABLEFORMER_DECODER=$(pwd)/models/tableformer/decoder_int8.onnx"
-    fi
+    echo "int8 models present — used by default (FLEISCHWOLF_FP32=1 forces full precision)"
   else
-    echo "int8 assets not hosted at $BASE_URL — build them locally instead:"
+    echo "int8 assets not hosted at $BASE_URL — the fp32 models will be used."
+    echo "To build the int8 models locally (see PDF_PERFORMANCE.md):"
     echo "  pip install onnx onnxruntime sympy pypdfium2 pillow numpy"
-    echo "  python scripts/quantize_models.py    # see PDF_PERFORMANCE.md"
+    echo "  python scripts/quantize_models.py"
   fi
 fi
 
