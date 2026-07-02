@@ -91,17 +91,15 @@ Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.
    pre-quantized `layout_heron_int8.onnx` so users don't need the Python
    tooling). Biggest single validated win: ~1.4–2× end-to-end.
 2. **TableFormer decode-loop overhead** (~800 ms/table, ~60–500 steps):
-   - `decode_step` copies the whole KV cache out (`ocache.to_vec()`) and back
-     in every step — O(steps²·6·512) float traffic. `ort` can feed a session
-     *output* `Value` directly as the next run's input; keeping the cache as a
-     `Value` avoids both copies.
-   - The exported graph re-embeds the **full tag sequence** every step
+   - ~~`decode_step` copies the whole KV cache out (`ocache.to_vec()`) and back
+     in every step — O(steps²·6·512) float traffic.~~ **Done on this branch:**
+     the cache and the encoder's cross-K/V + `enc_out` stay owned `ort` values
+     fed straight back into the next run (~9% faster structure decode,
+     byte-identical output).
+   - The exported graph still re-embeds the **full tag sequence** every step
      (`tags` grows each iteration) even though attention is KV-cached. Re-export
      the decoder to take only the last tag (the cache carries the history) —
-     docling's own export keeps this shape; worth checking
-     `scripts/export_tableformer.py`.
-   - Batch the bbox decoder input copies (`enc.eo.clone()` per table is a full
-     encoder-output copy; a `TensorRef` view suffices).
+     this is the remaining per-step cost; see `scripts/export_tableformer.py`.
 3. **Layout batching for the parallel path**: the pool currently runs batch-1
    inference per page. RT-DETR's 640×640 input is fixed-shape, so pages can be
    batched (e.g. batch-4) per worker with one session — better core utilization
@@ -124,8 +122,10 @@ Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.
      Type1 program scan, width maps) for **every page** and every Form-XObject
      invocation (`textparse.rs:794`); cache parsed `Font`s per document keyed
      by the font dict's `ObjectId`, and cache decoded Form XObject content.
-   - `line_cells` + `word_cells` run the identical build+contract twice per
-     page (`textparse.rs:705-709`); one pass can emit both.
+   - ~~`line_cells` + `word_cells` run the identical build+contract twice per
+     page; one pass can emit both.~~ **Done on this branch**
+     (`dp_lines::line_and_word_cells`): ~1.25× faster `--no-ocr` conversion,
+     identical output.
    - `decode_code`/`decompose_ligatures` allocate a `String` per glyph
      (`textparse.rs:94-145`); decompose once at font-parse time and return
      borrowed `&str`.
@@ -136,10 +136,11 @@ Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.
    buckets keeps determinism per line and would speed scanned documents
    several-fold; alternatively run multiple single-thread recognitions across
    the existing worker pool.
-7. **ort session options**: sessions use default graph optimization; worth
-   setting `GraphOptimizationLevel::Level3` explicitly plus
-   `with_optimized_model_path` to cache the optimized graph across loads (saves
-   a chunk of the per-worker model-load latency the pool pays on first use).
+7. **ort session options**: checked — ONNX Runtime's C-API default is already
+   `ORT_ENABLE_ALL`, so an explicit optimization level gains nothing.
+   `with_optimized_model_path` (caching the optimized graph on disk) could
+   still shave per-worker model-load latency; only worth it if pool spin-up
+   shows up in a real deployment.
 
 ## Correctness notes found during review (quality, not speed)
 
