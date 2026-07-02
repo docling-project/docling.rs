@@ -13,7 +13,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Dependency order: a crate must be published before anything that depends on it.
-CRATES=(fleischwolf-core fleischwolf-pdf fleischwolf fleischwolf-cli)
+CRATES=(fleischwolf-core fleischwolf-pdf fleischwolf-asr fleischwolf fleischwolf-cli)
 
 UA="fleischwolf-ci (https://github.com/artiz/fleischwolf)"
 
