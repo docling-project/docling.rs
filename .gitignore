@@ -4,6 +4,11 @@ Cargo.lock
 # Secrets — never commit (holds CARGO_REGISTRY_TOKEN)
 .env
 .env.*
+# …but the documented template for fleischwolf-rag config is committed.
+!.env.example
+
+# Local RAG vector store (default RAG_DATABASE_URL=sqlite://data/rag.db)
+/data/
 
 # Local editable docling installs used by scripts/compare.sh & performance.sh
 # .venv-compare is the lightweight (no-torch) declarative-format env;
@@ -23,3 +28,4 @@ __pycache__/
 # Local docling ground-truth env & scratch dir for this migration work
 /.venv-gt
 /scratch-gt
+

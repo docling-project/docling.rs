@@ -1,0 +1,42 @@
+{
+  "documents": [
+    {
+      "name": "chunking",
+      "markdown": "# Chunking\n\n## Overview\n\nBefore embedding, each document is split into overlapping chunks of a configurable size (300 words by default) with a small overlap (5% by default) so that context is not lost at chunk boundaries.\n\n## Heading context\n\nEach chunk is prefixed with the heading path of its section so the embedded text retains its structural context."
+    },
+    {
+      "name": "embeddings",
+      "markdown": "# Embeddings\n\nThe default embedding provider is Ollama running the bge-m3 model, which produces 1024-dimensional vectors. Alternative providers include Google Gemini and a local ONNX model."
+    },
+    {
+      "name": "retrieval",
+      "markdown": "# Retrieval\n\n## Hybrid\n\nHybrid retrieval fuses dense vector search with sparse BM25 keyword search using Reciprocal Rank Fusion.\n\n## HyDE\n\nHyDE asks the language model to write a hypothetical answer, then embeds that answer to drive the vector search.\n\n## Multi-Query\n\nMulti-Query rewrites the question into several diverse queries and fuses their results."
+    },
+    {
+      "name": "storage",
+      "markdown": "# Storage\n\nDocuments and their chunks are stored in two separate tables. The default backend is SQLite; PostgreSQL with the pgvector extension is also supported."
+    }
+  ],
+  "queries": [
+    {
+      "query": "what is the default chunk size and overlap",
+      "relevant": ["300 words", "5%", "overlapping chunks"]
+    },
+    {
+      "query": "which embedding model is used by default and how many dimensions",
+      "relevant": ["bge-m3", "1024-dimensional"]
+    },
+    {
+      "query": "how does hybrid search combine methods",
+      "relevant": ["Reciprocal Rank Fusion", "BM25"]
+    },
+    {
+      "query": "where are document chunks stored",
+      "relevant": ["two separate tables", "SQLite", "pgvector"]
+    },
+    {
+      "query": "how does HyDE work",
+      "relevant": ["hypothetical answer"]
+    }
+  ]
+}

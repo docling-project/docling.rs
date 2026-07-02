@@ -55,6 +55,22 @@ byte-for-byte against live docling, the ML pipeline against a deterministic
 snapshot baseline. See [`COMPARING.md`](./COMPARING.md) and
 `scripts/conformance.sh`.
 
+## RAG subsystem
+
+[`crates/fleischwolf-rag`](./crates/fleischwolf-rag) builds a pluggable
+Retrieval-Augmented-Generation layer on top of the converter: it turns documents
+into Markdown, chunks them (configurable size / overlap), embeds the chunks, and
+stores them in a vector database for semantic search. Every external dependency is
+a swappable trait — embedders (**Ollama**/Gemini/local-ONNX), vector stores
+(**SQLite+sqlite-vec**/PostgreSQL+pgvector), LLM (**OpenRouter**, DeepSeek-V3 by default),
+document sources (**folder**/FTP/SFTP), and message queues
+(**in-process**/RabbitMQ/Redis). It ships Hybrid, Multi-Query fusion and HyDE
+retrieval plus an evaluation harness to compare configurations and an
+API-key-protected REST API (`fleischwolf-rag serve`) for document info and
+search. Configure it via [`.env`](./.env.example); see the
+[crate README](./crates/fleischwolf-rag/README.md) for a quickstart on any
+documents folder.
+
 ## The API
 
 ```rust

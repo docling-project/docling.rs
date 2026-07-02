@@ -6,6 +6,7 @@
 #   fleischwolf-pdf   — the PDF/image ML pipeline (pdfium text + ONNX layout/OCR)
 #   fleischwolf-asr   — the audio/ASR pipeline (symphonia decode + ONNX Whisper)
 #   fleischwolf-cli   — the `fleischwolf` command-line binary
+#   fleischwolf-rag   — pluggable RAG (chunk/embed/store/search) over the converter
 # See MIGRATION.md for the Python → Rust mapping and what is / isn't ported.
 
 [workspace]
@@ -18,6 +19,9 @@ members = [
     "crates/fleischwolf-pdf",
     # Node.js / Bun N-API bindings (published to npm, not crates.io).
     "crates/fleischwolf-node",
+    # RAG subsystem: chunking + embeddings + vector store + semantic search.
+    # A self-contained async (tokio) island; does not touch the sync crates above.
+    "crates/fleischwolf-rag",
 ]
 
 [workspace.package]

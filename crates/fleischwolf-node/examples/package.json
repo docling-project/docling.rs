@@ -11,6 +11,6 @@
     "pdf": "node pdf-pipeline.mjs"
   },
   "dependencies": {
-    "fleischwolf": "^0.6.1"
+    "fleischwolf": "^0.9.0"
   }
 }
