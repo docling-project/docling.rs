@@ -7,7 +7,7 @@
 use crate::pdfium_backend::TextCell;
 use image::RgbImage;
 use ort::session::Session;
-use ort::value::{Tensor, TensorRef};
+use ort::value::{DynValue, Tensor};
 
 const SIDE: u32 = 448;
 // Verbatim from docling's tm_config.json image_normalization (more digits than
@@ -58,14 +58,12 @@ pub struct TableFormer {
 
 /// Encoder outputs that drive the cached decode loop: the per-layer cross-attention
 /// K/V (projected from the image memory once, constant across decode steps) and
-/// `enc_out` for the bbox decoder. Each is a `(shape, flattened data)` pair.
+/// `enc_out` for the bbox decoder. Kept as owned `ort` values so each decode step
+/// (and the bbox run) borrows them directly — no per-step extract/copy/re-wrap.
 struct EncodeOut {
-    ck_shape: Vec<usize>,
-    ck: Vec<f32>,
-    cv_shape: Vec<usize>,
-    cv: Vec<f32>,
-    eo_shape: Vec<usize>,
-    eo: Vec<f32>,
+    ck: DynValue,
+    cv: DynValue,
+    eo: DynValue,
 }
 
 impl TableFormer {
@@ -129,77 +127,60 @@ impl TableFormer {
     /// shape `[N_LAYERS,1,H,S,head_dim]`) and `enc_out` for the bbox decoder.
     fn encode(&mut self, img: &RgbImage) -> Result<EncodeOut, String> {
         let input = preprocess(img)?;
-        let enc_out = self
+        let mut enc_out = self
             .encoder
             .run(ort::inputs!["image" => input])
             .map_err(|e| format!("tableformer: encode: {e}"))?;
-        let grab = |name: &str| -> Result<(Vec<usize>, Vec<f32>), String> {
-            let (sh, data) = enc_out[name]
-                .try_extract_tensor::<f32>()
-                .map_err(|e| format!("tableformer: {name}: {e}"))?;
-            Ok((sh.iter().map(|&x| x as usize).collect(), data.to_vec()))
+        let mut grab = |name: &str| -> Result<DynValue, String> {
+            enc_out
+                .remove(name)
+                .ok_or_else(|| format!("tableformer: encoder output {name} missing"))
         };
-        let (ck_shape, ck) = grab("cross_k")?;
-        let (cv_shape, cv) = grab("cross_v")?;
-        let (eo_shape, eo) = grab("enc_out")?;
         Ok(EncodeOut {
-            ck_shape,
-            ck,
-            cv_shape,
-            cv,
-            eo_shape,
-            eo,
+            ck: grab("cross_k")?,
+            cv: grab("cross_v")?,
+            eo: grab("enc_out")?,
         })
     }
 
     /// One doubly-cached decode step: feed the current `tags`, the constant cross
-    /// K/V views, and the growing self-attention `cache`; return the raw argmax tag
-    /// and the last token's hidden state, advancing the cache. `empty_cache` is the
-    /// zero-`past` value used on the first step (ort's array constructors reject a
-    /// 0-length dim, so it is allocated through the session allocator by the caller).
+    /// K/V, and the growing self-attention `cache`; return the raw argmax tag and
+    /// the last token's hidden state, advancing the cache. The cache stays an owned
+    /// `ort` value — the previous step's `out_cache` output is fed back directly,
+    /// never extracted or copied (it grows every step, so per-step copies were
+    /// O(steps²) float traffic). `empty_cache` is the zero-`past` value used on the
+    /// first step (ort's array constructors reject a 0-length dim, so it is
+    /// allocated through the session allocator by the caller).
     fn decode_step(
         &mut self,
         tags: &[i64],
         enc: &EncodeOut,
-        cache: &mut Vec<f32>,
-        cache_past: &mut usize,
+        cache: &mut Option<DynValue>,
         empty_cache: &Tensor<f32>,
     ) -> Result<(i64, Vec<f32>), String> {
         let tags_t = Tensor::from_array(([tags.len(), 1usize], tags.to_vec()))
             .map_err(|e| format!("tableformer: tags: {e}"))?;
-        // Constant per-table cross-attention K/V — zero-copy views each step.
-        let ck_t = TensorRef::from_array_view((enc.ck_shape.as_slice(), enc.ck.as_slice()))
-            .map_err(|e| format!("tableformer: cross_k: {e}"))?;
-        let cv_t = TensorRef::from_array_view((enc.cv_shape.as_slice(), enc.cv.as_slice()))
-            .map_err(|e| format!("tableformer: cross_v: {e}"))?;
-        let dout = if *cache_past == 0 {
-            self.decoder.run(ort::inputs![
-                "tags" => tags_t, "cross_k" => ck_t, "cross_v" => cv_t, "cache" => empty_cache])
-        } else {
-            let cache_t = TensorRef::from_array_view((
-                [N_LAYERS, *cache_past, 1, EMBED_DIM],
-                cache.as_slice(),
-            ))
-            .map_err(|e| format!("tableformer: cache: {e}"))?;
-            self.decoder.run(ort::inputs![
-                "tags" => tags_t, "cross_k" => ck_t, "cross_v" => cv_t, "cache" => cache_t])
+        let mut dout = match cache.as_ref() {
+            None => self.decoder.run(ort::inputs![
+                "tags" => tags_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
+                "cache" => empty_cache]),
+            Some(c) => self.decoder.run(ort::inputs![
+                "tags" => tags_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
+                "cache" => c]),
         }
         .map_err(|e| format!("tableformer: decode: {e}"))?;
         let (_, logits) = dout["logits"]
             .try_extract_tensor::<f32>()
             .map_err(|e| format!("tableformer: logits: {e}"))?;
         let raw = argmax(logits) as i64;
-        let (oshape, ocache) = dout["out_cache"]
-            .try_extract_tensor::<f32>()
-            .map_err(|e| format!("tableformer: out_cache: {e}"))?;
-        let next_cache = ocache.to_vec();
-        let next_past = oshape[1] as usize;
         let (_, hidden) = dout["hidden"]
             .try_extract_tensor::<f32>()
             .map_err(|e| format!("tableformer: hidden: {e}"))?;
         let hidden = hidden.to_vec();
-        *cache = next_cache;
-        *cache_past = next_past;
+        *cache = Some(
+            dout.remove("out_cache")
+                .ok_or_else(|| "tableformer: decoder output out_cache missing".to_string())?,
+        );
         Ok((raw, hidden))
     }
 
@@ -218,12 +199,10 @@ impl TableFormer {
         let mut tags: Vec<i64> = vec![START];
         let mut out: Vec<i64> = Vec::new();
         let mut prev_ucel = false;
-        let mut cache: Vec<f32> = Vec::new();
-        let mut cache_past = 0usize;
+        let mut cache: Option<DynValue> = None;
         let empty = self.empty_cache()?;
         while out.len() < MAX_STEPS {
-            let (raw, _hidden) =
-                self.decode_step(&tags, &enc, &mut cache, &mut cache_past, &empty)?;
+            let (raw, _hidden) = self.decode_step(&tags, &enc, &mut cache, &empty)?;
             let mut tag = raw;
             if tag == XCEL {
                 tag = LCEL;
@@ -259,12 +238,10 @@ impl TableFormer {
         let mut bbox_ind = 0usize;
         let mut cur_bbox_ind = 0usize;
         let mut merge: std::collections::HashMap<usize, i64> = std::collections::HashMap::new();
-        let mut cache: Vec<f32> = Vec::new();
-        let mut cache_past = 0usize;
+        let mut cache: Option<DynValue> = None;
         let empty = self.empty_cache()?;
         while otsl.len() < MAX_STEPS {
-            let (raw, hidden) =
-                self.decode_step(&tags, &enc, &mut cache, &mut cache_past, &empty)?;
+            let (raw, hidden) = self.decode_step(&tags, &enc, &mut cache, &empty)?;
             let mut tag = raw;
             if tag == XCEL {
                 tag = LCEL;
@@ -304,11 +281,9 @@ impl TableFormer {
         }
         let tag_h = Tensor::from_array(([n, 512usize], hiddens))
             .map_err(|e| format!("tableformer: tag_h: {e}"))?;
-        let eo_t = Tensor::from_array((enc.eo_shape.clone(), enc.eo.clone()))
-            .map_err(|e| format!("tableformer: eo: {e}"))?;
         let bout = self
             .bbox
-            .run(ort::inputs!["enc_out" => eo_t, "tag_h" => tag_h])
+            .run(ort::inputs!["enc_out" => &enc.eo, "tag_h" => tag_h])
             .map_err(|e| format!("tableformer: bbox: {e}"))?;
         let (_, raw) = bout["boxes"]
             .try_extract_tensor::<f32>()
