@@ -13,6 +13,67 @@ Every external dependency is a trait with swappable backends, so you can mix and
 match a database, embedder, LLM, document source, and message queue without
 touching the pipeline.
 
+## Quickstart: index a folder and search it
+
+No services needed — the deterministic `hash` embedder and bundled SQLite let you
+try the whole pipeline on any folder of documents (Markdown, PDF¹, DOCX, HTML, …)
+in a minute:
+
+```bash
+cp .env.example .env         # optional; every key has a default
+
+# 1. point at any documents folder, pick the offline embedder, set an API key
+export RAG_SOURCE_PATH=~/Documents/notes
+export RAG_EMBED_PROVIDER=hash          # offline; see below for real embeddings
+export RAG_API_KEYS=dev-key
+
+# 2. ingest: convert -> chunk -> embed -> store (SQLite at data/rag.db)
+cargo run -p fleischwolf-rag -- ingest
+
+# 3. search from the CLI ...
+cargo run -p fleischwolf-rag -- query "what did I write about budgets?" --mode hybrid
+cargo run -p fleischwolf-rag -- stats
+
+# 4. ... or serve the REST API (ingests first thanks to --ingest)
+cargo run -p fleischwolf-rag -- serve --ingest
+curl -H 'X-Api-Key: dev-key' 'http://127.0.0.1:8080/api/search?q=budgets&mode=hybrid&k=5'
+```
+
+For real semantic quality, install [Ollama](https://ollama.com), run
+`ollama pull bge-m3`, and drop the `RAG_EMBED_PROVIDER=hash` override — Ollama +
+`bge-m3` (1024-dim) is the default. Re-ingest after switching embedders (vectors
+must all come from the same model): `rm -rf data/ && cargo run -p fleischwolf-rag -- ingest`.
+
+¹ PDF/image inputs additionally need the pdfium + ONNX models — see
+["Getting the ML models"](../../README.md#getting-the-ml-models) in the root README.
+
+## REST API
+
+`fleischwolf-rag serve` exposes the store over HTTP. Authentication uses a static
+API-key list from config (`RAG_API_KEYS`, comma-separated); send the key as
+`X-Api-Key: <key>` or `Authorization: Bearer <key>`. The server refuses to start
+with an empty key list; `GET /health` is the only public route.
+
+| Method | Path                  | Description                                     |
+|--------|-----------------------|-------------------------------------------------|
+| GET    | `/health`             | liveness probe (no auth)                        |
+| GET    | `/api/stats`          | document / chunk counts                         |
+| GET    | `/api/documents`      | all documents with metadata + processing metrics |
+| GET    | `/api/documents/{id}` | one document by id                              |
+| GET    | `/api/search`         | `?q=…&mode=…&k=…` — mode: `vector`, `bm25`, `hybrid`, `multi-query`, `hyde` |
+| POST   | `/api/search`         | `{"query": "…", "mode": "hybrid", "top_k": 5, "answer": false}` |
+
+With `"answer": true` (or `?answer=true`) the LLM synthesizes a grounded answer
+from the retrieved chunks (needs `OPENROUTER_API_KEY`; `multi-query`/`hyde` modes
+need it too). Responses are JSON: `{query, mode, results: [{score, chunk}], answer?}`.
+
+```bash
+curl -s -H 'X-Api-Key: dev-key' \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "how does hybrid search work?", "mode": "multi-query", "answer": true}' \
+  http://127.0.0.1:8080/api/search
+```
+
 ## Features
 
 | Concern      | Trait            | Backends                                                        |
@@ -78,6 +139,9 @@ fleischwolf-rag query "how does hybrid search work?" --answer
 
 # sweep chunk sizes / overlaps / modes over a labelled dataset and rank them
 fleischwolf-rag eval --dataset crates/fleischwolf-rag/tests/data/eval_dataset.json
+
+# serve the REST API (optionally ingesting first); see "REST API" above
+fleischwolf-rag serve --ingest --addr 0.0.0.0:8080
 ```
 
 The `eval` sweep prints a ranked table:

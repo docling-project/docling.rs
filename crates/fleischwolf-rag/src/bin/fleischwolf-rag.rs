@@ -65,6 +65,16 @@ enum Cmd {
 
     /// Print store statistics (document / chunk counts).
     Stats,
+
+    /// Serve the REST API (documents info + search). Requires RAG_API_KEYS.
+    Serve {
+        /// Bind address (overrides RAG_HTTP_ADDR, default 127.0.0.1:8080).
+        #[arg(long)]
+        addr: Option<String>,
+        /// Ingest the configured source before serving.
+        #[arg(long)]
+        ingest: bool,
+    },
 }
 
 #[tokio::main]
@@ -162,6 +172,23 @@ async fn run() -> Result<()> {
             } else {
                 println!("{}", report.to_markdown());
             }
+        }
+
+        Cmd::Serve { addr, ingest } => {
+            let pipeline = Pipeline::from_config(&cfg).await?;
+            if ingest {
+                let report = pipeline.ingest_all().await?;
+                println!(
+                    "ingested {} document(s), skipped {}, failed {}, added {} chunk(s)",
+                    report.documents_ingested,
+                    report.documents_skipped,
+                    report.documents_failed,
+                    report.chunks_added
+                );
+            }
+            let bind = addr.unwrap_or_else(|| cfg.http_addr.clone());
+            println!("serving REST API on http://{bind} (auth: X-Api-Key / Bearer)");
+            fleischwolf_rag::api::serve(pipeline, &bind, cfg.api_keys.clone()).await?;
         }
 
         Cmd::Stats => {

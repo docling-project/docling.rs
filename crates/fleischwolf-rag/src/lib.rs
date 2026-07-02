@@ -31,6 +31,7 @@
 //! # Ok(()) }
 //! ```
 
+pub mod api;
 pub mod chunk;
 pub mod config;
 pub mod embed;

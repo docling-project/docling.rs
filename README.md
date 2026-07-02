@@ -54,8 +54,11 @@ a swappable trait — embedders (**Ollama**/Gemini/local-ONNX), vector stores
 (**SQLite+sqlite-vec**/PostgreSQL+pgvector), LLM (**OpenRouter**, DeepSeek-V3 by default),
 document sources (**folder**/FTP/SFTP), and message queues
 (**in-process**/RabbitMQ/Redis). It ships Hybrid, Multi-Query fusion and HyDE
-retrieval plus an evaluation harness to compare configurations. Configure it via
-[`.env`](./.env.example); see the [crate README](./crates/fleischwolf-rag/README.md).
+retrieval plus an evaluation harness to compare configurations and an
+API-key-protected REST API (`fleischwolf-rag serve`) for document info and
+search. Configure it via [`.env`](./.env.example); see the
+[crate README](./crates/fleischwolf-rag/README.md) for a quickstart on any
+documents folder.
 
 ## The API
 

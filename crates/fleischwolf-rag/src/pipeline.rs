@@ -69,6 +69,11 @@ impl Pipeline {
         &self.store
     }
 
+    /// The resolved configuration this pipeline was built from.
+    pub fn config(&self) -> &RagConfig {
+        &self.cfg
+    }
+
     /// A retriever over this pipeline's store/embedder/LLM.
     pub fn retriever(&self) -> Retriever {
         Retriever::new(self.store.clone(), self.embedder.clone(), self.chat.clone())

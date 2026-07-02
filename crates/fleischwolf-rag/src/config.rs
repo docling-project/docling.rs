@@ -98,6 +98,13 @@ pub struct RagConfig {
     pub queue: QueueKind,
     pub rabbitmq_url: Option<String>,
     pub redis_url: Option<String>,
+
+    // --- REST API ---
+    /// Bind address for `serve` (default `127.0.0.1:8080`).
+    pub http_addr: String,
+    /// Accepted API keys (comma-separated in `RAG_API_KEYS`). The server refuses
+    /// to start with an empty list — auth is fail-closed.
+    pub api_keys: Vec<String>,
 }
 
 /// The unit used to measure chunk size / overlap.
@@ -140,6 +147,8 @@ impl Default for RagConfig {
             queue: QueueKind::Memory,
             rabbitmq_url: None,
             redis_url: None,
+            http_addr: "127.0.0.1:8080".to_string(),
+            api_keys: Vec::new(),
         }
     }
 }
@@ -205,6 +214,15 @@ impl RagConfig {
             },
             rabbitmq_url: env_str("RABBITMQ_URL"),
             redis_url: env_str("REDIS_URL"),
+            http_addr: env_str("RAG_HTTP_ADDR").unwrap_or(d.http_addr),
+            api_keys: env_str("RAG_API_KEYS")
+                .map(|s| {
+                    s.split(',')
+                        .map(|k| k.trim().to_string())
+                        .filter(|k| !k.is_empty())
+                        .collect()
+                })
+                .unwrap_or_default(),
         };
         cfg.validate()?;
         Ok(cfg)
