@@ -31,10 +31,10 @@
 //!                      fastest option, but a scanned/image-only PDF (no
 //!                      embedded text layer) yields no text — convert those
 //!                      without this flag.
-//!   --use-web-browser  pre-render HTML in the system Chromium (driven from Rust)
-//!                      so stylesheet-driven `display:none` elements (e.g. a
-//!                      collapsed nav menu) are dropped before parsing. Requires
-//!                      building with `--features web-browser`.
+//!   --use-web-browser  pre-render HTML/MHTML/EPUB in the system Chromium (driven
+//!                      from Rust) so stylesheet-driven `display:none` elements
+//!                      (e.g. a collapsed nav menu) are dropped before parsing.
+//!                      Requires building with `--features web-browser`.
 
 use std::io::{self, Write};
 use std::path::Path;

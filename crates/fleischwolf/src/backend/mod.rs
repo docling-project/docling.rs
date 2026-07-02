@@ -72,3 +72,29 @@ pub trait DeclarativeBackend {
     /// Parse `source` into a document.
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError>;
 }
+
+/// Optional headless-browser HTML pre-render, shared by every HTML-routing path
+/// (the direct HTML backend via the converter, plus MHTML/EPUB, which assemble
+/// HTML from their archives). Returns `html` unchanged unless `use_web_browser`
+/// is set, in which case the browser strips computed-hidden elements — requiring
+/// the `web-browser` feature, else a clear error rather than a silent no-op.
+pub(crate) fn maybe_prerender_html(
+    html: &str,
+    use_web_browser: bool,
+) -> Result<std::borrow::Cow<'_, str>, ConversionError> {
+    if !use_web_browser {
+        return Ok(std::borrow::Cow::Borrowed(html));
+    }
+    #[cfg(feature = "web-browser")]
+    {
+        browser::render_visible_html(html)
+            .map(std::borrow::Cow::Owned)
+            .map_err(ConversionError::Browser)
+    }
+    #[cfg(not(feature = "web-browser"))]
+    {
+        Err(ConversionError::Browser(
+            "this build has no web-browser support; rebuild with `--features web-browser`".into(),
+        ))
+    }
+}

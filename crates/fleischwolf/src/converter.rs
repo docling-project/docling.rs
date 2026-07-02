@@ -27,21 +27,6 @@ fn sniff_xml(text: &str) -> InputFormat {
 }
 use crate::error::ConversionError;
 use crate::format::InputFormat;
-
-/// Headless-browser HTML pre-render, when the `web-browser` feature is compiled
-/// in. Without it, `--use-web-browser` is a clear error rather than a silent
-/// no-op, so callers know the browser path wasn't available.
-#[cfg(feature = "web-browser")]
-fn prerender_html(html: &str) -> Result<String, ConversionError> {
-    crate::backend::browser::render_visible_html(html).map_err(ConversionError::Browser)
-}
-
-#[cfg(not(feature = "web-browser"))]
-fn prerender_html(_html: &str) -> Result<String, ConversionError> {
-    Err(ConversionError::Browser(
-        "this build has no web-browser support; rebuild with `--features web-browser`".into(),
-    ))
-}
 use crate::result::{ConversionResult, ConversionStatus};
 use crate::source::SourceDocument;
 use crate::stream::MarkdownStream;
@@ -139,15 +124,16 @@ impl DocumentConverter {
         self
     }
 
-    /// Pre-render HTML input in a headless browser before parsing.
+    /// Pre-render HTML-routing input in a headless browser before parsing.
     ///
-    /// Off by default. When enabled, HTML sources are loaded in the system
-    /// Chromium (driven from Rust over the DevTools protocol — no Node/Playwright)
-    /// so the CSS cascade is resolved: elements the browser computes as
-    /// `display:none` (e.g. a stylesheet-collapsed nav menu) are removed before
-    /// the normal HTML backend runs. This is the one behaviour a pure-Rust parse
-    /// can't reproduce; everything else (structure, tables, KVP, formatting) is
-    /// still handled in Rust on the cleaned HTML.
+    /// Off by default. When enabled, HTML sources — and MHTML/EPUB, which
+    /// assemble HTML from their archives — are loaded in the system Chromium
+    /// (driven from Rust over the DevTools protocol — no Node/Playwright) so the
+    /// CSS cascade is resolved: elements the browser computes as `display:none`
+    /// (e.g. a stylesheet-collapsed nav menu) are removed before the normal HTML
+    /// backend runs. This is the one behaviour a pure-Rust parse can't reproduce;
+    /// everything else (structure, tables, KVP, formatting) is still handled in
+    /// Rust on the cleaned HTML.
     ///
     /// Requires the crate's `web-browser` Cargo feature; without it, converting
     /// an HTML source with this enabled returns [`ConversionError::Browser`].
@@ -164,11 +150,7 @@ impl DocumentConverter {
         &self,
         html: &'a str,
     ) -> Result<std::borrow::Cow<'a, str>, ConversionError> {
-        if self.use_web_browser {
-            Ok(std::borrow::Cow::Owned(prerender_html(html)?))
-        } else {
-            Ok(std::borrow::Cow::Borrowed(html))
-        }
+        crate::backend::maybe_prerender_html(html, self.use_web_browser)
     }
 
     /// Convert a source document to Markdown **incrementally**, returning an
@@ -265,9 +247,13 @@ impl DocumentConverter {
             InputFormat::Docx => DocxBackend.convert(&source)?,
             InputFormat::Vtt => WebVttBackend.convert(&source)?,
             InputFormat::Email => EmailBackend.convert(&source)?,
-            InputFormat::Mhtml => MhtmlBackend.convert(&source)?,
+            InputFormat::Mhtml => MhtmlBackend {
+                use_web_browser: self.use_web_browser,
+            }
+            .convert(&source)?,
             InputFormat::Epub => EpubBackend {
                 fetch_images: self.fetch_images,
+                use_web_browser: self.use_web_browser,
             }
             .convert(&source)?,
             InputFormat::JsonDocling => DoclingJsonBackend.convert(&source)?,

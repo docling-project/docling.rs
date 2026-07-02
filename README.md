@@ -178,11 +178,13 @@ without the flag.
 Almost everything in the HTML backend is pure Rust, but one thing a static
 parse can't do is resolve the **CSS cascade** — whether a stylesheet- or
 class-driven rule makes an element `display:none` (e.g. a collapsed nav menu).
-The optional `--use-web-browser` flag renders HTML in the system Chromium first,
-drops every element the browser computes as hidden, then feeds the cleaned HTML
-through the normal Rust backend (so all structure/table/KVP/formatting logic
-still runs in Rust — the browser only decides visibility). It's driven straight
-from Rust over the DevTools protocol via
+The optional `--use-web-browser` flag renders the page in the system Chromium
+first, drops every element the browser computes as hidden, then feeds the
+cleaned HTML through the normal Rust backend (so all structure/table/KVP/
+formatting logic still runs in Rust — the browser only decides visibility). It
+applies to every HTML-routing input: direct HTML, plus MHTML and EPUB (which
+assemble HTML from their archives). It's driven straight from Rust over the
+DevTools protocol via
 [`headless_chrome`](https://crates.io/crates/headless_chrome) — no Node,
 Playwright, or other runtime.
 

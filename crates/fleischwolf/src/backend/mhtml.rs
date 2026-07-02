@@ -20,12 +20,17 @@ use std::collections::HashMap;
 use mail_parser::{MessageParser, MimeHeaders};
 
 use crate::backend::images::build_picture;
-use crate::backend::{convert_html, DeclarativeBackend, MapImageResolver};
+use crate::backend::{convert_html, maybe_prerender_html, DeclarativeBackend, MapImageResolver};
 use crate::error::ConversionError;
 use crate::source::SourceDocument;
 use fleischwolf_core::{DoclingDocument, PictureImage};
 
-pub struct MhtmlBackend;
+#[derive(Default)]
+pub struct MhtmlBackend {
+    /// Pre-render the extracted page HTML in a headless browser first (mirrors
+    /// [`crate::DocumentConverter::use_web_browser`]).
+    pub use_web_browser: bool,
+}
 
 impl DeclarativeBackend for MhtmlBackend {
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
@@ -40,10 +45,11 @@ impl DeclarativeBackend for MhtmlBackend {
             return Ok(DoclingDocument::new(&source.name));
         };
 
+        let html = maybe_prerender_html(html, self.use_web_browser)?;
         let images = collect_images(&msg);
         Ok(convert_html(
             &source.name,
-            html,
+            &html,
             &MapImageResolver::new(images),
         ))
     }
@@ -116,7 +122,10 @@ mod tests {
             "",
         );
         let src = SourceDocument::from_bytes("p", InputFormat::Mhtml, bytes);
-        let md = MhtmlBackend.convert(&src).unwrap().export_to_markdown();
+        let md = MhtmlBackend::default()
+            .convert(&src)
+            .unwrap()
+            .export_to_markdown();
         assert_eq!(md.trim(), "# Title\n\nBody text.");
     }
 
@@ -132,7 +141,7 @@ mod tests {
             &extra,
         );
         let src = SourceDocument::from_bytes("p", InputFormat::Mhtml, bytes);
-        let doc = MhtmlBackend.convert(&src).unwrap();
+        let doc = MhtmlBackend::default().convert(&src).unwrap();
         let img = doc.nodes.iter().find_map(|n| match n {
             Node::Picture { image, .. } => image.as_ref(),
             _ => None,
@@ -155,7 +164,7 @@ mod tests {
             &extra,
         );
         let src = SourceDocument::from_bytes("p", InputFormat::Mhtml, bytes);
-        let doc = MhtmlBackend.convert(&src).unwrap();
+        let doc = MhtmlBackend::default().convert(&src).unwrap();
         let embedded = doc
             .nodes
             .iter()
@@ -169,7 +178,10 @@ mod tests {
         // part, so even a resource-only archive still yields readable text.
         let bytes = b"MIME-Version: 1.0\r\nContent-Type: text/plain\r\n\r\nplain text\r\n".to_vec();
         let src = SourceDocument::from_bytes("p", InputFormat::Mhtml, bytes);
-        let md = MhtmlBackend.convert(&src).unwrap().export_to_markdown();
+        let md = MhtmlBackend::default()
+            .convert(&src)
+            .unwrap()
+            .export_to_markdown();
         assert_eq!(md.trim(), "plain text");
     }
 
@@ -180,7 +192,7 @@ mod tests {
         // html/text body to extract.
         let src =
             SourceDocument::from_bytes("p", InputFormat::Mhtml, b"not a mime message".to_vec());
-        let doc = MhtmlBackend.convert(&src).unwrap();
+        let doc = MhtmlBackend::default().convert(&src).unwrap();
         assert!(doc.nodes.is_empty());
     }
 }
