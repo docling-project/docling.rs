@@ -1,22 +1,42 @@
 [
-    {
-      "text": "Did Mercia Asset Management PLC mention any mergers or acquisitions in the annual report?",
-      "kind": "boolean"
-    },
-    {
-      "text": "According to the annual report, what is the Operating margin (%) for Tradition (within the last period or at the end of the last period)? If data is not available, return 'N/A'.",
-      "kind": "number"
-    },
-    {
-      "text": "Did TSX_Y announce a share buyback plan in the annual report?",
-      "kind": "boolean"
-    },
-    {
-      "text": "What was the largest single spending of CrossFirst Bank on executive compensation in USD?",
-      "kind": "name"
-    },
-    {
-      "text": "Did Holley Inc. mention any mergers or acquisitions in the annual report?",
-      "kind": "boolean"
-    }
-  ]
+  {
+    "question": "Did Mercia Asset Management PLC mention any mergers or acquisitions in the annual report?",
+    "kind": "boolean",
+    "answer": "Based solely on the provided context, Mercia Asset Management PLC did not mention any mergers or acquisitions in the annual report. The passages discuss financial instruments, business model performance, director share interests, and other general information, but none reference mergers or acquisitions.",
+    "sources": 10,
+    "ms": 5161.944334,
+    "mode": "hybrid"
+  },
+  {
+    "question": "According to the annual report, what is the Operating margin (%) for Tradition (within the last period or at the end of the last period)? If data is not available, return 'N/A'.",
+    "kind": "number",
+    "answer": "Based on the provided context, the operating margin for Compagnie Financière Tradition is 9.9% for the year ended 31 December 2022 [8].",
+    "sources": 10,
+    "ms": 1715.0841859999998,
+    "mode": "hybrid"
+  },
+  {
+    "question": "Did TSX_Y announce a share buyback plan in the annual report?",
+    "kind": "boolean",
+    "answer": "Yes, TSX_Y (Yellow Pages Limited) announced a share buyback plan in the annual report. Specifically, the company completed a Normal Course Issuer Bid (NCIB) program, purchasing 871,135 common shares for $12.4 million during 2022 [1]. Additionally, a separate share repurchase was conducted under a Plan of Arrangement, where the company repurchased 7,949,125 common shares at $12.58 per share for a total of $101.0 million [9].",
+    "sources": 10,
+    "ms": 2242.666725,
+    "mode": "hybrid"
+  },
+  {
+    "question": "What was the largest single spending of CrossFirst Bank on executive compensation in USD?",
+    "kind": "name",
+    "answer": "The provided context does not contain any information about executive compensation amounts or spending on executive compensation. Therefore, I cannot answer this question.",
+    "sources": 10,
+    "ms": 1648.184236,
+    "mode": "hybrid"
+  },
+  {
+    "question": "Did Holley Inc. mention any mergers or acquisitions in the annual report?",
+    "kind": "boolean",
+    "answer": "Yes, Holley Inc. mentioned multiple mergers and acquisitions in the annual report. For example, the report details the acquisition of Baer, Inc. (doing business as Baer Brakes) on December 23, 2021, and Brothers Mail Order Industries, Inc. (doing business as Brothers Trucks) on December 16, 2021 [1]. It also describes the business combination with Empower Ltd. that closed on July 16, 2021, which involved a merger agreement and resulted in Empower changing its name to Holley Inc. [3]. Additionally, the report lists several other acquisitions from 2020 to 2022, including Simpson Performance Products, Drake Automotive Group, AEM Performance Electronics, and others [2].",
+    "sources": 10,
+    "ms": 2816.163567,
+    "mode": "hybrid"
+  }
+]
