@@ -337,7 +337,9 @@ impl TableFormer {
         // page → 1024px height (cv2.INTER_AREA), then crop the table bbox.
         let sf = 1024.0 / page_image.height() as f32;
         let pw = (page_image.width() as f32 * sf) as u32;
-        let page1024 = crate::resample::inter_area(page_image, pw, 1024);
+        let page1024 = crate::timing::timed("tableformer.inter_area", || {
+            crate::resample::inter_area(page_image, pw, 1024)
+        });
         let k = 1024.0 / page_h;
         let x = (region[0] * k).round().max(0.0) as u32;
         let y = (region[1] * k).round().max(0.0) as u32;
@@ -347,7 +349,10 @@ impl TableFormer {
             return None;
         }
         let crop = image::imageops::crop_imm(&page1024, x, y, x2 - x, y2 - y).to_image();
-        let cells = self.predict_table_structure(&crop).ok()?;
+        let cells = crate::timing::timed("tableformer.structure", || {
+            self.predict_table_structure(&crop)
+        })
+        .ok()?;
         if cells.is_empty() {
             return None;
         }

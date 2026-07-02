@@ -148,12 +148,13 @@ impl Worker {
             if self.ocr.is_none() {
                 self.ocr = Some(ocr::OcrModel::load().map_err(PdfError::Ocr)?);
             }
-            let cells = self
-                .ocr
-                .as_mut()
-                .unwrap()
-                .ocr_page(&page.image, &regions, page.scale)
-                .map_err(|e| PdfError::Ocr(format!("page {}: {e}", n + 1)))?;
+            let cells = timing::timed("ocr.page", || {
+                self.ocr
+                    .as_mut()
+                    .unwrap()
+                    .ocr_page(&page.image, &regions, page.scale)
+            })
+            .map_err(|e| PdfError::Ocr(format!("page {}: {e}", n + 1)))?;
             page.cells = cells;
         }
         // TableFormer structure per table region (else geometric fallback).
