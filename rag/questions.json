@@ -39,7 +39,10 @@
     "answer": "The provided context does not contain any information about executive compensation amounts or spending on executive compensation. Therefore, I cannot answer this question.",
     "sources": 10,
     "ms": 1648.184236,
-    "mode": "hybrid"
+    "mode": "hybrid",
+    "relevant": [
+      "2023 Proxy Statement"
+    ]
   },
   {
     "question": "Did Holley Inc. mention any mergers or acquisitions in the annual report?",
