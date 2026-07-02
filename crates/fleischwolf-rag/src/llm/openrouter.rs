@@ -65,7 +65,11 @@ impl ChatModel for OpenRouterClient {
             // OpenRouter attribution headers (optional but recommended).
             .header("HTTP-Referer", "https://github.com/artiz/fleischwolf")
             .header("X-Title", "fleischwolf-rag")
-            .json(&ChatReq { model: &self.model, messages, temperature: 0.2 })
+            .json(&ChatReq {
+                model: &self.model,
+                messages,
+                temperature: 0.2,
+            })
             .send()
             .await?
             .error_for_status()?;

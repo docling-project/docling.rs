@@ -46,14 +46,24 @@ impl OnnxEmbedder {
             .encode_batch(texts.to_vec(), true)
             .map_err(|e| RagError::Embedding(format!("tokenize: {e}")))?;
         let batch = encodings.len();
-        let seq = encodings.iter().map(|e| e.get_ids().len()).max().unwrap_or(0).max(1);
+        let seq = encodings
+            .iter()
+            .map(|e| e.get_ids().len())
+            .max()
+            .unwrap_or(0)
+            .max(1);
 
         // Right-pad ids / mask / type-ids to a uniform sequence length.
         let mut ids = vec![0i64; batch * seq];
         let mut mask = vec![0i64; batch * seq];
         let types = vec![0i64; batch * seq];
         for (b, enc) in encodings.iter().enumerate() {
-            for (t, (&id, &m)) in enc.get_ids().iter().zip(enc.get_attention_mask()).enumerate() {
+            for (t, (&id, &m)) in enc
+                .get_ids()
+                .iter()
+                .zip(enc.get_attention_mask())
+                .enumerate()
+            {
                 ids[b * seq + t] = id as i64;
                 mask[b * seq + t] = m as i64;
             }

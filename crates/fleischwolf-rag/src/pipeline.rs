@@ -61,7 +61,14 @@ impl Pipeline {
             None => None,
         };
         let chunker = Chunker::from_config(cfg);
-        Ok(Pipeline { cfg: cfg.clone(), source, embedder, store, chat, chunker })
+        Ok(Pipeline {
+            cfg: cfg.clone(),
+            source,
+            embedder,
+            store,
+            chat,
+            chunker,
+        })
     }
 
     /// The underlying store (for counts, admin, tests).
@@ -84,7 +91,10 @@ impl Pipeline {
     /// Convert raw bytes to `(title, markdown, pages, parse_secs)` using
     /// `fleischwolf`. Runs the sync converter on a blocking thread; `parse_secs`
     /// times the conversion itself (page counting excluded).
-    async fn to_markdown(name: String, bytes: Vec<u8>) -> Result<(String, String, Option<usize>, f64)> {
+    async fn to_markdown(
+        name: String,
+        bytes: Vec<u8>,
+    ) -> Result<(String, String, Option<usize>, f64)> {
         tokio::task::spawn_blocking(move || {
             let ext = name.rsplit('.').next().unwrap_or("");
             let fmt = InputFormat::from_extension(ext)
@@ -134,8 +144,10 @@ impl Pipeline {
             let start = std::time::Instant::now();
             self.embed_chunks(&mut chunks).await?;
             embed_secs = start.elapsed().as_secs_f64();
-            embedded_words =
-                chunks.iter().map(|c| c.text.split_whitespace().count()).sum::<usize>();
+            embedded_words = chunks
+                .iter()
+                .map(|c| c.text.split_whitespace().count())
+                .sum::<usize>();
             self.store.insert_chunks(&chunks).await?;
         }
 
@@ -145,7 +157,11 @@ impl Pipeline {
             words,
             n,
             embedded_words,
-            Timings { parse_secs, chunk_secs, embed_secs },
+            Timings {
+                parse_secs,
+                chunk_secs,
+                embed_secs,
+            },
         );
         tracing::info!(
             uri = %r.uri,
@@ -205,10 +221,9 @@ impl Pipeline {
 
     /// Retrieve, then ask the LLM to answer grounded in the retrieved chunks.
     pub async fn answer(&self, query: &str, mode: RetrievalMode, k: usize) -> Result<Answer> {
-        let chat = self
-            .chat
-            .as_ref()
-            .ok_or_else(|| RagError::Llm("answering needs an LLM; set OPENROUTER_API_KEY".into()))?;
+        let chat = self.chat.as_ref().ok_or_else(|| {
+            RagError::Llm("answering needs an LLM; set OPENROUTER_API_KEY".into())
+        })?;
         let hits = self.query(mode, query, k).await?;
         let context = hits
             .iter()
@@ -220,8 +235,13 @@ impl Pipeline {
                       Cite the passage numbers you used like [1]. If the context does not \
                       contain the answer, say so.";
         let user = format!("Context:\n{context}\n\nQuestion: {query}");
-        let text = chat.complete(&[Message::system(system), Message::user(&user)]).await?;
-        Ok(Answer { text, sources: hits })
+        let text = chat
+            .complete(&[Message::system(system), Message::user(&user)])
+            .await?;
+        Ok(Answer {
+            text,
+            sources: hits,
+        })
     }
 }
 
@@ -242,7 +262,10 @@ fn first_heading(md: &str) -> Option<String> {
 /// File stem of a name (`report.md` → `report`).
 fn stem(name: &str) -> String {
     let base = name.rsplit(['/', '\\']).next().unwrap_or(name);
-    base.rsplit_once('.').map(|(s, _)| s).unwrap_or(base).to_string()
+    base.rsplit_once('.')
+        .map(|(s, _)| s)
+        .unwrap_or(base)
+        .to_string()
 }
 
 #[cfg(test)]
@@ -251,7 +274,10 @@ mod tests {
 
     #[test]
     fn extracts_title_and_stem() {
-        assert_eq!(first_heading("intro\n# Real Title\nbody"), Some("Real Title".into()));
+        assert_eq!(
+            first_heading("intro\n# Real Title\nbody"),
+            Some("Real Title".into())
+        );
         assert_eq!(first_heading("no headings here"), None);
         assert_eq!(stem("/a/b/report.md"), "report");
         assert_eq!(stem("noext"), "noext");

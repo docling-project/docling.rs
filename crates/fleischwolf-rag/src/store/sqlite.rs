@@ -225,21 +225,24 @@ impl VectorStore for SqliteStore {
     }
 
     async fn count_chunks(&self) -> Result<usize> {
-        let row = sqlx::query("SELECT COUNT(*) AS n FROM chunks").fetch_one(&self.pool).await?;
+        let row = sqlx::query("SELECT COUNT(*) AS n FROM chunks")
+            .fetch_one(&self.pool)
+            .await?;
         Ok(row.get::<i64, _>("n") as usize)
     }
 
     async fn count_documents(&self) -> Result<usize> {
-        let row = sqlx::query("SELECT COUNT(*) AS n FROM documents").fetch_one(&self.pool).await?;
+        let row = sqlx::query("SELECT COUNT(*) AS n FROM documents")
+            .fetch_one(&self.pool)
+            .await?;
         Ok(row.get::<i64, _>("n") as usize)
     }
 
     async fn list_documents(&self) -> Result<Vec<Document>> {
-        let rows = sqlx::query(
-            "SELECT id, source_uri, title, hash, metadata, created_at FROM documents",
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let rows =
+            sqlx::query("SELECT id, source_uri, title, hash, metadata, created_at FROM documents")
+                .fetch_all(&self.pool)
+                .await?;
         rows.iter()
             .map(|row| {
                 let metadata: String = row.try_get("metadata")?;
@@ -256,9 +259,15 @@ impl VectorStore for SqliteStore {
     }
 
     async fn clear(&self) -> Result<()> {
-        sqlx::query("DELETE FROM chunks_vec").execute(&self.pool).await?;
-        sqlx::query("DELETE FROM chunks").execute(&self.pool).await?;
-        sqlx::query("DELETE FROM documents").execute(&self.pool).await?;
+        sqlx::query("DELETE FROM chunks_vec")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("DELETE FROM chunks")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("DELETE FROM documents")
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 }
@@ -278,8 +287,11 @@ mod tests {
         let doc = Document::new("mem://t", "T", "h1");
         store.upsert_document(&doc).await.unwrap();
 
-        let texts =
-            ["vector database semantic search", "banana smoothie recipe", "tokio async runtime"];
+        let texts = [
+            "vector database semantic search",
+            "banana smoothie recipe",
+            "tokio async runtime",
+        ];
         let mut chunks = Vec::new();
         for (i, t) in texts.iter().enumerate() {
             let mut c = Chunk::new(&doc.id, i as i64, *t, 0);
@@ -289,14 +301,24 @@ mod tests {
         store.insert_chunks(&chunks).await.unwrap();
         assert_eq!(store.count_chunks().await.unwrap(), 3);
 
-        let q = embedder.embed_one("semantic search in a vector database").await.unwrap();
+        let q = embedder
+            .embed_one("semantic search in a vector database")
+            .await
+            .unwrap();
         let hits = store.vector_search(&q, 2).await.unwrap();
         assert_eq!(hits.len(), 2);
-        assert!(hits[0].chunk.text.contains("vector database"), "got: {}", hits[0].chunk.text);
+        assert!(
+            hits[0].chunk.text.contains("vector database"),
+            "got: {}",
+            hits[0].chunk.text
+        );
         assert!(hits[0].score >= hits[1].score);
 
         // Dedup lookup and clear.
-        assert_eq!(store.find_document_by_hash("h1").await.unwrap(), Some(doc.id.clone()));
+        assert_eq!(
+            store.find_document_by_hash("h1").await.unwrap(),
+            Some(doc.id.clone())
+        );
         store.clear().await.unwrap();
         assert_eq!(store.count_chunks().await.unwrap(), 0);
         assert!(store.vector_search(&q, 2).await.unwrap().is_empty());

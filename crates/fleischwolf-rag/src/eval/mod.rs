@@ -88,13 +88,15 @@ impl Harness {
         let mut rows = Vec::new();
         for &(size, overlap) in chunk_configs {
             let store = self.build_index(dataset, size, overlap).await?;
-            let retriever =
-                Retriever::new(store, self.embedder.clone(), self.chat.clone());
+            let retriever = Retriever::new(store, self.embedder.clone(), self.chat.clone());
             for &mode in modes {
                 if mode.needs_llm() && self.chat.is_none() {
                     continue;
                 }
-                rows.push(self.score_mode(&retriever, dataset, mode, size, overlap, top_k).await?);
+                rows.push(
+                    self.score_mode(&retriever, dataset, mode, size, overlap, top_k)
+                        .await?,
+                );
             }
         }
         // Rank best-first by nDCG, then recall, then MRR.
@@ -102,8 +104,16 @@ impl Harness {
             b.ndcg
                 .partial_cmp(&a.ndcg)
                 .unwrap_or(std::cmp::Ordering::Equal)
-                .then(b.recall.partial_cmp(&a.recall).unwrap_or(std::cmp::Ordering::Equal))
-                .then(b.mrr.partial_cmp(&a.mrr).unwrap_or(std::cmp::Ordering::Equal))
+                .then(
+                    b.recall
+                        .partial_cmp(&a.recall)
+                        .unwrap_or(std::cmp::Ordering::Equal),
+                )
+                .then(
+                    b.mrr
+                        .partial_cmp(&a.mrr)
+                        .unwrap_or(std::cmp::Ordering::Equal),
+                )
         });
         Ok(EvalReport { rows })
     }
@@ -116,7 +126,11 @@ impl Harness {
         overlap: f32,
     ) -> Result<Arc<dyn VectorStore>> {
         let store: Arc<dyn VectorStore> = Arc::new(MemoryStore::new());
-        let chunker = Chunker { size, overlap, unit: ChunkUnit::Word };
+        let chunker = Chunker {
+            size,
+            overlap,
+            unit: ChunkUnit::Word,
+        };
         for d in &dataset.documents {
             let doc = Document::new(format!("eval://{}", d.name), &d.name, "");
             store.upsert_document(&doc).await?;
@@ -179,7 +193,14 @@ impl EvalReport {
         for r in &self.rows {
             out.push_str(&format!(
                 "| {} | {:.2} | {} | {} | {:.3} | {:.3} | {:.3} | {:.2} |\n",
-                r.chunk_size, r.overlap, r.mode, r.embedder, r.recall, r.mrr, r.ndcg, r.avg_latency_ms
+                r.chunk_size,
+                r.overlap,
+                r.mode,
+                r.embedder,
+                r.recall,
+                r.mrr,
+                r.ndcg,
+                r.avg_latency_ms
             ));
         }
         out
@@ -222,7 +243,12 @@ mod tests {
     async fn sweep_produces_ranked_rows() {
         let harness = Harness::new(Arc::new(HashEmbedder::new(512)), None);
         let report = harness
-            .run(&dataset(), &[(20, 0.0), (40, 0.1)], &RetrievalMode::OFFLINE, 3)
+            .run(
+                &dataset(),
+                &[(20, 0.0), (40, 0.1)],
+                &RetrievalMode::OFFLINE,
+                3,
+            )
             .await
             .unwrap();
         // 2 chunk configs x 3 offline modes = 6 rows.

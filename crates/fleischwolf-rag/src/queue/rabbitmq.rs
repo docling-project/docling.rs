@@ -48,7 +48,9 @@ impl MessageQueue for RabbitMqQueue {
             )
             .await
             .map_err(|e| RagError::Queue(format!("amqp publish: {e}")))?;
-        confirm.await.map_err(|e| RagError::Queue(format!("amqp confirm: {e}")))?;
+        confirm
+            .await
+            .map_err(|e| RagError::Queue(format!("amqp confirm: {e}")))?;
         Ok(())
     }
 
@@ -62,7 +64,10 @@ impl MessageQueue for RabbitMqQueue {
             .basic_consume(
                 TOPIC,
                 "fleischwolf-rag",
-                BasicConsumeOptions { no_ack: true, ..Default::default() },
+                BasicConsumeOptions {
+                    no_ack: true,
+                    ..Default::default()
+                },
                 FieldTable::default(),
             )
             .await

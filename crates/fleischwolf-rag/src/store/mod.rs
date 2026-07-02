@@ -66,7 +66,10 @@ pub async fn from_config(cfg: &RagConfig) -> Result<Arc<dyn VectorStore>> {
             }
             #[cfg(not(feature = "sqlite"))]
             {
-                return Err(crate::RagError::FeatureDisabled("sqlite".into(), "sqlite".into()));
+                return Err(crate::RagError::FeatureDisabled(
+                    "sqlite".into(),
+                    "sqlite".into(),
+                ));
             }
         }
         DbBackend::Postgres => {
@@ -76,7 +79,10 @@ pub async fn from_config(cfg: &RagConfig) -> Result<Arc<dyn VectorStore>> {
             }
             #[cfg(not(feature = "postgres"))]
             {
-                return Err(crate::RagError::FeatureDisabled("postgres".into(), "postgres".into()));
+                return Err(crate::RagError::FeatureDisabled(
+                    "postgres".into(),
+                    "postgres".into(),
+                ));
             }
         }
     };
@@ -95,7 +101,11 @@ pub(crate) fn top_k_by_cosine(
         .into_iter()
         .map(|(chunk, emb)| Scored::new(chunk, crate::math::cosine(query, &emb)))
         .collect();
-    scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    scored.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     scored.truncate(k);
     scored
 }

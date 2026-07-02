@@ -51,10 +51,9 @@ struct Embedding {
 impl GeminiEmbedder {
     /// Build from config; errors if `GEMINI_API_KEY` is unset.
     pub fn from_config(cfg: &RagConfig) -> Result<Self> {
-        let api_key = cfg
-            .gemini_api_key
-            .clone()
-            .ok_or_else(|| RagError::config("GEMINI_API_KEY is required for the gemini provider"))?;
+        let api_key = cfg.gemini_api_key.clone().ok_or_else(|| {
+            RagError::config("GEMINI_API_KEY is required for the gemini provider")
+        })?;
         Ok(GeminiEmbedder {
             client: reqwest::Client::new(),
             api_key,
@@ -75,7 +74,9 @@ impl Embedder for GeminiEmbedder {
         for text in texts {
             let req = EmbedContentReq {
                 model: format!("models/{}", self.model),
-                content: Content { parts: vec![Part { text }] },
+                content: Content {
+                    parts: vec![Part { text }],
+                },
                 output_dim: self.dim,
             };
             let resp = self
@@ -88,7 +89,9 @@ impl Embedder for GeminiEmbedder {
                 .error_for_status()?;
             let body: EmbedContentResp = resp.json().await?;
             if body.embedding.values.is_empty() {
-                return Err(RagError::Embedding("gemini returned an empty embedding".into()));
+                return Err(RagError::Embedding(
+                    "gemini returned an empty embedding".into(),
+                ));
             }
             out.push(body.embedding.values);
         }

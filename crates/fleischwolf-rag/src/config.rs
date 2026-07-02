@@ -271,7 +271,9 @@ fn parse_db_backend(s: &str) -> Result<DbBackend> {
         "sqlite" => Ok(DbBackend::Sqlite),
         "postgres" | "postgresql" | "pg" => Ok(DbBackend::Postgres),
         "memory" | "mem" | "inmemory" => Ok(DbBackend::Memory),
-        other => Err(RagError::config(format!("unknown RAG_DB_BACKEND '{other}'"))),
+        other => Err(RagError::config(format!(
+            "unknown RAG_DB_BACKEND '{other}'"
+        ))),
     }
 }
 
@@ -281,7 +283,9 @@ fn parse_embed_provider(s: &str) -> Result<EmbedProvider> {
         "gemini" | "google" => Ok(EmbedProvider::Gemini),
         "onnx" | "local" => Ok(EmbedProvider::Onnx),
         "hash" | "test" | "fake" => Ok(EmbedProvider::Hash),
-        other => Err(RagError::config(format!("unknown RAG_EMBED_PROVIDER '{other}'"))),
+        other => Err(RagError::config(format!(
+            "unknown RAG_EMBED_PROVIDER '{other}'"
+        ))),
     }
 }
 
@@ -289,7 +293,9 @@ fn parse_chunk_unit(s: &str) -> Result<ChunkUnit> {
     match s.to_ascii_lowercase().as_str() {
         "word" | "words" => Ok(ChunkUnit::Word),
         "token" | "tokens" => Ok(ChunkUnit::Token),
-        other => Err(RagError::config(format!("unknown RAG_CHUNK_UNIT '{other}'"))),
+        other => Err(RagError::config(format!(
+            "unknown RAG_CHUNK_UNIT '{other}'"
+        ))),
     }
 }
 
@@ -329,9 +335,15 @@ mod tests {
 
     #[test]
     fn validate_rejects_bad_overlap() {
-        let c = RagConfig { chunk_overlap: 0.99, ..Default::default() };
+        let c = RagConfig {
+            chunk_overlap: 0.99,
+            ..Default::default()
+        };
         assert!(c.validate().is_err());
-        let c = RagConfig { chunk_size: 0, ..Default::default() };
+        let c = RagConfig {
+            chunk_size: 0,
+            ..Default::default()
+        };
         assert!(c.validate().is_err());
     }
 

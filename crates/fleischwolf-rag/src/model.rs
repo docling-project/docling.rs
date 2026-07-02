@@ -23,7 +23,11 @@ pub struct Document {
 
 impl Document {
     /// Build a document with a fresh UUID and the given content hash.
-    pub fn new(source_uri: impl Into<String>, title: impl Into<String>, hash: impl Into<String>) -> Self {
+    pub fn new(
+        source_uri: impl Into<String>,
+        title: impl Into<String>,
+        hash: impl Into<String>,
+    ) -> Self {
         Document {
             id: new_id(),
             source_uri: source_uri.into(),
@@ -64,7 +68,12 @@ pub struct Chunk {
 
 impl Chunk {
     /// Construct a chunk (without embedding) for a document.
-    pub fn new(doc_id: impl Into<String>, ordinal: i64, text: impl Into<String>, token_count: i64) -> Self {
+    pub fn new(
+        doc_id: impl Into<String>,
+        ordinal: i64,
+        text: impl Into<String>,
+        token_count: i64,
+    ) -> Self {
         Chunk {
             id: new_id(),
             doc_id: doc_id.into(),
@@ -126,8 +135,11 @@ impl RetrievalMode {
     ];
 
     /// Modes that run without any network LLM — used by offline eval.
-    pub const OFFLINE: [RetrievalMode; 3] =
-        [RetrievalMode::Vector, RetrievalMode::Bm25, RetrievalMode::Hybrid];
+    pub const OFFLINE: [RetrievalMode; 3] = [
+        RetrievalMode::Vector,
+        RetrievalMode::Bm25,
+        RetrievalMode::Hybrid,
+    ];
 }
 
 impl std::fmt::Display for RetrievalMode {
@@ -152,7 +164,9 @@ impl FromStr for RetrievalMode {
             "hybrid" => Ok(RetrievalMode::Hybrid),
             "multi-query" | "multiquery" | "fusion" => Ok(RetrievalMode::MultiQuery),
             "hyde" => Ok(RetrievalMode::Hyde),
-            other => Err(crate::RagError::config(format!("unknown retrieval mode '{other}'"))),
+            other => Err(crate::RagError::config(format!(
+                "unknown retrieval mode '{other}'"
+            ))),
         }
     }
 }
@@ -217,7 +231,10 @@ mod tests {
             let s = m.to_string();
             assert_eq!(RetrievalMode::from_str(&s).unwrap(), m, "roundtrip {s}");
         }
-        assert_eq!(RetrievalMode::from_str("KEYWORD").unwrap(), RetrievalMode::Bm25);
+        assert_eq!(
+            RetrievalMode::from_str("KEYWORD").unwrap(),
+            RetrievalMode::Bm25
+        );
         assert!(RetrievalMode::from_str("nope").is_err());
     }
 

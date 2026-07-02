@@ -43,7 +43,10 @@ pub fn from_config(cfg: &RagConfig) -> Result<Arc<dyn DocumentSource>> {
             }
             #[cfg(not(feature = "remote-sources"))]
             {
-                Err(RagError::FeatureDisabled("ftp".into(), "remote-sources".into()))
+                Err(RagError::FeatureDisabled(
+                    "ftp".into(),
+                    "remote-sources".into(),
+                ))
             }
         }
         SourceKind::Sftp => {
@@ -53,7 +56,10 @@ pub fn from_config(cfg: &RagConfig) -> Result<Arc<dyn DocumentSource>> {
             }
             #[cfg(not(feature = "remote-sources"))]
             {
-                Err(RagError::FeatureDisabled("sftp".into(), "remote-sources".into()))
+                Err(RagError::FeatureDisabled(
+                    "sftp".into(),
+                    "remote-sources".into(),
+                ))
             }
         }
     }

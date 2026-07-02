@@ -20,11 +20,17 @@ pub struct Message {
 impl Message {
     /// A system message.
     pub fn system(content: impl Into<String>) -> Self {
-        Message { role: "system".into(), content: content.into() }
+        Message {
+            role: "system".into(),
+            content: content.into(),
+        }
     }
     /// A user message.
     pub fn user(content: impl Into<String>) -> Self {
-        Message { role: "user".into(), content: content.into() }
+        Message {
+            role: "user".into(),
+            content: content.into(),
+        }
     }
 }
 
@@ -36,7 +42,8 @@ pub trait ChatModel: Send + Sync {
 
     /// Convenience: single system + user turn.
     async fn ask(&self, system: &str, user: &str) -> Result<String> {
-        self.complete(&[Message::system(system), Message::user(user)]).await
+        self.complete(&[Message::system(system), Message::user(user)])
+            .await
     }
 }
 

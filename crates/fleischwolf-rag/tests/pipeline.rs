@@ -50,13 +50,21 @@ async fn ingest_then_retrieve_offline() {
     assert_eq!(docs.len(), 2);
     for d in &docs {
         let m = &d.metadata["metrics"];
-        assert!(m["file_bytes"].as_u64().unwrap() > 0, "file_bytes for {}", d.title);
+        assert!(
+            m["file_bytes"].as_u64().unwrap() > 0,
+            "file_bytes for {}",
+            d.title
+        );
         assert!(m["words"].as_u64().unwrap() > 0, "words for {}", d.title);
         assert!(m["chunks"].as_u64().unwrap() > 0, "chunks for {}", d.title);
         assert!(m["embedded_words"].as_u64().unwrap() > 0);
         // All three phases have timings; rates exist when the phase was measurable.
         for phase in ["parsing", "chunking", "embedding"] {
-            assert!(m[phase]["seconds"].is_number(), "{phase} seconds for {}", d.title);
+            assert!(
+                m[phase]["seconds"].is_number(),
+                "{phase} seconds for {}",
+                d.title
+            );
         }
         // Markdown has no page notion, so no pages / pages_per_sec keys.
         assert!(m.get("pages").is_none());
@@ -70,19 +78,30 @@ async fn ingest_then_retrieve_offline() {
     // Every offline retrieval mode surfaces the vector-search passage first.
     for mode in RetrievalMode::OFFLINE {
         let hits = pipeline
-            .query(mode, "semantic search over embeddings in a vector database", 3)
+            .query(
+                mode,
+                "semantic search over embeddings in a vector database",
+                3,
+            )
             .await
             .unwrap();
         assert!(!hits.is_empty(), "{mode} returned no hits");
         assert!(
-            hits[0].chunk.text.to_lowercase().contains("vector database"),
+            hits[0]
+                .chunk
+                .text
+                .to_lowercase()
+                .contains("vector database"),
             "{mode} ranked wrong chunk: {}",
             hits[0].chunk.text
         );
     }
 
     // LLM-backed answering errors cleanly without a key.
-    assert!(pipeline.answer("q", RetrievalMode::Vector, 3).await.is_err());
+    assert!(pipeline
+        .answer("q", RetrievalMode::Vector, 3)
+        .await
+        .is_err());
 
     std::fs::remove_dir_all(&dir).ok();
 }
@@ -90,5 +109,8 @@ async fn ingest_then_retrieve_offline() {
 /// A cheap unique-ish suffix without pulling uuid into the test.
 fn uuid_like() -> u128 {
     use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0)
 }

@@ -47,7 +47,8 @@ impl SftpSource {
             .map_err(|e| RagError::Source(format!("sftp connect {}: {e}", self.addr)))?;
         let mut sess = ssh2::Session::new().map_err(|e| RagError::Source(e.to_string()))?;
         sess.set_tcp_stream(tcp);
-        sess.handshake().map_err(|e| RagError::Source(format!("sftp handshake: {e}")))?;
+        sess.handshake()
+            .map_err(|e| RagError::Source(format!("sftp handshake: {e}")))?;
         sess.userauth_password(&self.user, &self.password)
             .map_err(|e| RagError::Source(format!("sftp auth: {e}")))?;
         Ok(sess)
@@ -68,9 +69,14 @@ impl DocumentSource for SftpSource {
                 .into_iter()
                 .filter(|(_, stat)| stat.is_file())
                 .map(|(path, _)| {
-                    let name =
-                        path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                    SourceRef { uri: format!("sftp://{}{}", this.addr, path.display()), name }
+                    let name = path
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                    SourceRef {
+                        uri: format!("sftp://{}{}", this.addr, path.display()),
+                        name,
+                    }
                 })
                 .collect())
         })
@@ -92,7 +98,8 @@ impl DocumentSource for SftpSource {
                 .open(Path::new(&remote))
                 .map_err(|e| RagError::Source(format!("sftp open {remote}: {e}")))?;
             let mut buf = Vec::new();
-            f.read_to_end(&mut buf).map_err(|e| RagError::Source(e.to_string()))?;
+            f.read_to_end(&mut buf)
+                .map_err(|e| RagError::Source(e.to_string()))?;
             Ok(buf)
         })
         .await

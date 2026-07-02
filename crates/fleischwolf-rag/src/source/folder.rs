@@ -15,14 +15,18 @@ pub struct FolderSource {
 impl FolderSource {
     /// Create a source rooted at `root`.
     pub fn new(root: impl AsRef<Path>) -> Self {
-        FolderSource { root: root.as_ref().to_path_buf() }
+        FolderSource {
+            root: root.as_ref().to_path_buf(),
+        }
     }
 }
 
 /// Recursively collect regular files under `dir` (depth-first, sorted for
 /// determinism). Unreadable directories are skipped rather than failing the walk.
 fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
     let mut paths: Vec<PathBuf> = entries.filter_map(|e| e.ok().map(|e| e.path())).collect();
     paths.sort();
     for path in paths {
@@ -50,7 +54,10 @@ impl DocumentSource for FolderSource {
         Ok(files
             .into_iter()
             .map(|p| SourceRef {
-                name: p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+                name: p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
                 uri: format!("file://{}", p.display()),
             })
             .collect())

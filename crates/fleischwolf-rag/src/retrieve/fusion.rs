@@ -20,7 +20,8 @@ pub fn rrf(rankings: &[Vec<Scored>], k: f32, top_k: usize) -> Vec<Scored> {
         for (rank, hit) in list.iter().enumerate() {
             let contribution = 1.0 / (k + (rank as f32 + 1.0));
             *fused.entry(hit.chunk.id.clone()).or_insert(0.0) += contribution;
-            repr.entry(hit.chunk.id.clone()).or_insert_with(|| hit.clone());
+            repr.entry(hit.chunk.id.clone())
+                .or_insert_with(|| hit.clone());
         }
     }
 
@@ -32,7 +33,11 @@ pub fn rrf(rankings: &[Vec<Scored>], k: f32, top_k: usize) -> Vec<Scored> {
             s
         })
         .collect();
-    out.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    out.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     out.truncate(top_k);
     out
 }

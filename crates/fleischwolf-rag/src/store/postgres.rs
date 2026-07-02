@@ -58,7 +58,9 @@ fn row_to_chunk(row: &sqlx::postgres::PgRow) -> Result<Chunk> {
 #[async_trait]
 impl VectorStore for PostgresStore {
     async fn migrate(&self) -> Result<()> {
-        sqlx::query("CREATE EXTENSION IF NOT EXISTS vector").execute(&self.pool).await?;
+        sqlx::query("CREATE EXTENSION IF NOT EXISTS vector")
+            .execute(&self.pool)
+            .await?;
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS documents (
                 id TEXT PRIMARY KEY,
@@ -179,21 +181,24 @@ impl VectorStore for PostgresStore {
     }
 
     async fn count_chunks(&self) -> Result<usize> {
-        let row = sqlx::query("SELECT COUNT(*) AS n FROM chunks").fetch_one(&self.pool).await?;
+        let row = sqlx::query("SELECT COUNT(*) AS n FROM chunks")
+            .fetch_one(&self.pool)
+            .await?;
         Ok(row.get::<i64, _>("n") as usize)
     }
 
     async fn count_documents(&self) -> Result<usize> {
-        let row = sqlx::query("SELECT COUNT(*) AS n FROM documents").fetch_one(&self.pool).await?;
+        let row = sqlx::query("SELECT COUNT(*) AS n FROM documents")
+            .fetch_one(&self.pool)
+            .await?;
         Ok(row.get::<i64, _>("n") as usize)
     }
 
     async fn list_documents(&self) -> Result<Vec<Document>> {
-        let rows = sqlx::query(
-            "SELECT id, source_uri, title, hash, metadata, created_at FROM documents",
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let rows =
+            sqlx::query("SELECT id, source_uri, title, hash, metadata, created_at FROM documents")
+                .fetch_all(&self.pool)
+                .await?;
         rows.iter()
             .map(|row| {
                 Ok(Document {
@@ -209,8 +214,12 @@ impl VectorStore for PostgresStore {
     }
 
     async fn clear(&self) -> Result<()> {
-        sqlx::query("DELETE FROM chunks").execute(&self.pool).await?;
-        sqlx::query("DELETE FROM documents").execute(&self.pool).await?;
+        sqlx::query("DELETE FROM chunks")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("DELETE FROM documents")
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 }

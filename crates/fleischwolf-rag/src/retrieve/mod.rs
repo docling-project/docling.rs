@@ -51,7 +51,12 @@ impl Retriever {
     }
 
     /// Retrieve the top `k` chunks for `query` using `mode`.
-    pub async fn retrieve(&self, mode: RetrievalMode, query: &str, k: usize) -> Result<Vec<Scored>> {
+    pub async fn retrieve(
+        &self,
+        mode: RetrievalMode,
+        query: &str,
+        k: usize,
+    ) -> Result<Vec<Scored>> {
         match mode {
             RetrievalMode::Vector => self.vector(query, k).await,
             RetrievalMode::Bm25 => self.bm25(query, k).await,
@@ -97,7 +102,13 @@ impl Retriever {
         let raw = chat.ask(system, &user).await?;
         let mut queries: Vec<String> = raw
             .lines()
-            .map(|l| l.trim().trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c == '-' || c == ')').trim())
+            .map(|l| {
+                l.trim()
+                    .trim_start_matches(|c: char| {
+                        c.is_ascii_digit() || c == '.' || c == '-' || c == ')'
+                    })
+                    .trim()
+            })
             .filter(|l| !l.is_empty())
             .map(|l| l.to_string())
             .take(self.multiquery_n)
@@ -123,15 +134,19 @@ impl Retriever {
         let hypothetical = chat.ask(system, query).await?;
         // Search with the hypothetical document's embedding; fall back to the raw
         // query text if the model returned nothing usable.
-        let search_text = if hypothetical.trim().is_empty() { query } else { &hypothetical };
+        let search_text = if hypothetical.trim().is_empty() {
+            query
+        } else {
+            &hypothetical
+        };
         let emb = self.embedder.embed_one(search_text).await?;
         self.store.vector_search(&emb, k).await
     }
 
     fn require_chat(&self) -> Result<&Arc<dyn ChatModel>> {
-        self.chat
-            .as_ref()
-            .ok_or_else(|| RagError::Llm("this retrieval mode needs an LLM; set OPENROUTER_API_KEY".into()))
+        self.chat.as_ref().ok_or_else(|| {
+            RagError::Llm("this retrieval mode needs an LLM; set OPENROUTER_API_KEY".into())
+        })
     }
 }
 
@@ -157,7 +172,13 @@ mod tests {
         let mut chunks = Vec::new();
         for (i, t) in texts.iter().enumerate() {
             let mut c = Chunk::new(&doc.id, i as i64, *t, 0);
-            c.embedding = Some(crate::embed::Embedder::embed(&embedder, &[t.to_string()]).await.unwrap().pop().unwrap());
+            c.embedding = Some(
+                crate::embed::Embedder::embed(&embedder, &[t.to_string()])
+                    .await
+                    .unwrap()
+                    .pop()
+                    .unwrap(),
+            );
             chunks.push(c);
         }
         store.insert_chunks(&chunks).await.unwrap();
@@ -171,7 +192,10 @@ mod tests {
         let r = Retriever::new(store, embedder, None);
 
         for mode in RetrievalMode::OFFLINE {
-            let hits = r.retrieve(mode, "semantic search vector database", 3).await.unwrap();
+            let hits = r
+                .retrieve(mode, "semantic search vector database", 3)
+                .await
+                .unwrap();
             assert!(!hits.is_empty(), "{mode} returned nothing");
             assert!(
                 hits[0].chunk.text.contains("vector database"),
@@ -202,11 +226,19 @@ mod tests {
         let chat: Arc<dyn ChatModel> = Arc::new(MockChat);
         let r = Retriever::new(store, embedder, Some(chat));
 
-        let mq = r.retrieve(RetrievalMode::MultiQuery, "how are embeddings stored?", 3).await.unwrap();
+        let mq = r
+            .retrieve(RetrievalMode::MultiQuery, "how are embeddings stored?", 3)
+            .await
+            .unwrap();
         assert!(mq.iter().any(|h| h.chunk.text.contains("vector database")));
 
-        let hyde = r.retrieve(RetrievalMode::Hyde, "how are embeddings stored?", 3).await.unwrap();
-        assert!(hyde.iter().any(|h| h.chunk.text.contains("vector database")));
+        let hyde = r
+            .retrieve(RetrievalMode::Hyde, "how are embeddings stored?", 3)
+            .await
+            .unwrap();
+        assert!(hyde
+            .iter()
+            .any(|h| h.chunk.text.contains("vector database")));
     }
 
     #[tokio::test]

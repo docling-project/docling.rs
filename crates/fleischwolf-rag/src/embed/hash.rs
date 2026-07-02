@@ -19,7 +19,10 @@ pub struct HashEmbedder {
 impl HashEmbedder {
     /// Create a hashing embedder producing `dim`-dimensional unit vectors.
     pub fn new(dim: usize) -> Self {
-        HashEmbedder { dim: dim.max(1), id: format!("hash:{dim}") }
+        HashEmbedder {
+            dim: dim.max(1),
+            id: format!("hash:{dim}"),
+        }
     }
 
     fn embed_text(&self, text: &str) -> Vec<f32> {
@@ -30,7 +33,11 @@ impl HashEmbedder {
         }
         // Bigrams add a little word-order signal.
         for pair in tokens.windows(2) {
-            let bg = format!("{}_{}", pair[0].to_ascii_lowercase(), pair[1].to_ascii_lowercase());
+            let bg = format!(
+                "{}_{}",
+                pair[0].to_ascii_lowercase(),
+                pair[1].to_ascii_lowercase()
+            );
             self.add_feature(&mut v, bg.as_bytes());
         }
         math::normalize(&mut v);

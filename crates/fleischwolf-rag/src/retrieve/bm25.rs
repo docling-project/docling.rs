@@ -37,7 +37,11 @@ impl Bm25Index {
         let tokens: Vec<Vec<String>> = chunks.iter().map(|c| tokenize(&c.text)).collect();
         let doc_len: Vec<f32> = tokens.iter().map(|t| t.len() as f32).collect();
         let n = chunks.len();
-        let avgdl = if n == 0 { 0.0 } else { doc_len.iter().sum::<f32>() / n as f32 };
+        let avgdl = if n == 0 {
+            0.0
+        } else {
+            doc_len.iter().sum::<f32>() / n as f32
+        };
 
         let mut df: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
         for toks in &tokens {
@@ -48,7 +52,16 @@ impl Bm25Index {
                 }
             }
         }
-        Bm25Index { chunks, tokens, doc_len, avgdl, df, n, k1: K1, b: B }
+        Bm25Index {
+            chunks,
+            tokens,
+            doc_len,
+            avgdl,
+            df,
+            n,
+            k1: K1,
+            b: B,
+        }
     }
 
     /// Robertson–Spärck-Jones IDF with the usual `+0.5` smoothing, floored at 0.
@@ -81,7 +94,11 @@ impl Bm25Index {
                 scored.push(Scored::new(self.chunks[i].clone(), score));
             }
         }
-        scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        scored.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         scored.truncate(k);
         scored
     }

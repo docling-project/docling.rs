@@ -149,7 +149,11 @@ mod tests {
             2000,
             10,
             2200,
-            Timings { parse_secs: 2.0, chunk_secs: 0.5, embed_secs: 4.0 },
+            Timings {
+                parse_secs: 2.0,
+                chunk_secs: 0.5,
+                embed_secs: 4.0,
+            },
         );
         assert_eq!(m.parsing.words_per_sec, Some(1000.0));
         assert_eq!(m.parsing.pages_per_sec, Some(2.0));

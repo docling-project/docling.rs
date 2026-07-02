@@ -80,8 +80,11 @@ pub fn parse_sections(markdown: &str) -> Vec<Section> {
                 heading_stack[idx] = heading_buf.trim().to_string();
                 // A heading begins a new section.
                 flush(&mut sections, &mut current);
-                current.heading_path =
-                    heading_stack.iter().filter(|h| !h.is_empty()).cloned().collect();
+                current.heading_path = heading_stack
+                    .iter()
+                    .filter(|h| !h.is_empty())
+                    .cloned()
+                    .collect();
             }
             Event::Text(t) | Event::Code(t) => {
                 if in_heading {

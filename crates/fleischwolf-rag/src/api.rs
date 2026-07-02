@@ -45,7 +45,10 @@ pub fn router(pipeline: Pipeline, keys: Vec<String>) -> Result<Router> {
             "RAG_API_KEYS must contain at least one key to start the REST API",
         ));
     }
-    let state = Arc::new(AppState { pipeline, keys: keys.into_iter().collect() });
+    let state = Arc::new(AppState {
+        pipeline,
+        keys: keys.into_iter().collect(),
+    });
 
     let protected = Router::new()
         .route("/api/stats", get(stats))
@@ -107,18 +110,28 @@ async fn stats(State(state): State<Arc<AppState>>) -> ApiResult {
 }
 
 async fn list_documents(State(state): State<Arc<AppState>>) -> ApiResult {
-    let docs = state.pipeline.store().list_documents().await.map_err(internal)?;
+    let docs = state
+        .pipeline
+        .store()
+        .list_documents()
+        .await
+        .map_err(internal)?;
     Ok(Json(json!({"documents": docs})).into_response())
 }
 
-async fn get_document(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> ApiResult {
-    let docs = state.pipeline.store().list_documents().await.map_err(internal)?;
+async fn get_document(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> ApiResult {
+    let docs = state
+        .pipeline
+        .store()
+        .list_documents()
+        .await
+        .map_err(internal)?;
     match docs.into_iter().find(|d| d.id == id) {
         Some(doc) => Ok(Json(doc).into_response()),
-        None => Err(err(StatusCode::NOT_FOUND, format!("no document with id '{id}'"))),
+        None => Err(err(
+            StatusCode::NOT_FOUND,
+            format!("no document with id '{id}'"),
+        )),
     }
 }
 
@@ -160,7 +173,10 @@ async fn run_search(state: Arc<AppState>, params: SearchParams) -> ApiResult {
         Some(m) => RetrievalMode::from_str(m).map_err(|e| err(StatusCode::BAD_REQUEST, e))?,
         None => state.pipeline.config().retrieval_mode,
     };
-    let k = params.top_k.unwrap_or(state.pipeline.config().top_k).clamp(1, 100);
+    let k = params
+        .top_k
+        .unwrap_or(state.pipeline.config().top_k)
+        .clamp(1, 100);
 
     if params.answer {
         let a = state

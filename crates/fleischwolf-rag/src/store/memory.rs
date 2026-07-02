@@ -37,7 +37,13 @@ impl VectorStore for MemoryStore {
     }
 
     async fn find_document_by_hash(&self, hash: &str) -> Result<Option<String>> {
-        Ok(self.docs.read().unwrap().iter().find(|d| d.hash == hash).map(|d| d.id.clone()))
+        Ok(self
+            .docs
+            .read()
+            .unwrap()
+            .iter()
+            .find(|d| d.hash == hash)
+            .map(|d| d.id.clone()))
     }
 
     async fn insert_chunks(&self, chunks: &[Chunk]) -> Result<()> {

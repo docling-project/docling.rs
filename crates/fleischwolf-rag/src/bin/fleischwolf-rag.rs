@@ -14,7 +14,10 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 #[derive(Parser)]
-#[command(name = "fleischwolf-rag", about = "Pluggable RAG over the fleischwolf document converter")]
+#[command(
+    name = "fleischwolf-rag",
+    about = "Pluggable RAG over the fleischwolf document converter"
+)]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -104,7 +107,11 @@ async fn run() -> Result<()> {
         Cmd::InitDb => {
             let pipeline = Pipeline::from_config(&cfg).await?;
             // from_config already ran migrations; report the target.
-            println!("initialized {} store at {}", backend_name(cfg.db_backend), cfg.database_url);
+            println!(
+                "initialized {} store at {}",
+                backend_name(cfg.db_backend),
+                cfg.database_url
+            );
             let _ = pipeline;
         }
 
@@ -126,7 +133,12 @@ async fn run() -> Result<()> {
             );
         }
 
-        Cmd::Query { query, mode, top_k, answer } => {
+        Cmd::Query {
+            query,
+            mode,
+            top_k,
+            answer,
+        } => {
             let mode = match mode {
                 Some(m) => RetrievalMode::from_str(&m)?,
                 None => cfg.retrieval_mode,
@@ -150,7 +162,11 @@ async fn run() -> Result<()> {
             }
         }
 
-        Cmd::Eval { dataset, top_k, json } => {
+        Cmd::Eval {
+            dataset,
+            top_k,
+            json,
+        } => {
             let raw = std::fs::read_to_string(&dataset)?;
             let ds: EvalDataset = serde_json::from_str(&raw)?;
             // Use the configured embedder; attach the LLM only if a key is present.
@@ -207,10 +223,14 @@ async fn run() -> Result<()> {
                 for d in &documents {
                     let m = &d.metadata["metrics"];
                     let num = |v: &serde_json::Value| {
-                        v.as_f64().map(|x| format!("{x:.1}")).unwrap_or_else(|| "-".into())
+                        v.as_f64()
+                            .map(|x| format!("{x:.1}"))
+                            .unwrap_or_else(|| "-".into())
                     };
                     let int = |v: &serde_json::Value| {
-                        v.as_u64().map(|x| x.to_string()).unwrap_or_else(|| "-".into())
+                        v.as_u64()
+                            .map(|x| x.to_string())
+                            .unwrap_or_else(|| "-".into())
                     };
                     let kib = m["file_bytes"]
                         .as_u64()
@@ -248,6 +268,8 @@ fn parse_source(s: &str) -> Result<SourceKind> {
         "folder" | "dir" | "local" => Ok(SourceKind::Folder),
         "ftp" => Ok(SourceKind::Ftp),
         "sftp" => Ok(SourceKind::Sftp),
-        other => Err(fleischwolf_rag::RagError::config(format!("unknown source '{other}'"))),
+        other => Err(fleischwolf_rag::RagError::config(format!(
+            "unknown source '{other}'"
+        ))),
     }
 }

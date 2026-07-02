@@ -21,7 +21,9 @@ pub struct QueryMetrics {
 /// Whether `text` satisfies any expected substring (case-insensitive).
 pub fn is_relevant(text: &str, expected: &[String]) -> bool {
     let hay = text.to_ascii_lowercase();
-    expected.iter().any(|e| hay.contains(&e.to_ascii_lowercase()))
+    expected
+        .iter()
+        .any(|e| hay.contains(&e.to_ascii_lowercase()))
 }
 
 /// Compute recall@k / MRR / nDCG@k for one query's ranked results.
@@ -36,7 +38,8 @@ pub fn evaluate(hits: &[Scored], expected: &[String], k: usize) -> QueryMetrics 
         .iter()
         .filter(|e| {
             let el = e.to_ascii_lowercase();
-            top.iter().any(|h| h.chunk.text.to_ascii_lowercase().contains(&el))
+            top.iter()
+                .any(|h| h.chunk.text.to_ascii_lowercase().contains(&el))
         })
         .count();
     let recall = matched as f32 / expected.len() as f32;
@@ -59,7 +62,9 @@ pub fn evaluate(hits: &[Scored], expected: &[String], k: usize) -> QueryMetrics 
             relevant_found += 1;
         }
     }
-    let idcg: f32 = (0..relevant_found).map(|i| 1.0 / ((i as f32 + 2.0).log2())).sum();
+    let idcg: f32 = (0..relevant_found)
+        .map(|i| 1.0 / ((i as f32 + 2.0).log2()))
+        .sum();
     let ndcg = if idcg > 0.0 { dcg / idcg } else { 0.0 };
 
     QueryMetrics { recall, mrr, ndcg }

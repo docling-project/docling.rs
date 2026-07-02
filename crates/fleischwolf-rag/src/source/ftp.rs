@@ -35,7 +35,10 @@ impl FtpSource {
         Ok(FtpSource {
             addr,
             dir: cfg.source_path.clone(),
-            user: cfg.source_user.clone().unwrap_or_else(|| "anonymous".into()),
+            user: cfg
+                .source_user
+                .clone()
+                .unwrap_or_else(|| "anonymous".into()),
             password: cfg.source_password.clone().unwrap_or_default(),
         })
     }
@@ -63,7 +66,10 @@ impl DocumentSource for FtpSource {
                 .into_iter()
                 .map(|name| {
                     let file = name.rsplit('/').next().unwrap_or(&name).to_string();
-                    SourceRef { uri: format!("ftp://{}/{}", this.addr, name), name: file }
+                    SourceRef {
+                        uri: format!("ftp://{}/{}", this.addr, name),
+                        name: file,
+                    }
                 })
                 .collect())
         })

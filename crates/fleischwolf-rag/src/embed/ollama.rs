@@ -51,7 +51,10 @@ impl Embedder for OllamaEmbedder {
         let resp = self
             .client
             .post(&url)
-            .json(&EmbedReq { model: &self.model, input: texts })
+            .json(&EmbedReq {
+                model: &self.model,
+                input: texts,
+            })
             .send()
             .await?
             .error_for_status()?;

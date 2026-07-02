@@ -43,15 +43,17 @@ pub async fn from_config(cfg: &RagConfig) -> Result<Arc<dyn MessageQueue>> {
         QueueKind::RabbitMq => {
             #[cfg(feature = "rabbitmq")]
             {
-                let url = cfg
-                    .rabbitmq_url
-                    .clone()
-                    .ok_or_else(|| RagError::config("RABBITMQ_URL is required for the rabbitmq queue"))?;
+                let url = cfg.rabbitmq_url.clone().ok_or_else(|| {
+                    RagError::config("RABBITMQ_URL is required for the rabbitmq queue")
+                })?;
                 Ok(Arc::new(rabbitmq::RabbitMqQueue::connect(&url).await?))
             }
             #[cfg(not(feature = "rabbitmq"))]
             {
-                Err(RagError::FeatureDisabled("rabbitmq".into(), "rabbitmq".into()))
+                Err(RagError::FeatureDisabled(
+                    "rabbitmq".into(),
+                    "rabbitmq".into(),
+                ))
             }
         }
         QueueKind::Redis => {

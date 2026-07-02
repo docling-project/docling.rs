@@ -54,7 +54,11 @@ async fn rest_api_end_to_end() {
     assert_eq!(r.status(), 200);
 
     // Everything under /api requires a key.
-    let r = client.get(format!("{base}/api/documents")).send().await.unwrap();
+    let r = client
+        .get(format!("{base}/api/documents"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 401);
     let r = client
         .get(format!("{base}/api/documents"))
@@ -108,7 +112,11 @@ async fn rest_api_end_to_end() {
     for mode in ["vector", "bm25", "hybrid"] {
         let r = client
             .get(format!("{base}/api/search"))
-            .query(&[("q", "semantic search in a vector database"), ("mode", mode), ("k", "3")])
+            .query(&[
+                ("q", "semantic search in a vector database"),
+                ("mode", mode),
+                ("k", "3"),
+            ])
             .header("X-Api-Key", "test-key")
             .send()
             .await
@@ -119,7 +127,10 @@ async fn rest_api_end_to_end() {
         let results = body["results"].as_array().unwrap();
         assert!(!results.is_empty(), "mode {mode} returned nothing");
         assert!(
-            results[0]["chunk"]["text"].as_str().unwrap().contains("vector database"),
+            results[0]["chunk"]["text"]
+                .as_str()
+                .unwrap()
+                .contains("vector database"),
             "mode {mode} ranked the wrong chunk"
         );
     }
@@ -134,7 +145,10 @@ async fn rest_api_end_to_end() {
         .unwrap();
     assert_eq!(r.status(), 200);
     let body: serde_json::Value = r.json().await.unwrap();
-    assert!(body["results"][0]["chunk"]["text"].as_str().unwrap().contains("banana"));
+    assert!(body["results"][0]["chunk"]["text"]
+        .as_str()
+        .unwrap()
+        .contains("banana"));
 
     // Bad inputs: unknown mode and LLM mode without a key are 400s.
     let r = client

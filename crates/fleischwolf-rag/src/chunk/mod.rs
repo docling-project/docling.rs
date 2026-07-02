@@ -29,14 +29,22 @@ pub struct Chunker {
 
 impl Default for Chunker {
     fn default() -> Self {
-        Chunker { size: 300, overlap: 0.05, unit: ChunkUnit::Word }
+        Chunker {
+            size: 300,
+            overlap: 0.05,
+            unit: ChunkUnit::Word,
+        }
     }
 }
 
 impl Chunker {
     /// Build a chunker from the resolved config.
     pub fn from_config(cfg: &crate::RagConfig) -> Self {
-        Chunker { size: cfg.chunk_size, overlap: cfg.chunk_overlap, unit: cfg.chunk_unit }
+        Chunker {
+            size: cfg.chunk_size,
+            overlap: cfg.chunk_overlap,
+            unit: cfg.chunk_unit,
+        }
     }
 
     /// The window size in *words*, derived from the configured unit.
@@ -117,7 +125,11 @@ mod tests {
         // One section, 100 words, size 20, overlap 0.10 => step 18.
         let words: Vec<String> = (0..100).map(|i| format!("w{i}")).collect();
         let md = format!("# Title\n\n{}", words.join(" "));
-        let chunker = Chunker { size: 20, overlap: 0.10, unit: ChunkUnit::Word };
+        let chunker = Chunker {
+            size: 20,
+            overlap: 0.10,
+            unit: ChunkUnit::Word,
+        };
         let chunks = chunker.chunk("doc", &md);
 
         assert!(chunks.len() > 1);
@@ -126,15 +138,35 @@ mod tests {
             assert_eq!(body_word_count(c), 20, "chunk body size");
         }
         // Consecutive chunks overlap by budget-step = 2 words.
-        let first_body: Vec<&str> = chunks[0].text.rsplit("\n\n").next().unwrap().split_whitespace().collect();
-        let second_body: Vec<&str> = chunks[1].text.rsplit("\n\n").next().unwrap().split_whitespace().collect();
-        assert_eq!(&first_body[18..20], &second_body[0..2], "overlap tail carried forward");
+        let first_body: Vec<&str> = chunks[0]
+            .text
+            .rsplit("\n\n")
+            .next()
+            .unwrap()
+            .split_whitespace()
+            .collect();
+        let second_body: Vec<&str> = chunks[1]
+            .text
+            .rsplit("\n\n")
+            .next()
+            .unwrap()
+            .split_whitespace()
+            .collect();
+        assert_eq!(
+            &first_body[18..20],
+            &second_body[0..2],
+            "overlap tail carried forward"
+        );
     }
 
     #[test]
     fn never_crosses_heading_boundary() {
         let md = "# A\n\nalpha beta gamma\n\n# B\n\ndelta epsilon";
-        let chunker = Chunker { size: 100, overlap: 0.05, unit: ChunkUnit::Word };
+        let chunker = Chunker {
+            size: 100,
+            overlap: 0.05,
+            unit: ChunkUnit::Word,
+        };
         let chunks = chunker.chunk("doc", md);
         // Two sections, each small => exactly two chunks.
         assert_eq!(chunks.len(), 2);
@@ -158,7 +190,11 @@ mod tests {
         let words: Vec<String> = (0..80).map(|i| format!("w{i}")).collect();
         let md = words.join(" ");
         // 40 tokens ≈ 30 words per chunk.
-        let chunker = Chunker { size: 40, overlap: 0.0, unit: ChunkUnit::Token };
+        let chunker = Chunker {
+            size: 40,
+            overlap: 0.0,
+            unit: ChunkUnit::Token,
+        };
         let chunks = chunker.chunk("doc", &md);
         assert_eq!(body_word_count(&chunks[0]), 30);
         // token_count is reported back in tokens (30 words / 0.75 = 40).

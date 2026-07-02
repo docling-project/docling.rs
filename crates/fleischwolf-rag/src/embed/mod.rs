@@ -35,7 +35,8 @@ pub trait Embedder: Send + Sync {
     /// Convenience: embed a single text.
     async fn embed_one(&self, text: &str) -> Result<Vec<f32>> {
         let mut v = self.embed(std::slice::from_ref(&text.to_string())).await?;
-        v.pop().ok_or_else(|| RagError::Embedding("provider returned no vector".into()))
+        v.pop()
+            .ok_or_else(|| RagError::Embedding("provider returned no vector".into()))
     }
 }
 
@@ -52,7 +53,10 @@ pub fn from_config(cfg: &RagConfig) -> Result<Arc<dyn Embedder>> {
             }
             #[cfg(not(feature = "onnx-embed"))]
             {
-                Err(RagError::FeatureDisabled("onnx".into(), "onnx-embed".into()))
+                Err(RagError::FeatureDisabled(
+                    "onnx".into(),
+                    "onnx-embed".into(),
+                ))
             }
         }
     }

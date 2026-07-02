@@ -38,7 +38,9 @@ impl MessageQueue for MemoryQueue {
     }
 
     async fn subscribe(&self) -> Result<Box<dyn QueueReceiver>> {
-        Ok(Box::new(MemoryReceiver { rx: self.tx.subscribe() }))
+        Ok(Box::new(MemoryReceiver {
+            rx: self.tx.subscribe(),
+        }))
     }
 }
 
