@@ -15,5 +15,11 @@ rust-version.workspace = true
 name = "fleischwolf"
 path = "src/main.rs"
 
+[features]
+# Pass through to the library's optional headless-browser HTML pre-render, so
+# `cargo run -p fleischwolf-cli --features web-browser -- --use-web-browser …`
+# activates it. Off by default (keeps the default binary browser-dependency-free).
+web-browser = ["fleischwolf/web-browser"]
+
 [dependencies]
 fleischwolf = { path = "../fleischwolf", version = "0.10.0" }

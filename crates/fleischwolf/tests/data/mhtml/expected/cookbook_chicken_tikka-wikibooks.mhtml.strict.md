@@ -27,8 +27,6 @@ Community
 - [Policies and guidelines](https://en.wikibooks.org/wiki/Wikibooks:Policies_and_guidelines)
 - [Contact us](https://en.wikibooks.org/wiki/Wikibooks:Contact_us)
 
-![Wikibooks](#) ![The Free Textbook Project](#)
-
 [Search](https://en.wikibooks.org/wiki/Special:Search)
 
 Search
@@ -138,12 +136,12 @@ This page is always in light mode.
 
 From Wikibooks, open books for an open world
 
-| Chicken Tikka                            | Chicken Tikka                            |
-|------------------------------------------|------------------------------------------|
-| The cooked Chicken Tikka  <!-- image --> | The cooked Chicken Tikka  <!-- image --> |
-| Servings                                 | 4                                        |
-| Time                                     | 30 minutes                               |
-| Difficulty                               | Easy  <!-- image -->                     |
+| Chicken Tikka   | Chicken Tikka   |
+|-----------------|-----------------|
+|                 |                 |
+| Servings        | 4               |
+| Time            | 30 minutes      |
+| Difficulty      |                 |
 
 [Cookbook](https://en.wikibooks.org/wiki/Cookbook:Table_of_Contents) | [Recipes](https://en.wikibooks.org/wiki/Cookbook:Recipes) | [Ingredients](https://en.wikibooks.org/wiki/Cookbook:Ingredients) | [Equipment](https://en.wikibooks.org/wiki/Cookbook:Equipment) | [Techniques](https://en.wikibooks.org/wiki/Cookbook:Cooking_Techniques) | [Cookbook Disambiguation Pages](https://en.wikibooks.org/wiki/Category:Cookbook_disambiguation_pages) | [Recipes](https://en.wikibooks.org/wiki/Category:Recipes) | [Meat recipes](https://en.wikibooks.org/wiki/Cookbook:Meat_Recipes) | [Cuisine of India](https://en.wikibooks.org/wiki/Cookbook:Cuisine_of_India)
 
@@ -231,8 +229,6 @@ Hidden categories:
 - [Statistics](https://stats.wikimedia.org/#/en.wikibooks.org)
 - [Cookie statement](https://foundation.wikimedia.org/wiki/Special:MyLanguage/Policy:Cookie_statement)
 - [Mobile view](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&mobileaction=toggle_view_mobile)
-- ![Wikimedia Foundation](#)
-- ![Powered by MediaWiki](#)
 
 Search
 

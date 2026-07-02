@@ -18,6 +18,9 @@ pub enum ConversionError {
     /// The requested streaming conversion is not supported (e.g. JSON, or the
     /// referenced image mode, which both need the whole document up front).
     Streaming(String),
+    /// The headless-browser pre-render (`--use-web-browser`) failed, or the crate
+    /// was built without the `web-browser` feature.
+    Browser(String),
 }
 
 impl fmt::Display for ConversionError {
@@ -36,6 +39,7 @@ impl fmt::Display for ConversionError {
             }
             ConversionError::Parse(msg) => write!(f, "parse error: {msg}"),
             ConversionError::Streaming(msg) => write!(f, "streaming not supported: {msg}"),
+            ConversionError::Browser(msg) => write!(f, "web-browser render error: {msg}"),
         }
     }
 }

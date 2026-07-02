@@ -5,10 +5,14 @@
 //! is the Rust counterpart of `docling/backend/html_backend.py`'s `_walk`.
 //!
 //! Scope (Phase 2): block structure (headings, paragraphs, nested lists,
-//! tables, code blocks, figures/images) and inline formatting (bold, italic,
-//! inline code, links). Out of scope for now and tracked in `MIGRATION.md`:
-//! browser rendering, bounding boxes, forms, and the rich per-cell table
-//! provenance the Python backend computes.
+//! tables, code blocks, figures/images), inline formatting (bold, italic,
+//! inline code, links), key-value form regions (docling's `field_region`,
+//! detected from the `keyN` / `keyN_valueM` / `keyN_marker` `id`-convention),
+//! and inline visibility suppression (`hidden` / inline `display:none` /
+//! `visibility:hidden`). Out of scope for now and tracked in `MIGRATION.md`:
+//! browser rendering, rendered bounding boxes, stylesheet-driven (class/CSS
+//! cascade) visibility suppression, and the rich per-cell table provenance the
+//! Python backend computes.
 
 use fleischwolf_core::{DoclingDocument, Node, Table};
 use scraper::{ElementRef, Html, Node as HtmlNode, Selector};
@@ -57,6 +61,35 @@ pub(crate) fn append_fragment(html: &str, out: &mut Vec<Node>, images: &dyn Imag
     let body = parsed.select(cached_selector!("body")).next();
     let root = body.unwrap_or_else(|| parsed.root_element());
     walk_block(root, out, 0, Fmt::default(), images);
+}
+
+/// An element the page explicitly hides from rendering — the `hidden` attribute
+/// or an inline `display:none` / `visibility:hidden` style. A rendering engine
+/// (and docling's rendered output) drops these, so we suppress them too.
+///
+/// `aria-hidden="true"` is deliberately *not* treated as hidden: it removes an
+/// element from the accessibility tree but leaves it visually rendered, so a
+/// visual renderer keeps its text. Only inline styles are honored — a full CSS
+/// cascade (class/stylesheet-driven visibility, e.g. Wikipedia's collapsed
+/// menus) still needs a real browser and is out of scope.
+fn is_hidden(e: &scraper::node::Element) -> bool {
+    if e.attr("hidden").is_some() {
+        return true;
+    }
+    e.attr("style").is_some_and(|style| {
+        style.split(';').any(|decl| {
+            let mut it = decl.splitn(2, ':');
+            match (it.next(), it.next()) {
+                (Some(prop), Some(val)) => {
+                    let (prop, val) = (prop.trim(), val.trim());
+                    (prop.eq_ignore_ascii_case("display") && val.eq_ignore_ascii_case("none"))
+                        || (prop.eq_ignore_ascii_case("visibility")
+                            && val.eq_ignore_ascii_case("hidden"))
+                }
+                _ => false,
+            }
+        })
+    })
 }
 
 /// Tags whose content is not document text and should be skipped wholesale.
@@ -125,7 +158,7 @@ fn walk_block(
                     continue;
                 };
                 let name = e.name();
-                if is_skipped(name) || e.attr("hidden").is_some() {
+                if is_skipped(name) || is_hidden(e) {
                     continue;
                 }
                 if name == "img" {
@@ -149,14 +182,21 @@ fn walk_block(
                 } else if is_block(name) {
                     flush_inline(&mut inline, nodes);
                     handle_block(cref, name, nodes, list_level, base, images);
-                } else if let Some((caption, src)) = image_wrapper(cref) {
-                    // An inline wrapper (e.g. `<a>`) around only an image: docling
-                    // pulls the image out as a Picture and drops the wrapper.
-                    flush_inline(&mut inline, nodes);
-                    nodes.push(Node::Picture {
-                        caption,
-                        image: src.as_deref().and_then(|s| images.resolve(s)),
-                    });
+                } else if name == "a" {
+                    if let Some((caption, src)) = image_wrapper(cref) {
+                        // An anchor wrapping only an image (`<a><img></a>`):
+                        // docling pulls the image out as a Picture and drops the
+                        // wrapper. A non-anchor inline wrapper (`<span><img></span>`)
+                        // is left inline instead — docling never emits inline image
+                        // markers, so such an image produces no output.
+                        flush_inline(&mut inline, nodes);
+                        nodes.push(Node::Picture {
+                            caption,
+                            image: src.as_deref().and_then(|s| images.resolve(s)),
+                        });
+                    } else {
+                        collect_element(cref, base, None, &mut inline);
+                    }
                 } else {
                     collect_element(cref, base, None, &mut inline);
                 }
@@ -251,8 +291,84 @@ fn handle_block(
             image: figure_img_src(elem).and_then(|s| images.resolve(&s)),
         }),
         "hr" => {}
+        // A `form_region`-classed container holding `keyN`-convention fields is a
+        // docling key-value region; emit it as one instead of recursing (so the
+        // field divs aren't also flattened into paragraphs).
+        _ if !base.raw => match detect_field_region(elem) {
+            Some(items) => nodes.push(Node::FieldRegion { items }),
+            None => walk_block(elem, nodes, list_level, base, images),
+        },
         // Transparent containers (div, section, blockquote, …): recurse.
         _ => walk_block(elem, nodes, list_level, base, images),
+    }
+}
+
+/// Detect docling's HTML key-value region: an element classed `form_region`
+/// whose descendants carry the `keyN` / `keyN_valueM` / `keyN_marker` `id`
+/// convention. Returns the fields ordered by their numeric key, or `None` when
+/// this element is not such a region (so the caller recurses normally).
+fn detect_field_region(elem: ElementRef) -> Option<Vec<fleischwolf_core::FieldItem>> {
+    let is_form_region = elem
+        .value()
+        .attr("class")
+        .is_some_and(|c| c.split_whitespace().any(|cls| cls == "form_region"));
+    if !is_form_region {
+        return None;
+    }
+    // Collect each numbered field's parts by scanning `id`-bearing descendants.
+    // A BTreeMap keeps the fields ordered by their numeric key.
+    let mut fields: std::collections::BTreeMap<u32, fleischwolf_core::FieldItem> =
+        std::collections::BTreeMap::new();
+    for el in elem.select(cached_selector!("[id]")) {
+        let Some(id) = el.value().attr("id") else {
+            continue;
+        };
+        let Some((n, kind)) = parse_kvp_id(id) else {
+            continue;
+        };
+        let text = normalize_ws(&el.text().collect::<String>());
+        if text.is_empty() {
+            continue;
+        }
+        let field = fields.entry(n).or_default();
+        match kind {
+            KvpKind::Marker => field.marker.get_or_insert(text),
+            KvpKind::Key => field.key.get_or_insert(text),
+            KvpKind::Value => field.value.get_or_insert(text),
+        };
+    }
+    if fields.is_empty() {
+        return None;
+    }
+    Some(fields.into_values().collect())
+}
+
+/// Which part of a key-value field an element's `id` names.
+enum KvpKind {
+    Marker,
+    Key,
+    Value,
+}
+
+/// Parse docling's key-value `id` convention: `keyN` (the key), `keyN_markerN`
+/// / `keyN_marker` (its marker), `keyN_valueM` (a value). Returns the field
+/// number and which part it is, or `None` for any other `id`.
+fn parse_kvp_id(id: &str) -> Option<(u32, KvpKind)> {
+    let rest = id.strip_prefix("key")?;
+    if let Ok(n) = rest.parse::<u32>() {
+        return Some((n, KvpKind::Key));
+    }
+    let (num, suffix) = rest.split_once('_')?;
+    let n = num.parse::<u32>().ok()?;
+    if suffix == "marker" {
+        Some((n, KvpKind::Marker))
+    } else if suffix
+        .strip_prefix("value")
+        .is_some_and(|m| m.parse::<u32>().is_ok())
+    {
+        Some((n, KvpKind::Value))
+    } else {
+        None
     }
 }
 
@@ -318,7 +434,7 @@ fn collect_li_inline(li: ElementRef, base: Fmt, runs: &mut Vec<String>) {
                 let Some(cref) = ElementRef::wrap(child) else {
                     continue;
                 };
-                if e.attr("hidden").is_some() {
+                if is_hidden(e) {
                     continue;
                 }
                 match e.name() {
@@ -344,7 +460,7 @@ fn append_li_blocks<'a>(
 ) {
     for child in elem.children().filter_map(ElementRef::wrap) {
         let e = child.value();
-        if e.attr("hidden").is_some() {
+        if is_hidden(e) {
             continue;
         }
         match e.name() {
@@ -511,7 +627,7 @@ fn collect_runs(elem: ElementRef, fmt: Fmt, hyperlink: Option<&str>, runs: &mut 
 /// before recursing into its children.
 fn collect_element(elem: ElementRef, fmt: Fmt, hyperlink: Option<&str>, runs: &mut Vec<String>) {
     let e = elem.value();
-    if e.attr("hidden").is_some() {
+    if is_hidden(e) {
         return;
     }
     match e.name() {
@@ -543,11 +659,10 @@ fn collect_element(elem: ElementRef, fmt: Fmt, hyperlink: Option<&str>, runs: &m
             let href = e.attr("href").map(normalize_url);
             collect_runs(elem, fmt, href.as_deref().or(hyperlink), runs);
         }
-        "img" => {
-            if let Some(alt) = e.attr("alt").filter(|a| !a.is_empty()) {
-                runs.push(format!("![{alt}](#)"));
-            }
-        }
+        // An inline image (inside text / a `<span>`) produces no output: docling
+        // never emits inline image markers — only block-level, `<a>`-wrapped, and
+        // `<figure>` images become `<!-- image -->` pictures.
+        "img" => {}
         "script" | "style" => {}
         // Transparent container (span, time, abbr, …): recurse.
         _ => collect_runs(elem, fmt, hyperlink, runs),
@@ -948,6 +1063,68 @@ mod tests {
     fn nested_lists() {
         let doc = convert("<ul><li>one<ul><li>one-a</li></ul></li><li>two</li></ul>");
         assert_eq!(doc.export_to_markdown(), "- one\n    - one-a\n- two\n");
+    }
+
+    #[test]
+    fn inline_images_produce_no_marker_but_anchor_wrapped_images_stay_pictures() {
+        // An image inside text emits nothing (docling never renders inline image
+        // markers); the surrounding text is unaffected.
+        let inline = convert("<p>before <img src=\"x.png\" alt=\"logo\"> after</p>");
+        assert_eq!(inline.export_to_markdown(), "before after\n");
+        // A non-anchor wrapper around a lone image (`<span><img></span>`) is inline
+        // too, so it is dropped entirely.
+        let span = convert("<span><img src=\"x.png\" alt=\"logo\"></span><h2>Home</h2>");
+        assert_eq!(span.export_to_markdown(), "## Home\n");
+        // But an anchor wrapping only an image becomes a Picture (docling keeps
+        // `<a><img></a>` as a linked image).
+        let anchor = convert("<a href=\"/l\"><img src=\"x.png\" alt=\"cap\"></a>");
+        assert_eq!(anchor.export_to_markdown(), "cap\n\n<!-- image -->\n");
+    }
+
+    #[test]
+    fn hidden_inline_styles_are_suppressed_but_aria_hidden_is_kept() {
+        // display:none / visibility:hidden / the `hidden` attribute are not
+        // rendered, so their text is dropped.
+        let hidden = convert(
+            "<p>keep</p>\
+             <p style=\"display:none\">gone</p>\
+             <p style=\"visibility: hidden\">gone2</p>\
+             <p hidden>gone3</p>",
+        );
+        assert_eq!(hidden.export_to_markdown(), "keep\n");
+        // aria-hidden leaves the element visually rendered, so its text stays.
+        let aria = convert("<p aria-hidden=\"true\">still shown</p>");
+        assert_eq!(aria.export_to_markdown(), "still shown\n");
+    }
+
+    #[test]
+    fn form_region_becomes_key_value_fields() {
+        // A `form_region` container with the `keyN` / `keyN_marker` / `keyN_valueM`
+        // id-convention is a docling field region: region + each item render as a
+        // `<!-- missing-text -->` marker, then the item's marker/key/value texts.
+        let doc = convert(
+            "<div class=\"form_region\">\
+               <div class=\"field\">\
+                 <div id=\"key1_marker\">1</div>\
+                 <span id=\"key1\">Restaurant</span>\
+                 <span id=\"key1_value1\">Docling</span>\
+               </div>\
+               <div class=\"field\">\
+                 <div id=\"key2_marker\">2</div>\
+                 <span id=\"key2\">Telephone</span>\
+                 <span id=\"key2_value1\">123</span>\
+               </div>\
+             </div>",
+        );
+        assert_eq!(
+            doc.export_to_markdown(),
+            "<!-- missing-text -->\n\n\
+             <!-- missing-text -->\n\n1\n\nRestaurant\n\nDocling\n\n\
+             <!-- missing-text -->\n\n2\n\nTelephone\n\n123\n",
+        );
+        // A plain container without the id-convention stays ordinary text.
+        let plain = convert("<div class=\"form_region\"><p>just text</p></div>");
+        assert_eq!(plain.export_to_markdown(), "just text\n");
     }
 
     #[test]

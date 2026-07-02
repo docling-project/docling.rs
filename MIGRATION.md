@@ -66,7 +66,7 @@ PyPI; run via `scripts/conformance.sh <fmt>`), not the committed groundtruth
 |---|---|---|
 | Markdown | `markdown.rs` (pulldown-cmark) | **10/10 exact** |
 | CSV | `csv.rs` (`csv` crate) | **9/9 exact** |
-| HTML | `html.rs` (scraper/html5ever) | **28/32 exact** (rest need a headless browser — §5) |
+| HTML | `html.rs` (scraper/html5ever) | **30/32 exact** (rest need a headless browser — §5) |
 | AsciiDoc | `asciidoc.rs` (regex) | **4/4 exact** |
 | DeepSeek-OCR Markdown | `deepseek.rs` | **3/3 exact** (auto-detected VLM-token variant) |
 | XLSX | `xlsx.rs` (calamine) | **9/9 exact** |
@@ -187,9 +187,11 @@ These are deliberate or unavoidable divergences, not bugs.
    the converter routes by content markers (`us-patent` → USPTO, `us-gaap`/`dei`
    → XBRL, else JATS) rather than the extension alone.
 
-8. **No headless-browser pass.** A few HTML behaviours depend on rendering the
-   page (nav/visibility suppression, form key-value regions, rendered bounding
-   boxes) — see §5.
+8. **Headless-browser pass is opt-in.** Form key-value regions and inline
+   visibility are handled statically by default. Stylesheet-driven (CSS-cascade)
+   nav/visibility suppression needs a rendered page, available behind the
+   optional `web-browser` feature / `--use-web-browser` flag (Rust-driven
+   Chromium); rendered-bounding-box nested-table padding is still out — see §5.
 
 ---
 
@@ -203,9 +205,6 @@ Explicitly **not done**, with the reason:
   classification, formula understanding, code understanding). Model-bound; out of
   scope for the discriminative port.
 
-(**TableFormer is now done** — ported to ONNX and run on every table region; see
-§5 and `PDF_CONFORMANCE.md`. Geometric reconstruction remains only as the fallback
-when the TableFormer graphs aren't present.)
 - **XML DocLang / DocTags** input backend — no `.dclg` sources in the corpus to
   verify against, and not in the requested scope.
 - **Older patent schemas.** USPTO covers the modern `v4x` XML only; the
@@ -228,9 +227,22 @@ when the TableFormer graphs aren't present.)
   inline-group spacing and stay attached to their list item; `\operatorname`
   functions, limit-label space escaping and the two-space symbol padding match
   pylatexenc byte-for-byte).
-- **HTML browser-render subsystem** — nav/visibility suppression (`wiki_duck`),
-  form key-value-pair regions (`kvp_data_example`), deep nested-table cell padding
-  from rendered bounding boxes. ~4 HTML fixtures + KVP.
+- **HTML browser-render subsystem** — the browser-free parts are **done**: form
+  key-value regions (`kvp_data_example`, detected statically from docling's
+  `keyN` / `keyN_valueM` / `keyN_marker` `id`-convention), docling-faithful
+  inline-image handling (inline images emit nothing; only block / `<a>`-wrapped
+  / `<figure>` images become pictures), and inline visibility suppression
+  (`hidden` / inline `display:none` / `visibility:hidden`).
+  For stylesheet-driven (CSS-cascade) visibility — `wiki_duck`'s collapsed
+  menus, kept distinct from the still-visible table of contents — there is now
+  an **optional headless-browser pre-render** behind the `web-browser` Cargo
+  feature / `--use-web-browser` flag: it drives the system Chromium from Rust
+  (via `headless_chrome`, no Node/Playwright), strips computed-`display:none`
+  subtrees, and hands the cleaned HTML back to the Rust backend. It resolves the
+  cascade only when the page's CSS is reachable (inline `<style>`, or external
+  stylesheets fetchable with a base host), so a saved page whose stylesheets are
+  external + offline still needs the real network. Deep nested-table cell
+  padding from rendered bounding boxes remains the last rendered-geometry gap.
 
 
 ---

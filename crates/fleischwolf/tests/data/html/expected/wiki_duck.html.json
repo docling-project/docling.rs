@@ -48,37 +48,37 @@
         "$ref": "#/texts/18"
       },
       {
-        "$ref": "#/texts/19"
-      },
-      {
         "$ref": "#/groups/2"
       },
       {
-        "$ref": "#/texts/21"
+        "$ref": "#/texts/20"
       },
       {
         "$ref": "#/groups/3"
       },
       {
-        "$ref": "#/texts/24"
+        "$ref": "#/texts/23"
       },
       {
         "$ref": "#/groups/4"
       },
       {
-        "$ref": "#/texts/27"
+        "$ref": "#/texts/26"
       },
       {
         "$ref": "#/groups/5"
       },
       {
+        "$ref": "#/texts/29"
+      },
+      {
         "$ref": "#/texts/30"
       },
       {
-        "$ref": "#/texts/31"
+        "$ref": "#/groups/6"
       },
       {
-        "$ref": "#/groups/6"
+        "$ref": "#/texts/51"
       },
       {
         "$ref": "#/texts/52"
@@ -87,22 +87,22 @@
         "$ref": "#/texts/53"
       },
       {
-        "$ref": "#/texts/54"
-      },
-      {
         "$ref": "#/groups/10"
       },
       {
-        "$ref": "#/texts/191"
+        "$ref": "#/texts/190"
       },
       {
         "$ref": "#/groups/11"
       },
       {
-        "$ref": "#/texts/194"
+        "$ref": "#/texts/193"
       },
       {
         "$ref": "#/groups/12"
+      },
+      {
+        "$ref": "#/texts/197"
       },
       {
         "$ref": "#/texts/198"
@@ -114,28 +114,28 @@
         "$ref": "#/texts/200"
       },
       {
-        "$ref": "#/texts/201"
-      },
-      {
         "$ref": "#/groups/13"
       },
       {
-        "$ref": "#/texts/205"
+        "$ref": "#/texts/204"
       },
       {
         "$ref": "#/groups/14"
       },
       {
-        "$ref": "#/texts/216"
+        "$ref": "#/texts/215"
       },
       {
         "$ref": "#/groups/15"
       },
       {
-        "$ref": "#/texts/219"
+        "$ref": "#/texts/218"
       },
       {
         "$ref": "#/groups/16"
+      },
+      {
+        "$ref": "#/texts/221"
       },
       {
         "$ref": "#/texts/222"
@@ -144,13 +144,16 @@
         "$ref": "#/texts/223"
       },
       {
-        "$ref": "#/pictures/0"
+        "$ref": "#/texts/224"
       },
       {
         "$ref": "#/texts/225"
       },
       {
         "$ref": "#/texts/226"
+      },
+      {
+        "$ref": "#/tables/0"
       },
       {
         "$ref": "#/texts/227"
@@ -162,13 +165,10 @@
         "$ref": "#/texts/229"
       },
       {
-        "$ref": "#/tables/0"
-      },
-      {
         "$ref": "#/texts/230"
       },
       {
-        "$ref": "#/texts/231"
+        "$ref": "#/pictures/0"
       },
       {
         "$ref": "#/texts/232"
@@ -177,19 +177,19 @@
         "$ref": "#/texts/233"
       },
       {
+        "$ref": "#/texts/234"
+      },
+      {
         "$ref": "#/pictures/1"
       },
       {
-        "$ref": "#/texts/235"
-      },
-      {
-        "$ref": "#/texts/236"
+        "$ref": "#/pictures/2"
       },
       {
         "$ref": "#/texts/237"
       },
       {
-        "$ref": "#/pictures/2"
+        "$ref": "#/texts/238"
       },
       {
         "$ref": "#/pictures/3"
@@ -201,10 +201,10 @@
         "$ref": "#/texts/241"
       },
       {
-        "$ref": "#/pictures/4"
+        "$ref": "#/texts/242"
       },
       {
-        "$ref": "#/texts/243"
+        "$ref": "#/pictures/4"
       },
       {
         "$ref": "#/texts/244"
@@ -213,43 +213,43 @@
         "$ref": "#/texts/245"
       },
       {
-        "$ref": "#/pictures/5"
+        "$ref": "#/texts/246"
       },
       {
         "$ref": "#/texts/247"
       },
       {
-        "$ref": "#/texts/248"
+        "$ref": "#/pictures/5"
       },
       {
         "$ref": "#/texts/249"
       },
       {
-        "$ref": "#/texts/250"
+        "$ref": "#/pictures/6"
       },
       {
-        "$ref": "#/pictures/6"
+        "$ref": "#/texts/251"
       },
       {
         "$ref": "#/texts/252"
       },
       {
+        "$ref": "#/texts/253"
+      },
+      {
         "$ref": "#/pictures/7"
-      },
-      {
-        "$ref": "#/texts/254"
-      },
-      {
-        "$ref": "#/texts/255"
-      },
-      {
-        "$ref": "#/texts/256"
       },
       {
         "$ref": "#/pictures/8"
       },
       {
-        "$ref": "#/pictures/9"
+        "$ref": "#/texts/256"
+      },
+      {
+        "$ref": "#/texts/257"
+      },
+      {
+        "$ref": "#/texts/258"
       },
       {
         "$ref": "#/texts/259"
@@ -264,7 +264,7 @@
         "$ref": "#/texts/262"
       },
       {
-        "$ref": "#/texts/263"
+        "$ref": "#/pictures/9"
       },
       {
         "$ref": "#/texts/264"
@@ -273,7 +273,7 @@
         "$ref": "#/texts/265"
       },
       {
-        "$ref": "#/pictures/10"
+        "$ref": "#/texts/266"
       },
       {
         "$ref": "#/texts/267"
@@ -282,7 +282,7 @@
         "$ref": "#/texts/268"
       },
       {
-        "$ref": "#/texts/269"
+        "$ref": "#/pictures/10"
       },
       {
         "$ref": "#/texts/270"
@@ -291,7 +291,7 @@
         "$ref": "#/texts/271"
       },
       {
-        "$ref": "#/pictures/11"
+        "$ref": "#/texts/272"
       },
       {
         "$ref": "#/texts/273"
@@ -312,7 +312,7 @@
         "$ref": "#/texts/278"
       },
       {
-        "$ref": "#/texts/279"
+        "$ref": "#/pictures/11"
       },
       {
         "$ref": "#/texts/280"
@@ -330,7 +330,7 @@
         "$ref": "#/texts/284"
       },
       {
-        "$ref": "#/pictures/13"
+        "$ref": "#/texts/285"
       },
       {
         "$ref": "#/texts/286"
@@ -339,37 +339,28 @@
         "$ref": "#/texts/287"
       },
       {
-        "$ref": "#/texts/288"
-      },
-      {
-        "$ref": "#/texts/289"
-      },
-      {
-        "$ref": "#/texts/290"
-      },
-      {
         "$ref": "#/groups/17"
       },
       {
-        "$ref": "#/texts/298"
+        "$ref": "#/texts/295"
       },
       {
-        "$ref": "#/texts/299"
+        "$ref": "#/texts/296"
       },
       {
         "$ref": "#/groups/18"
       },
       {
-        "$ref": "#/texts/355"
+        "$ref": "#/texts/352"
       },
       {
         "$ref": "#/groups/19"
       },
       {
-        "$ref": "#/texts/376"
+        "$ref": "#/texts/373"
       },
       {
-        "$ref": "#/texts/377"
+        "$ref": "#/texts/374"
       },
       {
         "$ref": "#/groups/20"
@@ -378,16 +369,16 @@
         "$ref": "#/tables/1"
       },
       {
-        "$ref": "#/texts/387"
+        "$ref": "#/texts/384"
       },
       {
-        "$ref": "#/texts/388"
+        "$ref": "#/texts/385"
       },
       {
         "$ref": "#/groups/21"
       },
       {
-        "$ref": "#/texts/392"
+        "$ref": "#/texts/389"
       },
       {
         "$ref": "#/groups/22"
@@ -460,7 +451,7 @@
       },
       "children": [
         {
-          "$ref": "#/texts/20"
+          "$ref": "#/texts/19"
         }
       ],
       "content_layer": "body",
@@ -474,10 +465,10 @@
       },
       "children": [
         {
-          "$ref": "#/texts/22"
+          "$ref": "#/texts/21"
         },
         {
-          "$ref": "#/texts/23"
+          "$ref": "#/texts/22"
         }
       ],
       "content_layer": "body",
@@ -491,10 +482,10 @@
       },
       "children": [
         {
-          "$ref": "#/texts/25"
+          "$ref": "#/texts/24"
         },
         {
-          "$ref": "#/texts/26"
+          "$ref": "#/texts/25"
         }
       ],
       "content_layer": "body",
@@ -508,10 +499,10 @@
       },
       "children": [
         {
-          "$ref": "#/texts/28"
+          "$ref": "#/texts/27"
         },
         {
-          "$ref": "#/texts/29"
+          "$ref": "#/texts/28"
         }
       ],
       "content_layer": "body",
@@ -524,6 +515,9 @@
         "$ref": "#/body"
       },
       "children": [
+        {
+          "$ref": "#/texts/31"
+        },
         {
           "$ref": "#/texts/32"
         },
@@ -540,19 +534,16 @@
           "$ref": "#/texts/36"
         },
         {
-          "$ref": "#/texts/37"
+          "$ref": "#/texts/41"
         },
         {
-          "$ref": "#/texts/42"
+          "$ref": "#/texts/46"
         },
         {
           "$ref": "#/texts/47"
         },
         {
-          "$ref": "#/texts/48"
-        },
-        {
-          "$ref": "#/texts/51"
+          "$ref": "#/texts/50"
         }
       ],
       "content_layer": "body",
@@ -562,9 +553,12 @@
     {
       "self_ref": "#/groups/7",
       "parent": {
-        "$ref": "#/texts/37"
+        "$ref": "#/texts/36"
       },
       "children": [
+        {
+          "$ref": "#/texts/37"
+        },
         {
           "$ref": "#/texts/38"
         },
@@ -573,9 +567,6 @@
         },
         {
           "$ref": "#/texts/40"
-        },
-        {
-          "$ref": "#/texts/41"
         }
       ],
       "content_layer": "body",
@@ -585,9 +576,12 @@
     {
       "self_ref": "#/groups/8",
       "parent": {
-        "$ref": "#/texts/42"
+        "$ref": "#/texts/41"
       },
       "children": [
+        {
+          "$ref": "#/texts/42"
+        },
         {
           "$ref": "#/texts/43"
         },
@@ -596,9 +590,6 @@
         },
         {
           "$ref": "#/texts/45"
-        },
-        {
-          "$ref": "#/texts/46"
         }
       ],
       "content_layer": "body",
@@ -608,14 +599,14 @@
     {
       "self_ref": "#/groups/9",
       "parent": {
-        "$ref": "#/texts/48"
+        "$ref": "#/texts/47"
       },
       "children": [
         {
-          "$ref": "#/texts/49"
+          "$ref": "#/texts/48"
         },
         {
-          "$ref": "#/texts/50"
+          "$ref": "#/texts/49"
         }
       ],
       "content_layer": "body",
@@ -628,6 +619,9 @@
         "$ref": "#/body"
       },
       "children": [
+        {
+          "$ref": "#/texts/54"
+        },
         {
           "$ref": "#/texts/55"
         },
@@ -1032,9 +1026,6 @@
         },
         {
           "$ref": "#/texts/189"
-        },
-        {
-          "$ref": "#/texts/190"
         }
       ],
       "content_layer": "body",
@@ -1048,10 +1039,10 @@
       },
       "children": [
         {
-          "$ref": "#/texts/192"
+          "$ref": "#/texts/191"
         },
         {
-          "$ref": "#/texts/193"
+          "$ref": "#/texts/192"
         }
       ],
       "content_layer": "body",
@@ -1065,13 +1056,13 @@
       },
       "children": [
         {
+          "$ref": "#/texts/194"
+        },
+        {
           "$ref": "#/texts/195"
         },
         {
           "$ref": "#/texts/196"
-        },
-        {
-          "$ref": "#/texts/197"
         }
       ],
       "content_layer": "body",
@@ -1085,13 +1076,13 @@
       },
       "children": [
         {
+          "$ref": "#/texts/201"
+        },
+        {
           "$ref": "#/texts/202"
         },
         {
           "$ref": "#/texts/203"
-        },
-        {
-          "$ref": "#/texts/204"
         }
       ],
       "content_layer": "body",
@@ -1104,6 +1095,9 @@
         "$ref": "#/body"
       },
       "children": [
+        {
+          "$ref": "#/texts/205"
+        },
         {
           "$ref": "#/texts/206"
         },
@@ -1130,9 +1124,6 @@
         },
         {
           "$ref": "#/texts/214"
-        },
-        {
-          "$ref": "#/texts/215"
         }
       ],
       "content_layer": "body",
@@ -1146,10 +1137,10 @@
       },
       "children": [
         {
-          "$ref": "#/texts/217"
+          "$ref": "#/texts/216"
         },
         {
-          "$ref": "#/texts/218"
+          "$ref": "#/texts/217"
         }
       ],
       "content_layer": "body",
@@ -1163,10 +1154,10 @@
       },
       "children": [
         {
-          "$ref": "#/texts/220"
+          "$ref": "#/texts/219"
         },
         {
-          "$ref": "#/texts/221"
+          "$ref": "#/texts/220"
         }
       ],
       "content_layer": "body",
@@ -1180,6 +1171,15 @@
       },
       "children": [
         {
+          "$ref": "#/texts/288"
+        },
+        {
+          "$ref": "#/texts/289"
+        },
+        {
+          "$ref": "#/texts/290"
+        },
+        {
           "$ref": "#/texts/291"
         },
         {
@@ -1190,15 +1190,6 @@
         },
         {
           "$ref": "#/texts/294"
-        },
-        {
-          "$ref": "#/texts/295"
-        },
-        {
-          "$ref": "#/texts/296"
-        },
-        {
-          "$ref": "#/texts/297"
         }
       ],
       "content_layer": "body",
@@ -1211,6 +1202,15 @@
         "$ref": "#/body"
       },
       "children": [
+        {
+          "$ref": "#/texts/297"
+        },
+        {
+          "$ref": "#/texts/298"
+        },
+        {
+          "$ref": "#/texts/299"
+        },
         {
           "$ref": "#/texts/300"
         },
@@ -1366,15 +1366,6 @@
         },
         {
           "$ref": "#/texts/351"
-        },
-        {
-          "$ref": "#/texts/352"
-        },
-        {
-          "$ref": "#/texts/353"
-        },
-        {
-          "$ref": "#/texts/354"
         }
       ],
       "content_layer": "body",
@@ -1387,6 +1378,15 @@
         "$ref": "#/body"
       },
       "children": [
+        {
+          "$ref": "#/texts/353"
+        },
+        {
+          "$ref": "#/texts/354"
+        },
+        {
+          "$ref": "#/texts/355"
+        },
         {
           "$ref": "#/texts/356"
         },
@@ -1437,15 +1437,6 @@
         },
         {
           "$ref": "#/texts/372"
-        },
-        {
-          "$ref": "#/texts/373"
-        },
-        {
-          "$ref": "#/texts/374"
-        },
-        {
-          "$ref": "#/texts/375"
         }
       ],
       "content_layer": "body",
@@ -1458,6 +1449,15 @@
         "$ref": "#/body"
       },
       "children": [
+        {
+          "$ref": "#/texts/375"
+        },
+        {
+          "$ref": "#/texts/376"
+        },
+        {
+          "$ref": "#/texts/377"
+        },
         {
           "$ref": "#/texts/378"
         },
@@ -1475,15 +1475,6 @@
         },
         {
           "$ref": "#/texts/383"
-        },
-        {
-          "$ref": "#/texts/384"
-        },
-        {
-          "$ref": "#/texts/385"
-        },
-        {
-          "$ref": "#/texts/386"
         }
       ],
       "content_layer": "body",
@@ -1497,13 +1488,13 @@
       },
       "children": [
         {
-          "$ref": "#/texts/389"
+          "$ref": "#/texts/386"
         },
         {
-          "$ref": "#/texts/390"
+          "$ref": "#/texts/387"
         },
         {
-          "$ref": "#/texts/391"
+          "$ref": "#/texts/388"
         }
       ],
       "content_layer": "body",
@@ -1516,6 +1507,15 @@
         "$ref": "#/body"
       },
       "children": [
+        {
+          "$ref": "#/texts/390"
+        },
+        {
+          "$ref": "#/texts/391"
+        },
+        {
+          "$ref": "#/texts/392"
+        },
         {
           "$ref": "#/texts/393"
         },
@@ -1617,21 +1617,6 @@
         },
         {
           "$ref": "#/texts/426"
-        },
-        {
-          "$ref": "#/texts/427"
-        },
-        {
-          "$ref": "#/texts/428"
-        },
-        {
-          "$ref": "#/texts/429"
-        },
-        {
-          "$ref": "#/texts/430"
-        },
-        {
-          "$ref": "#/texts/431"
         }
       ],
       "content_layer": "body",
@@ -1875,23 +1860,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "![Wikipedia](#) ![The Free Encyclopedia](#)",
-      "text": "![Wikipedia](#) ![The Free Encyclopedia](#)"
-    },
-    {
-      "self_ref": "#/texts/18",
-      "parent": {
-        "$ref": "#/body"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "text",
-      "prov": [],
       "orig": "[Search](/wiki/Special:Search)",
       "text": "[Search](/wiki/Special:Search)"
     },
     {
-      "self_ref": "#/texts/19",
+      "self_ref": "#/texts/18",
       "parent": {
         "$ref": "#/body"
       },
@@ -1903,7 +1876,7 @@
       "text": "Search"
     },
     {
-      "self_ref": "#/texts/20",
+      "self_ref": "#/texts/19",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -1917,7 +1890,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/21",
+      "self_ref": "#/texts/20",
       "parent": {
         "$ref": "#/body"
       },
@@ -1929,7 +1902,7 @@
       "text": "Appearance"
     },
     {
-      "self_ref": "#/texts/22",
+      "self_ref": "#/texts/21",
       "parent": {
         "$ref": "#/groups/3"
       },
@@ -1943,7 +1916,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/23",
+      "self_ref": "#/texts/22",
       "parent": {
         "$ref": "#/groups/3"
       },
@@ -1957,7 +1930,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/24",
+      "self_ref": "#/texts/23",
       "parent": {
         "$ref": "#/body"
       },
@@ -1969,7 +1942,7 @@
       "text": "Personal tools"
     },
     {
-      "self_ref": "#/texts/25",
+      "self_ref": "#/texts/24",
       "parent": {
         "$ref": "#/groups/4"
       },
@@ -1983,7 +1956,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/26",
+      "self_ref": "#/texts/25",
       "parent": {
         "$ref": "#/groups/4"
       },
@@ -1997,7 +1970,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/27",
+      "self_ref": "#/texts/26",
       "parent": {
         "$ref": "#/body"
       },
@@ -2009,7 +1982,7 @@
       "text": "Pages for logged out editors [learn more](/wiki/Help:Introduction)"
     },
     {
-      "self_ref": "#/texts/28",
+      "self_ref": "#/texts/27",
       "parent": {
         "$ref": "#/groups/5"
       },
@@ -2023,7 +1996,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/29",
+      "self_ref": "#/texts/28",
       "parent": {
         "$ref": "#/groups/5"
       },
@@ -2037,7 +2010,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/30",
+      "self_ref": "#/texts/29",
       "parent": {
         "$ref": "#/body"
       },
@@ -2050,7 +2023,7 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/31",
+      "self_ref": "#/texts/30",
       "parent": {
         "$ref": "#/body"
       },
@@ -2062,7 +2035,7 @@
       "text": "move to sidebar hide"
     },
     {
-      "self_ref": "#/texts/32",
+      "self_ref": "#/texts/31",
       "parent": {
         "$ref": "#/groups/6"
       },
@@ -2076,7 +2049,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/33",
+      "self_ref": "#/texts/32",
       "parent": {
         "$ref": "#/groups/6"
       },
@@ -2090,7 +2063,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/34",
+      "self_ref": "#/texts/33",
       "parent": {
         "$ref": "#/groups/6"
       },
@@ -2104,7 +2077,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/35",
+      "self_ref": "#/texts/34",
       "parent": {
         "$ref": "#/groups/6"
       },
@@ -2118,7 +2091,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/36",
+      "self_ref": "#/texts/35",
       "parent": {
         "$ref": "#/groups/6"
       },
@@ -2132,7 +2105,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/37",
+      "self_ref": "#/texts/36",
       "parent": {
         "$ref": "#/groups/6"
       },
@@ -2150,7 +2123,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/38",
+      "self_ref": "#/texts/37",
       "parent": {
         "$ref": "#/groups/7"
       },
@@ -2164,7 +2137,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/39",
+      "self_ref": "#/texts/38",
       "parent": {
         "$ref": "#/groups/7"
       },
@@ -2178,7 +2151,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/40",
+      "self_ref": "#/texts/39",
       "parent": {
         "$ref": "#/groups/7"
       },
@@ -2192,7 +2165,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/41",
+      "self_ref": "#/texts/40",
       "parent": {
         "$ref": "#/groups/7"
       },
@@ -2206,7 +2179,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/42",
+      "self_ref": "#/texts/41",
       "parent": {
         "$ref": "#/groups/6"
       },
@@ -2224,7 +2197,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/43",
+      "self_ref": "#/texts/42",
       "parent": {
         "$ref": "#/groups/8"
       },
@@ -2238,7 +2211,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/44",
+      "self_ref": "#/texts/43",
       "parent": {
         "$ref": "#/groups/8"
       },
@@ -2252,7 +2225,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/45",
+      "self_ref": "#/texts/44",
       "parent": {
         "$ref": "#/groups/8"
       },
@@ -2266,7 +2239,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/46",
+      "self_ref": "#/texts/45",
       "parent": {
         "$ref": "#/groups/8"
       },
@@ -2280,7 +2253,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/47",
+      "self_ref": "#/texts/46",
       "parent": {
         "$ref": "#/groups/6"
       },
@@ -2294,7 +2267,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/48",
+      "self_ref": "#/texts/47",
       "parent": {
         "$ref": "#/groups/6"
       },
@@ -2312,7 +2285,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/49",
+      "self_ref": "#/texts/48",
       "parent": {
         "$ref": "#/groups/9"
       },
@@ -2326,7 +2299,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/50",
+      "self_ref": "#/texts/49",
       "parent": {
         "$ref": "#/groups/9"
       },
@@ -2340,7 +2313,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/51",
+      "self_ref": "#/texts/50",
       "parent": {
         "$ref": "#/groups/6"
       },
@@ -2354,7 +2327,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/52",
+      "self_ref": "#/texts/51",
       "parent": {
         "$ref": "#/body"
       },
@@ -2366,7 +2339,7 @@
       "text": "Toggle the table of contents"
     },
     {
-      "self_ref": "#/texts/53",
+      "self_ref": "#/texts/52",
       "parent": {
         "$ref": "#/body"
       },
@@ -2378,7 +2351,7 @@
       "text": "Duck"
     },
     {
-      "self_ref": "#/texts/54",
+      "self_ref": "#/texts/53",
       "parent": {
         "$ref": "#/body"
       },
@@ -2390,7 +2363,7 @@
       "text": "136 languages"
     },
     {
-      "self_ref": "#/texts/55",
+      "self_ref": "#/texts/54",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2404,7 +2377,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/56",
+      "self_ref": "#/texts/55",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2418,7 +2391,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/57",
+      "self_ref": "#/texts/56",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2432,7 +2405,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/58",
+      "self_ref": "#/texts/57",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2446,7 +2419,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/59",
+      "self_ref": "#/texts/58",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2460,7 +2433,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/60",
+      "self_ref": "#/texts/59",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2474,7 +2447,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/61",
+      "self_ref": "#/texts/60",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2488,7 +2461,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/62",
+      "self_ref": "#/texts/61",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2502,7 +2475,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/63",
+      "self_ref": "#/texts/62",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2516,7 +2489,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/64",
+      "self_ref": "#/texts/63",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2530,7 +2503,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/65",
+      "self_ref": "#/texts/64",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2544,7 +2517,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/66",
+      "self_ref": "#/texts/65",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2558,7 +2531,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/67",
+      "self_ref": "#/texts/66",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2572,7 +2545,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/68",
+      "self_ref": "#/texts/67",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2586,7 +2559,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/69",
+      "self_ref": "#/texts/68",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2600,7 +2573,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/70",
+      "self_ref": "#/texts/69",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2614,7 +2587,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/71",
+      "self_ref": "#/texts/70",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2628,7 +2601,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/72",
+      "self_ref": "#/texts/71",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2642,7 +2615,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/73",
+      "self_ref": "#/texts/72",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2656,7 +2629,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/74",
+      "self_ref": "#/texts/73",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2670,7 +2643,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/75",
+      "self_ref": "#/texts/74",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2684,7 +2657,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/76",
+      "self_ref": "#/texts/75",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2698,7 +2671,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/77",
+      "self_ref": "#/texts/76",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2712,7 +2685,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/78",
+      "self_ref": "#/texts/77",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2726,7 +2699,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/79",
+      "self_ref": "#/texts/78",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2740,7 +2713,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/80",
+      "self_ref": "#/texts/79",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2754,7 +2727,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/81",
+      "self_ref": "#/texts/80",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2768,7 +2741,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/82",
+      "self_ref": "#/texts/81",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2782,7 +2755,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/83",
+      "self_ref": "#/texts/82",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2796,7 +2769,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/84",
+      "self_ref": "#/texts/83",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2810,7 +2783,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/85",
+      "self_ref": "#/texts/84",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2824,7 +2797,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/86",
+      "self_ref": "#/texts/85",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2838,7 +2811,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/87",
+      "self_ref": "#/texts/86",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2852,7 +2825,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/88",
+      "self_ref": "#/texts/87",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2866,7 +2839,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/89",
+      "self_ref": "#/texts/88",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2880,7 +2853,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/90",
+      "self_ref": "#/texts/89",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2894,7 +2867,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/91",
+      "self_ref": "#/texts/90",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2908,7 +2881,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/92",
+      "self_ref": "#/texts/91",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2922,7 +2895,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/93",
+      "self_ref": "#/texts/92",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2936,7 +2909,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/94",
+      "self_ref": "#/texts/93",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2950,7 +2923,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/95",
+      "self_ref": "#/texts/94",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2964,7 +2937,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/96",
+      "self_ref": "#/texts/95",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2978,7 +2951,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/97",
+      "self_ref": "#/texts/96",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -2992,7 +2965,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/98",
+      "self_ref": "#/texts/97",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3006,7 +2979,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/99",
+      "self_ref": "#/texts/98",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3020,7 +2993,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/100",
+      "self_ref": "#/texts/99",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3034,7 +3007,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/101",
+      "self_ref": "#/texts/100",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3048,7 +3021,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/102",
+      "self_ref": "#/texts/101",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3062,7 +3035,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/103",
+      "self_ref": "#/texts/102",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3076,7 +3049,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/104",
+      "self_ref": "#/texts/103",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3090,7 +3063,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/105",
+      "self_ref": "#/texts/104",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3104,7 +3077,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/106",
+      "self_ref": "#/texts/105",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3118,7 +3091,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/107",
+      "self_ref": "#/texts/106",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3132,7 +3105,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/108",
+      "self_ref": "#/texts/107",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3146,7 +3119,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/109",
+      "self_ref": "#/texts/108",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3160,7 +3133,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/110",
+      "self_ref": "#/texts/109",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3174,7 +3147,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/111",
+      "self_ref": "#/texts/110",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3188,7 +3161,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/112",
+      "self_ref": "#/texts/111",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3202,7 +3175,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/113",
+      "self_ref": "#/texts/112",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3216,7 +3189,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/114",
+      "self_ref": "#/texts/113",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3230,7 +3203,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/115",
+      "self_ref": "#/texts/114",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3244,7 +3217,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/116",
+      "self_ref": "#/texts/115",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3258,7 +3231,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/117",
+      "self_ref": "#/texts/116",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3272,7 +3245,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/118",
+      "self_ref": "#/texts/117",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3286,7 +3259,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/119",
+      "self_ref": "#/texts/118",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3300,7 +3273,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/120",
+      "self_ref": "#/texts/119",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3314,7 +3287,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/121",
+      "self_ref": "#/texts/120",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3328,7 +3301,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/122",
+      "self_ref": "#/texts/121",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3342,7 +3315,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/123",
+      "self_ref": "#/texts/122",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3356,7 +3329,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/124",
+      "self_ref": "#/texts/123",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3370,7 +3343,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/125",
+      "self_ref": "#/texts/124",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3384,7 +3357,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/126",
+      "self_ref": "#/texts/125",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3398,7 +3371,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/127",
+      "self_ref": "#/texts/126",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3412,7 +3385,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/128",
+      "self_ref": "#/texts/127",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3426,7 +3399,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/129",
+      "self_ref": "#/texts/128",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3440,7 +3413,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/130",
+      "self_ref": "#/texts/129",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3454,7 +3427,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/131",
+      "self_ref": "#/texts/130",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3468,7 +3441,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/132",
+      "self_ref": "#/texts/131",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3482,7 +3455,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/133",
+      "self_ref": "#/texts/132",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3496,7 +3469,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/134",
+      "self_ref": "#/texts/133",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3510,7 +3483,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/135",
+      "self_ref": "#/texts/134",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3524,7 +3497,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/136",
+      "self_ref": "#/texts/135",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3538,7 +3511,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/137",
+      "self_ref": "#/texts/136",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3552,7 +3525,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/138",
+      "self_ref": "#/texts/137",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3566,7 +3539,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/139",
+      "self_ref": "#/texts/138",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3580,7 +3553,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/140",
+      "self_ref": "#/texts/139",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3594,7 +3567,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/141",
+      "self_ref": "#/texts/140",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3608,7 +3581,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/142",
+      "self_ref": "#/texts/141",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3622,7 +3595,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/143",
+      "self_ref": "#/texts/142",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3636,7 +3609,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/144",
+      "self_ref": "#/texts/143",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3650,7 +3623,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/145",
+      "self_ref": "#/texts/144",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3664,7 +3637,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/146",
+      "self_ref": "#/texts/145",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3678,7 +3651,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/147",
+      "self_ref": "#/texts/146",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3692,7 +3665,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/148",
+      "self_ref": "#/texts/147",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3706,7 +3679,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/149",
+      "self_ref": "#/texts/148",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3720,7 +3693,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/150",
+      "self_ref": "#/texts/149",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3734,7 +3707,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/151",
+      "self_ref": "#/texts/150",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3748,7 +3721,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/152",
+      "self_ref": "#/texts/151",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3762,7 +3735,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/153",
+      "self_ref": "#/texts/152",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3776,7 +3749,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/154",
+      "self_ref": "#/texts/153",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3790,7 +3763,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/155",
+      "self_ref": "#/texts/154",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3804,7 +3777,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/156",
+      "self_ref": "#/texts/155",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3818,7 +3791,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/157",
+      "self_ref": "#/texts/156",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3832,7 +3805,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/158",
+      "self_ref": "#/texts/157",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3846,7 +3819,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/159",
+      "self_ref": "#/texts/158",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3860,7 +3833,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/160",
+      "self_ref": "#/texts/159",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3874,7 +3847,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/161",
+      "self_ref": "#/texts/160",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3888,7 +3861,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/162",
+      "self_ref": "#/texts/161",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3902,7 +3875,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/163",
+      "self_ref": "#/texts/162",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3916,7 +3889,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/164",
+      "self_ref": "#/texts/163",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3930,7 +3903,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/165",
+      "self_ref": "#/texts/164",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3944,7 +3917,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/166",
+      "self_ref": "#/texts/165",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3958,7 +3931,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/167",
+      "self_ref": "#/texts/166",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3972,7 +3945,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/168",
+      "self_ref": "#/texts/167",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -3986,7 +3959,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/169",
+      "self_ref": "#/texts/168",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4000,7 +3973,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/170",
+      "self_ref": "#/texts/169",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4014,7 +3987,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/171",
+      "self_ref": "#/texts/170",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4028,7 +4001,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/172",
+      "self_ref": "#/texts/171",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4042,7 +4015,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/173",
+      "self_ref": "#/texts/172",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4056,7 +4029,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/174",
+      "self_ref": "#/texts/173",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4070,7 +4043,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/175",
+      "self_ref": "#/texts/174",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4084,7 +4057,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/176",
+      "self_ref": "#/texts/175",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4098,7 +4071,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/177",
+      "self_ref": "#/texts/176",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4112,7 +4085,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/178",
+      "self_ref": "#/texts/177",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4126,7 +4099,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/179",
+      "self_ref": "#/texts/178",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4140,7 +4113,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/180",
+      "self_ref": "#/texts/179",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4154,7 +4127,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/181",
+      "self_ref": "#/texts/180",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4168,7 +4141,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/182",
+      "self_ref": "#/texts/181",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4182,7 +4155,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/183",
+      "self_ref": "#/texts/182",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4196,7 +4169,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/184",
+      "self_ref": "#/texts/183",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4210,7 +4183,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/185",
+      "self_ref": "#/texts/184",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4224,7 +4197,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/186",
+      "self_ref": "#/texts/185",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4238,7 +4211,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/187",
+      "self_ref": "#/texts/186",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4252,7 +4225,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/188",
+      "self_ref": "#/texts/187",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4266,7 +4239,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/189",
+      "self_ref": "#/texts/188",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4280,7 +4253,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/190",
+      "self_ref": "#/texts/189",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -4294,7 +4267,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/191",
+      "self_ref": "#/texts/190",
       "parent": {
         "$ref": "#/body"
       },
@@ -4306,7 +4279,7 @@
       "text": "[Edit links](https://www.wikidata.org/wiki/Special:EntityPage/Q3736439#sitelinks-wikipedia)"
     },
     {
-      "self_ref": "#/texts/192",
+      "self_ref": "#/texts/191",
       "parent": {
         "$ref": "#/groups/11"
       },
@@ -4320,7 +4293,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/193",
+      "self_ref": "#/texts/192",
       "parent": {
         "$ref": "#/groups/11"
       },
@@ -4334,7 +4307,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/194",
+      "self_ref": "#/texts/193",
       "parent": {
         "$ref": "#/body"
       },
@@ -4346,7 +4319,7 @@
       "text": "English"
     },
     {
-      "self_ref": "#/texts/195",
+      "self_ref": "#/texts/194",
       "parent": {
         "$ref": "#/groups/12"
       },
@@ -4360,7 +4333,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/196",
+      "self_ref": "#/texts/195",
       "parent": {
         "$ref": "#/groups/12"
       },
@@ -4374,7 +4347,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/197",
+      "self_ref": "#/texts/196",
       "parent": {
         "$ref": "#/groups/12"
       },
@@ -4386,6 +4359,18 @@
       "text": "[View history](/w/index.php?title=Duck&action=history)",
       "enumerated": false,
       "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/197",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Tools",
+      "text": "Tools"
     },
     {
       "self_ref": "#/texts/198",
@@ -4408,23 +4393,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Tools",
-      "text": "Tools"
-    },
-    {
-      "self_ref": "#/texts/200",
-      "parent": {
-        "$ref": "#/body"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "text",
-      "prov": [],
       "orig": "move to sidebar hide",
       "text": "move to sidebar hide"
     },
     {
-      "self_ref": "#/texts/201",
+      "self_ref": "#/texts/200",
       "parent": {
         "$ref": "#/body"
       },
@@ -4436,7 +4409,7 @@
       "text": "Actions"
     },
     {
-      "self_ref": "#/texts/202",
+      "self_ref": "#/texts/201",
       "parent": {
         "$ref": "#/groups/13"
       },
@@ -4450,7 +4423,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/203",
+      "self_ref": "#/texts/202",
       "parent": {
         "$ref": "#/groups/13"
       },
@@ -4464,7 +4437,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/204",
+      "self_ref": "#/texts/203",
       "parent": {
         "$ref": "#/groups/13"
       },
@@ -4478,7 +4451,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/205",
+      "self_ref": "#/texts/204",
       "parent": {
         "$ref": "#/body"
       },
@@ -4490,7 +4463,7 @@
       "text": "General"
     },
     {
-      "self_ref": "#/texts/206",
+      "self_ref": "#/texts/205",
       "parent": {
         "$ref": "#/groups/14"
       },
@@ -4504,7 +4477,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/207",
+      "self_ref": "#/texts/206",
       "parent": {
         "$ref": "#/groups/14"
       },
@@ -4518,7 +4491,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/208",
+      "self_ref": "#/texts/207",
       "parent": {
         "$ref": "#/groups/14"
       },
@@ -4532,7 +4505,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/209",
+      "self_ref": "#/texts/208",
       "parent": {
         "$ref": "#/groups/14"
       },
@@ -4546,7 +4519,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/210",
+      "self_ref": "#/texts/209",
       "parent": {
         "$ref": "#/groups/14"
       },
@@ -4560,7 +4533,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/211",
+      "self_ref": "#/texts/210",
       "parent": {
         "$ref": "#/groups/14"
       },
@@ -4574,7 +4547,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/212",
+      "self_ref": "#/texts/211",
       "parent": {
         "$ref": "#/groups/14"
       },
@@ -4588,7 +4561,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/213",
+      "self_ref": "#/texts/212",
       "parent": {
         "$ref": "#/groups/14"
       },
@@ -4602,7 +4575,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/214",
+      "self_ref": "#/texts/213",
       "parent": {
         "$ref": "#/groups/14"
       },
@@ -4616,7 +4589,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/215",
+      "self_ref": "#/texts/214",
       "parent": {
         "$ref": "#/groups/14"
       },
@@ -4630,7 +4603,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/216",
+      "self_ref": "#/texts/215",
       "parent": {
         "$ref": "#/body"
       },
@@ -4642,7 +4615,7 @@
       "text": "Print/export"
     },
     {
-      "self_ref": "#/texts/217",
+      "self_ref": "#/texts/216",
       "parent": {
         "$ref": "#/groups/15"
       },
@@ -4656,7 +4629,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/218",
+      "self_ref": "#/texts/217",
       "parent": {
         "$ref": "#/groups/15"
       },
@@ -4670,7 +4643,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/219",
+      "self_ref": "#/texts/218",
       "parent": {
         "$ref": "#/body"
       },
@@ -4682,7 +4655,7 @@
       "text": "In other projects"
     },
     {
-      "self_ref": "#/texts/220",
+      "self_ref": "#/texts/219",
       "parent": {
         "$ref": "#/groups/16"
       },
@@ -4696,7 +4669,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/221",
+      "self_ref": "#/texts/220",
       "parent": {
         "$ref": "#/groups/16"
       },
@@ -4710,7 +4683,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/222",
+      "self_ref": "#/texts/221",
       "parent": {
         "$ref": "#/body"
       },
@@ -4722,7 +4695,7 @@
       "text": "Appearance"
     },
     {
-      "self_ref": "#/texts/223",
+      "self_ref": "#/texts/222",
       "parent": {
         "$ref": "#/body"
       },
@@ -4734,19 +4707,7 @@
       "text": "move to sidebar hide"
     },
     {
-      "self_ref": "#/texts/224",
-      "parent": {
-        "$ref": "#/pictures/0"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "caption",
-      "prov": [],
-      "orig": "Page semi-protected",
-      "text": "Page semi-protected"
-    },
-    {
-      "self_ref": "#/texts/225",
+      "self_ref": "#/texts/223",
       "parent": {
         "$ref": "#/body"
       },
@@ -4758,7 +4719,7 @@
       "text": "From Wikipedia, the free encyclopedia"
     },
     {
-      "self_ref": "#/texts/226",
+      "self_ref": "#/texts/224",
       "parent": {
         "$ref": "#/body"
       },
@@ -4770,19 +4731,7 @@
       "text": "(Redirected from [Duckling](/w/index.php?title=Duckling&redirect=no) )"
     },
     {
-      "self_ref": "#/texts/227",
-      "parent": {
-        "$ref": "#/body"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "text",
-      "prov": [],
-      "orig": "Common name for many species of bird",
-      "text": "Common name for many species of bird"
-    },
-    {
-      "self_ref": "#/texts/228",
+      "self_ref": "#/texts/225",
       "parent": {
         "$ref": "#/body"
       },
@@ -4794,7 +4743,7 @@
       "text": "This article is about the bird. For duck as a food, see [Duck as food](/wiki/Duck_as_food) . For other uses, see [Duck (disambiguation)](/wiki/Duck_(disambiguation)) ."
     },
     {
-      "self_ref": "#/texts/229",
+      "self_ref": "#/texts/226",
       "parent": {
         "$ref": "#/body"
       },
@@ -4806,7 +4755,7 @@
       "text": "\"Duckling\" redirects here. For other uses, see [Duckling (disambiguation)](/wiki/Duckling_(disambiguation)) ."
     },
     {
-      "self_ref": "#/texts/230",
+      "self_ref": "#/texts/227",
       "parent": {
         "$ref": "#/body"
       },
@@ -4818,7 +4767,7 @@
       "text": "**Duck** is the common name for numerous species of [waterfowl](/wiki/Waterfowl) in the [family](/wiki/Family_(biology)) [Anatidae](/wiki/Anatidae) . Ducks are generally smaller and shorter-necked than [swans](/wiki/Swan) and [geese](/wiki/Goose) , which are members of the same family. Divided among several subfamilies, they are a [form taxon](/wiki/Form_taxon) ; they do not represent a [monophyletic group](/wiki/Monophyletic_group) (the group of all descendants of a single common ancestral species), since swans and geese are not considered ducks. Ducks are mostly [aquatic birds](/wiki/Aquatic_bird) , and may be found in both fresh water and sea water."
     },
     {
-      "self_ref": "#/texts/231",
+      "self_ref": "#/texts/228",
       "parent": {
         "$ref": "#/body"
       },
@@ -4830,7 +4779,7 @@
       "text": "Ducks are sometimes confused with several types of unrelated water birds with similar forms, such as [loons](/wiki/Loon) or divers, [grebes](/wiki/Grebe) , [gallinules](/wiki/Gallinule) and [coots](/wiki/Coot) ."
     },
     {
-      "self_ref": "#/texts/232",
+      "self_ref": "#/texts/229",
       "parent": {
         "$ref": "#/body"
       },
@@ -4843,7 +4792,7 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/233",
+      "self_ref": "#/texts/230",
       "parent": {
         "$ref": "#/body"
       },
@@ -4855,9 +4804,9 @@
       "text": "The word *duck* comes from [Old English](/wiki/Old_English) *dūce* 'diver', a derivative of the verb * *dūcan* 'to duck, bend down low as if to get under something, or dive', because of the way many species in the [dabbling duck](/wiki/Dabbling_duck) group feed by upending; compare with [Dutch](/wiki/Dutch_language) *duiken* and [German](/wiki/German_language) *tauchen* 'to dive'."
     },
     {
-      "self_ref": "#/texts/234",
+      "self_ref": "#/texts/231",
       "parent": {
-        "$ref": "#/pictures/1"
+        "$ref": "#/pictures/0"
       },
       "children": [],
       "content_layer": "body",
@@ -4867,7 +4816,7 @@
       "text": "Pacific black duck displaying the characteristic upending \"duck\""
     },
     {
-      "self_ref": "#/texts/235",
+      "self_ref": "#/texts/232",
       "parent": {
         "$ref": "#/body"
       },
@@ -4879,7 +4828,7 @@
       "text": "This word replaced Old English *ened* / *ænid* 'duck', possibly to avoid confusion with other words, such as *ende* 'end' with similar forms. Other Germanic languages still have similar words for *duck* , for example, Dutch *eend* , German *Ente* and [Norwegian](/wiki/Norwegian_language) *and* . The word *ened* / *ænid* was inherited from [Proto-Indo-European](/wiki/Proto-Indo-European_language) ; [cf.](/wiki/Cf.) [Latin](/wiki/Latin) *anas* \"duck\", [Lithuanian](/wiki/Lithuanian_language) *ántis* 'duck', [Ancient Greek](/wiki/Ancient_Greek_language) νῆσσα / νῆττα ( *nēssa* / *nētta* ) 'duck', and [Sanskrit](/wiki/Sanskrit) *ātí* 'water bird', among others."
     },
     {
-      "self_ref": "#/texts/236",
+      "self_ref": "#/texts/233",
       "parent": {
         "$ref": "#/body"
       },
@@ -4891,7 +4840,7 @@
       "text": "A duckling is a young duck in downy plumage [[](#cite_note-1) [1](#cite_note-1) []](#cite_note-1) or baby duck, [[](#cite_note-2) [2](#cite_note-2) []](#cite_note-2) but in the food trade a young domestic duck which has just reached adult size and bulk and its meat is still fully tender, is sometimes labelled as a duckling."
     },
     {
-      "self_ref": "#/texts/237",
+      "self_ref": "#/texts/234",
       "parent": {
         "$ref": "#/body"
       },
@@ -4903,9 +4852,9 @@
       "text": "A male is called a [drake](https://en.wiktionary.org/wiki/drake) and the female is called a duck, or in [ornithology](/wiki/Ornithology) a hen. [[](#cite_note-3) [3](#cite_note-3) []](#cite_note-3) [[](#cite_note-4) [4](#cite_note-4) []](#cite_note-4)"
     },
     {
-      "self_ref": "#/texts/238",
+      "self_ref": "#/texts/235",
       "parent": {
-        "$ref": "#/pictures/2"
+        "$ref": "#/pictures/1"
       },
       "children": [],
       "content_layer": "body",
@@ -4915,9 +4864,9 @@
       "text": "Male mallard."
     },
     {
-      "self_ref": "#/texts/239",
+      "self_ref": "#/texts/236",
       "parent": {
-        "$ref": "#/pictures/3"
+        "$ref": "#/pictures/2"
       },
       "children": [],
       "content_layer": "body",
@@ -4927,7 +4876,7 @@
       "text": "Wood ducks."
     },
     {
-      "self_ref": "#/texts/240",
+      "self_ref": "#/texts/237",
       "parent": {
         "$ref": "#/body"
       },
@@ -4940,7 +4889,7 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/241",
+      "self_ref": "#/texts/238",
       "parent": {
         "$ref": "#/body"
       },
@@ -4952,9 +4901,9 @@
       "text": "All ducks belong to the [biological order](/wiki/Order_(biology)) [Anseriformes](/wiki/Anseriformes) , a group that contains the ducks, geese and swans, as well as the [screamers](/wiki/Screamer) , and the [magpie goose](/wiki/Magpie_goose) . [[](#cite_note-FOOTNOTECarboneras1992536-5) [5](#cite_note-FOOTNOTECarboneras1992536-5) []](#cite_note-FOOTNOTECarboneras1992536-5) All except the screamers belong to the [biological family](/wiki/Family_(biology)) [Anatidae](/wiki/Anatidae) . [[](#cite_note-FOOTNOTECarboneras1992536-5) [5](#cite_note-FOOTNOTECarboneras1992536-5) []](#cite_note-FOOTNOTECarboneras1992536-5) Within the family, ducks are split into a variety of subfamilies and 'tribes'. The number and composition of these subfamilies and tribes is the cause of considerable disagreement among taxonomists. [[](#cite_note-FOOTNOTECarboneras1992536-5) [5](#cite_note-FOOTNOTECarboneras1992536-5) []](#cite_note-FOOTNOTECarboneras1992536-5) Some base their decisions on [morphological characteristics](/wiki/Morphology_(biology)) , others on shared behaviours or genetic studies. [[](#cite_note-FOOTNOTELivezey1986737–738-6) [6](#cite_note-FOOTNOTELivezey1986737–738-6) []](#cite_note-FOOTNOTELivezey1986737–738-6) [[](#cite_note-FOOTNOTEMadsenMcHughde_Kloet1988452-7) [7](#cite_note-FOOTNOTEMadsenMcHughde_Kloet1988452-7) []](#cite_note-FOOTNOTEMadsenMcHughde_Kloet1988452-7) The number of suggested subfamilies containing ducks ranges from two to five. [[](#cite_note-FOOTNOTEDonne-GousséLaudetHänni2002353–354-8) [8](#cite_note-FOOTNOTEDonne-GousséLaudetHänni2002353–354-8) []](#cite_note-FOOTNOTEDonne-GousséLaudetHänni2002353–354-8) [[](#cite_note-FOOTNOTECarboneras1992540-9) [9](#cite_note-FOOTNOTECarboneras1992540-9) []](#cite_note-FOOTNOTECarboneras1992540-9) The significant level of [hybridisation](/wiki/Hybrid_(biology)) that occurs among wild ducks complicates efforts to tease apart the relationships between various species. [[](#cite_note-FOOTNOTECarboneras1992540-9) [9](#cite_note-FOOTNOTECarboneras1992540-9) []](#cite_note-FOOTNOTECarboneras1992540-9)"
     },
     {
-      "self_ref": "#/texts/242",
+      "self_ref": "#/texts/239",
       "parent": {
-        "$ref": "#/pictures/4"
+        "$ref": "#/pictures/3"
       },
       "children": [],
       "content_layer": "body",
@@ -4964,7 +4913,7 @@
       "text": "Mallard landing in approach"
     },
     {
-      "self_ref": "#/texts/243",
+      "self_ref": "#/texts/240",
       "parent": {
         "$ref": "#/body"
       },
@@ -4976,7 +4925,7 @@
       "text": "In most modern classifications, the so-called 'true ducks' belong to the subfamily Anatinae, which is further split into a varying number of tribes. [[](#cite_note-FOOTNOTEElphickDunningSibley2001191-10) [10](#cite_note-FOOTNOTEElphickDunningSibley2001191-10) []](#cite_note-FOOTNOTEElphickDunningSibley2001191-10) The largest of these, the Anatini, contains the 'dabbling' or 'river' ducks - named for their method of feeding primarily at the surface of fresh water. [[](#cite_note-FOOTNOTEKear2005448-11) [11](#cite_note-FOOTNOTEKear2005448-11) []](#cite_note-FOOTNOTEKear2005448-11) The 'diving ducks', also named for their primary feeding method, make up the tribe Aythyini. [[](#cite_note-FOOTNOTEKear2005622–623-12) [12](#cite_note-FOOTNOTEKear2005622–623-12) []](#cite_note-FOOTNOTEKear2005622–623-12) The 'sea ducks' of the tribe Mergini are diving ducks which specialise on fish and shellfish and spend a majority of their lives in saltwater. [[](#cite_note-FOOTNOTEKear2005686-13) [13](#cite_note-FOOTNOTEKear2005686-13) []](#cite_note-FOOTNOTEKear2005686-13) The tribe Oxyurini contains the 'stifftails', diving ducks notable for their small size and stiff, upright tails. [[](#cite_note-FOOTNOTEElphickDunningSibley2001193-14) [14](#cite_note-FOOTNOTEElphickDunningSibley2001193-14) []](#cite_note-FOOTNOTEElphickDunningSibley2001193-14)"
     },
     {
-      "self_ref": "#/texts/244",
+      "self_ref": "#/texts/241",
       "parent": {
         "$ref": "#/body"
       },
@@ -4988,7 +4937,7 @@
       "text": "A number of other species called ducks are not considered to be 'true ducks', and are typically placed in other subfamilies or tribes. The [whistling ducks](/wiki/Whistling_duck) are assigned either to a tribe (Dendrocygnini) in the subfamily Anatinae or the subfamily Anserinae, [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15) or to their own subfamily (Dendrocygninae) or family (Dendrocyganidae). [[](#cite_note-FOOTNOTECarboneras1992540-9) [9](#cite_note-FOOTNOTECarboneras1992540-9) []](#cite_note-FOOTNOTECarboneras1992540-9) [[](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998xix-16) [16](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998xix-16) []](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998xix-16) The [freckled duck](/wiki/Freckled_duck) of Australia is either the sole member of the tribe Stictonettini in the subfamily Anserinae, [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15) or in its own family, the Stictonettinae. [[](#cite_note-FOOTNOTECarboneras1992540-9) [9](#cite_note-FOOTNOTECarboneras1992540-9) []](#cite_note-FOOTNOTECarboneras1992540-9) The [shelducks](/wiki/Shelduck) make up the tribe Tadornini in the family Anserinae in some classifications, [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15) and their own subfamily, Tadorninae, in others, [[](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998-17) [17](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998-17) []](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998-17) while the [steamer ducks](/wiki/Steamer_duck) are either placed in the family Anserinae in the tribe Tachyerini [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15) or lumped with the shelducks in the tribe Tadorini. [[](#cite_note-FOOTNOTECarboneras1992540-9) [9](#cite_note-FOOTNOTECarboneras1992540-9) []](#cite_note-FOOTNOTECarboneras1992540-9) The [perching ducks](/wiki/Perching_duck) make up in the tribe Cairinini in the subfamily Anserinae in some classifications, while that tribe is eliminated in other classifications and its members assigned to the tribe Anatini. [[](#cite_note-FOOTNOTECarboneras1992540-9) [9](#cite_note-FOOTNOTECarboneras1992540-9) []](#cite_note-FOOTNOTECarboneras1992540-9) The [torrent duck](/wiki/Torrent_duck) is generally included in the subfamily Anserinae in the monotypic tribe Merganettini, [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15) but is sometimes included in the tribe Tadornini. [[](#cite_note-FOOTNOTECarboneras1992538-18) [18](#cite_note-FOOTNOTECarboneras1992538-18) []](#cite_note-FOOTNOTECarboneras1992538-18) The [pink-eared duck](/wiki/Pink-eared_duck) is sometimes included as a true duck either in the tribe Anatini [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15) or the tribe Malacorhynchini, [[](#cite_note-FOOTNOTEChristidisBoles200862-19) [19](#cite_note-FOOTNOTEChristidisBoles200862-19) []](#cite_note-FOOTNOTEChristidisBoles200862-19) and other times is included with the shelducks in the tribe Tadornini. [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15)"
     },
     {
-      "self_ref": "#/texts/245",
+      "self_ref": "#/texts/242",
       "parent": {
         "$ref": "#/body"
       },
@@ -5001,9 +4950,9 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/246",
+      "self_ref": "#/texts/243",
       "parent": {
-        "$ref": "#/pictures/5"
+        "$ref": "#/pictures/4"
       },
       "children": [],
       "content_layer": "body",
@@ -5013,7 +4962,7 @@
       "text": "Male Mandarin duck"
     },
     {
-      "self_ref": "#/texts/247",
+      "self_ref": "#/texts/244",
       "parent": {
         "$ref": "#/body"
       },
@@ -5025,7 +4974,7 @@
       "text": "The overall [body plan](/wiki/Body_plan) of ducks is elongated and broad, and they are also relatively long-necked, albeit not as long-necked as the geese and swans. The body shape of diving ducks varies somewhat from this in being more rounded. The [bill](/wiki/Beak) is usually broad and contains serrated [pectens](/wiki/Pecten_(biology)) , which are particularly well defined in the filter-feeding species. In the case of some fishing species the bill is long and strongly serrated. The scaled legs are strong and well developed, and generally set far back on the body, more so in the highly aquatic species. The wings are very strong and are generally short and pointed, and the [flight](/wiki/Bird_flight) of ducks requires fast continuous strokes, requiring in turn strong wing muscles. Three species of [steamer duck](/wiki/Steamer_duck) are almost flightless, however. Many species of duck are temporarily flightless while [moulting](/wiki/Moult) ; they seek out protected habitat with good food supplies during this period. This moult typically precedes [migration](/wiki/Bird_migration) ."
     },
     {
-      "self_ref": "#/texts/248",
+      "self_ref": "#/texts/245",
       "parent": {
         "$ref": "#/body"
       },
@@ -5037,7 +4986,7 @@
       "text": "The drakes of northern species often have extravagant [plumage](/wiki/Plumage) , but that is [moulted](/wiki/Moult) in summer to give a more female-like appearance, the \"eclipse\" plumage. Southern resident species typically show less [sexual dimorphism](/wiki/Sexual_dimorphism) , although there are exceptions such as the [paradise shelduck](/wiki/Paradise_shelduck) of [New Zealand](/wiki/New_Zealand) , which is both strikingly sexually dimorphic and in which the female's plumage is brighter than that of the male. The plumage of juvenile birds generally resembles that of the female. Female ducks have evolved to have a corkscrew shaped vagina to prevent rape."
     },
     {
-      "self_ref": "#/texts/249",
+      "self_ref": "#/texts/246",
       "parent": {
         "$ref": "#/body"
       },
@@ -5050,7 +4999,7 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/250",
+      "self_ref": "#/texts/247",
       "parent": {
         "$ref": "#/body"
       },
@@ -5062,9 +5011,9 @@
       "text": "See also: [List of Anseriformes by population](/wiki/List_of_Anseriformes_by_population)"
     },
     {
-      "self_ref": "#/texts/251",
+      "self_ref": "#/texts/248",
       "parent": {
-        "$ref": "#/pictures/6"
+        "$ref": "#/pictures/5"
       },
       "children": [],
       "content_layer": "body",
@@ -5074,7 +5023,7 @@
       "text": "Flying steamer ducks in Ushuaia, Argentina"
     },
     {
-      "self_ref": "#/texts/252",
+      "self_ref": "#/texts/249",
       "parent": {
         "$ref": "#/body"
       },
@@ -5086,9 +5035,9 @@
       "text": "Ducks have a [cosmopolitan distribution](/wiki/Cosmopolitan_distribution) , and are found on every continent except Antarctica. [[](#cite_note-FOOTNOTECarboneras1992536-5) [5](#cite_note-FOOTNOTECarboneras1992536-5) []](#cite_note-FOOTNOTECarboneras1992536-5) Several species manage to live on subantarctic islands, including [South Georgia](/wiki/South_Georgia_and_the_South_Sandwich_Islands) and the [Auckland Islands](/wiki/Auckland_Islands) . [[](#cite_note-FOOTNOTEShirihai2008239,_245-20) [20](#cite_note-FOOTNOTEShirihai2008239,_245-20) []](#cite_note-FOOTNOTEShirihai2008239,_245-20) Ducks have reached a number of isolated oceanic islands, including the [Hawaiian Islands](/wiki/Hawaiian_Islands) , [Micronesia](/wiki/Micronesia) and the [Galápagos Islands](/wiki/Gal%C3%A1pagos_Islands) , where they are often [vagrants](/wiki/Glossary_of_bird_terms#vagrants) and less often [residents](/wiki/Glossary_of_bird_terms#residents) . [[](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21) [21](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21) []](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21) [[](#cite_note-FOOTNOTEFitterFitterHosking200052–3-22) [22](#cite_note-FOOTNOTEFitterFitterHosking200052–3-22) []](#cite_note-FOOTNOTEFitterFitterHosking200052–3-22) A handful are [endemic](/wiki/Endemic) to such far-flung islands. [[](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21) [21](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21) []](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21)"
     },
     {
-      "self_ref": "#/texts/253",
+      "self_ref": "#/texts/250",
       "parent": {
-        "$ref": "#/pictures/7"
+        "$ref": "#/pictures/6"
       },
       "children": [],
       "content_layer": "body",
@@ -5098,7 +5047,7 @@
       "text": "Female mallard in Cornwall, England"
     },
     {
-      "self_ref": "#/texts/254",
+      "self_ref": "#/texts/251",
       "parent": {
         "$ref": "#/body"
       },
@@ -5110,7 +5059,7 @@
       "text": "Some duck species, mainly those breeding in the temperate and Arctic Northern Hemisphere, are migratory; those in the tropics are generally not. Some ducks, particularly in Australia where rainfall is erratic, are nomadic, seeking out the temporary lakes and pools that form after localised heavy rain. [[](#cite_note-23) [23](#cite_note-23) []](#cite_note-23)"
     },
     {
-      "self_ref": "#/texts/255",
+      "self_ref": "#/texts/252",
       "parent": {
         "$ref": "#/body"
       },
@@ -5123,7 +5072,7 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/256",
+      "self_ref": "#/texts/253",
       "parent": {
         "$ref": "#/body"
       },
@@ -5136,9 +5085,9 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/257",
+      "self_ref": "#/texts/254",
       "parent": {
-        "$ref": "#/pictures/8"
+        "$ref": "#/pictures/7"
       },
       "children": [],
       "content_layer": "body",
@@ -5148,9 +5097,9 @@
       "text": "Pecten along the bill"
     },
     {
-      "self_ref": "#/texts/258",
+      "self_ref": "#/texts/255",
       "parent": {
-        "$ref": "#/pictures/9"
+        "$ref": "#/pictures/8"
       },
       "children": [],
       "content_layer": "body",
@@ -5160,7 +5109,7 @@
       "text": "Mallard duckling preening"
     },
     {
-      "self_ref": "#/texts/259",
+      "self_ref": "#/texts/256",
       "parent": {
         "$ref": "#/body"
       },
@@ -5172,7 +5121,7 @@
       "text": "Ducks eat food sources such as [grasses](/wiki/Poaceae) , aquatic plants, fish, insects, small amphibians, worms, and small [molluscs](/wiki/Mollusc) ."
     },
     {
-      "self_ref": "#/texts/260",
+      "self_ref": "#/texts/257",
       "parent": {
         "$ref": "#/body"
       },
@@ -5184,7 +5133,7 @@
       "text": "[Dabbling ducks](/wiki/Dabbling_duck) feed on the surface of water or on land, or as deep as they can reach by up-ending without completely submerging. [[](#cite_note-24) [24](#cite_note-24) []](#cite_note-24) Along the edge of the bill, there is a comb-like structure called a [pecten](/wiki/Pecten_(biology)) . This strains the water squirting from the side of the bill and traps any food. The pecten is also used to preen feathers and to hold slippery food items."
     },
     {
-      "self_ref": "#/texts/261",
+      "self_ref": "#/texts/258",
       "parent": {
         "$ref": "#/body"
       },
@@ -5196,7 +5145,7 @@
       "text": "[Diving ducks](/wiki/Diving_duck) and [sea ducks](/wiki/Sea_duck) forage deep underwater. To be able to submerge more easily, the diving ducks are heavier than dabbling ducks, and therefore have more difficulty taking off to fly."
     },
     {
-      "self_ref": "#/texts/262",
+      "self_ref": "#/texts/259",
       "parent": {
         "$ref": "#/body"
       },
@@ -5208,7 +5157,7 @@
       "text": "A few specialized species such as the [mergansers](/wiki/Merganser) are adapted to catch and swallow large fish."
     },
     {
-      "self_ref": "#/texts/263",
+      "self_ref": "#/texts/260",
       "parent": {
         "$ref": "#/body"
       },
@@ -5220,7 +5169,7 @@
       "text": "The others have the characteristic wide flat bill adapted to [dredging](/wiki/Dredging) -type jobs such as pulling up waterweed, pulling worms and small molluscs out of mud, searching for insect larvae, and bulk jobs such as dredging out, holding, turning head first, and swallowing a squirming frog. To avoid injury when digging into sediment it has no [cere](/wiki/Cere) , but the nostrils come out through hard horn."
     },
     {
-      "self_ref": "#/texts/264",
+      "self_ref": "#/texts/261",
       "parent": {
         "$ref": "#/body"
       },
@@ -5232,7 +5181,7 @@
       "text": "[*The Guardian*](/wiki/The_Guardian) published an article advising that ducks should not be fed with bread because it [damages the health of the ducks](/wiki/Angel_wing) and pollutes waterways. [[](#cite_note-25) [25](#cite_note-25) []](#cite_note-25)"
     },
     {
-      "self_ref": "#/texts/265",
+      "self_ref": "#/texts/262",
       "parent": {
         "$ref": "#/body"
       },
@@ -5245,9 +5194,9 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/266",
+      "self_ref": "#/texts/263",
       "parent": {
-        "$ref": "#/pictures/10"
+        "$ref": "#/pictures/9"
       },
       "children": [],
       "content_layer": "body",
@@ -5257,7 +5206,7 @@
       "text": "A Muscovy duckling"
     },
     {
-      "self_ref": "#/texts/267",
+      "self_ref": "#/texts/264",
       "parent": {
         "$ref": "#/body"
       },
@@ -5269,7 +5218,7 @@
       "text": "Ducks generally [only have one partner at a time](/wiki/Monogamy_in_animals) , although the partnership usually only lasts one year. [[](#cite_note-26) [26](#cite_note-26) []](#cite_note-26) Larger species and the more sedentary species (like fast-river specialists) tend to have pair-bonds that last numerous years. [[](#cite_note-27) [27](#cite_note-27) []](#cite_note-27) Most duck species breed once a year, choosing to do so in favourable conditions ( [spring](/wiki/Spring_(season)) /summer or wet seasons). Ducks also tend to make a [nest](/wiki/Bird_nest) before breeding, and, after hatching, lead their ducklings to water. Mother ducks are very caring and protective of their young, but may abandon some of their ducklings if they are physically stuck in an area they cannot get out of (such as nesting in an enclosed [courtyard](/wiki/Courtyard) ) or are not prospering due to genetic defects or sickness brought about by hypothermia, starvation, or disease. Ducklings can also be orphaned by inconsistent late hatching where a few eggs hatch after the mother has abandoned the nest and led her ducklings to water. [[](#cite_note-28) [28](#cite_note-28) []](#cite_note-28)"
     },
     {
-      "self_ref": "#/texts/268",
+      "self_ref": "#/texts/265",
       "parent": {
         "$ref": "#/body"
       },
@@ -5282,7 +5231,7 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/269",
+      "self_ref": "#/texts/266",
       "parent": {
         "$ref": "#/body"
       },
@@ -5294,7 +5243,7 @@
       "text": "Female [mallard](/wiki/Mallard) ducks (as well as several other species in the genus *Anas* , such as the [American](/wiki/American_black_duck) and [Pacific black ducks](/wiki/Pacific_black_duck) , [spot-billed duck](/wiki/Spot-billed_duck) , [northern pintail](/wiki/Northern_pintail) and [common teal](/wiki/Common_teal) ) make the classic \"quack\" sound while males make a similar but raspier sound that is sometimes written as \"breeeeze\", [[](#cite_note-29) [29](#cite_note-29) []](#cite_note-29) [ [*self-published source?*](/wiki/Wikipedia:Verifiability#Self-published_sources) ] but, despite widespread misconceptions, most species of duck do not \"quack\". [[](#cite_note-30) [30](#cite_note-30) []](#cite_note-30) In general, ducks make a range of [calls](/wiki/Bird_vocalisation) , including whistles, cooing, yodels and grunts. For example, the [scaup](/wiki/Scaup) - which are [diving ducks](/wiki/Diving_duck) - make a noise like \"scaup\" (hence their name). Calls may be loud displaying calls or quieter contact calls."
     },
     {
-      "self_ref": "#/texts/270",
+      "self_ref": "#/texts/267",
       "parent": {
         "$ref": "#/body"
       },
@@ -5306,7 +5255,7 @@
       "text": "A common [urban legend](/wiki/Urban_legend) claims that duck quacks do not echo; however, this has been proven to be false. This myth was first debunked by the Acoustics Research Centre at the [University of Salford](/wiki/University_of_Salford) in 2003 as part of the [British Association](/wiki/British_Association) 's Festival of Science. [[](#cite_note-31) [31](#cite_note-31) []](#cite_note-31) It was also debunked in [one of the earlier episodes](/wiki/MythBusters_(2003_season)#Does_a_Duck's_Quack_Echo?) of the popular Discovery Channel television show [*MythBusters*](/wiki/MythBusters) . [[](#cite_note-32) [32](#cite_note-32) []](#cite_note-32)"
     },
     {
-      "self_ref": "#/texts/271",
+      "self_ref": "#/texts/268",
       "parent": {
         "$ref": "#/body"
       },
@@ -5319,9 +5268,9 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/272",
+      "self_ref": "#/texts/269",
       "parent": {
-        "$ref": "#/pictures/11"
+        "$ref": "#/pictures/10"
       },
       "children": [],
       "content_layer": "body",
@@ -5331,7 +5280,7 @@
       "text": "Ringed teal"
     },
     {
-      "self_ref": "#/texts/273",
+      "self_ref": "#/texts/270",
       "parent": {
         "$ref": "#/body"
       },
@@ -5343,7 +5292,7 @@
       "text": "Ducks have many predators. Ducklings are particularly vulnerable, since their inability to fly makes them easy prey not only for predatory birds but also for large fish like [pike](/wiki/Esox) , [crocodilians](/wiki/Crocodilia) , predatory [testudines](/wiki/Testudines) such as the [alligator snapping turtle](/wiki/Alligator_snapping_turtle) , and other aquatic hunters, including fish-eating birds such as [herons](/wiki/Heron) . Ducks' nests are raided by land-based predators, and brooding females may be caught unaware on the nest by mammals, such as [foxes](/wiki/Fox) , or large birds, such as [hawks](/wiki/Hawk) or [owls](/wiki/Owl) ."
     },
     {
-      "self_ref": "#/texts/274",
+      "self_ref": "#/texts/271",
       "parent": {
         "$ref": "#/body"
       },
@@ -5355,7 +5304,7 @@
       "text": "Adult ducks are fast fliers, but may be caught on the water by large aquatic predators including big fish such as the North American [muskie](/wiki/Muskellunge) and the European [pike](/wiki/Esox) . In flight, ducks are safe from all but a few predators such as humans and the [peregrine falcon](/wiki/Peregrine_falcon) , which uses its speed and strength to catch ducks."
     },
     {
-      "self_ref": "#/texts/275",
+      "self_ref": "#/texts/272",
       "parent": {
         "$ref": "#/body"
       },
@@ -5368,7 +5317,7 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/276",
+      "self_ref": "#/texts/273",
       "parent": {
         "$ref": "#/body"
       },
@@ -5381,7 +5330,7 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/277",
+      "self_ref": "#/texts/274",
       "parent": {
         "$ref": "#/body"
       },
@@ -5393,7 +5342,7 @@
       "text": "Main article: [Waterfowl hunting](/wiki/Waterfowl_hunting)"
     },
     {
-      "self_ref": "#/texts/278",
+      "self_ref": "#/texts/275",
       "parent": {
         "$ref": "#/body"
       },
@@ -5405,7 +5354,7 @@
       "text": "Humans have hunted ducks since prehistoric times. Excavations of [middens](/wiki/Midden) in California dating to 7800 - 6400 [BP](/wiki/Before_present) have turned up bones of ducks, including at least one now-extinct flightless species. [[](#cite_note-FOOTNOTEErlandson1994171-33) [33](#cite_note-FOOTNOTEErlandson1994171-33) []](#cite_note-FOOTNOTEErlandson1994171-33) Ducks were captured in \"significant numbers\" by [Holocene](/wiki/Holocene) inhabitants of the lower [Ohio River](/wiki/Ohio_River) valley, suggesting they took advantage of the seasonal bounty provided by migrating waterfowl. [[](#cite_note-FOOTNOTEJeffries2008168,_243-34) [34](#cite_note-FOOTNOTEJeffries2008168,_243-34) []](#cite_note-FOOTNOTEJeffries2008168,_243-34) Neolithic hunters in locations as far apart as the Caribbean, [[](#cite_note-FOOTNOTESued-Badillo200365-35) [35](#cite_note-FOOTNOTESued-Badillo200365-35) []](#cite_note-FOOTNOTESued-Badillo200365-35) Scandinavia, [[](#cite_note-FOOTNOTEThorpe199668-36) [36](#cite_note-FOOTNOTEThorpe199668-36) []](#cite_note-FOOTNOTEThorpe199668-36) Egypt, [[](#cite_note-FOOTNOTEMaisels199942-37) [37](#cite_note-FOOTNOTEMaisels199942-37) []](#cite_note-FOOTNOTEMaisels199942-37) Switzerland, [[](#cite_note-FOOTNOTERau1876133-38) [38](#cite_note-FOOTNOTERau1876133-38) []](#cite_note-FOOTNOTERau1876133-38) and China relied on ducks as a source of protein for some or all of the year. [[](#cite_note-FOOTNOTEHigman201223-39) [39](#cite_note-FOOTNOTEHigman201223-39) []](#cite_note-FOOTNOTEHigman201223-39) Archeological evidence shows that [Māori people](/wiki/M%C4%81ori_people) in New Zealand hunted the flightless [Finsch's duck](/wiki/Finsch%27s_duck) , possibly to extinction, though rat predation may also have contributed to its fate. [[](#cite_note-FOOTNOTEHume201253-40) [40](#cite_note-FOOTNOTEHume201253-40) []](#cite_note-FOOTNOTEHume201253-40) A similar end awaited the [Chatham duck](/wiki/Chatham_duck) , a species with reduced flying capabilities which went extinct shortly after its island was colonised by Polynesian settlers. [[](#cite_note-FOOTNOTEHume201252-41) [41](#cite_note-FOOTNOTEHume201252-41) []](#cite_note-FOOTNOTEHume201252-41) It is probable that duck eggs were gathered by Neolithic hunter-gathers as well, though hard evidence of this is uncommon. [[](#cite_note-FOOTNOTESued-Badillo200365-35) [35](#cite_note-FOOTNOTESued-Badillo200365-35) []](#cite_note-FOOTNOTESued-Badillo200365-35) [[](#cite_note-FOOTNOTEFieldhouse2002167-42) [42](#cite_note-FOOTNOTEFieldhouse2002167-42) []](#cite_note-FOOTNOTEFieldhouse2002167-42)"
     },
     {
-      "self_ref": "#/texts/279",
+      "self_ref": "#/texts/276",
       "parent": {
         "$ref": "#/body"
       },
@@ -5417,7 +5366,7 @@
       "text": "In many areas, wild ducks (including ducks farmed and released into the wild) are hunted for food or sport, [[](#cite_note-43) [43](#cite_note-43) []](#cite_note-43) by shooting, or by being trapped using [duck decoys](/wiki/Duck_decoy_(structure)) . Because an idle floating duck or a duck squatting on land cannot react to fly or move quickly, \"a sitting duck\" has come to mean \"an easy target\". These ducks may be [contaminated by pollutants](/wiki/Duck_(food)#Pollution) such as [PCBs](/wiki/Polychlorinated_biphenyl) . [[](#cite_note-44) [44](#cite_note-44) []](#cite_note-44)"
     },
     {
-      "self_ref": "#/texts/280",
+      "self_ref": "#/texts/277",
       "parent": {
         "$ref": "#/body"
       },
@@ -5430,7 +5379,7 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/281",
+      "self_ref": "#/texts/278",
       "parent": {
         "$ref": "#/body"
       },
@@ -5442,9 +5391,9 @@
       "text": "Main article: [Domestic duck](/wiki/Domestic_duck)"
     },
     {
-      "self_ref": "#/texts/282",
+      "self_ref": "#/texts/279",
       "parent": {
-        "$ref": "#/pictures/12"
+        "$ref": "#/pictures/11"
       },
       "children": [],
       "content_layer": "body",
@@ -5454,7 +5403,7 @@
       "text": "Indian Runner ducks, a common breed of domestic ducks"
     },
     {
-      "self_ref": "#/texts/283",
+      "self_ref": "#/texts/280",
       "parent": {
         "$ref": "#/body"
       },
@@ -5466,7 +5415,7 @@
       "text": "Ducks have many economic uses, being farmed for their meat, eggs, and feathers (particularly their [down](/wiki/Down_feather) ). Approximately 3 billion ducks are slaughtered each year for meat worldwide. [[](#cite_note-45) [45](#cite_note-45) []](#cite_note-45) They are also kept and bred by aviculturists and often displayed in zoos. Almost all the varieties of domestic ducks are descended from the [mallard](/wiki/Mallard) ( *Anas platyrhynchos* ), apart from the [Muscovy duck](/wiki/Muscovy_duck) ( *Cairina moschata* ). [[](#cite_note-46) [46](#cite_note-46) []](#cite_note-46) [[](#cite_note-47) [47](#cite_note-47) []](#cite_note-47) The [Call duck](/wiki/Call_duck) is another example of a domestic duck breed. Its name comes from its original use established by hunters, as a decoy to attract wild mallards from the sky, into traps set for them on the ground. The call duck is the world's smallest domestic duck breed, as it weighs less than 1 kg (2.2 lb). [[](#cite_note-48) [48](#cite_note-48) []](#cite_note-48)"
     },
     {
-      "self_ref": "#/texts/284",
+      "self_ref": "#/texts/281",
       "parent": {
         "$ref": "#/body"
       },
@@ -5479,9 +5428,9 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/285",
+      "self_ref": "#/texts/282",
       "parent": {
-        "$ref": "#/pictures/13"
+        "$ref": "#/pictures/12"
       },
       "children": [],
       "content_layer": "body",
@@ -5491,7 +5440,7 @@
       "text": "Three black-colored ducks in the coat of arms of Maaninka[49]"
     },
     {
-      "self_ref": "#/texts/286",
+      "self_ref": "#/texts/283",
       "parent": {
         "$ref": "#/body"
       },
@@ -5503,7 +5452,7 @@
       "text": "Ducks appear on several [coats of arms](/wiki/Coats_of_arms) , including the coat of arms of [Lubāna](/wiki/Lub%C4%81na) ( [Latvia](/wiki/Latvia) ) [[](#cite_note-50) [50](#cite_note-50) []](#cite_note-50) and the coat of arms of [Föglö](/wiki/F%C3%B6gl%C3%B6) ( [Åland](/wiki/%C3%85land) ). [[](#cite_note-51) [51](#cite_note-51) []](#cite_note-51)"
     },
     {
-      "self_ref": "#/texts/287",
+      "self_ref": "#/texts/284",
       "parent": {
         "$ref": "#/body"
       },
@@ -5516,7 +5465,7 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/288",
+      "self_ref": "#/texts/285",
       "parent": {
         "$ref": "#/body"
       },
@@ -5528,7 +5477,7 @@
       "text": "In 2002, psychologist [Richard Wiseman](/wiki/Richard_Wiseman) and colleagues at the [University of Hertfordshire](/wiki/University_of_Hertfordshire) , [UK](/wiki/UK) , finished a year-long [LaughLab](/wiki/LaughLab) experiment, concluding that of all animals, ducks attract the most humor and silliness; he said, \"If you're going to tell a joke involving an animal, make it a duck.\" [[](#cite_note-52) [52](#cite_note-52) []](#cite_note-52) The word \"duck\" may have become an [inherently funny word](/wiki/Inherently_funny_word) in many languages, possibly because ducks are seen as silly in their looks or behavior. Of the many [ducks in fiction](/wiki/List_of_fictional_ducks) , many are cartoon characters, such as [Walt Disney](/wiki/The_Walt_Disney_Company) 's [Donald Duck](/wiki/Donald_Duck) , and [Warner Bros.](/wiki/Warner_Bros.) ' [Daffy Duck](/wiki/Daffy_Duck) . [Howard the Duck](/wiki/Howard_the_Duck) started as a comic book character in 1973 [[](#cite_note-53) [53](#cite_note-53) []](#cite_note-53) [[](#cite_note-54) [54](#cite_note-54) []](#cite_note-54) and was made into a [movie](/wiki/Howard_the_Duck_(film)) in 1986."
     },
     {
-      "self_ref": "#/texts/289",
+      "self_ref": "#/texts/286",
       "parent": {
         "$ref": "#/body"
       },
@@ -5540,7 +5489,7 @@
       "text": "The 1992 Disney film [*The Mighty Ducks*](/wiki/The_Mighty_Ducks_(film)) , starring [Emilio Estevez](/wiki/Emilio_Estevez) , chose the duck as the mascot for the fictional youth hockey team who are protagonists of the movie, based on the duck being described as a fierce fighter. This led to the duck becoming the nickname and mascot for the eventual [National Hockey League](/wiki/National_Hockey_League) professional team of the [Anaheim Ducks](/wiki/Anaheim_Ducks) , who were founded with the name the Mighty Ducks of Anaheim. [ [*citation needed*](/wiki/Wikipedia:Citation_needed) ] The duck is also the nickname of the [University of Oregon](/wiki/University_of_Oregon) sports teams as well as the [Long Island Ducks](/wiki/Long_Island_Ducks) minor league [baseball](/wiki/Baseball) team. [[](#cite_note-55) [55](#cite_note-55) []](#cite_note-55)"
     },
     {
-      "self_ref": "#/texts/290",
+      "self_ref": "#/texts/287",
       "parent": {
         "$ref": "#/body"
       },
@@ -5553,7 +5502,7 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/291",
+      "self_ref": "#/texts/288",
       "parent": {
         "$ref": "#/groups/17"
       },
@@ -5567,7 +5516,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/292",
+      "self_ref": "#/texts/289",
       "parent": {
         "$ref": "#/groups/17"
       },
@@ -5581,7 +5530,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/293",
+      "self_ref": "#/texts/290",
       "parent": {
         "$ref": "#/groups/17"
       },
@@ -5595,7 +5544,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/294",
+      "self_ref": "#/texts/291",
       "parent": {
         "$ref": "#/groups/17"
       },
@@ -5609,7 +5558,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/295",
+      "self_ref": "#/texts/292",
       "parent": {
         "$ref": "#/groups/17"
       },
@@ -5623,7 +5572,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/296",
+      "self_ref": "#/texts/293",
       "parent": {
         "$ref": "#/groups/17"
       },
@@ -5637,7 +5586,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/297",
+      "self_ref": "#/texts/294",
       "parent": {
         "$ref": "#/groups/17"
       },
@@ -5651,7 +5600,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/298",
+      "self_ref": "#/texts/295",
       "parent": {
         "$ref": "#/body"
       },
@@ -5664,7 +5613,7 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/299",
+      "self_ref": "#/texts/296",
       "parent": {
         "$ref": "#/body"
       },
@@ -5677,7 +5626,7 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/300",
+      "self_ref": "#/texts/297",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5691,7 +5640,7 @@
       "marker": "1."
     },
     {
-      "self_ref": "#/texts/301",
+      "self_ref": "#/texts/298",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5705,7 +5654,7 @@
       "marker": "2."
     },
     {
-      "self_ref": "#/texts/302",
+      "self_ref": "#/texts/299",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5719,7 +5668,7 @@
       "marker": "3."
     },
     {
-      "self_ref": "#/texts/303",
+      "self_ref": "#/texts/300",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5733,7 +5682,7 @@
       "marker": "4."
     },
     {
-      "self_ref": "#/texts/304",
+      "self_ref": "#/texts/301",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5747,7 +5696,7 @@
       "marker": "5."
     },
     {
-      "self_ref": "#/texts/305",
+      "self_ref": "#/texts/302",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5761,7 +5710,7 @@
       "marker": "6."
     },
     {
-      "self_ref": "#/texts/306",
+      "self_ref": "#/texts/303",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5775,7 +5724,7 @@
       "marker": "7."
     },
     {
-      "self_ref": "#/texts/307",
+      "self_ref": "#/texts/304",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5789,7 +5738,7 @@
       "marker": "8."
     },
     {
-      "self_ref": "#/texts/308",
+      "self_ref": "#/texts/305",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5803,7 +5752,7 @@
       "marker": "9."
     },
     {
-      "self_ref": "#/texts/309",
+      "self_ref": "#/texts/306",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5817,7 +5766,7 @@
       "marker": "10."
     },
     {
-      "self_ref": "#/texts/310",
+      "self_ref": "#/texts/307",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5831,7 +5780,7 @@
       "marker": "11."
     },
     {
-      "self_ref": "#/texts/311",
+      "self_ref": "#/texts/308",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5845,7 +5794,7 @@
       "marker": "12."
     },
     {
-      "self_ref": "#/texts/312",
+      "self_ref": "#/texts/309",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5859,7 +5808,7 @@
       "marker": "13."
     },
     {
-      "self_ref": "#/texts/313",
+      "self_ref": "#/texts/310",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5873,7 +5822,7 @@
       "marker": "14."
     },
     {
-      "self_ref": "#/texts/314",
+      "self_ref": "#/texts/311",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5887,7 +5836,7 @@
       "marker": "15."
     },
     {
-      "self_ref": "#/texts/315",
+      "self_ref": "#/texts/312",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5901,7 +5850,7 @@
       "marker": "16."
     },
     {
-      "self_ref": "#/texts/316",
+      "self_ref": "#/texts/313",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5915,7 +5864,7 @@
       "marker": "17."
     },
     {
-      "self_ref": "#/texts/317",
+      "self_ref": "#/texts/314",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5929,7 +5878,7 @@
       "marker": "18."
     },
     {
-      "self_ref": "#/texts/318",
+      "self_ref": "#/texts/315",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5943,7 +5892,7 @@
       "marker": "19."
     },
     {
-      "self_ref": "#/texts/319",
+      "self_ref": "#/texts/316",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5957,7 +5906,7 @@
       "marker": "20."
     },
     {
-      "self_ref": "#/texts/320",
+      "self_ref": "#/texts/317",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5971,7 +5920,7 @@
       "marker": "21."
     },
     {
-      "self_ref": "#/texts/321",
+      "self_ref": "#/texts/318",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5985,7 +5934,7 @@
       "marker": "22."
     },
     {
-      "self_ref": "#/texts/322",
+      "self_ref": "#/texts/319",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -5999,7 +5948,7 @@
       "marker": "23."
     },
     {
-      "self_ref": "#/texts/323",
+      "self_ref": "#/texts/320",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6013,7 +5962,7 @@
       "marker": "24."
     },
     {
-      "self_ref": "#/texts/324",
+      "self_ref": "#/texts/321",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6027,7 +5976,7 @@
       "marker": "25."
     },
     {
-      "self_ref": "#/texts/325",
+      "self_ref": "#/texts/322",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6041,7 +5990,7 @@
       "marker": "26."
     },
     {
-      "self_ref": "#/texts/326",
+      "self_ref": "#/texts/323",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6055,7 +6004,7 @@
       "marker": "27."
     },
     {
-      "self_ref": "#/texts/327",
+      "self_ref": "#/texts/324",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6069,7 +6018,7 @@
       "marker": "28."
     },
     {
-      "self_ref": "#/texts/328",
+      "self_ref": "#/texts/325",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6083,7 +6032,7 @@
       "marker": "29."
     },
     {
-      "self_ref": "#/texts/329",
+      "self_ref": "#/texts/326",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6097,7 +6046,7 @@
       "marker": "30."
     },
     {
-      "self_ref": "#/texts/330",
+      "self_ref": "#/texts/327",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6111,7 +6060,7 @@
       "marker": "31."
     },
     {
-      "self_ref": "#/texts/331",
+      "self_ref": "#/texts/328",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6125,7 +6074,7 @@
       "marker": "32."
     },
     {
-      "self_ref": "#/texts/332",
+      "self_ref": "#/texts/329",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6139,7 +6088,7 @@
       "marker": "33."
     },
     {
-      "self_ref": "#/texts/333",
+      "self_ref": "#/texts/330",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6153,7 +6102,7 @@
       "marker": "34."
     },
     {
-      "self_ref": "#/texts/334",
+      "self_ref": "#/texts/331",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6167,7 +6116,7 @@
       "marker": "35."
     },
     {
-      "self_ref": "#/texts/335",
+      "self_ref": "#/texts/332",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6181,7 +6130,7 @@
       "marker": "36."
     },
     {
-      "self_ref": "#/texts/336",
+      "self_ref": "#/texts/333",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6195,7 +6144,7 @@
       "marker": "37."
     },
     {
-      "self_ref": "#/texts/337",
+      "self_ref": "#/texts/334",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6209,7 +6158,7 @@
       "marker": "38."
     },
     {
-      "self_ref": "#/texts/338",
+      "self_ref": "#/texts/335",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6223,7 +6172,7 @@
       "marker": "39."
     },
     {
-      "self_ref": "#/texts/339",
+      "self_ref": "#/texts/336",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6237,7 +6186,7 @@
       "marker": "40."
     },
     {
-      "self_ref": "#/texts/340",
+      "self_ref": "#/texts/337",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6251,7 +6200,7 @@
       "marker": "41."
     },
     {
-      "self_ref": "#/texts/341",
+      "self_ref": "#/texts/338",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6265,7 +6214,7 @@
       "marker": "42."
     },
     {
-      "self_ref": "#/texts/342",
+      "self_ref": "#/texts/339",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6279,7 +6228,7 @@
       "marker": "43."
     },
     {
-      "self_ref": "#/texts/343",
+      "self_ref": "#/texts/340",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6293,7 +6242,7 @@
       "marker": "44."
     },
     {
-      "self_ref": "#/texts/344",
+      "self_ref": "#/texts/341",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6307,7 +6256,7 @@
       "marker": "45."
     },
     {
-      "self_ref": "#/texts/345",
+      "self_ref": "#/texts/342",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6321,7 +6270,7 @@
       "marker": "46."
     },
     {
-      "self_ref": "#/texts/346",
+      "self_ref": "#/texts/343",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6335,7 +6284,7 @@
       "marker": "47."
     },
     {
-      "self_ref": "#/texts/347",
+      "self_ref": "#/texts/344",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6349,7 +6298,7 @@
       "marker": "48."
     },
     {
-      "self_ref": "#/texts/348",
+      "self_ref": "#/texts/345",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6363,7 +6312,7 @@
       "marker": "49."
     },
     {
-      "self_ref": "#/texts/349",
+      "self_ref": "#/texts/346",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6377,7 +6326,7 @@
       "marker": "50."
     },
     {
-      "self_ref": "#/texts/350",
+      "self_ref": "#/texts/347",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6391,7 +6340,7 @@
       "marker": "51."
     },
     {
-      "self_ref": "#/texts/351",
+      "self_ref": "#/texts/348",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6405,7 +6354,7 @@
       "marker": "52."
     },
     {
-      "self_ref": "#/texts/352",
+      "self_ref": "#/texts/349",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6419,7 +6368,7 @@
       "marker": "53."
     },
     {
-      "self_ref": "#/texts/353",
+      "self_ref": "#/texts/350",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6433,7 +6382,7 @@
       "marker": "54."
     },
     {
-      "self_ref": "#/texts/354",
+      "self_ref": "#/texts/351",
       "parent": {
         "$ref": "#/groups/18"
       },
@@ -6447,7 +6396,7 @@
       "marker": "55."
     },
     {
-      "self_ref": "#/texts/355",
+      "self_ref": "#/texts/352",
       "parent": {
         "$ref": "#/body"
       },
@@ -6460,7 +6409,7 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/356",
+      "self_ref": "#/texts/353",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6474,7 +6423,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/357",
+      "self_ref": "#/texts/354",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6488,7 +6437,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/358",
+      "self_ref": "#/texts/355",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6502,7 +6451,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/359",
+      "self_ref": "#/texts/356",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6516,7 +6465,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/360",
+      "self_ref": "#/texts/357",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6530,7 +6479,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/361",
+      "self_ref": "#/texts/358",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6544,7 +6493,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/362",
+      "self_ref": "#/texts/359",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6558,7 +6507,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/363",
+      "self_ref": "#/texts/360",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6572,7 +6521,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/364",
+      "self_ref": "#/texts/361",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6586,7 +6535,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/365",
+      "self_ref": "#/texts/362",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6600,7 +6549,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/366",
+      "self_ref": "#/texts/363",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6614,7 +6563,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/367",
+      "self_ref": "#/texts/364",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6628,7 +6577,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/368",
+      "self_ref": "#/texts/365",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6642,7 +6591,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/369",
+      "self_ref": "#/texts/366",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6656,7 +6605,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/370",
+      "self_ref": "#/texts/367",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6670,7 +6619,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/371",
+      "self_ref": "#/texts/368",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6684,7 +6633,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/372",
+      "self_ref": "#/texts/369",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6698,7 +6647,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/373",
+      "self_ref": "#/texts/370",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6712,7 +6661,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/374",
+      "self_ref": "#/texts/371",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6726,7 +6675,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/375",
+      "self_ref": "#/texts/372",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -6740,7 +6689,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/376",
+      "self_ref": "#/texts/373",
       "parent": {
         "$ref": "#/body"
       },
@@ -6753,7 +6702,7 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/377",
+      "self_ref": "#/texts/374",
       "parent": {
         "$ref": "#/body"
       },
@@ -6765,7 +6714,7 @@
       "text": "**Duck** at Wikipedia's [sister projects](/wiki/Wikipedia:Wikimedia_sister_projects)"
     },
     {
-      "self_ref": "#/texts/378",
+      "self_ref": "#/texts/375",
       "parent": {
         "$ref": "#/groups/20"
       },
@@ -6779,7 +6728,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/379",
+      "self_ref": "#/texts/376",
       "parent": {
         "$ref": "#/groups/20"
       },
@@ -6793,7 +6742,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/380",
+      "self_ref": "#/texts/377",
       "parent": {
         "$ref": "#/groups/20"
       },
@@ -6807,7 +6756,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/381",
+      "self_ref": "#/texts/378",
       "parent": {
         "$ref": "#/groups/20"
       },
@@ -6821,7 +6770,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/382",
+      "self_ref": "#/texts/379",
       "parent": {
         "$ref": "#/groups/20"
       },
@@ -6835,7 +6784,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/383",
+      "self_ref": "#/texts/380",
       "parent": {
         "$ref": "#/groups/20"
       },
@@ -6849,7 +6798,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/384",
+      "self_ref": "#/texts/381",
       "parent": {
         "$ref": "#/groups/20"
       },
@@ -6863,7 +6812,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/385",
+      "self_ref": "#/texts/382",
       "parent": {
         "$ref": "#/groups/20"
       },
@@ -6877,7 +6826,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/386",
+      "self_ref": "#/texts/383",
       "parent": {
         "$ref": "#/groups/20"
       },
@@ -6891,7 +6840,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/387",
+      "self_ref": "#/texts/384",
       "parent": {
         "$ref": "#/body"
       },
@@ -6903,7 +6852,7 @@
       "text": "Retrieved from \" [https://en.wikipedia.org/w/index.php?title=Duck&oldid=1246843351](https://en.wikipedia.org/w/index.php?title=Duck&oldid=1246843351) \""
     },
     {
-      "self_ref": "#/texts/388",
+      "self_ref": "#/texts/385",
       "parent": {
         "$ref": "#/body"
       },
@@ -6915,7 +6864,7 @@
       "text": "[Categories](/wiki/Help:Category) :"
     },
     {
-      "self_ref": "#/texts/389",
+      "self_ref": "#/texts/386",
       "parent": {
         "$ref": "#/groups/21"
       },
@@ -6929,7 +6878,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/390",
+      "self_ref": "#/texts/387",
       "parent": {
         "$ref": "#/groups/21"
       },
@@ -6943,7 +6892,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/391",
+      "self_ref": "#/texts/388",
       "parent": {
         "$ref": "#/groups/21"
       },
@@ -6957,7 +6906,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/392",
+      "self_ref": "#/texts/389",
       "parent": {
         "$ref": "#/body"
       },
@@ -6969,7 +6918,7 @@
       "text": "Hidden categories:"
     },
     {
-      "self_ref": "#/texts/393",
+      "self_ref": "#/texts/390",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -6983,7 +6932,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/394",
+      "self_ref": "#/texts/391",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -6997,7 +6946,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/395",
+      "self_ref": "#/texts/392",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7011,7 +6960,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/396",
+      "self_ref": "#/texts/393",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7025,7 +6974,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/397",
+      "self_ref": "#/texts/394",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7039,7 +6988,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/398",
+      "self_ref": "#/texts/395",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7053,7 +7002,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/399",
+      "self_ref": "#/texts/396",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7067,7 +7016,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/400",
+      "self_ref": "#/texts/397",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7081,7 +7030,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/401",
+      "self_ref": "#/texts/398",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7095,7 +7044,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/402",
+      "self_ref": "#/texts/399",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7109,7 +7058,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/403",
+      "self_ref": "#/texts/400",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7123,7 +7072,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/404",
+      "self_ref": "#/texts/401",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7137,7 +7086,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/405",
+      "self_ref": "#/texts/402",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7151,7 +7100,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/406",
+      "self_ref": "#/texts/403",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7165,7 +7114,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/407",
+      "self_ref": "#/texts/404",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7179,7 +7128,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/408",
+      "self_ref": "#/texts/405",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7193,7 +7142,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/409",
+      "self_ref": "#/texts/406",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7207,7 +7156,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/410",
+      "self_ref": "#/texts/407",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7221,7 +7170,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/411",
+      "self_ref": "#/texts/408",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7235,7 +7184,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/412",
+      "self_ref": "#/texts/409",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7249,7 +7198,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/413",
+      "self_ref": "#/texts/410",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7263,7 +7212,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/414",
+      "self_ref": "#/texts/411",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7277,7 +7226,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/415",
+      "self_ref": "#/texts/412",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7291,7 +7240,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/416",
+      "self_ref": "#/texts/413",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7305,7 +7254,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/417",
+      "self_ref": "#/texts/414",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7319,7 +7268,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/418",
+      "self_ref": "#/texts/415",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7333,7 +7282,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/419",
+      "self_ref": "#/texts/416",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7347,7 +7296,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/420",
+      "self_ref": "#/texts/417",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7361,7 +7310,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/421",
+      "self_ref": "#/texts/418",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7375,7 +7324,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/422",
+      "self_ref": "#/texts/419",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7389,7 +7338,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/423",
+      "self_ref": "#/texts/420",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7403,7 +7352,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/424",
+      "self_ref": "#/texts/421",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7417,7 +7366,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/425",
+      "self_ref": "#/texts/422",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7431,7 +7380,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/426",
+      "self_ref": "#/texts/423",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7445,7 +7394,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/427",
+      "self_ref": "#/texts/424",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7459,7 +7408,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/428",
+      "self_ref": "#/texts/425",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7473,7 +7422,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/429",
+      "self_ref": "#/texts/426",
       "parent": {
         "$ref": "#/groups/22"
       },
@@ -7483,34 +7432,6 @@
       "prov": [],
       "orig": "[Mobile view](//en.m.wikipedia.org/w/index.php?title=Duck&mobileaction=toggle_view_mobile)",
       "text": "[Mobile view](//en.m.wikipedia.org/w/index.php?title=Duck&mobileaction=toggle_view_mobile)",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/430",
-      "parent": {
-        "$ref": "#/groups/22"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "![Wikimedia Foundation](#)",
-      "text": "![Wikimedia Foundation](#)",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/431",
-      "parent": {
-        "$ref": "#/groups/22"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "![Powered by MediaWiki](#)",
-      "text": "![Powered by MediaWiki](#)",
       "enumerated": false,
       "marker": "-"
     }
@@ -7527,7 +7448,7 @@
       "prov": [],
       "captions": [
         {
-          "$ref": "#/texts/224"
+          "$ref": "#/texts/231"
         }
       ],
       "references": [],
@@ -7545,7 +7466,7 @@
       "prov": [],
       "captions": [
         {
-          "$ref": "#/texts/234"
+          "$ref": "#/texts/235"
         }
       ],
       "references": [],
@@ -7563,7 +7484,7 @@
       "prov": [],
       "captions": [
         {
-          "$ref": "#/texts/238"
+          "$ref": "#/texts/236"
         }
       ],
       "references": [],
@@ -7599,7 +7520,7 @@
       "prov": [],
       "captions": [
         {
-          "$ref": "#/texts/242"
+          "$ref": "#/texts/243"
         }
       ],
       "references": [],
@@ -7617,7 +7538,7 @@
       "prov": [],
       "captions": [
         {
-          "$ref": "#/texts/246"
+          "$ref": "#/texts/248"
         }
       ],
       "references": [],
@@ -7635,7 +7556,7 @@
       "prov": [],
       "captions": [
         {
-          "$ref": "#/texts/251"
+          "$ref": "#/texts/250"
         }
       ],
       "references": [],
@@ -7653,7 +7574,7 @@
       "prov": [],
       "captions": [
         {
-          "$ref": "#/texts/253"
+          "$ref": "#/texts/254"
         }
       ],
       "references": [],
@@ -7671,7 +7592,7 @@
       "prov": [],
       "captions": [
         {
-          "$ref": "#/texts/257"
+          "$ref": "#/texts/255"
         }
       ],
       "references": [],
@@ -7689,7 +7610,7 @@
       "prov": [],
       "captions": [
         {
-          "$ref": "#/texts/258"
+          "$ref": "#/texts/263"
         }
       ],
       "references": [],
@@ -7707,7 +7628,7 @@
       "prov": [],
       "captions": [
         {
-          "$ref": "#/texts/266"
+          "$ref": "#/texts/269"
         }
       ],
       "references": [],
@@ -7725,7 +7646,7 @@
       "prov": [],
       "captions": [
         {
-          "$ref": "#/texts/272"
+          "$ref": "#/texts/279"
         }
       ],
       "references": [],
@@ -7744,24 +7665,6 @@
       "captions": [
         {
           "$ref": "#/texts/282"
-        }
-      ],
-      "references": [],
-      "footnotes": [],
-      "annotations": []
-    },
-    {
-      "self_ref": "#/pictures/13",
-      "parent": {
-        "$ref": "#/body"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "picture",
-      "prov": [],
-      "captions": [
-        {
-          "$ref": "#/texts/285"
         }
       ],
       "references": [],
@@ -7817,7 +7720,7 @@
             "end_row_offset_idx": 2,
             "start_col_offset_idx": 0,
             "end_col_offset_idx": 1,
-            "text": "<!-- image -->",
+            "text": "",
             "column_header": false,
             "row_header": false,
             "row_section": false,
@@ -7830,7 +7733,7 @@
             "end_row_offset_idx": 2,
             "start_col_offset_idx": 1,
             "end_col_offset_idx": 2,
-            "text": "<!-- image -->",
+            "text": "",
             "column_header": false,
             "row_header": false,
             "row_section": false,
@@ -7869,7 +7772,7 @@
             "end_row_offset_idx": 4,
             "start_col_offset_idx": 0,
             "end_col_offset_idx": 1,
-            "text": "[Scientific classification](/wiki/Taxonomy_(biology))\n\nEdit this classification\n\n<!-- image -->",
+            "text": "[Scientific classification](/wiki/Taxonomy_(biology))",
             "column_header": false,
             "row_header": false,
             "row_section": false,
@@ -7882,7 +7785,7 @@
             "end_row_offset_idx": 4,
             "start_col_offset_idx": 1,
             "end_col_offset_idx": 2,
-            "text": "[Scientific classification](/wiki/Taxonomy_(biology))\n\nEdit this classification\n\n<!-- image -->",
+            "text": "[Scientific classification](/wiki/Taxonomy_(biology))",
             "column_header": false,
             "row_header": false,
             "row_section": false,
@@ -8162,7 +8065,7 @@
               "end_row_offset_idx": 2,
               "start_col_offset_idx": 0,
               "end_col_offset_idx": 1,
-              "text": "<!-- image -->",
+              "text": "",
               "column_header": false,
               "row_header": false,
               "row_section": false,
@@ -8175,7 +8078,7 @@
               "end_row_offset_idx": 2,
               "start_col_offset_idx": 1,
               "end_col_offset_idx": 2,
-              "text": "<!-- image -->",
+              "text": "",
               "column_header": false,
               "row_header": false,
               "row_section": false,
@@ -8218,7 +8121,7 @@
               "end_row_offset_idx": 4,
               "start_col_offset_idx": 0,
               "end_col_offset_idx": 1,
-              "text": "[Scientific classification](/wiki/Taxonomy_(biology))\n\nEdit this classification\n\n<!-- image -->",
+              "text": "[Scientific classification](/wiki/Taxonomy_(biology))",
               "column_header": false,
               "row_header": false,
               "row_section": false,
@@ -8231,7 +8134,7 @@
               "end_row_offset_idx": 4,
               "start_col_offset_idx": 1,
               "end_col_offset_idx": 2,
-              "text": "[Scientific classification](/wiki/Taxonomy_(biology))\n\nEdit this classification\n\n<!-- image -->",
+              "text": "[Scientific classification](/wiki/Taxonomy_(biology))",
               "column_header": false,
               "row_header": false,
               "row_section": false,
@@ -8515,7 +8418,7 @@
             "end_row_offset_idx": 1,
             "start_col_offset_idx": 0,
             "end_col_offset_idx": 1,
-            "text": "[Authority control databases](/wiki/Help:Authority_control)\n\nEdit this at Wikidata\n\n<!-- image -->",
+            "text": "[Authority control databases](/wiki/Help:Authority_control)",
             "column_header": true,
             "row_header": false,
             "row_section": false,
@@ -8528,7 +8431,7 @@
             "end_row_offset_idx": 1,
             "start_col_offset_idx": 1,
             "end_col_offset_idx": 2,
-            "text": "[Authority control databases](/wiki/Help:Authority_control)\n\nEdit this at Wikidata\n\n<!-- image -->",
+            "text": "[Authority control databases](/wiki/Help:Authority_control)",
             "column_header": true,
             "row_header": false,
             "row_section": false,
@@ -8598,7 +8501,7 @@
               "end_row_offset_idx": 1,
               "start_col_offset_idx": 0,
               "end_col_offset_idx": 1,
-              "text": "[Authority control databases](/wiki/Help:Authority_control)\n\nEdit this at Wikidata\n\n<!-- image -->",
+              "text": "[Authority control databases](/wiki/Help:Authority_control)",
               "column_header": true,
               "row_header": false,
               "row_section": false,
@@ -8611,7 +8514,7 @@
               "end_row_offset_idx": 1,
               "start_col_offset_idx": 1,
               "end_col_offset_idx": 2,
-              "text": "[Authority control databases](/wiki/Help:Authority_control)\n\nEdit this at Wikidata\n\n<!-- image -->",
+              "text": "[Authority control databases](/wiki/Help:Authority_control)",
               "column_header": true,
               "row_header": false,
               "row_section": false,

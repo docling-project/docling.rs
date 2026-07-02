@@ -3,7 +3,7 @@
 //! A stand-in for `docling.cli.main`; the full Typer-style CLI (batch mode,
 //! pipeline options) is a later phase.
 //!
-//! Usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] <input-file>
+//! Usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--use-web-browser] <input-file>
 //!   --to md|json       output format (default: md). `json` emits docling-core's
 //!                      native DoclingDocument JSON (export_to_dict).
 //!   --images MODE      picture handling for Markdown (mirrors docling's
@@ -31,6 +31,10 @@
 //!                      fastest option, but a scanned/image-only PDF (no
 //!                      embedded text layer) yields no text — convert those
 //!                      without this flag.
+//!   --use-web-browser  pre-render HTML/MHTML/EPUB in the system Chromium (driven
+//!                      from Rust) so stylesheet-driven `display:none` elements
+//!                      (e.g. a collapsed nav menu) are dropped before parsing.
+//!                      Requires building with `--features web-browser`.
 
 use std::io::{self, Write};
 use std::path::Path;
@@ -46,6 +50,7 @@ fn main() -> ExitCode {
     let mut no_stream = false;
     let mut no_table_former = false;
     let mut no_ocr = false;
+    let mut use_web_browser = false;
     let mut bench_warm: Option<usize> = None;
     let mut path: Option<String> = None;
     let mut args = std::env::args().skip(1);
@@ -56,6 +61,7 @@ fn main() -> ExitCode {
             "--no-stream" => no_stream = true,
             "--no-table-former" => no_table_former = true,
             "--no-ocr" => no_ocr = true,
+            "--use-web-browser" => use_web_browser = true,
             "--to" => to = args.next().unwrap_or_default(),
             "--images" => images = args.next().unwrap_or_default(),
             // Hidden benchmarking aid: load the PDF/image pipeline once, then time
@@ -90,7 +96,7 @@ fn main() -> ExitCode {
     };
 
     let Some(path) = path else {
-        eprintln!("usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] <input-file>");
+        eprintln!("usage: fleischwolf [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--use-web-browser] <input-file>");
         return ExitCode::from(2);
     };
 
@@ -124,7 +130,8 @@ fn main() -> ExitCode {
         .strict(strict)
         .fetch_images(fetch_images)
         .no_table_former(no_table_former)
-        .no_ocr(no_ocr);
+        .no_ocr(no_ocr)
+        .use_web_browser(use_web_browser);
 
     // Stream Markdown by default: print each chunk as the converter produces it
     // (page by page for PDF). JSON needs the whole tree, and the referenced image

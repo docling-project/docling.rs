@@ -18,10 +18,7 @@
     "self_ref": "#/body",
     "children": [
       {
-        "$ref": "#/pictures/0"
-      },
-      {
-        "$ref": "#/texts/1"
+        "$ref": "#/texts/0"
       }
     ],
     "content_layer": "body",
@@ -32,18 +29,6 @@
   "texts": [
     {
       "self_ref": "#/texts/0",
-      "parent": {
-        "$ref": "#/pictures/0"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "caption",
-      "prov": [],
-      "orig": "Image alt text",
-      "text": "Image alt text"
-    },
-    {
-      "self_ref": "#/texts/1",
       "parent": {
         "$ref": "#/body"
       },
@@ -56,26 +41,7 @@
       "level": 1
     }
   ],
-  "pictures": [
-    {
-      "self_ref": "#/pictures/0",
-      "parent": {
-        "$ref": "#/body"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "picture",
-      "prov": [],
-      "captions": [
-        {
-          "$ref": "#/texts/0"
-        }
-      ],
-      "references": [],
-      "footnotes": [],
-      "annotations": []
-    }
-  ],
+  "pictures": [],
   "tables": [],
   "key_value_items": [],
   "form_items": [],

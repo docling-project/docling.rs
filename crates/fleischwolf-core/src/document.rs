@@ -65,6 +65,22 @@ pub enum Node {
     },
     /// A logical grouping of child nodes (e.g. a list, a section).
     Group { label: String, children: Vec<Node> },
+    /// A form key-value region (docling's `field_region`): a set of form fields,
+    /// each pairing an optional marker, key, and value. Backends detect these
+    /// from form structure (e.g. HTML's `keyN` / `keyN_valueM` / `keyN_marker`
+    /// `id`-convention); the serializers render each item's parts as separate
+    /// labelled texts (`marker` / `field_key` / `field_value`).
+    FieldRegion { items: Vec<FieldItem> },
+}
+
+/// One entry of a [`Node::FieldRegion`]: a marker/key/value triple, any of which
+/// may be absent. Mirrors docling's `field_item` with its `marker` / `field_key`
+/// / `field_value` child texts.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct FieldItem {
+    pub marker: Option<String>,
+    pub key: Option<String>,
+    pub value: Option<String>,
 }
 
 /// An extracted picture's raw encoded bytes plus its mimetype and pixel size —

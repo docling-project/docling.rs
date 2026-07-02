@@ -36,8 +36,11 @@ with [`mail-parser`](https://crates.io/crates/mail-parser) (which conforms to
 routed through the HTML backend, with embedded images resolved from the
 archive by `Content-Location`/`cid:`. The discriminative PDF/image pipeline
 lives in `fleischwolf-pdf`: a pure-Rust PDF text parser, pdfium for page
-rasterization, and an ONNX layout/TableFormer/OCR stack. Audio/ASR is the main
-format still on the roadmap (see `MIGRATION.md`).
+rasterization, and an ONNX layout/TableFormer/OCR stack. TableFormer is ported
+to ONNX and run on every detected table region to recover its structure;
+geometric reconstruction from cell positions remains only as the fallback when
+the TableFormer graphs aren't present (see `PDF_CONFORMANCE.md`). Audio/ASR is
+the main format still on the roadmap (see `MIGRATION.md`).
 
 Output is checked against upstream Python docling — declarative formats
 byte-for-byte against live docling, the ML pipeline against a deterministic
@@ -169,6 +172,35 @@ reading order (no headings/lists/tables/pictures). It's the fastest PDF path
 by a wide margin, but a scanned/image-only PDF (no embedded text layer) comes
 back empty rather than erroring, so a caller can detect that and re-convert
 without the flag.
+
+### Headless-browser HTML pre-render (optional)
+
+Almost everything in the HTML backend is pure Rust, but one thing a static
+parse can't do is resolve the **CSS cascade** — whether a stylesheet- or
+class-driven rule makes an element `display:none` (e.g. a collapsed nav menu).
+The optional `--use-web-browser` flag renders the page in the system Chromium
+first, drops every element the browser computes as hidden, then feeds the
+cleaned HTML through the normal Rust backend (so all structure/table/KVP/
+formatting logic still runs in Rust — the browser only decides visibility). It
+applies to every HTML-routing input: direct HTML, plus MHTML and EPUB (which
+assemble HTML from their archives). It's driven straight from Rust over the
+DevTools protocol via
+[`headless_chrome`](https://crates.io/crates/headless_chrome) — no Node,
+Playwright, or other runtime.
+
+It's gated behind the off-by-default `web-browser` Cargo feature, so the standard
+build stays browser-dependency-free:
+
+```bash
+cargo run -p fleischwolf-cli --features web-browser -- --use-web-browser page.html
+```
+
+Chromium is located via `$FLEISCHWOLF_CHROME`/`$CHROME`, then
+`$PLAYWRIGHT_BROWSERS_PATH/chromium`, else autodetected. The page's CSS must be
+reachable for the cascade to resolve — inline `<style>` works offline, but a
+saved page that links external stylesheets needs those fetchable (with a base
+host). Without the feature, `--use-web-browser` is a clear error rather than a
+silent no-op.
 
 ## Node.js / Bun bindings
 

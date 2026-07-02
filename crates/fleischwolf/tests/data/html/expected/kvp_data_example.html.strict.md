@@ -4,37 +4,71 @@ Order Receipt Details
 
 Receipt documentation for table service:
 
+<!-- missing-text -->
+
+<!-- missing-text -->
+
 1
 
-Restaurant Docling
+Restaurant
+
+Docling
+
+<!-- missing-text -->
 
 2
 
-Telephone (123) 456-7890
+Telephone
+
+(123) 456-7890
+
+<!-- missing-text -->
 
 3
 
-Server Quack Quackling
+Server
+
+Quack Quackling
+
+<!-- missing-text -->
 
 4
 
-Order Number 12345
+Order Number
+
+12345
+
+<!-- missing-text -->
 
 5
 
-Seating 13
+Seating
+
+13
+
+<!-- missing-text -->
 
 6
 
-Dining Type Celebration
+Dining Type
+
+Celebration
+
+<!-- missing-text -->
 
 7
 
-Number of guests 5
+Number of guests
+
+5
+
+<!-- missing-text -->
 
 8
 
-Receipt date 16/03/2026
+Receipt date
+
+16/03/2026
 
 Order items:
 

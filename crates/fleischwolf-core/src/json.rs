@@ -97,7 +97,7 @@ pub fn to_json(doc: &DoclingDocument) -> Value {
     let mut b = Builder::default();
     let body = b.walk_into(&doc.nodes, "#/body");
 
-    json!({
+    let mut out = json!({
         "schema_name": "DoclingDocument",
         "version": SCHEMA_VERSION,
         "name": doc.name,
@@ -127,7 +127,23 @@ pub fn to_json(doc: &DoclingDocument) -> Value {
         "key_value_items": [],
         "form_items": [],
         "pages": {},
-    })
+    });
+
+    // docling only emits `field_regions` / `field_items` when a document has
+    // form fields, and places them just before `pages`. Insert them in that slot
+    // (re-appending `pages` afterwards, since `preserve_order` keeps insertion
+    // order) so non-KVP documents' JSON is byte-identical to before.
+    if !b.field_regions.is_empty() {
+        if let Some(obj) = out.as_object_mut() {
+            let pages = obj.remove("pages");
+            obj.insert("field_regions".into(), Value::Array(b.field_regions));
+            obj.insert("field_items".into(), Value::Array(b.field_items));
+            if let Some(pages) = pages {
+                obj.insert("pages".into(), pages);
+            }
+        }
+    }
+    out
 }
 
 #[derive(Default)]
@@ -136,6 +152,8 @@ struct Builder {
     groups: Vec<Value>,
     tables: Vec<Value>,
     pictures: Vec<Value>,
+    field_regions: Vec<Value>,
+    field_items: Vec<Value>,
 }
 
 impl Builder {
@@ -165,9 +183,58 @@ impl Builder {
                 Some(self.add_picture(caption.as_deref(), image.as_ref(), parent))
             }
             Node::Group { label, children } => Some(self.add_group(label, children, parent)),
+            Node::FieldRegion { items } => Some(self.add_field_region(items, parent)),
             // Handled by `add_list` in `walk`.
             Node::ListItem { .. } => None,
         }
+    }
+
+    /// A form key-value region: `field_regions/N` holds the region, each field is
+    /// a `field_items/M` whose children are its `marker` / `field_key` /
+    /// `field_value` texts (absent parts are simply omitted).
+    fn add_field_region(&mut self, items: &[crate::FieldItem], parent: &str) -> String {
+        let self_ref = format!("#/field_regions/{}", self.field_regions.len());
+        self.field_regions.push(Value::Null);
+        let region_index = self.field_regions.len() - 1;
+        let mut item_refs = Vec::new();
+        for item in items {
+            item_refs.push(json!({ "$ref": self.add_field_item(item, &self_ref) }));
+        }
+        self.field_regions[region_index] = json!({
+            "self_ref": self_ref,
+            "parent": { "$ref": parent },
+            "children": item_refs,
+            "content_layer": "body",
+            "label": "field_region",
+            "prov": [],
+        });
+        self_ref
+    }
+
+    fn add_field_item(&mut self, item: &crate::FieldItem, parent: &str) -> String {
+        let self_ref = format!("#/field_items/{}", self.field_items.len());
+        self.field_items.push(Value::Null);
+        let item_index = self.field_items.len() - 1;
+        let mut child_refs = Vec::new();
+        for (label, text) in [
+            ("marker", &item.marker),
+            ("field_key", &item.key),
+            ("field_value", &item.value),
+        ] {
+            if let Some(text) = text {
+                child_refs
+                    .push(json!({ "$ref": self.add_text(label, text, &self_ref, json!({})) }));
+            }
+        }
+        self.field_items[item_index] = json!({
+            "self_ref": self_ref,
+            "parent": { "$ref": parent },
+            "children": child_refs,
+            "content_layer": "body",
+            "label": "field_item",
+            "prov": [],
+        });
+        self_ref
     }
 
     fn add_text(&mut self, label: &str, text: &str, parent: &str, extra: Value) -> String {

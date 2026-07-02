@@ -346,10 +346,27 @@ fn render_one(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
             blocks.push(picture_marker(image.as_ref(), ctx));
         }
         Node::Group { children, .. } => render(children, blocks, ctx),
+        Node::FieldRegion { items } => {
+            // docling renders the region container (which carries no text of its
+            // own) as a `<!-- missing-text -->` marker, then each field item the
+            // same way, followed by that item's marker/key/value as separate
+            // paragraphs.
+            blocks.push(MISSING_TEXT.to_string());
+            for item in items {
+                blocks.push(MISSING_TEXT.to_string());
+                for part in [&item.marker, &item.key, &item.value].into_iter().flatten() {
+                    blocks.push(strict_text(part, ctx.strict));
+                }
+            }
+        }
         // Handled by the run-merging branch in `render`.
         Node::ListItem { .. } => unreachable!("list items are rendered in runs"),
     }
 }
+
+/// docling's placeholder for a structural node (a field region / item) that has
+/// no text of its own.
+const MISSING_TEXT: &str = "<!-- missing-text -->";
 
 /// The Markdown for a picture under the active [`ImageMode`]; Referenced mode also
 /// records the bytes in `ctx.artifacts` for the caller to write.

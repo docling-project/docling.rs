@@ -4,9 +4,9 @@ use std::collections::HashSet;
 
 use crate::backend::{
     is_deepseek_markdown, AsciiDocBackend, CsvBackend, DeclarativeBackend, DeepSeekBackend,
-    DoclingJsonBackend, DocxBackend, EmailBackend, EpubBackend, HtmlBackend, JatsBackend,
-    LatexBackend, MarkdownBackend, MhtmlBackend, OdfBackend, PptxBackend, UsptoBackend,
-    WebVttBackend, XbrlBackend, XlsxBackend,
+    DoclingJsonBackend, DocxBackend, EmailBackend, EpubBackend, JatsBackend, LatexBackend,
+    MarkdownBackend, MhtmlBackend, OdfBackend, PptxBackend, UsptoBackend, WebVttBackend,
+    XbrlBackend, XlsxBackend,
 };
 
 /// Pick the concrete XML backend for a generic `.xml` source by sniffing its
@@ -46,6 +46,7 @@ pub struct DocumentConverter {
     fetch_images: bool,
     no_table_former: bool,
     no_ocr: bool,
+    use_web_browser: bool,
 }
 
 impl DocumentConverter {
@@ -63,6 +64,7 @@ impl DocumentConverter {
             fetch_images: false,
             no_table_former: false,
             no_ocr: false,
+            use_web_browser: false,
         }
     }
 
@@ -120,6 +122,35 @@ impl DocumentConverter {
     pub fn no_ocr(mut self, disable: bool) -> Self {
         self.no_ocr = disable;
         self
+    }
+
+    /// Pre-render HTML-routing input in a headless browser before parsing.
+    ///
+    /// Off by default. When enabled, HTML sources — and MHTML/EPUB, which
+    /// assemble HTML from their archives — are loaded in the system Chromium
+    /// (driven from Rust over the DevTools protocol — no Node/Playwright) so the
+    /// CSS cascade is resolved: elements the browser computes as `display:none`
+    /// (e.g. a stylesheet-collapsed nav menu) are removed before the normal HTML
+    /// backend runs. This is the one behaviour a pure-Rust parse can't reproduce;
+    /// everything else (structure, tables, KVP, formatting) is still handled in
+    /// Rust on the cleaned HTML.
+    ///
+    /// Requires the crate's `web-browser` Cargo feature; without it, converting
+    /// an HTML source with this enabled returns [`ConversionError::Browser`].
+    pub fn use_web_browser(mut self, enable: bool) -> Self {
+        self.use_web_browser = enable;
+        self
+    }
+
+    /// Return `html` unchanged, or — when [`use_web_browser`](Self::use_web_browser)
+    /// is on — its headless-browser-cleaned form (computed-hidden elements
+    /// removed). Borrows in the common (disabled) case; only allocates when the
+    /// browser actually runs.
+    fn maybe_prerender<'a>(
+        &self,
+        html: &'a str,
+    ) -> Result<std::borrow::Cow<'a, str>, ConversionError> {
+        crate::backend::maybe_prerender_html(html, self.use_web_browser)
     }
 
     /// Convert a source document to Markdown **incrementally**, returning an
@@ -196,22 +227,33 @@ impl DocumentConverter {
             }
             .convert(&source)?,
             InputFormat::Csv => CsvBackend.convert(&source)?,
-            InputFormat::Html if self.fetch_images => {
-                let resolver = crate::backend::FsImageResolver::new(
-                    source.base_dir().map(|p| p.to_path_buf()),
-                );
-                crate::backend::convert_html(&source.name, source.text()?, &resolver)
+            InputFormat::Html => {
+                // Optionally resolve the CSS cascade in a headless browser first
+                // (strips computed-hidden elements); everything else stays in the
+                // Rust HTML backend, which runs on the cleaned HTML.
+                let html = self.maybe_prerender(source.text()?)?;
+                if self.fetch_images {
+                    let resolver = crate::backend::FsImageResolver::new(
+                        source.base_dir().map(|p| p.to_path_buf()),
+                    );
+                    crate::backend::convert_html(&source.name, &html, &resolver)
+                } else {
+                    crate::backend::convert_html(&source.name, &html, &crate::backend::NoFetch)
+                }
             }
-            InputFormat::Html => HtmlBackend.convert(&source)?,
             InputFormat::Asciidoc => AsciiDocBackend.convert(&source)?,
             InputFormat::Xlsx => XlsxBackend.convert(&source)?,
             InputFormat::Pptx => PptxBackend.convert(&source)?,
             InputFormat::Docx => DocxBackend.convert(&source)?,
             InputFormat::Vtt => WebVttBackend.convert(&source)?,
             InputFormat::Email => EmailBackend.convert(&source)?,
-            InputFormat::Mhtml => MhtmlBackend.convert(&source)?,
+            InputFormat::Mhtml => MhtmlBackend {
+                use_web_browser: self.use_web_browser,
+            }
+            .convert(&source)?,
             InputFormat::Epub => EpubBackend {
                 fetch_images: self.fetch_images,
+                use_web_browser: self.use_web_browser,
             }
             .convert(&source)?,
             InputFormat::JsonDocling => DoclingJsonBackend.convert(&source)?,
