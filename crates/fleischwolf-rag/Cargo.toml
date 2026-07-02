@@ -20,7 +20,7 @@ path = "src/bin/fleischwolf-rag.rs"
 [features]
 # The default build is fully offline-testable: bundled SQLite + HTTP embedders.
 default = ["sqlite", "ollama"]
-sqlite = ["sqlx/sqlite"]
+sqlite = ["sqlx/sqlite", "dep:sqlite-vec", "dep:libsqlite3-sys"]
 postgres = ["sqlx/postgres"]
 # HTTP-only backends ride on reqwest (no native deps) and always compile; the
 # feature flags below just gate the small amount of provider-specific code.
@@ -47,6 +47,11 @@ clap = { version = "4", features = ["derive", "env"] }
 # `ort` (tls-rustls) and sqlx below — no OpenSSL system dependency.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls"] }
+# sqlite-vec: the `vec0` ANN virtual table, statically compiled into the bundled
+# SQLite. libsqlite3-sys must match sqlx's (cargo enforces one copy via `links`);
+# we need it directly for sqlite3_auto_extension to register the extension.
+sqlite-vec = { version = "0.1.6", optional = true }
+libsqlite3-sys = { version = "0.30", optional = true }
 pulldown-cmark = { version = "0.13", default-features = false }
 uuid = { version = "1", features = ["v4"] }
 sha2 = "0.10"

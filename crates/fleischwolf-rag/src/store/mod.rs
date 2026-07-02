@@ -59,7 +59,7 @@ pub async fn from_config(cfg: &RagConfig) -> Result<Arc<dyn VectorStore>> {
         DbBackend::Sqlite => {
             #[cfg(feature = "sqlite")]
             {
-                Arc::new(sqlite::SqliteStore::connect(&cfg.database_url).await?)
+                Arc::new(sqlite::SqliteStore::connect(&cfg.database_url, cfg.embed_dim).await?)
             }
             #[cfg(not(feature = "sqlite"))]
             {

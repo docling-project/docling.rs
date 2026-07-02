@@ -19,7 +19,7 @@ touching the pipeline.
 |--------------|------------------|-----------------------------------------------------------------|
 | Chunking     | `Chunker`        | Markdown-aware, configurable size (300) + overlap (5%)          |
 | Embeddings   | `Embedder`       | **Ollama** (default, bge-m3, 1024-d), Gemini, local ONNX, hash |
-| Vector store | `VectorStore`    | **SQLite** (default), PostgreSQL + pgvector, in-memory         |
+| Vector store | `VectorStore`    | **SQLite + sqlite-vec** (default), PostgreSQL + pgvector, in-memory |
 | Retrieval    | `Retriever`      | vector, BM25, **Hybrid** (RRF), Multi-Query fusion, HyDE       |
 | LLM          | `ChatModel`      | OpenRouter (default model DeepSeek-V3)                          |
 | Sources      | `DocumentSource` | **folder** (default), FTP, SFTP                                 |
@@ -90,7 +90,10 @@ let hits = pipeline.query(RetrievalMode::Hybrid, "how does chunking work?", 5).a
 
 The default feature set is fully self-contained and offline-testable
 (`cargo test -p fleischwolf-rag`) using the bundled SQLite store and the
-deterministic hashing embedder. The other backends are real client
+deterministic hashing embedder. The SQLite backend statically compiles the
+[sqlite-vec](https://github.com/asg017/sqlite-vec) extension: embeddings live in
+a `vec0` virtual table (cosine metric) and `vector_search` is a KNN `MATCH`
+query, not a full-table scan. The other backends are real client
 implementations that require the corresponding service (Postgres, an AMQP broker,
 Redis, an FTP/SSH server, an Ollama/Gemini endpoint, or local ONNX model files) to
 exercise end-to-end.
