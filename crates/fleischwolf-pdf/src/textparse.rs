@@ -922,6 +922,12 @@ fn run_content(
                     .then(tlm);
                     tm = tlm;
                 }
+                if op.operator == "\"" {
+                    // `aw ac string "` sets word- and char-spacing before
+                    // showing the string (PDF 32000-1 §9.4.3), persisting after.
+                    tw = op_f(operands, 0);
+                    tc = op_f(operands, 1);
+                }
                 if let (Some(f), Some(Object::String(s, _))) = (font, operands.last()) {
                     show_text(f, s, fsize, tc, tw, th, trise, &mut tm, ctm, out);
                 }
