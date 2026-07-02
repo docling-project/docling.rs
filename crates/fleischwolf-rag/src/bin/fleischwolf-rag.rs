@@ -252,7 +252,11 @@ async fn run() -> Result<()> {
                     }
                     if queries.is_empty() {
                         return Err(fleischwolf_rag::RagError::config(
-                            "no questions carry `relevant` labels — nothing to evaluate",
+                            "no questions carry `relevant` labels — retrieval eval needs \
+                             ground truth. Add `\"relevant\": [\"verbatim snippet from the \
+                             source document\", …]` to each question (the `answers` output \
+                             and its citations help find the right passages), or use \
+                             `answers` to just run the benchmark",
                         ));
                     }
                     EvalDataset { documents, queries }

@@ -214,6 +214,13 @@ correctness (the `{text, kind}` format carries no gold answers) — it automates
 running the benchmark so you can review answers and compare latency across
 modes.
 
+The two commands round-trip: `answers --json` output is itself a valid
+questions file (the `question` field is accepted; `answer`/`ms`/… are ignored).
+The intended workflow is to review those answers, add a
+`"relevant": ["verbatim snippet from the source document", …]` array to each
+entry (the answer text and its `[n]` citations point at the right passages),
+and feed the annotated file back to `eval` to score retrieval configurations.
+
 ## Maintenance
 
 `fleischwolf-rag prune` removes incomplete document records — rows left behind

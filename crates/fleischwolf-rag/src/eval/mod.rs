@@ -37,13 +37,15 @@ pub struct QueryCase {
     pub relevant: Vec<String>,
 }
 
-/// A question as loaded from an external questions file. Accepts both this
-/// crate's `{query, relevant}` shape and the QA-benchmark `{text, kind}` shape;
-/// only entries with non-empty `relevant` labels can score retrieval.
+/// A question as loaded from an external questions file. Accepts this crate's
+/// `{query, relevant}` shape, the QA-benchmark `{text, kind}` shape, and the
+/// output of the `answers` subcommand (`{question, answer, …}` — extra fields
+/// are ignored, so `answers --json` output round-trips as a questions file).
+/// Only entries with non-empty `relevant` labels can score retrieval.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Question {
-    /// The question text (`text` accepted as an alias).
-    #[serde(alias = "text")]
+    /// The question text (`text` and `question` accepted as aliases).
+    #[serde(alias = "text", alias = "question")]
     pub query: String,
     /// Expected answer kind (`boolean`, `number`, `name`, …) — informational.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -308,16 +310,20 @@ mod tests {
             &path,
             r#"[
                 {"text": "Did X mention mergers?", "kind": "boolean"},
-                {"query": "chunk size default", "relevant": ["300 words"]}
+                {"query": "chunk size default", "relevant": ["300 words"]},
+                {"question": "answers output row?", "answer": "yes", "sources": 10, "ms": 12.5, "mode": "hybrid"}
             ]"#,
         )
         .unwrap();
         let qs = load_questions(&path).unwrap();
-        assert_eq!(qs.len(), 2);
+        assert_eq!(qs.len(), 3);
         assert_eq!(qs[0].query, "Did X mention mergers?");
         assert_eq!(qs[0].kind.as_deref(), Some("boolean"));
         assert!(qs[0].relevant.is_empty());
         assert_eq!(qs[1].relevant, vec!["300 words"]);
+        // The `answers --json` output round-trips: `question` alias, extra
+        // fields ignored.
+        assert_eq!(qs[2].query, "answers output row?");
         std::fs::remove_dir_all(&dir).ok();
     }
 
