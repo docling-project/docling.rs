@@ -27,9 +27,9 @@ web-browser = ["dep:headless_chrome"]
 calamine = { version = "0.26", features = ["dates"] }
 csv = "1.4.0"
 headless_chrome = { version = "1.0", optional = true }
-fleischwolf-asr = { path = "../fleischwolf-asr", version = "0.14.0" }
-fleischwolf-core = { path = "../fleischwolf-core", version = "0.14.0" }
-fleischwolf-pdf = { path = "../fleischwolf-pdf", version = "0.14.0" }
+fleischwolf-asr = { path = "../fleischwolf-asr", version = "0.15.0" }
+fleischwolf-core = { path = "../fleischwolf-core", version = "0.15.0" }
+fleischwolf-pdf = { path = "../fleischwolf-pdf", version = "0.15.0" }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "webp"] }
 mail-parser = "0.11"
 pulldown-cmark = { version = "0.13.4", default-features = false }
