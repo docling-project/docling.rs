@@ -82,6 +82,33 @@ pub(crate) fn fp32_forced() -> bool {
         .unwrap_or(false)
 }
 
+/// Resolve a default (CWD-relative) asset path. If it doesn't exist relative
+/// to the current directory, try next to the executable and one level above
+/// it (following symlinks — the layout `scripts/install.sh` produces:
+/// `/usr/local/bin/fleischwolf` → `/usr/local/fleischwolf/bin/fleischwolf`
+/// with `models/` and `.pdfium/` in `/usr/local/fleischwolf`). Lets an
+/// installed binary run from any working directory with no env vars; explicit
+/// env overrides never reach this. Returns `rel` unchanged when nothing
+/// exists anywhere, so callers' error messages keep the familiar path.
+pub(crate) fn resolve_asset(rel: &str) -> String {
+    if std::path::Path::new(rel).exists() {
+        return rel.to_string();
+    }
+    if let Some(dir) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.canonicalize().ok())
+        .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+    {
+        for base in [Some(dir.as_path()), dir.parent()].into_iter().flatten() {
+            let p = base.join(rel);
+            if p.exists() {
+                return p.to_string_lossy().into_owned();
+            }
+        }
+    }
+    rel.to_string()
+}
+
 /// Resolve a model path: an explicit env override always wins; otherwise the
 /// INT8 variant of the default path when it exists on disk (the quantized
 /// models are conformance-validated — see PDF_PERFORMANCE.md — and load/run
@@ -91,10 +118,13 @@ pub(crate) fn model_path(env: &str, fp32_default: &str, int8_default: &str) -> S
     if let Ok(p) = std::env::var(env) {
         return p;
     }
-    if !fp32_forced() && std::path::Path::new(int8_default).exists() {
-        return int8_default.to_string();
+    if !fp32_forced() {
+        let p = resolve_asset(int8_default);
+        if std::path::Path::new(&p).exists() {
+            return p;
+        }
     }
-    fp32_default.to_string()
+    resolve_asset(fp32_default)
 }
 
 /// One page's assembled output: typed nodes plus the page's hyperlinks, kept

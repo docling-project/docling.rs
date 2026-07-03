@@ -4,6 +4,31 @@ Post-migration review of the PDF processing path: where the time actually goes,
 what was measured, which optimizations are validated, and a ranked backlog of
 further ideas that do **not** trade away output quality.
 
+## Results at a glance
+
+Everything below was landed across two optimization rounds (PR #26, #27),
+each change gated on corpus conformance — groundtruth distance unchanged or
+better, byte-identical where the change is structural:
+
+| Optimization | Measured effect |
+|---|---|
+| INT8 layout model (Conv-only static QDQ, calibrated; **default**) | layout inference **2.4×** faster; **1.83× end-to-end** on a 1913-page PDF (0.74 → 0.40 s/page) |
+| INT8 TableFormer decoder (dynamic, **default**) | ~10% faster table decode, byte-identical |
+| SIMD page downscale (`fast_image_resize`, same kernel; **default**) | `image.resize` stage **17×** faster (2607 → 152 ms / 16 pages) |
+| TableFormer KV cache fed back as `ort` values (no per-step copy) | ~9% faster table-structure decode, byte-identical |
+| One shared lazy TableFormer across the worker pool | peak RSS **3.8 → 1.9 GB** (4 workers); table-free docs 682 → 331 MB |
+| Single shared line/word contraction pass | `--no-ocr` conversion ~1.25× faster, identical output |
+| Per-document font + form caches in the text parser | 3–10% off `textparse` here; far more on CJK/form-heavy PDFs |
+| True-KV-cache decoder export (`decoder_kv.onnx`, optional) | parity at corpus table sizes; O(past)/step for very large tables |
+
+Cumulative head-to-head vs Python docling (measured on an 8-thread desktop,
+`scripts/performance.sh`): **4.3× faster warm conversion, 4.7× end-to-end,
+2.3–2.6× less peak memory** on the PDF ML pipeline — up from ~1.2× warm
+before this work. Model sizes: layout 172 → 68 MB, TF decoder 78 → 50 MB.
+Also fixed along the way: the `"` show-text operator dropped its word/char
+spacing operands (real spec violation), and OCR/TableFormer sub-stages are
+now visible in `FLEISCHWOLF_TIMING` profiles.
+
 Measured on a 4-core AVX-512(+VNNI/AMX) Xeon, release build (`lto = "thin"`),
 models from `scripts/download_dependencies.sh`, `FLEISCHWOLF_TIMING=1`.
 

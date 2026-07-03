@@ -50,9 +50,27 @@ pub struct Transcriber {
 }
 
 fn model_path(var: &str, default: &str) -> std::path::PathBuf {
-    std::env::var(var)
-        .unwrap_or_else(|_| default.to_string())
-        .into()
+    if let Ok(p) = std::env::var(var) {
+        return p.into();
+    }
+    // Default is CWD-relative; fall back to the executable's directory and one
+    // level above it (the `scripts/install.sh` layout, reached through the
+    // /usr/local/bin symlink), mirroring fleischwolf-pdf's asset resolution.
+    if !std::path::Path::new(default).exists() {
+        if let Some(dir) = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.canonicalize().ok())
+            .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+        {
+            for base in [Some(dir.as_path()), dir.parent()].into_iter().flatten() {
+                let p = base.join(default);
+                if p.exists() {
+                    return p;
+                }
+            }
+        }
+    }
+    default.to_string().into()
 }
 
 /// Whether the Whisper model files are present (so callers can fail with a

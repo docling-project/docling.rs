@@ -103,7 +103,7 @@ impl TableFormer {
     /// throughput comes from running pages concurrently, not from one fat model).
     pub fn load_with(intra: usize) -> Option<Self> {
         let enc = std::env::var("DOCLING_TABLEFORMER_ENCODER")
-            .unwrap_or_else(|_| "models/tableformer/encoder.onnx".to_string());
+            .unwrap_or_else(|_| crate::resolve_asset("models/tableformer/encoder.onnx"));
         // Decoder preference (explicit override wins): INT8 variants first
         // unless FLEISCHWOLF_FP32 opts out; within a precision the true-KV-cache
         // export (`decoder_kv*`, one token per step) ranks behind the legacy
@@ -128,12 +128,12 @@ impl TableFormer {
             };
             candidates
                 .iter()
+                .map(|p| crate::resolve_asset(p))
                 .find(|p| std::path::Path::new(p).exists())
-                .unwrap_or(&"models/tableformer/decoder.onnx")
-                .to_string()
+                .unwrap_or_else(|| "models/tableformer/decoder.onnx".to_string())
         });
         let bbx = std::env::var("DOCLING_TABLEFORMER_BBOX")
-            .unwrap_or_else(|_| "models/tableformer/bbox.onnx".to_string());
+            .unwrap_or_else(|_| crate::resolve_asset("models/tableformer/bbox.onnx"));
         if [&enc, &dec, &bbx]
             .iter()
             .any(|p| !std::path::Path::new(p).exists())

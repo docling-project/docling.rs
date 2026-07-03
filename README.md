@@ -451,6 +451,33 @@ The comparison scripts install the latest published Python `docling` from PyPI
 into `.venv-compare` automatically on first run. See
 [`COMPARING.md`](./COMPARING.md).
 
+## Install locally / in CI (one-liner)
+
+`scripts/install.sh` builds the CLI from source and installs a self-contained
+tree — for a dev box or a pipeline step:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/artiz/fleischwolf/master/scripts/install.sh | bash
+fleischwolf your.pdf > out.md
+```
+
+It checks for a Rust toolchain (installs one via rustup if `cargo` is
+missing), runs `cargo build --release -p fleischwolf-cli`, installs the
+binary + all models + pdfium under `/usr/local/fleischwolf`, symlinks
+`/usr/local/bin/fleischwolf`, and writes `/etc/profile.d/fleischwolf.sh` with
+the `DOCLING_*`/`PDFIUM_*` exports. The env file is a convenience for other
+consumers of the model tree — the CLI itself resolves `models/` and
+`.pdfium/` **relative to its own (symlink-resolved) location**, so the
+command works from any directory with no environment at all. ONNX Runtime is
+statically linked; nothing else lands outside the prefix.
+
+Knobs (env vars before the call): `FLEISCHWOLF_PREFIX` (default
+`/usr/local/fleischwolf`), `FLEISCHWOLF_BIN_DIR`, `FLEISCHWOLF_REF` (git ref
+to build), `FLEISCHWOLF_NO_ASR=1` (skip the ~150 MB Whisper models),
+`FLEISCHWOLF_SUDO=0` (never escalate). Re-running is idempotent — it only
+fetches missing model files. Uninstall:
+`rm -rf /usr/local/fleischwolf /usr/local/bin/fleischwolf /etc/profile.d/fleischwolf.sh`.
+
 ## Deploy in a container
 
 For a real-world service, bake the binary, native libs, and models into one image
@@ -515,8 +542,10 @@ on a 1913-page document — see [`PDF_PERFORMANCE.md`](./PDF_PERFORMANCE.md)).
 | `fleischwolf-core` | `DoclingDocument` model + serializers | `docling-core` |
 | `fleischwolf` | `DocumentConverter`, source loading, backends | `docling` |
 | `fleischwolf-pdf` | PDF/image ML pipeline (pdfium + ONNX layout/table/OCR) | `docling` PDF pipeline |
+| `fleischwolf-asr` | audio/ASR pipeline (symphonia + ONNX Whisper) | `docling` ASR pipeline |
 | `fleischwolf-cli` | command-line interface | `docling.cli` |
 | `fleischwolf-node` | Node.js / Bun N-API bindings (npm package) | — |
+| `fleischwolf-rag` | RAG layer: chunking, embeddings, vector search, REST API | — |
 
 ## License
 

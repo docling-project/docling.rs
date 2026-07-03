@@ -244,9 +244,19 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
 
 ## 6. Extensions
 
+Shipped:
+
+- **`fleischwolf-rag`** — documents → chunking → embeddings → vector search,
+  with swappable embedders (Ollama/Gemini/local ONNX), stores
+  (SQLite+sqlite-vec / PostgreSQL+pgvector), LLM, sources and queues, plus an
+  eval harness and a REST API. See the crate README.
+- **`fleischwolf-node`** — Node.js/Bun N-API bindings (npm package).
+- **MHTML backend** — no docling analogue.
+
+Planned:
+
 - **PyO3 bindings** (`fleischwolf-py`) for a strangler-fig drop-in.
-- **C++** bindings
-- `fleischwolf-rag` - basic documents processing/chunking/vectorization/semantic-search system with pluggable DB support, PostgreSQL/SQLite, embedding with small ONNX local model (test options, dimensions >= 1024). 
+- **C++** bindings.
   
 ## 7. Testing
 
@@ -262,6 +272,9 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
   latest published docling (installed from PyPI; see
   [`COMPARING.md`](./COMPARING.md)).
 - **Differential / perf** — `scripts/compare.sh`, `scripts/performance.sh`.
+  The PDF pipeline's profiling data, the INT8/SIMD optimization results
+  (4.3× warm vs Python docling on the ML pipeline), and the remaining
+  performance backlog live in [`PDF_PERFORMANCE.md`](./PDF_PERFORMANCE.md).
 
 CI (`.github/workflows/ci.yml`) gates every pull request and master push on
 `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings` and

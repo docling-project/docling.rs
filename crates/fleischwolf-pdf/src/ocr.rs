@@ -43,10 +43,10 @@ impl OcrModel {
     /// Load the recognition model (`DOCLING_OCR_REC_ONNX` / `models/ocr_rec.onnx`)
     /// and its character dictionary (`DOCLING_OCR_DICT` / `models/ppocr_keys_v1.txt`).
     pub fn load() -> Result<Self, String> {
-        let rec_path =
-            std::env::var("DOCLING_OCR_REC_ONNX").unwrap_or_else(|_| "models/ocr_rec.onnx".into());
-        let dict_path =
-            std::env::var("DOCLING_OCR_DICT").unwrap_or_else(|_| "models/ppocr_keys_v1.txt".into());
+        let rec_path = std::env::var("DOCLING_OCR_REC_ONNX")
+            .unwrap_or_else(|_| crate::resolve_asset("models/ocr_rec.onnx"));
+        let dict_path = std::env::var("DOCLING_OCR_DICT")
+            .unwrap_or_else(|_| crate::resolve_asset("models/ppocr_keys_v1.txt"));
         // Single-threaded: ORT's multi-threaded float-reduction order varies
         // across runs, which flips the CTC argmax on low-confidence characters
         // (e.g. noisy faxes) and makes the snapshot output non-deterministic. The

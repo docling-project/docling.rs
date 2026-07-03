@@ -119,7 +119,7 @@ fn bind() -> Result<Pdfium, PdfiumError> {
     // defaults — the layout `scripts/download_dependencies.sh` (and
     // `scripts/pdf_setup.sh`) produce, so a checkout with the dependencies
     // downloaded next to it needs no env var at all.
-    if let Some(b) = try_bind_dir(".pdfium/lib") {
+    if let Some(b) = try_bind_dir(&crate::resolve_asset(".pdfium/lib")) {
         return Ok(Pdfium::new(b));
     }
     Pdfium::bind_to_system_library().map(Pdfium::new)
