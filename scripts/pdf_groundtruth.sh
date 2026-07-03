@@ -11,6 +11,10 @@ set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."
 
 export PDFIUM_DYNAMIC_LIB_PATH="${PDFIUM_DYNAMIC_LIB_PATH:-$(pwd)/.pdfium/lib}"
+# Pin the snapshot-baseline pixel path: the scalar image-crate resize (the
+# committed snapshots were generated with it; the SIMD default differs by
+# ±1/255 per pixel, enough to flip borderline table cells).
+export FLEISCHWOLF_SLOW_RESIZE="${FLEISCHWOLF_SLOW_RESIZE:-1}"
 export DOCLING_LAYOUT_ONNX="${DOCLING_LAYOUT_ONNX:-$(pwd)/models/layout_heron.onnx}"
 export DOCLING_OCR_REC_ONNX="${DOCLING_OCR_REC_ONNX:-$(pwd)/models/ocr_rec.onnx}"
 export DOCLING_OCR_DICT="${DOCLING_OCR_DICT:-$(pwd)/models/ppocr_keys_v1.txt}"

@@ -267,9 +267,7 @@ fn extract_page(
         })?;
         let dw = (width * RENDER_SCALE).round().max(1.0) as u32;
         let dh = (height * RENDER_SCALE).round().max(1.0) as u32;
-        crate::timing::timed("image.resize", || {
-            image::imageops::resize(&big, dw, dh, image::imageops::FilterType::CatmullRom)
-        })
+        crate::timing::timed("image.resize", || fast_downscale(&big, dw, dh))
     } else {
         RgbImage::new(1, 1)
     };
@@ -284,6 +282,46 @@ fn extract_page(
         image,
         links: extract_links(page, height),
     })
+}
+
+/// The supersample→target downscale via `fast_image_resize` (SIMD convolution;
+/// the same a=-0.5 Catmull-Rom kernel as `image::imageops::resize(...,
+/// CatmullRom)` and PIL BICUBIC — see the render comment above). Set
+/// `FLEISCHWOLF_SLOW_RESIZE=1` to fall back to the `image`-crate scalar resize
+/// (byte-parity with the pre-SIMD pipeline, several times slower).
+fn fast_downscale(big: &RgbImage, dw: u32, dh: u32) -> RgbImage {
+    use fast_image_resize as fir;
+    static SLOW: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let slow = *SLOW.get_or_init(|| {
+        std::env::var("FLEISCHWOLF_SLOW_RESIZE")
+            .map(|v| v != "0")
+            .unwrap_or(false)
+    });
+    if !slow {
+        if let Some(out) = (|| {
+            let src = fir::images::ImageRef::new(
+                big.width(),
+                big.height(),
+                big.as_raw(),
+                fir::PixelType::U8x3,
+            )
+            .ok()?;
+            let mut dst = fir::images::Image::new(dw, dh, fir::PixelType::U8x3);
+            fir::Resizer::new()
+                .resize(
+                    &src,
+                    &mut dst,
+                    &fir::ResizeOptions::new()
+                        .resize_alg(fir::ResizeAlg::Convolution(fir::FilterType::CatmullRom)),
+                )
+                .ok()?;
+            RgbImage::from_raw(dw, dh, dst.into_vec())
+        })() {
+            return out;
+        }
+        // Unreachable in practice; fall through to the scalar path on any error.
+    }
+    image::imageops::resize(big, dw, dh, image::imageops::FilterType::CatmullRom)
 }
 
 /// Collect web/mail/tel hyperlink annotations on a page, mapping each link's

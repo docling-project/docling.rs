@@ -139,17 +139,18 @@ Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.
    batched (e.g. batch-4) per worker with one session — better core utilization
    and less framework overhead on wide machines. Output is per-image, so
    quality is unaffected. (Needs a re-export with a dynamic batch dim.)
-4. **Render → resize pipeline copies** (`pdfium_backend.rs:264-272`, ~15% on
-   text-heavy docs): pdfium's BGRA bitmap goes through `as_image()` (copy +
-   swizzle) then `.into_rgb8()` (second copy) before the 3×→2× CatmullRom
-   downsample (third buffer). A single BGRA→RGB pass into the resize source
-   removes one full-page copy + traversal per page. Keep the 1.5× supersample +
-   CatmullRom itself — it is deliberate PIL-BICUBIC parity for model input.
-   Also: when `layout.predict` is the only image consumer at 640×640, the
-   2×-page intermediate is only needed for TableFormer crops and OCR — a page
-   with no table regions and a text layer never needs it; rendering could be
-   deferred/skipped per page in a `no_ocr`-like fast path decided *after*
-   layout runs on a cheaper raster.
+4. **The 3×→2× page downscale** (~15% of a text-heavy conversion, ~25% after
+   INT8): ~~replace the scalar `image`-crate CatmullRom with a SIMD
+   convolution.~~ **Done on this branch:** `fast_image_resize` with the same
+   a=-0.5 Catmull-Rom kernel — `image.resize` drops **2607 → 152 ms (17×)**
+   on the 16-page doc. The SIMD fixed-point path differs from the scalar one
+   by ±1/255 on some pixels, which can flip borderline table cells, so it was
+   gated like INT8: groundtruth distance over the corpus is **817 (SIMD) vs
+   818 (scalar)** — conformance-neutral. `FLEISCHWOLF_SLOW_RESIZE=1` restores
+   the scalar path, and `pdf_conformance.sh`/`pdf_groundtruth.sh` pin it so
+   the committed snapshot baselines stay valid. (The render-side `as_image()`
+   copy turned out to be a non-issue: pdfium already renders with reversed
+   byte order, so it is one memcpy + one 4→3-channel pass, ~1% of total.)
 5. **textparse font caching** (marginal for PDFs — textparse is ≤1% — but
    real for `no_ocr` mode where it becomes the bottleneck):
    - fonts are fully re-parsed (ToUnicode CMap decompression + tokenization,
