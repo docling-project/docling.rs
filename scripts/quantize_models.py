@@ -121,22 +121,28 @@ def quantize_tableformer_decoder():
     import onnx
     from onnxruntime.quantization import QuantType, quantize_dynamic
 
-    src = f"{MODELS}/tableformer/decoder.onnx"
-    tmp = f"{MODELS}/tableformer/decoder_clean.onnx"
-    dst = f"{MODELS}/tableformer/decoder_int8.onnx"
+    # Quantize the legacy layer-output-cache decoder and, when the export
+    # produced it, the true-KV-cache variant (decoder_kv.onnx — preferred by
+    # the Rust loop for very-large-table workloads).
+    for stem in ("decoder", "decoder_kv"):
+        src = f"{MODELS}/tableformer/{stem}.onnx"
+        if not os.path.exists(src):
+            continue
+        tmp = f"{MODELS}/tableformer/{stem}_clean.onnx"
+        dst = f"{MODELS}/tableformer/{stem}_int8.onnx"
 
-    # The export carries stale value_info shapes that break ORT's shape
-    # inference; strip them (external weights get folded into the output).
-    m = onnx.load(src)
-    del m.graph.value_info[:]
-    onnx.save(m, tmp, save_as_external_data=True, location="decoder_clean.onnx.data")
-    print("tableformer-decoder: dynamic INT8 quantization...", flush=True)
-    quantize_dynamic(
-        tmp, dst, weight_type=QuantType.QInt8, extra_options={"MatMulConstBOnly": True}
-    )
-    os.remove(tmp)
-    os.remove(f"{tmp}.data")
-    print(f"tableformer-decoder: done -> {dst} ({os.path.getsize(dst) / 1e6:.1f} MB)")
+        # The export carries stale value_info shapes that break ORT's shape
+        # inference; strip them (external weights get folded into the output).
+        m = onnx.load(src)
+        del m.graph.value_info[:]
+        onnx.save(m, tmp, save_as_external_data=True, location=f"{stem}_clean.onnx.data")
+        print(f"tableformer-decoder: dynamic INT8 quantization ({stem})...", flush=True)
+        quantize_dynamic(
+            tmp, dst, weight_type=QuantType.QInt8, extra_options={"MatMulConstBOnly": True}
+        )
+        os.remove(tmp)
+        os.remove(f"{tmp}.data")
+        print(f"tableformer-decoder: done -> {dst} ({os.path.getsize(dst) / 1e6:.1f} MB)")
 
 
 def main():

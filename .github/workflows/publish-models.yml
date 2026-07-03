@@ -123,6 +123,8 @@ jobs:
           stage models/tableformer/encoder.onnx encoder.onnx
           stage models/tableformer/decoder.onnx decoder.onnx
           stage models/tableformer/decoder_int8.onnx decoder_int8.onnx
+          stage models/tableformer/decoder_kv.onnx decoder_kv.onnx
+          stage models/tableformer/decoder_kv_int8.onnx decoder_kv_int8.onnx
           stage models/tableformer/bbox.onnx bbox.onnx
           echo "staged:"
           ls -la release-assets/

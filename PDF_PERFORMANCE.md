@@ -122,10 +122,18 @@ Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.
      the cache and the encoder's cross-K/V + `enc_out` stay owned `ort` values
      fed straight back into the next run (~9% faster structure decode,
      byte-identical output).
-   - The exported graph still re-embeds the **full tag sequence** every step
-     (`tags` grows each iteration) even though attention is KV-cached. Re-export
-     the decoder to take only the last tag (the cache carries the history) —
-     this is the remaining per-step cost; see `scripts/export_tableformer.py`.
+   - ~~The exported graph still re-embeds the **full tag sequence** every
+     step.~~ **Built and measured:** `scripts/export_tableformer.py` now also
+     exports `decoder_kv.onnx`, a true-KV-cache step (one tag in, projected
+     K/V cached per layer), verified argmax-identical over a 64-step rollout
+     and byte-identical on corpus output. Measured result: **parity** with
+     the legacy graph on corpus-sized tables (~100–300 tokens) — ONNX Runtime
+     executes the legacy graph's full-prefix re-projection as one efficient
+     batched GEMM, so the O(n²) FLOPs don't become O(n²) wall time until
+     tables get much larger. The Rust loop auto-detects either graph (input
+     names) and prefers the smaller legacy file by default; point
+     `DOCLING_TABLEFORMER_DECODER` at `decoder_kv(_int8).onnx` for
+     very-large-table workloads.
 3. **Layout batching for the parallel path**: the pool currently runs batch-1
    inference per page. RT-DETR's 640×640 input is fixed-shape, so pages can be
    batched (e.g. batch-4) per worker with one session — better core utilization

@@ -54,7 +54,31 @@ pub struct TableFormer {
     encoder: Session,
     decoder: Session,
     bbox: Session,
+    /// True when the decoder is the true-KV-cache export (`decoder_kv.onnx`:
+    /// inputs `tag`/`cache_k`/`cache_v`, one token per step); false for the
+    /// legacy layer-output-cache graph (`decoder.onnx`: full `tags` + `cache`).
+    /// Detected from the session's input names, so an explicit
+    /// `DOCLING_TABLEFORMER_DECODER` override works with either graph.
+    kv: bool,
 }
+
+/// KV-cache geometry fixed by the `decoder_kv.onnx` export
+/// (`[N_LAYERS, 1, KV_HEADS, past, KV_HEAD_DIM]`, `KV_HEADS × KV_HEAD_DIM = EMBED_DIM`).
+const KV_HEADS: usize = 8;
+const KV_HEAD_DIM: usize = 64;
+
+/// The autoregressive decode state: `a` is the legacy layer-output cache, or
+/// `cache_k` for the KV graph; `b` is `cache_v` (KV graph only). `None` = first
+/// step (the zero-`past` empties are allocated per table by [`TableFormer::empty_cache`]).
+#[derive(Default)]
+struct DecodeCache {
+    a: Option<DynValue>,
+    b: Option<DynValue>,
+}
+
+/// Zero-`past` first-step cache tensors: `(cache, None)` for the legacy graph,
+/// `(cache_k, Some(cache_v))` for the KV graph.
+type EmptyCache = (Tensor<f32>, Option<Tensor<f32>>);
 
 /// Encoder outputs that drive the cached decode loop: the per-layer cross-attention
 /// K/V (projected from the image memory once, constant across decode steps) and
@@ -80,13 +104,34 @@ impl TableFormer {
     pub fn load_with(intra: usize) -> Option<Self> {
         let enc = std::env::var("DOCLING_TABLEFORMER_ENCODER")
             .unwrap_or_else(|_| "models/tableformer/encoder.onnx".to_string());
-        // Prefer the INT8 decoder when present (byte-identical output, faster
-        // decode; FLEISCHWOLF_FP32=1 opts out) unless explicitly overridden.
-        let dec = crate::model_path(
-            "DOCLING_TABLEFORMER_DECODER",
-            "models/tableformer/decoder.onnx",
-            "models/tableformer/decoder_int8.onnx",
-        );
+        // Decoder preference (explicit override wins): INT8 variants first
+        // unless FLEISCHWOLF_FP32 opts out; within a precision the true-KV-cache
+        // export (`decoder_kv*`, one token per step) ranks behind the legacy
+        // layer-output-cache graph it matches byte-for-byte — measured parity on
+        // corpus-sized tables (ORT batches the legacy graph's prefix
+        // re-projection efficiently), so the smaller legacy file stays the
+        // default and `decoder_kv*` serves very-large-table workloads, where its
+        // O(past) step cost wins.
+        let dec = std::env::var("DOCLING_TABLEFORMER_DECODER").unwrap_or_else(|_| {
+            let candidates: &[&str] = if crate::fp32_forced() {
+                &[
+                    "models/tableformer/decoder.onnx",
+                    "models/tableformer/decoder_kv.onnx",
+                ]
+            } else {
+                &[
+                    "models/tableformer/decoder_int8.onnx",
+                    "models/tableformer/decoder_kv_int8.onnx",
+                    "models/tableformer/decoder.onnx",
+                    "models/tableformer/decoder_kv.onnx",
+                ]
+            };
+            candidates
+                .iter()
+                .find(|p| std::path::Path::new(p).exists())
+                .unwrap_or(&"models/tableformer/decoder.onnx")
+                .to_string()
+        });
         let bbx = std::env::var("DOCLING_TABLEFORMER_BBOX")
             .unwrap_or_else(|_| "models/tableformer/bbox.onnx".to_string());
         if [&enc, &dec, &bbx]
@@ -118,11 +163,15 @@ impl TableFormer {
                 .map_err(|e| format!("tableformer load {path}: {e}"))
         };
         match (build(&enc, true), build(&dec, false), build(&bbx, true)) {
-            (Ok(encoder), Ok(decoder), Ok(bbox)) => Some(Self {
-                encoder,
-                decoder,
-                bbox,
-            }),
+            (Ok(encoder), Ok(decoder), Ok(bbox)) => {
+                let kv = decoder.inputs().iter().any(|i| i.name() == "cache_k");
+                Some(Self {
+                    encoder,
+                    decoder,
+                    bbox,
+                    kv,
+                })
+            }
             _ => None,
         }
     }
@@ -160,18 +209,35 @@ impl TableFormer {
         &mut self,
         tags: &[i64],
         enc: &EncodeOut,
-        cache: &mut Option<DynValue>,
-        empty_cache: &Tensor<f32>,
+        cache: &mut DecodeCache,
+        empty: &EmptyCache,
     ) -> Result<(i64, Vec<f32>), String> {
-        let tags_t = Tensor::from_array(([tags.len(), 1usize], tags.to_vec()))
-            .map_err(|e| format!("tableformer: tags: {e}"))?;
-        let mut dout = match cache.as_ref() {
-            None => self.decoder.run(ort::inputs![
-                "tags" => tags_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
-                "cache" => empty_cache]),
-            Some(c) => self.decoder.run(ort::inputs![
-                "tags" => tags_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
-                "cache" => c]),
+        let mut dout = if self.kv {
+            // KV graph: feed only the newly emitted tag; the projected K/V for
+            // the whole prefix live in cache_k/cache_v and are fed back as-is.
+            let last = *tags.last().expect("decode starts from <start>");
+            let tag_t = Tensor::from_array(([1usize, 1usize], vec![last]))
+                .map_err(|e| format!("tableformer: tag: {e}"))?;
+            match (cache.a.as_ref(), cache.b.as_ref()) {
+                (Some(k), Some(v)) => self.decoder.run(ort::inputs![
+                    "tag" => tag_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
+                    "cache_k" => k, "cache_v" => v]),
+                _ => self.decoder.run(ort::inputs![
+                    "tag" => tag_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
+                    "cache_k" => &empty.0,
+                    "cache_v" => empty.1.as_ref().expect("kv empty cache has both halves")]),
+            }
+        } else {
+            let tags_t = Tensor::from_array(([tags.len(), 1usize], tags.to_vec()))
+                .map_err(|e| format!("tableformer: tags: {e}"))?;
+            match cache.a.as_ref() {
+                None => self.decoder.run(ort::inputs![
+                    "tags" => tags_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
+                    "cache" => &empty.0]),
+                Some(c) => self.decoder.run(ort::inputs![
+                    "tags" => tags_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
+                    "cache" => c]),
+            }
         }
         .map_err(|e| format!("tableformer: decode: {e}"))?;
         let (_, logits) = dout["logits"]
@@ -182,18 +248,40 @@ impl TableFormer {
             .try_extract_tensor::<f32>()
             .map_err(|e| format!("tableformer: hidden: {e}"))?;
         let hidden = hidden.to_vec();
-        *cache = Some(
-            dout.remove("out_cache")
-                .ok_or_else(|| "tableformer: decoder output out_cache missing".to_string())?,
-        );
+        if self.kv {
+            cache.a = Some(
+                dout.remove("out_cache_k")
+                    .ok_or_else(|| "tableformer: out_cache_k missing".to_string())?,
+            );
+            cache.b = Some(
+                dout.remove("out_cache_v")
+                    .ok_or_else(|| "tableformer: out_cache_v missing".to_string())?,
+            );
+        } else {
+            cache.a = Some(
+                dout.remove("out_cache")
+                    .ok_or_else(|| "tableformer: decoder output out_cache missing".to_string())?,
+            );
+        }
         Ok((raw, hidden))
     }
 
-    /// The zero-`past` first-step cache, allocated through the session allocator
-    /// (ort's array constructors reject a 0-length dim; the C API does allow it).
-    fn empty_cache(&self) -> Result<Tensor<f32>, String> {
-        Tensor::<f32>::new(self.decoder.allocator(), [N_LAYERS, 0usize, 1, EMBED_DIM])
-            .map_err(|e| format!("tableformer: empty cache: {e}"))
+    /// The zero-`past` first-step cache(s), allocated through the session
+    /// allocator (ort's array constructors reject a 0-length dim; the C API does
+    /// allow it).
+    fn empty_cache(&self) -> Result<EmptyCache, String> {
+        let alloc = self.decoder.allocator();
+        if self.kv {
+            let mk = || {
+                Tensor::<f32>::new(alloc, [N_LAYERS, 1, KV_HEADS, 0usize, KV_HEAD_DIM])
+                    .map_err(|e| format!("tableformer: empty kv cache: {e}"))
+            };
+            Ok((mk()?, Some(mk()?)))
+        } else {
+            let c = Tensor::<f32>::new(alloc, [N_LAYERS, 0usize, 1, EMBED_DIM])
+                .map_err(|e| format!("tableformer: empty cache: {e}"))?;
+            Ok((c, None))
+        }
     }
 
     /// Predict the OTSL structure-token sequence for a table-region image.
@@ -204,7 +292,7 @@ impl TableFormer {
         let mut tags: Vec<i64> = vec![START];
         let mut out: Vec<i64> = Vec::new();
         let mut prev_ucel = false;
-        let mut cache: Option<DynValue> = None;
+        let mut cache = DecodeCache::default();
         let empty = self.empty_cache()?;
         while out.len() < MAX_STEPS {
             let (raw, _hidden) = self.decode_step(&tags, &enc, &mut cache, &empty)?;
@@ -243,7 +331,7 @@ impl TableFormer {
         let mut bbox_ind = 0usize;
         let mut cur_bbox_ind = 0usize;
         let mut merge: std::collections::HashMap<usize, i64> = std::collections::HashMap::new();
-        let mut cache: Option<DynValue> = None;
+        let mut cache = DecodeCache::default();
         let empty = self.empty_cache()?;
         while otsl.len() < MAX_STEPS {
             let (raw, hidden) = self.decode_step(&tags, &enc, &mut cache, &empty)?;

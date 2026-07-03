@@ -197,6 +197,53 @@ class Decode(nn.Module):
         return tt._fc(last), last, out_cache
 
 
+class DecodeKV(nn.Module):
+    # True-KV-cache step: feeds ONLY the newly emitted tag. The layer-output
+    # cache above still re-projects self-attention K/V over the whole cached
+    # prefix in every layer on every step (and re-embeds the full tag sequence
+    # for layer 0) — O(n^2) matmuls per table. Here each layer's projected
+    # K and V are the cache (cache_k/cache_v [L,1,H,past,head_dim], empty at
+    # past=0): a step embeds one tag at its absolute position (= past, read
+    # from the cache shape), projects q/k/v for that one token, appends k/v,
+    # and attends the single query over the cached keys — O(past) memory
+    # traffic per step, no re-projection. Mathematically identical to the
+    # layer-output cache (past tokens' K/V are linear projections of fixed
+    # layer inputs), verified argmax-identical step-by-step below.
+    def forward(self, tag, cross_k, cross_v, cache_k, cache_v):
+        e = EMBED_DIM_
+        pos = cache_k.shape[3]  # tokens already decoded = this tag's position
+        x = tt._embedding(tag)  # [1,1,e]
+        x = x + tt._positional_encoding.pe[pos]
+        out = x
+        new_ks, new_vs = [], []
+        for i, layer in enumerate(tt._decoder.layers):
+            sa = layer.self_attn
+            W, b = sa.in_proj_weight, sa.in_proj_bias
+            q = F.linear(out, W[:e], b[:e])
+            k = F.linear(out, W[e : 2 * e], b[e : 2 * e])
+            v = F.linear(out, W[2 * e :], b[2 * e :])
+            # [1,1,e] → [1,H,1,head_dim]
+            q = q.reshape(1, N_HEADS, HEAD_DIM).permute(1, 0, 2).unsqueeze(0)
+            k = k.reshape(1, N_HEADS, HEAD_DIM).permute(1, 0, 2).unsqueeze(0)
+            v = v.reshape(1, N_HEADS, HEAD_DIM).permute(1, 0, 2).unsqueeze(0)
+            new_ks.append(k)
+            new_vs.append(v)
+            kk = torch.cat([cache_k[i], k], dim=2)  # [1,H,past+1,hd]
+            vv = torch.cat([cache_v[i], v], dim=2)
+            t = F.scaled_dot_product_attention(q, kk, vv)
+            t = t.squeeze(0).permute(1, 0, 2).reshape(1, 1, e)
+            t = F.linear(t, sa.out_proj.weight, sa.out_proj.bias)
+            tgt_last = layer.norm1(out + t)
+            t = _cross_attn(layer, tgt_last, cross_k[i], cross_v[i])
+            tgt_last = layer.norm2(tgt_last + t)
+            t = layer.linear2(layer.activation(layer.linear1(tgt_last)))
+            out = layer.norm3(tgt_last + t)
+        out_cache_k = torch.cat([cache_k, torch.stack(new_ks, 0)], dim=3)
+        out_cache_v = torch.cat([cache_v, torch.stack(new_vs, 0)], dim=3)
+        last = out[-1]
+        return tt._fc(last), last, out_cache_k, out_cache_v
+
+
 def check(name, a, b):
     import numpy as np
 
@@ -267,6 +314,62 @@ bo = ort.InferenceSession(f"{OUT}/bbox.onnx").run(
 )
 check("boxes", bo[0], boxes.numpy())
 check("classes", bo[1], classes.numpy())
+
+# ---- decoder_kv.onnx: the true-KV-cache step (preferred by the Rust loop) ----
+# Verify against the layer-output-cache module by rolling both autoregressively
+# from <start> over the same encoder memory: greedy argmax must match at every
+# step (the two are the same math; only reduction shapes differ).
+print("verifying DecodeKV against the layer-output cache, 64-step rollout:")
+kv_k = torch.zeros((N_LAYERS, 1, nh, 0, HEAD_DIM))
+kv_v = torch.zeros((N_LAYERS, 1, nh, 0, HEAD_DIM))
+lc_cache = torch.zeros((N_LAYERS, 0, 1, EMBED_DIM))
+roll_tags = [start]
+max_dlogit = 0.0
+with torch.no_grad():
+    for step in range(64):
+        lc_logits, _, lc_cache = Decode()(
+            torch.tensor(roll_tags, dtype=torch.long).unsqueeze(1),
+            cross_k, cross_v, lc_cache,
+        )
+        kv_logits, _, kv_k, kv_v = DecodeKV()(
+            torch.tensor([[roll_tags[-1]]], dtype=torch.long),
+            cross_k, cross_v, kv_k, kv_v,
+        )
+        d = float((lc_logits - kv_logits).abs().max())
+        max_dlogit = max(max_dlogit, d)
+        a, b = int(lc_logits.argmax()), int(kv_logits.argmax())
+        assert a == b, f"step {step}: argmax diverged (layer-cache {a} vs kv {b})"
+        roll_tags.append(a)
+print(f"  64 steps argmax-identical, max|dlogits| = {max_dlogit:.2e}")
+
+tag1 = torch.tensor([[start]], dtype=torch.long)
+past_kv = Dim("past", min=0, max=1024)
+torch.onnx.export(
+    DecodeKV(), (tag1, cross_k, cross_v, kv_k, kv_v), f"{OUT}/decoder_kv.onnx",
+    input_names=["tag", "cross_k", "cross_v", "cache_k", "cache_v"],
+    output_names=["logits", "hidden", "out_cache_k", "out_cache_v"],
+    dynamo=True,
+    dynamic_shapes=({}, {}, {}, {3: past_kv}, {3: past_kv}),
+)
+print("decoder_kv.onnx (true-KV-cache step):")
+with torch.no_grad():
+    kl, kh, kck, kcv = DecodeKV()(tag1, cross_k, cross_v,
+                                  torch.zeros((N_LAYERS, 1, nh, 0, HEAD_DIM)),
+                                  torch.zeros((N_LAYERS, 1, nh, 0, HEAD_DIM)))
+ko = ort.InferenceSession(f"{OUT}/decoder_kv.onnx").run(
+    None,
+    {
+        "tag": tag1.numpy(),
+        "cross_k": cross_k.numpy(),
+        "cross_v": cross_v.numpy(),
+        "cache_k": torch.zeros((N_LAYERS, 1, nh, 0, HEAD_DIM)).numpy(),
+        "cache_v": torch.zeros((N_LAYERS, 1, nh, 0, HEAD_DIM)).numpy(),
+    },
+)
+check("logits", ko[0], kl.numpy())
+check("hidden", ko[1], kh.numpy())
+check("out_cache_k", ko[2], kck.numpy())
+check("out_cache_v", ko[3], kcv.numpy())
 
 # word map → tokens file for the Rust decode loop
 json.dump(
