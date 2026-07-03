@@ -153,10 +153,12 @@ Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.
    byte order, so it is one memcpy + one 4→3-channel pass, ~1% of total.)
 5. **textparse font caching** (marginal for PDFs — textparse is ≤1% — but
    real for `no_ocr` mode where it becomes the bottleneck):
-   - fonts are fully re-parsed (ToUnicode CMap decompression + tokenization,
-     Type1 program scan, width maps) for **every page** and every Form-XObject
-     invocation (`textparse.rs:794`); cache parsed `Font`s per document keyed
-     by the font dict's `ObjectId`, and cache decoded Form XObject content.
+   - ~~fonts are fully re-parsed for **every page** and every Form-XObject
+     invocation; decoded form content re-inflated per `Do`.~~ **Done on this
+     branch:** per-document caches keyed by object id (fonts also by resource
+     name, which feeds the docling-parse font hash). Identical output across
+     the corpus; 3–10% off the `textparse` stage on the test fixtures (their
+     ToUnicode CMaps are small — CJK/form-heavy documents benefit far more).
    - ~~`line_cells` + `word_cells` run the identical build+contract twice per
      page; one pass can emit both.~~ **Done on this branch**
      (`dp_lines::line_and_word_cells`): ~1.25× faster `--no-ocr` conversion,

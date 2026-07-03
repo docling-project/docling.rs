@@ -14,10 +14,25 @@
 //! pages without one still fall back to OCR upstream.
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use lopdf::{Dictionary, Document, Object};
 
 use crate::pdfium_backend::Glyph;
+
+/// Per-document caches for the content-stream interpreter. Fonts are indirect
+/// objects shared by many pages, but were fully re-parsed — ToUnicode CMap
+/// decompression + tokenization, embedded Type1 program scan, width tables —
+/// for **every page and every Form XObject invocation**; decoded form content
+/// streams were likewise re-inflated on every `Do`. Cached per document,
+/// keyed by the referenced object id (fonts also by resource name, which
+/// feeds the docling-parse font hash). Inline (non-reference) dicts are rare
+/// and stay uncached.
+#[derive(Default)]
+struct DocCaches {
+    fonts: HashMap<(lopdf::ObjectId, Vec<u8>), Rc<Font>>,
+    forms: HashMap<lopdf::ObjectId, Rc<lopdf::content::Content>>,
+}
 
 /// A 2×3 affine matrix `[a b c d e f]`: maps `(x,y)` → `(a·x+c·y+e, b·x+d·y+f)`.
 #[derive(Clone, Copy)]
@@ -643,13 +658,14 @@ pub fn pdf_textlines(bytes: &[u8]) -> Vec<(f32, f32, Vec<crate::pdfium_backend::
     let Ok(doc) = Document::load_mem(bytes) else {
         return Vec::new();
     };
+    let mut caches = DocCaches::default();
     let mut pages: Vec<_> = doc.get_pages().into_iter().collect();
     pages.sort_by_key(|(n, _)| *n);
     pages
         .into_iter()
         .map(|(_, pid)| {
             let (w, h) = page_size(&doc, pid);
-            let glyphs = page_glyphs(&doc, pid);
+            let glyphs = page_glyphs_cached(&doc, pid, &mut caches);
             let cells = crate::dp_lines::line_cells(&glyphs, h, true);
             (w, h, cells)
         })
@@ -664,13 +680,14 @@ pub fn pdf_words(bytes: &[u8]) -> Vec<(f32, f32, Vec<crate::pdfium_backend::Text
     let Ok(doc) = Document::load_mem(bytes) else {
         return Vec::new();
     };
+    let mut caches = DocCaches::default();
     let mut pages: Vec<_> = doc.get_pages().into_iter().collect();
     pages.sort_by_key(|(n, _)| *n);
     pages
         .into_iter()
         .map(|(_, pid)| {
             let (w, h) = page_size(&doc, pid);
-            let glyphs = page_glyphs(&doc, pid);
+            let glyphs = page_glyphs_cached(&doc, pid, &mut caches);
             let cells = crate::dp_lines::word_cells(&glyphs, h, true);
             (w, h, cells)
         })
@@ -695,13 +712,14 @@ pub fn pdf_all_cells(bytes: &[u8]) -> Vec<PageParserCells> {
     let Ok(doc) = Document::load_mem(bytes) else {
         return Vec::new();
     };
+    let mut caches = DocCaches::default();
     let mut pages: Vec<_> = doc.get_pages().into_iter().collect();
     pages.sort_by_key(|(n, _)| *n);
     pages
         .into_iter()
         .map(|(_, pid)| {
             let (_w, h) = page_size(&doc, pid);
-            let glyphs = page_glyphs(&doc, pid);
+            let glyphs = page_glyphs_cached(&doc, pid, &mut caches);
             let (prose, words) = crate::dp_lines::line_and_word_cells(&glyphs, h, true);
             PageParserCells {
                 prose,
@@ -746,8 +764,14 @@ fn page_res(doc: &Document, page_id: lopdf::ObjectId) -> Option<&Dictionary> {
     ids.into_iter().find_map(|id| doc.get_dictionary(id).ok())
 }
 
-/// Build the code→[`Font`] map for a resources dictionary's `/Font` sub-dict.
-fn fonts_from_res(doc: &Document, res: &Dictionary) -> HashMap<Vec<u8>, Font> {
+/// Build the code→[`Font`] map for a resources dictionary's `/Font` sub-dict,
+/// reusing the per-document cache for fonts referenced indirectly (the common
+/// case — the same font objects recur on every page).
+fn fonts_from_res(
+    doc: &Document,
+    res: &Dictionary,
+    caches: &mut DocCaches,
+) -> HashMap<Vec<u8>, Rc<Font>> {
     let mut map = HashMap::new();
     let font_dict = res
         .get(b"Font")
@@ -756,9 +780,28 @@ fn fonts_from_res(doc: &Document, res: &Dictionary) -> HashMap<Vec<u8>, Font> {
         .and_then(|o| o.as_dict().ok());
     if let Some(fd) = font_dict {
         for (name, value) in fd.iter() {
-            if let Some(fdict) = deref(doc, value).and_then(|o| o.as_dict().ok()) {
-                map.insert(name.clone(), parse_font(doc, name, fdict));
-            }
+            let font = match value {
+                Object::Reference(id) => {
+                    let key = (*id, name.clone());
+                    if let Some(f) = caches.fonts.get(&key) {
+                        Rc::clone(f)
+                    } else if let Some(fdict) = deref(doc, value).and_then(|o| o.as_dict().ok()) {
+                        let f = Rc::new(parse_font(doc, name, fdict));
+                        caches.fonts.insert(key, Rc::clone(&f));
+                        f
+                    } else {
+                        continue;
+                    }
+                }
+                _ => {
+                    if let Some(fdict) = deref(doc, value).and_then(|o| o.as_dict().ok()) {
+                        Rc::new(parse_font(doc, name, fdict))
+                    } else {
+                        continue;
+                    }
+                }
+            };
+            map.insert(name.clone(), font);
         }
     }
     map
@@ -766,6 +809,16 @@ fn fonts_from_res(doc: &Document, res: &Dictionary) -> HashMap<Vec<u8>, Font> {
 
 /// Extract every glyph on a page as a native-coordinate [`Glyph`].
 pub(crate) fn page_glyphs(doc: &Document, page_id: lopdf::ObjectId) -> Vec<Glyph> {
+    page_glyphs_cached(doc, page_id, &mut DocCaches::default())
+}
+
+/// [`page_glyphs`] with an explicit per-document cache, so a multi-page walk
+/// parses each font / decodes each form once instead of once per page.
+fn page_glyphs_cached(
+    doc: &Document,
+    page_id: lopdf::ObjectId,
+    caches: &mut DocCaches,
+) -> Vec<Glyph> {
     let mut out = Vec::new();
     let Ok(content_bytes) = doc.get_page_content(page_id) else {
         return out;
@@ -774,7 +827,16 @@ pub(crate) fn page_glyphs(doc: &Document, page_id: lopdf::ObjectId) -> Vec<Glyph
         return out;
     };
     if let Some(res) = page_res(doc, page_id) {
-        run_content(doc, res, &content, Mat::ID, TextState::INIT, 0, &mut out);
+        run_content(
+            doc,
+            res,
+            &content,
+            Mat::ID,
+            TextState::INIT,
+            0,
+            caches,
+            &mut out,
+        );
     }
     out
 }
@@ -783,6 +845,7 @@ pub(crate) fn page_glyphs(doc: &Document, page_id: lopdf::ObjectId) -> Vec<Glyph
 /// Form XObjects on `Do` (bulk body text in heavy PDFs lives inside a form, not
 /// the page content stream). `res` is the resources dict in scope (the page's,
 /// or the form's own); `base_ctm` is the CTM at the point of invocation.
+#[allow(clippy::too_many_arguments)]
 fn run_content(
     doc: &Document,
     res: &Dictionary,
@@ -790,9 +853,10 @@ fn run_content(
     base_ctm: Mat,
     init: TextState,
     depth: u32,
+    caches: &mut DocCaches,
     out: &mut Vec<Glyph>,
 ) {
-    let fonts = fonts_from_res(doc, res);
+    let fonts = fonts_from_res(doc, res, caches);
     let xobjects = res
         .get(b"XObject")
         .ok()
@@ -804,11 +868,11 @@ fn run_content(
     // *not* the text matrix (that is reset by BT). Saving only the CTM let a Tc
     // set inside a `q…Q` block leak out and drift every later glyph.
     #[allow(clippy::type_complexity)]
-    let mut gstate_stack: Vec<(Mat, f64, f64, f64, f64, f64, f64, Option<&Font>)> = Vec::new();
+    let mut gstate_stack: Vec<(Mat, f64, f64, f64, f64, f64, f64, Option<&Rc<Font>>)> = Vec::new();
     let mut ctm = base_ctm;
     let mut tm = Mat::ID;
     let mut tlm = Mat::ID;
-    let mut font: Option<&Font> = None;
+    let mut font: Option<&Rc<Font>> = None;
     let mut fsize = init.fsize;
     let mut tc = init.tc; // char spacing
     let mut tw = init.tw; // word spacing
@@ -968,8 +1032,12 @@ fn run_content(
                 let Some(Object::Name(n)) = operands.first() else {
                     continue;
                 };
-                let stream = xobjects
-                    .and_then(|d| d.get(n.as_slice()).ok())
+                let obj = xobjects.and_then(|d| d.get(n.as_slice()).ok());
+                let form_id = match obj {
+                    Some(Object::Reference(id)) => Some(*id),
+                    _ => None,
+                };
+                let stream = obj
                     .and_then(|o| deref(doc, o))
                     .and_then(|o| o.as_stream().ok());
                 let Some(stream) = stream else { continue };
@@ -982,11 +1050,24 @@ fn run_content(
                 if !is_form {
                     continue;
                 }
-                let Ok(data) = stream.decompressed_content() else {
-                    continue;
-                };
-                let Ok(form_content) = lopdf::content::Content::decode(&data) else {
-                    continue;
+                // Decode the form's content once per document (headers/footers
+                // and bulk body text invoke the same form on every page).
+                let cached = form_id.and_then(|id| caches.forms.get(&id).cloned());
+                let form_content = match cached {
+                    Some(c) => c,
+                    None => {
+                        let Ok(data) = stream.decompressed_content() else {
+                            continue;
+                        };
+                        let Ok(c) = lopdf::content::Content::decode(&data) else {
+                            continue;
+                        };
+                        let c = Rc::new(c);
+                        if let Some(id) = form_id {
+                            caches.forms.insert(id, Rc::clone(&c));
+                        }
+                        c
+                    }
                 };
                 // The form's /Matrix maps form space into the CTM at invocation.
                 let form_mat = match stream.dict.get(b"Matrix").ok() {
@@ -1030,6 +1111,7 @@ fn run_content(
                     form_mat.then(ctm),
                     state,
                     depth + 1,
+                    caches,
                     out,
                 );
             }
