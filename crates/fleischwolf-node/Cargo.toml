@@ -28,7 +28,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-fleischwolf = { path = "../fleischwolf", version = "0.13.0" }
+fleischwolf = { path = "../fleischwolf", version = "0.14.0" }
 # Node-API bindings. `napi4` enables threadsafe functions, used for streaming.
 napi = { version = "2", default-features = false, features = ["napi4"] }
 napi-derive = "2"
