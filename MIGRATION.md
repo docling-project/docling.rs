@@ -18,11 +18,22 @@ phased plan is kept at the end as history.)
 > guarding against regressions. `cargo test` is green (unit tests + a 133-source
 > output-regression suite).
 
+**At a glance** (for a first-time reader from the docling side):
+
+| | |
+|---|---|
+| **What** | A Rust port of docling's converter, backends, and discriminative PDF/ASR pipelines; same `convert → DoclingDocument → export_to_markdown()/json()` shape, single static binary, no Python/torch at runtime |
+| **Conformance** | Declarative formats byte-for-byte vs *live* PyPI docling (most 100%, see §2); PDF ML path 6/14 fixtures byte-exact, rest close; every optimization is gated on this not regressing |
+| **Performance** | PDF ML pipeline **4.3× faster warm / 4.7× end-to-end** than Python docling at 2.3–2.6× less peak RAM (INT8 + SIMD, conformance-validated); declarative formats 20–60× warm, ~60× less RAM; details + methodology in [`PDF_PERFORMANCE.md`](./PDF_PERFORMANCE.md) |
+| **Models** | docling's own checkpoints (layout heron, TableFormer, PP-OCRv3, Whisper tiny), format-converted to ONNX by `scripts/export_*.py` — no retraining; INT8 variants are calibrated post-training quantizations (`scripts/quantize_models.py`) |
+| **Tracking upstream** | See [§9](#9-keeping-up-with-upstream-docling): conformance is measured against the *latest published* docling on demand, so an upstream release that changes output surfaces as a concrete per-fixture diff |
+| **Not ported (by design)** | VLM pipelines, enrichment models, DocTags input, legacy patent schemas (§5); inline formatting is baked into text rather than structured fields (§4) |
+
 ---
 
 ## 1. Architecture
 
-Four layers, mirroring docling's:
+The layers mirror docling's:
 
 | Layer | docling (Python) | `fleischwolf` (Rust) |
 |---|---|---|
@@ -40,7 +51,8 @@ crates/
 ├── fleischwolf-pdf/    # pdfium_backend, layout (RT-DETR/ONNX), ocr (PP-OCRv3/ONNX), assemble, mets
 ├── fleischwolf-asr/    # audio decode (symphonia), mel.rs, whisper.rs (ONNX), tokenizer.rs
 ├── fleischwolf-cli/    # `--strict`, `--to md|json`, `--images placeholder|embedded|referenced`
-└── fleischwolf-node/   # Node.js/Bun N-API bindings (napi-rs), published to npm as `fleischwolf`
+├── fleischwolf-node/   # Node.js/Bun N-API bindings (napi-rs), published to npm as `fleischwolf`
+└── fleischwolf-rag/    # RAG layer on top of the converter (chunking, embeddings, vector search, REST API)
 ```
 
 The public API is unchanged from day one:
@@ -299,6 +311,41 @@ dependency order — skipping any version already on crates.io.
   be, so the port is a drop-in for downstream Markdown/JSON consumers.
 - The ML stack is *not* reimplemented in PyTorch-equivalent Rust; it is
   quarantined behind ONNX (`ort`) inference in `fleischwolf-pdf`.
+
+---
+
+## 9. Keeping up with upstream docling
+
+The port is built to be *measured against* upstream rather than merely
+inspired by it, which makes tracking new docling releases a mechanical
+process instead of a guess:
+
+1. **Detect drift.** `scripts/conformance.sh <fmt>` installs the **latest
+   published docling from PyPI** into an isolated venv and byte-diffs both
+   engines' Markdown over the committed corpus, per fixture. An upstream
+   release that changes output (a serializer tweak, a new label, a model
+   bump) shows up as a concrete per-fixture diff — not as silent divergence.
+   `scripts/compare.sh` does the same for a single ad-hoc document.
+2. **Classify each diff.** Either upstream changed *serialization/logic* —
+   port the change to the matching backend/serializer (the crate layout in §1
+   maps one-to-one to docling's modules, so the port target is usually
+   obvious) — or upstream shipped *new models*, in which case
+   `scripts/export_layout.py` / `export_tableformer.py` re-export the new
+   checkpoints to ONNX, `scripts/quantize_models.py` re-quantizes, and
+   `.github/workflows/publish-models.yml` republishes the model release
+   (bump the tag when the export itself changes).
+3. **Re-gate.** `scripts/pdf_conformance.sh` (deterministic snapshot baseline)
+   plus the 133-source regression suite in `cargo test` confirm nothing else
+   moved. The committed PDF groundtruth is regenerated from live docling
+   (`scripts/pdf_groundtruth.sh`) whenever upstream output legitimately
+   changes, so "exact" always means *exact against current docling*.
+4. **New formats/features** follow the same recipe the existing 20 formats
+   did: a backend module + fixtures + conformance scoring, tracked in §2.
+
+What this cannot absorb automatically: upstream features that need new model
+*architectures* (VLM pipeline, enrichment models — out of scope per §5) and
+places where the document models intentionally differ (§4). Those are
+documented divergences rather than drift.
 
 ---
 
