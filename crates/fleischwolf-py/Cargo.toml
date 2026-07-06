@@ -1,0 +1,30 @@
+# Python bindings for fleischwolf (PyO3 + maturin) — a strangler-fig drop-in
+# for Python docling's common path:
+#
+#     from fleischwolf import DocumentConverter
+#     md = DocumentConverter().convert("doc.pdf").document.export_to_markdown()
+#
+# Deliberately a STANDALONE crate (the empty [workspace] below opts it out of
+# the repo workspace): it is built only by maturin, is NOT published to
+# crates.io by scripts/ci_publish.sh, and the PyPI name is still tentative.
+# Build/test locally per this crate's README.md.
+[package]
+name = "fleischwolf-py"
+version = "0.15.1"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/artiz/fleischwolf"
+publish = false
+
+[workspace]
+
+[lib]
+name = "fleischwolf_py"
+crate-type = ["cdylib"]
+
+[dependencies]
+fleischwolf = { path = "../fleischwolf" }
+pyo3 = { version = "0.23", features = ["abi3-py39", "extension-module"] }
+
+[profile.release]
+lto = "thin"
