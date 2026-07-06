@@ -514,24 +514,35 @@ pub(crate) fn resolve_link_anchors(page: &PdfPage) -> Vec<(String, String)> {
         &page.word_cells
     };
     for link in &page.links {
-        let mut inside: Vec<&TextCell> = words
+        // A cell participates when its centre row is inside the rect and it
+        // overlaps the rect horizontally. A cell can be *wider* than the rect:
+        // PDFs often draw a whole header line as one text run ("LinkedIn |
+        // GitHub | Credly"), which docling-parse's word grouping keeps as one
+        // cell even though each label carries its own link annotation —
+        // centre-in-rect alone would hand the entire line to every link.
+        // [`cell_text_in_rect`] clips such a cell to the tokens under the rect.
+        let mut inside: Vec<(&TextCell, String)> = words
             .iter()
             .filter(|c| {
-                let (cx, cy) = ((c.l + c.r) / 2.0, (c.t + c.b) / 2.0);
-                cx >= link.l && cx <= link.r && cy >= link.t && cy <= link.b
+                let cy = (c.t + c.b) / 2.0;
+                cy >= link.t && cy <= link.b && c.r.min(link.r) > c.l.max(link.l)
+            })
+            .filter_map(|c| {
+                let text = cell_text_in_rect(c, link.l, link.r);
+                (!text.is_empty()).then_some((c, text))
             })
             .collect();
         // Reading order: top band then left-to-right (link anchors are LTR).
         let band = inside
             .iter()
-            .map(|c| (c.b - c.t).abs())
+            .map(|(c, _)| (c.b - c.t).abs())
             .fold(0.0f32, f32::max)
             .max(1.0);
-        inside.sort_by_key(|c| ((c.t / band).round() as i64, (c.l * 10.0) as i64));
+        inside.sort_by_key(|(c, _)| ((c.t / band).round() as i64, (c.l * 10.0) as i64));
         let anchor = clean_text(
             &inside
                 .iter()
-                .map(|c| c.text.trim())
+                .map(|(_, t)| t.trim())
                 .filter(|t| !t.is_empty())
                 .collect::<Vec<_>>()
                 .join(" "),
@@ -548,6 +559,47 @@ pub(crate) fn resolve_link_anchors(page: &PdfPage) -> Vec<(String, String)> {
         out.push((anchor, link.uri.clone()));
     }
     out
+}
+
+/// The part of a cell's text that lies under a link rect's x-range. A cell
+/// fully inside the rect (by centre) returns its whole text. A wider cell is
+/// split into whitespace tokens whose x-spans are estimated proportionally to
+/// their character positions (kerning makes this approximate, so selection
+/// snaps to whole tokens, never characters); tokens whose estimated centre
+/// falls inside the rect are kept. Returns "" when nothing falls inside.
+fn cell_text_in_rect(c: &TextCell, l: f32, r: f32) -> String {
+    let cx = (c.l + c.r) / 2.0;
+    if cx >= l && cx <= r && c.l >= l - (c.r - c.l) * 0.25 && c.r <= r + (c.r - c.l) * 0.25 {
+        return c.text.trim().to_string();
+    }
+    let chars: Vec<char> = c.text.chars().collect();
+    let n = chars.len();
+    if n == 0 || c.r <= c.l {
+        return String::new();
+    }
+    let per = (c.r - c.l) / n as f32;
+    let mut out: Vec<String> = Vec::new();
+    let mut token = String::new();
+    let mut start = 0usize;
+    // A trailing sentinel space flushes the last token.
+    for (i, &ch) in chars.iter().enumerate().chain(std::iter::once((n, &' '))) {
+        if ch.is_whitespace() {
+            if !token.is_empty() {
+                let mid = c.l + (start as f32 + (i - start) as f32 / 2.0) * per;
+                if mid >= l && mid <= r {
+                    out.push(std::mem::take(&mut token));
+                } else {
+                    token.clear();
+                }
+            }
+        } else {
+            if token.is_empty() {
+                start = i;
+            }
+            token.push(ch);
+        }
+    }
+    out.join(" ")
 }
 
 /// Cells assigned to a region (best container), in reading order, joined.
@@ -1196,10 +1248,54 @@ impl StreamAssembler {
 #[cfg(test)]
 mod tests {
     use super::clean_text;
-    use super::{code_region_text, merge_continuations, StreamAssembler};
+    use super::{code_region_text, merge_continuations, resolve_link_anchors, StreamAssembler};
     use crate::layout::Region;
-    use crate::pdfium_backend::TextCell;
+    use crate::pdfium_backend::{LinkAnnot, PdfPage, TextCell};
     use fleischwolf_core::Node;
+
+    #[test]
+    fn link_anchors_split_a_shared_word_cell_between_adjacent_links() {
+        // A common header layout: one text run holds several pipe-separated
+        // labels, each carrying its own link annotation. Every link must get
+        // its own label as the anchor (and the "|" separators must belong to
+        // none), not the whole run.
+        let annot = |l: f32, r: f32, uri: &str| LinkAnnot {
+            l,
+            t: 100.0,
+            r,
+            b: 114.0,
+            uri: uri.into(),
+        };
+        let page = PdfPage {
+            width: 600.0,
+            height: 800.0,
+            scale: 2.0,
+            cells: Vec::new(),
+            code_cells: Vec::new(),
+            // "LinkedIn | GitHub | Credly" = 26 chars over x 100..360.
+            word_cells: vec![cell(
+                "LinkedIn | GitHub | Credly",
+                100.0,
+                100.0,
+                360.0,
+                114.0,
+            )],
+            image: image::RgbImage::new(1, 1),
+            links: vec![
+                annot(100.0, 180.0, "https://l"),
+                annot(200.0, 260.0, "https://g"),
+                annot(290.0, 360.0, "https://c"),
+            ],
+        };
+        assert_eq!(
+            resolve_link_anchors(&page),
+            vec![
+                ("LinkedIn".to_string(), "https://l".to_string()),
+                ("GitHub".to_string(), "https://g".to_string()),
+                ("Credly".to_string(), "https://c".to_string()),
+            ]
+        );
+    }
 
     /// A one-line code cell at `[l, r] × [t, b]` (top-left coords).
     fn cell(text: &str, l: f32, t: f32, r: f32, b: f32) -> TextCell {
