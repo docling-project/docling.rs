@@ -38,10 +38,10 @@ redis = ["dep:redis", "dep:futures-lite"]
 # bumps every sibling's exact pin on master with each release, which would
 # break this branch's merge-ref build. Post-merge, release.sh rewrites these
 # to exact pins automatically (its sed matches any quoted version here).
-fleischwolf = { path = "../fleischwolf", version = "0.15.0" }
+fleischwolf = { path = "../fleischwolf", version = "0.15.1" }
 # Direct dep only for pdfium_backend::page_count (PDF page metrics); already in
 # the graph via fleischwolf, so this adds no compile cost.
-fleischwolf-pdf = { path = "../fleischwolf-pdf", version = "0.15.0" }
+fleischwolf-pdf = { path = "../fleischwolf-pdf", version = "0.15.1" }
 # Counting slides/sheets in OOXML containers for page metrics (names only).
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
 
