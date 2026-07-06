@@ -265,9 +265,18 @@ Shipped:
 - **`fleischwolf-node`** — Node.js/Bun N-API bindings (npm package).
 - **MHTML backend** — no docling analogue.
 
+Experimental (in-repo, unpublished):
+
+- **PyO3 bindings** (`crates/fleischwolf-py`) — a strangler-fig drop-in for
+  docling's common path (`DocumentConverter().convert(p).document
+  .export_to_markdown()` / `export_to_dict()`), built locally with maturin;
+  models download in pure Python from the `models-v1` release into
+  `~/.cache/fleischwolf`, mirroring docling's artifact handling. The PyPI
+  name is tentative; see the crate README for local testing. Deliberately
+  outside the Cargo workspace and the crates.io publish flow.
+
 Planned:
 
-- **PyO3 bindings** (`fleischwolf-py`) for a strangler-fig drop-in.
 - **C++** bindings.
   
 ## 7. Testing

@@ -29,3 +29,8 @@ __pycache__/
 /.venv-gt
 /scratch-gt
 
+
+# fleischwolf-py is a standalone crate (own workspace) — its build dirs
+crates/fleischwolf-py/target/
+crates/fleischwolf-py/.venv/
+crates/fleischwolf-py/python/fleischwolf/*.so
