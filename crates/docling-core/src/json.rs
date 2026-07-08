@@ -81,7 +81,7 @@ const CODE_LANGUAGES: &[&str] = &[
 
 /// Map a fence language to docling's `CodeLanguageLabel` (case-insensitive), else
 /// `unknown`.
-fn code_language(lang: Option<&str>) -> &'static str {
+pub(crate) fn code_language(lang: Option<&str>) -> &'static str {
     match lang {
         Some(l) => CODE_LANGUAGES
             .iter()

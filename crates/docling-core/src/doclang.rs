@@ -39,18 +39,19 @@ impl Out {
 
     fn finish(self) -> String {
         let mut s = String::new();
-        let mut at_line_start = true;
         for (d, line, nl) in self.lines {
-            if at_line_start && d > 0 {
-                for _ in 0..d {
-                    s.push_str(INDENT);
-                }
+            // minidom writes every node's indentation prefix; only a glued
+            // fragment (CDATA/plain text child) suppresses the *newline*, so
+            // the following node's indent lands on the same line. Emitting the
+            // indent unconditionally reproduces that (glue fragments carry
+            // depth 0, contributing none).
+            for _ in 0..d {
+                s.push_str(INDENT);
             }
             s.push_str(&line);
             if nl {
                 s.push('\n');
             }
-            at_line_start = nl;
         }
         // The reference's empty-line filter drops the trailing blank, so the
         // serialized text carries no final newline; the archive writer adds
@@ -242,6 +243,124 @@ fn emit_text_node(out: &mut Out, depth: i32, text: &str) {
     }
 }
 
+/// Map a docling `CodeLanguageLabel` value (as stored in [`Node::Code::language`]
+/// and the JSON export) to the DocLang recommended (Linguist) label. Returns
+/// `None` for unknown/absent languages — matching docling's AUTO `label_mode`,
+/// which omits the `<label>` when the resolved label would be `undefined`.
+fn code_lang_label(lang: &str) -> Option<&'static str> {
+    // Fold the raw fence string (e.g. "python") onto the canonical docling
+    // `CodeLanguageLabel` value ("Python") first — the same normalization the
+    // JSON export uses — then map that to the DocLang (Linguist) label.
+    let lang = crate::json::code_language(Some(lang));
+    Some(match lang {
+        // Docling values whose Linguist key differs.
+        "Bash" => "Shell",
+        "FORTRAN" => "Fortran",
+        "Latex" => "TeX",
+        "Lisp" => "Common Lisp",
+        "Matlab" | "Octave" => "MATLAB",
+        "ObjectiveC" => "Objective-C",
+        "SML" => "Standard ML",
+        "VisualBasic" => "Visual Basic .NET",
+        "DocLang" => "XML",
+        // Docling labels without a distinct Linguist key collapse to `other`.
+        "bc" | "dc" | "Tikz" => "other",
+        // Values whose Linguist key equals the docling value.
+        "Ada" | "Awk" | "C" | "C#" | "C++" | "CMake" | "COBOL" | "CSS" | "Ceylon" | "Clojure"
+        | "Crystal" | "Cuda" | "Cython" | "D" | "Dart" | "Dockerfile" | "Elixir" | "Erlang"
+        | "Forth" | "Go" | "HTML" | "Haskell" | "Haxe" | "Java" | "JavaScript" | "JSON"
+        | "Julia" | "Kotlin" | "Lua" | "MoonScript" | "Nim" | "OCaml" | "PHP" | "Pascal"
+        | "Perl" | "Prolog" | "Python" | "Racket" | "Ruby" | "Rust" | "SQL" | "Scala"
+        | "Scheme" | "Swift" | "TypeScript" | "XML" | "YAML" => {
+            return Some(IDENTITY_LABELS[IDENTITY_LABELS.iter().position(|&x| x == lang).unwrap()])
+        }
+        _ => return None, // "unknown" and anything unrecognized → no <label>
+    })
+}
+
+/// Language labels whose DocLang (Linguist) form is identical to the docling
+/// `CodeLanguageLabel` value — used to hand back a `'static` reference.
+static IDENTITY_LABELS: &[&str] = &[
+    "Ada",
+    "Awk",
+    "C",
+    "C#",
+    "C++",
+    "CMake",
+    "COBOL",
+    "CSS",
+    "Ceylon",
+    "Clojure",
+    "Crystal",
+    "Cuda",
+    "Cython",
+    "D",
+    "Dart",
+    "Dockerfile",
+    "Elixir",
+    "Erlang",
+    "Forth",
+    "Go",
+    "HTML",
+    "Haskell",
+    "Haxe",
+    "Java",
+    "JavaScript",
+    "JSON",
+    "Julia",
+    "Kotlin",
+    "Lua",
+    "MoonScript",
+    "Nim",
+    "OCaml",
+    "PHP",
+    "Pascal",
+    "Perl",
+    "Prolog",
+    "Python",
+    "Racket",
+    "Ruby",
+    "Rust",
+    "SQL",
+    "Scala",
+    "Scheme",
+    "Swift",
+    "TypeScript",
+    "XML",
+    "YAML",
+];
+
+/// Emit a `<code>` element. With a resolved language, a `<label value=…/>` head
+/// forces the block form (matching docling); the code text follows as a text
+/// child (CDATA/plain glued to the closing tag, `<content>`-wrapped text on its
+/// own line). Without a language, single-fragment text renders inline.
+fn emit_code(out: &mut Out, depth: i32, language: Option<&str>, text: &str) {
+    let label = language.and_then(code_lang_label);
+    let escaped = escape_text(text);
+    let is_content_element = escaped.starts_with("<content>");
+    match (label, is_content_element) {
+        (None, false) => out.push(depth, format!("<code>{escaped}</code>")),
+        (None, true) => {
+            out.push(depth, "<code>".to_string());
+            out.push(depth + 1, escaped);
+            out.push(depth, "</code>".to_string());
+        }
+        (Some(l), false) => {
+            out.push(depth, "<code>".to_string());
+            out.push(depth + 1, format!("<label value=\"{}\"/>", attr_escape(l)));
+            // Text child glues at column 0; the closing tag keeps its indent.
+            out.push_glue(escaped);
+            out.push(depth, "</code>".to_string());
+        }
+        (Some(l), true) => {
+            out.push(depth, "<code>".to_string());
+            out.push(depth + 1, format!("<label value=\"{}\"/>", attr_escape(l)));
+            out.push(depth + 1, escaped);
+            out.push(depth, "</code>".to_string());
+        }
+    }
+}
+
 fn emit_table(out: &mut Out, depth: i32, table: &Table) {
     out.push(depth, "<table>".to_string());
     for (ri, row) in table.rows.iter().enumerate() {
@@ -297,8 +416,8 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
                 emit_text_element(out, depth, "text", "text", text);
                 *i += 1;
             }
-            Node::Code { language: _, text } => {
-                emit_text_element(out, depth, "code", "code", text);
+            Node::Code { language, text } => {
+                emit_code(out, depth, language.as_deref(), text);
                 *i += 1;
             }
             Node::Table(t) => {
@@ -374,4 +493,39 @@ fn emit_field_region(out: &mut Out, depth: i32, items: &[FieldItem]) {
         out.push(depth + 1, "</field_item>".to_string());
     }
     out.push(depth, "</field_region>".to_string());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn code(language: Option<&str>, text: &str) -> String {
+        export_to_doclang(&[Node::Code {
+            language: language.map(String::from),
+            text: text.into(),
+        }])
+    }
+
+    #[test]
+    fn code_with_language_emits_linguist_label_block_form() {
+        // Fence language folds through the docling value onto the Linguist key,
+        // forcing the block form; CDATA text glues the closing tag.
+        assert_eq!(
+            code(Some("python"), "print(\"Hello world!\")"),
+            "<doclang version=\"0.7\">\n  <code>\n    <label value=\"Python\"/>\n\
+             <![CDATA[print(\"Hello world!\")]]>  </code>\n</doclang>"
+        );
+        // Aliased label: bash -> Shell.
+        assert!(code(Some("bash"), "ls -la").contains("<label value=\"Shell\"/>"));
+    }
+
+    #[test]
+    fn code_without_language_stays_inline_and_unlabeled() {
+        assert_eq!(
+            code(None, "print(\"Hi!\")"),
+            "<doclang version=\"0.7\">\n  <code><![CDATA[print(\"Hi!\")]]></code>\n</doclang>"
+        );
+        // Unknown fence language: no label, still inline.
+        assert!(!code(Some("brainfuck"), "+++.").contains("<label"));
+    }
 }
