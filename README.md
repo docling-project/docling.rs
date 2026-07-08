@@ -1,9 +1,5 @@
 # docling.rs
 
-<p align="center">
-  <img src="assets/logo.svg" alt="docling.rs — the document meat grinder" width="480"/>
-</p>
-
 > Formerly **Fleischwolf** (meat grinder in German, [ˈflaɪ̯ˌʃvɔlf]) — renamed
 > on joining the docling ecosystem. The meat grinder stays as the mascot:
 
