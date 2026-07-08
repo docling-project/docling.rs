@@ -11,6 +11,6 @@
     "pdf": "node pdf-pipeline.mjs"
   },
   "dependencies": {
-    "docling.rs": "^0.16.0"
+    "docling.rs": "^0.20.0"
   }
 }
