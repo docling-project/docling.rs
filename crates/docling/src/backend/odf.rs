@@ -647,7 +647,10 @@ fn parse_table(table: XmlNode, styles: &Styles) -> Option<Table> {
         }
     }
 
-    trim_grid_to_bounds(grid).map(|rows| Table { rows })
+    trim_grid_to_bounds(grid).map(|rows| Table {
+        rows,
+        location: None,
+    })
 }
 
 /// Trim a table grid to the smallest rectangle covering all non-empty cells
@@ -897,7 +900,10 @@ fn add_ods_sheet(table: XmlNode, doc: &mut DoclingDocument) {
                         .collect()
                 })
                 .collect();
-            doc.push(Node::Table(Table { rows }));
+            doc.push(Node::Table(Table {
+                rows,
+                location: None,
+            }));
         }
     }
 }

@@ -594,7 +594,10 @@ fn parse_jats_table(table: XmlNode) -> Option<Table> {
             ci += cs;
         }
     }
-    Some(Table { rows: grid })
+    Some(Table {
+        rows: grid,
+        location: None,
+    })
 }
 
 fn col_span(cell: XmlNode) -> usize {

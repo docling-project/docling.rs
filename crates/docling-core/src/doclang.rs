@@ -513,6 +513,13 @@ fn emit_code(out: &mut Out, depth: i32, language: Option<&str>, text: &str) {
 
 fn emit_table(out: &mut Out, depth: i32, table: &Table) {
     out.push(depth, "<table>".to_string());
+    // Layout provenance (spreadsheet backends): four `<location>` tokens
+    // (x0,y0,x1,y1) precede the cells, matching docling's element head.
+    if let Some(loc) = table.location {
+        for v in loc {
+            out.push(depth + 1, format!("<location value=\"{v}\"/>"));
+        }
+    }
     for (ri, row) in table.rows.iter().enumerate() {
         for cell in row {
             let tok = if cell.trim().is_empty() {

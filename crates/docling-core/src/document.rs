@@ -184,9 +184,15 @@ impl PictureImage {
 }
 
 /// A simple row-major table. `rows[0]` is the header row.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Table {
     pub rows: Vec<Vec<String>>,
+    /// Optional layout provenance: the four DocLang `<location>` values
+    /// (`x0,y0,x1,y1`, each already normalized to the 0–511 resolution) emitted
+    /// before the table's cells. Set only by backends with real geometry (e.g.
+    /// the spreadsheet backend, whose cell grid yields a bounding box); left
+    /// `None` by declarative backends, which have no coordinates.
+    pub location: Option<[u16; 4]>,
 }
 
 impl DoclingDocument {

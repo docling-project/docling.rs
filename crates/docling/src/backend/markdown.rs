@@ -307,7 +307,10 @@ impl MarkdownBackend {
             }
         }
         if !rows.is_empty() {
-            out.push(Node::Table(Table { rows }));
+            out.push(Node::Table(Table {
+                rows,
+                location: None,
+            }));
         }
     }
 

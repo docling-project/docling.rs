@@ -859,7 +859,10 @@ fn parse_table_with(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
             ci += span;
         }
     }
-    Some(Table { rows: grid })
+    Some(Table {
+        rows: grid,
+        location: None,
+    })
 }
 
 fn grid_span(tc: XmlNode) -> usize {

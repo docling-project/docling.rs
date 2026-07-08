@@ -652,6 +652,7 @@ mod tests {
         doc.compact_tables = true;
         doc.push(Node::Table(Table {
             rows: vec![vec!["a".into(), "b".into()], vec!["1".into(), "2".into()]],
+            location: None,
         }));
         let md = doc.export_to_markdown();
         assert_eq!(md, "| a | b |\n| - | - |\n| 1 | 2 |\n");
@@ -662,6 +663,7 @@ mod tests {
         let mut doc = DoclingDocument::new("t");
         doc.push(Node::Table(Table {
             rows: vec![vec!["a".into(), "b".into()], vec!["1".into(), "2".into()]],
+            location: None,
         }));
         let md = doc.export_to_markdown();
         // Numeric data columns are right-aligned; columns padded to header+2.
@@ -749,6 +751,7 @@ mod tests {
         });
         doc.push(Node::Table(Table {
             rows: vec![vec!["a".into(), "b".into()], vec!["1".into(), "2".into()]],
+            location: None,
         }));
         doc.push(Node::Picture {
             caption: Some("Fig 1".into()),

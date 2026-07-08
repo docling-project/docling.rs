@@ -75,8 +75,28 @@ impl DeclarativeBackend for XlsxBackend {
             let (rh, rw) = range.get_size();
             let height = rh.max(merge_of.keys().map(|(r, _)| r + 1).max().unwrap_or(0));
             let width = rw.max(merge_of.keys().map(|(_, c)| c + 1).max().unwrap_or(0));
-            for table in find_tables(&range, &merge_of, height, width) {
-                doc.push(Node::Table(table));
+            let mut found = find_tables(&range, &merge_of, height, width);
+            let has_images = image_counts.get(&name).copied().unwrap_or(0) > 0;
+            // DocLang `<location>` provenance: docling gives each table a bbox in
+            // cell-index units and normalizes it against the sheet's extent (the
+            // max right/bottom over all items). We compute that extent from the
+            // tables — correct only when the sheet has no images/charts, whose
+            // geometry we don't parse, so we set locations for image-free sheets
+            // and leave them off otherwise (unchanged from before).
+            if !has_images && !found.is_empty() {
+                let page_w = found.iter().map(|t| t.max_c + 1).max().unwrap_or(1);
+                let page_h = found.iter().map(|t| t.max_r + 1).max().unwrap_or(1);
+                for t in &mut found {
+                    t.table.location = Some([
+                        location_value(t.min_c, page_w),
+                        location_value(t.min_r, page_h),
+                        location_value(t.max_c + 1, page_w),
+                        location_value(t.max_r + 1, page_h),
+                    ]);
+                }
+            }
+            for t in found {
+                doc.push(Node::Table(t.table));
             }
             // docling appends one picture per embedded image, after the tables.
             for _ in 0..image_counts.get(&name).copied().unwrap_or(0) {
@@ -156,6 +176,30 @@ fn workbook_sheets(xml: &str) -> Vec<(String, String)> {
 }
 
 /// Find every contiguous data region in a sheet (flood fill, strict adjacency —
+/// The DocLang location resolution (docling's default `xsize`/`ysize`).
+const LOC_RESOLUTION: u32 = 512;
+
+/// Normalize a cell-index coordinate against the sheet extent and quantize it to
+/// the DocLang location grid — `clamp(round(512 * coord / page), 0, 511)`,
+/// matching docling's `_create_location_tokens_for_bbox` + `_quantize_to_resolution`.
+fn location_value(coord: usize, page: usize) -> u16 {
+    if page == 0 {
+        return 0;
+    }
+    let v = (LOC_RESOLUTION as f64 * coord as f64 / page as f64).round() as i64;
+    v.clamp(0, LOC_RESOLUTION as i64 - 1) as u16
+}
+
+/// A discovered table with its cell-index bounding box (inclusive), used to
+/// compute the DocLang `<location>` provenance.
+struct FoundTable {
+    table: Table,
+    min_r: usize,
+    min_c: usize,
+    max_r: usize,
+    max_c: usize,
+}
+
 /// docling's default `gap_tolerance = 0`), in row-major discovery order. A cell
 /// covered by a merge counts as content even if its own value is empty.
 fn find_tables(
@@ -163,7 +207,7 @@ fn find_tables(
     merge_of: &HashMap<(usize, usize), (usize, usize)>,
     height: usize,
     width: usize,
-) -> Vec<Table> {
+) -> Vec<FoundTable> {
     let has_content = |r: usize, c: usize| -> bool {
         merge_of.contains_key(&(r, c))
             || range
@@ -213,7 +257,16 @@ fn find_tables(
             let rows: Vec<Vec<String>> = (min_r..=max_r)
                 .map(|gr| (min_c..=max_c).map(|gc| cell_text(gr, gc)).collect())
                 .collect();
-            tables.push(Table { rows });
+            tables.push(FoundTable {
+                table: Table {
+                    rows,
+                    location: None,
+                },
+                min_r,
+                min_c,
+                max_r,
+                max_c,
+            });
         }
     }
     tables

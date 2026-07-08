@@ -1064,7 +1064,10 @@ pub fn assemble_page(
                         vec![vec![text.clone()]]
                     }
                 });
-                nodes.push(Node::Table(Table { rows }));
+                nodes.push(Node::Table(Table {
+                    rows,
+                    location: None,
+                }));
             }
             // docling does not decode formulas in the standard pipeline; it emits
             // a placeholder comment rather than the (garbled) raw glyph text.

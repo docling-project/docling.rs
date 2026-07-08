@@ -1014,7 +1014,10 @@ fn parse_table_cells(
         .into_iter()
         .map(|row| row.into_iter().map(Option::unwrap_or_default).collect())
         .collect();
-    (!rows.is_empty()).then_some(Table { rows })
+    (!rows.is_empty()).then_some(Table {
+        rows,
+        location: None,
+    })
 }
 
 /// A `<tr>`'s direct `<td>`/`<th>` cells (not nested-table cells).

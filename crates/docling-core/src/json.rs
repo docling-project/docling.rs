@@ -663,6 +663,7 @@ mod tests {
         });
         doc.push(Node::Table(Table {
             rows: vec![vec!["A".into(), "B".into()]],
+            location: None,
         }));
 
         let v: Value = serde_json::from_str(&doc.export_to_json()).unwrap();

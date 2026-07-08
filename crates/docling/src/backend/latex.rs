@@ -288,7 +288,10 @@ fn emit_table(inner: &str, doc: &mut DoclingDocument) {
         );
     }
     if !rows.is_empty() {
-        doc.push(Node::Table(Table { rows }));
+        doc.push(Node::Table(Table {
+            rows,
+            location: None,
+        }));
     }
 }
 

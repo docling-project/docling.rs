@@ -276,7 +276,10 @@ fn parse_table(tbl: XmlNode) -> Option<Table> {
             }
         }
     }
-    Some(Table { rows: grid })
+    Some(Table {
+        rows: grid,
+        location: None,
+    })
 }
 
 /// A table cell's text: its paragraphs joined with newlines, then trimmed

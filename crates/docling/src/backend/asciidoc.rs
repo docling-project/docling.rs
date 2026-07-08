@@ -228,7 +228,10 @@ impl Parser {
                     r
                 })
                 .collect();
-            doc.push(Node::Table(Table { rows }));
+            doc.push(Node::Table(Table {
+                rows,
+                location: None,
+            }));
         }
         self.in_table = false;
         self.table_data.clear();

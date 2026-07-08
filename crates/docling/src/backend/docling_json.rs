@@ -204,7 +204,10 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
         }
     }
     if !rows.is_empty() {
-        doc.push(Node::Table(Table { rows }));
+        doc.push(Node::Table(Table {
+            rows,
+            location: None,
+        }));
     }
     push_captions(item, root, doc);
 }

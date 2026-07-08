@@ -38,7 +38,10 @@ impl DeclarativeBackend for CsvBackend {
             for row in &mut rows {
                 row.resize(num_cols, String::new());
             }
-            doc.push(Node::Table(Table { rows }));
+            doc.push(Node::Table(Table {
+                rows,
+                location: None,
+            }));
         }
         Ok(doc)
     }
