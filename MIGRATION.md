@@ -276,7 +276,10 @@ Experimental (in-repo, unpublished):
   outside the Cargo workspace and the crates.io publish flow.
 
 Planned:
-
+- rename repo and docs to "docling.rs", leave meat grinder image as mascott
+- generate nice meat grinder SVG logo
+- Conformace against .dclx formats
+- DocklingDocument as pure Python with Rust internals
 - **C++** bindings.
   
 ## 7. Testing
