@@ -17,7 +17,7 @@
 
 use std::collections::HashMap;
 
-use docling_core::{DoclingDocument, Node, PictureImage, Table};
+use docling_core::{DoclingDocument, InlineRun, Node, PictureImage, Script, Table};
 use roxmltree::{Document, Node as XmlNode};
 
 use crate::backend::markdown::escape_text;
@@ -361,7 +361,14 @@ fn handle_paragraph_inner(
                 doc.push(Node::Paragraph { text: seg });
             }
         } else {
-            doc.push(Node::Paragraph { text });
+            // A body paragraph with inline formatting becomes an InlineGroup so
+            // DocLang carries the structure; Markdown/JSON still see `text`. The
+            // docx body is flat (docling parents these on the body group), so the
+            // group is always wrapped.
+            let mut tuples = Vec::new();
+            collect_run_tuples(p, Fmt::default(), None, ctx, &mut tuples);
+            let runs = run_inline_runs(tuples);
+            doc.push(docling_core::inline_paragraph_node(text, runs, false));
         }
     }
 }
@@ -485,10 +492,12 @@ fn clean_checkbox_symbols(text: &str) -> String {
     t.to_string()
 }
 
-/// One serialized Markdown segment per format group (consecutive same-format
-/// runs concatenated, stripped, wrapped in markers) — docling's
-/// `_get_paragraph_elements`.
-fn run_segments(runs: Vec<(String, Fmt, Option<String>)>) -> Vec<String> {
+/// Group a paragraph's runs the docling way: consecutive runs with the *same*
+/// formatting are concatenated (and stripped) into one `(text, format, link)`
+/// group; a hyperlink always starts its own group. This is docling's
+/// `_get_paragraph_elements` segmentation, shared by the Markdown and the
+/// structured-run builders so both see the same text items.
+fn run_groups(runs: Vec<(String, Fmt, Option<String>)>) -> Vec<(String, Fmt, Option<String>)> {
     let mut groups: Vec<(String, Fmt, Option<String>)> = Vec::new();
     let mut group_text = String::new();
     let mut previous_format: Option<Fmt> = None;
@@ -516,9 +525,27 @@ fn run_segments(runs: Vec<(String, Fmt, Option<String>)>) -> Vec<String> {
         groups.push((group_text.trim().to_string(), last_format, None));
     }
     groups
+}
+
+/// One serialized Markdown segment per format group — docling's
+/// `_get_paragraph_elements`.
+fn run_segments(runs: Vec<(String, Fmt, Option<String>)>) -> Vec<String> {
+    run_groups(runs)
         .iter()
         .map(|(t, f, l)| serialize_run(t, *f, l.as_deref()))
         .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// The structured [`InlineRun`]s for a body paragraph — one per format group,
+/// carrying the formatting DocLang needs (including underline/sub/superscript,
+/// which have no Markdown marker). The hyperlink is dropped (DocLang inline
+/// scope keeps only the anchor text).
+fn run_inline_runs(runs: Vec<(String, Fmt, Option<String>)>) -> Vec<InlineRun> {
+    run_groups(runs)
+        .into_iter()
+        .filter(|(t, _, _)| !t.is_empty())
+        .map(|(t, f, _)| f.to_inline_run(&t))
         .collect()
 }
 
@@ -650,6 +677,25 @@ struct Fmt {
     underline: bool,
     /// 0 = baseline, 1 = subscript, 2 = superscript.
     script: u8,
+}
+
+impl Fmt {
+    /// The structured [`InlineRun`] for a text segment under this formatting.
+    fn to_inline_run(self, text: &str) -> InlineRun {
+        InlineRun {
+            text: text.to_string(),
+            bold: self.bold,
+            italic: self.italic,
+            underline: self.underline,
+            strike: self.strike,
+            script: match self.script {
+                1 => Script::Sub,
+                2 => Script::Super,
+                _ => Script::Baseline,
+            },
+            code: false,
+        }
+    }
 }
 
 /// Flatten a node's runs to `(raw text, format, hyperlink url)` tuples. A

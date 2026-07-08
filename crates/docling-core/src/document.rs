@@ -126,6 +126,30 @@ impl InlineRun {
     }
 }
 
+/// Build the [`Node`] for a paragraph of inline content from its structured
+/// `runs` and Markdown text, applying docling's `InlineGroup` boundary:
+///
+/// * a single plain run (or none) → a plain [`Node::Paragraph`] (which the
+///   serializers render as `<text>…</text>`, and a lone hyperlink via `<href>`);
+/// * a single uniformly-formatted run, or two or more runs → a
+///   [`Node::InlineGroup`]. `unwrapped` (the group's docling parent is a
+///   heading, so no enclosing `<text>`) only applies to multi-run groups.
+///
+/// Markdown/JSON render the group's `md_text`, so their output is identical to
+/// emitting a `Paragraph` — the structured runs are DocLang-only.
+pub fn inline_paragraph_node(md_text: String, runs: Vec<InlineRun>, unwrapped: bool) -> Node {
+    let single_plain = runs.len() <= 1 && runs.first().map_or(true, |r| r.is_plain());
+    if single_plain {
+        Node::Paragraph { text: md_text }
+    } else {
+        Node::InlineGroup {
+            unwrapped: unwrapped && runs.len() >= 2,
+            runs,
+            md_text,
+        }
+    }
+}
+
 /// One entry of a [`Node::FieldRegion`]: a marker/key/value triple, any of which
 /// may be absent. Mirrors docling's `field_item` with its `marker` / `field_key`
 /// / `field_value` child texts.

@@ -236,24 +236,11 @@ fn push_inline_paragraph(nodes: &mut Vec<Node>, text: String, runs: Vec<InlineRu
     if text.is_empty() {
         return;
     }
-    // docling only forms an `InlineGroup` when a paragraph has inline structure:
-    //   * two or more segments (formatting/link boundaries) — unwrapped once a
-    //     body heading precedes it (its docling parent becomes that heading);
-    //   * a single uniformly-formatted segment — a wrapped `<text>` element.
-    // A single plain segment (or a lone hyperlink) stays a plain text item,
-    // which the existing `Paragraph` path renders as `<text>…</text>` (and a
-    // lone link via an `<href>` head).
-    let single_plain = runs.len() <= 1 && runs.first().map_or(true, |r| r.is_plain());
-    if single_plain {
-        nodes.push(Node::Paragraph { text });
-        return;
-    }
-    let unwrapped = runs.len() >= 2 && nodes.iter().any(|n| matches!(n, Node::Heading { .. }));
-    nodes.push(Node::InlineGroup {
-        unwrapped,
-        runs,
-        md_text: text,
-    });
+    // In docling's HTML backend loose content is nested under the current
+    // heading, so its `InlineGroup` serializes unwrapped once a body heading has
+    // been emitted; before the first heading it sits in the body group (wrapped).
+    let unwrapped = nodes.iter().any(|n| matches!(n, Node::Heading { .. }));
+    nodes.push(docling_core::inline_paragraph_node(text, runs, unwrapped));
 }
 
 fn handle_block(
