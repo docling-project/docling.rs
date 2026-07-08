@@ -17,6 +17,6 @@ mod json;
 mod labels;
 mod markdown;
 
-pub use document::{DoclingDocument, FieldItem, Node, PictureImage, Table};
+pub use document::{DoclingDocument, FieldItem, InlineRun, Node, PictureImage, Script, Table};
 pub use labels::DocItemLabel;
 pub use markdown::{ImageMode, MarkdownStreamer};

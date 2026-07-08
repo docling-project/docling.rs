@@ -15,7 +15,7 @@
 //! docling-legacy Markdown markers; [`inline_runs`] re-parses those into the
 //! structural `<bold>`/`<italic>`/`<code>` elements DocLang expects.
 
-use crate::document::{FieldItem, Node, Table};
+use crate::document::{FieldItem, InlineRun, Node, Script, Table};
 
 const INDENT: &str = "  ";
 
@@ -449,6 +449,136 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
                 emit_field_region(out, depth, items);
                 *i += 1;
             }
+            Node::InlineGroup {
+                unwrapped, runs, ..
+            } => {
+                emit_inline_group(out, depth, *unwrapped, runs);
+                *i += 1;
+            }
+            Node::Furniture(inner) => {
+                emit_furniture(out, depth, inner);
+                *i += 1;
+            }
+        }
+    }
+}
+
+/// Render a [`Node::InlineGroup`] — docling's `InlineGroup`. Reproduces the
+/// reference's `minidom.toprettyxml` layout, which is fully determined by how
+/// `writexml` writes text nodes (`indent + data + newl`) once the runs are
+/// joined by the `"\n"` record delimiter and the empty-line filter runs:
+///
+/// * A styled run becomes a nested element (`<italic><bold>…`) via
+///   [`emit_styled`]; leaf elements inline, multi-layer ones in block form.
+/// * A plain run is a bare text node. Its `"\n"`-delimited leading newline
+///   pushes it to column 0 — except the *first* child of a `<text>` wrapper,
+///   which has no leading newline and stays indented.
+/// * `unwrapped` groups (docling parent is a heading/text) carry no `<text>`;
+///   an all-plain wrapped group collapses to a single inline text node with a
+///   trailing newline before `</text>`.
+fn emit_inline_group(out: &mut Out, depth: i32, unwrapped: bool, runs: &[InlineRun]) {
+    let has_styled = runs.iter().any(|r| !r.is_plain());
+
+    if unwrapped {
+        for run in runs {
+            if run.is_plain() {
+                out.push(0, escape_text(&run.text));
+            } else {
+                emit_styled(out, depth, &style_tags(run), &escape_text(&run.text));
+            }
+        }
+        return;
+    }
+
+    // Wrapped: an all-plain group is a single text node — inline form, runs
+    // joined by "\n" with the serializer's trailing "\n" before `</text>`.
+    if !has_styled {
+        let joined = runs
+            .iter()
+            .map(|r| escape_text(&r.text))
+            .collect::<Vec<_>>()
+            .join("\n");
+        out.push(depth, format!("<text>{joined}\n</text>"));
+        return;
+    }
+
+    out.push(depth, "<text>".to_string());
+    for (i, run) in runs.iter().enumerate() {
+        if run.is_plain() {
+            // First child has no leading newline → indented; the rest sit at 0.
+            let d = if i == 0 { depth + 1 } else { 0 };
+            out.push(d, escape_text(&run.text));
+        } else {
+            emit_styled(out, depth + 1, &style_tags(run), &escape_text(&run.text));
+        }
+    }
+    out.push(depth, "</text>".to_string());
+}
+
+/// The DocLang wrapping tags for a run, outermost first. docling applies
+/// formatting in the order bold → italic → underline → strikethrough → script,
+/// each wrapping the previous result, so the *last* applied is the outermost.
+fn style_tags(run: &InlineRun) -> Vec<&'static str> {
+    let mut tags = Vec::new();
+    match run.script {
+        Script::Sub => tags.push("subscript"),
+        Script::Super => tags.push("superscript"),
+        Script::Baseline => {}
+    }
+    if run.strike {
+        tags.push("strikethrough");
+    }
+    if run.underline {
+        tags.push("underline");
+    }
+    if run.italic {
+        tags.push("italic");
+    }
+    if run.bold {
+        tags.push("bold");
+    }
+    if run.code {
+        tags.push("code");
+    }
+    tags
+}
+
+/// Emit a linear chain of wrapping `tags` (outer→inner) around `inner` text. A
+/// single tag renders inline (`<bold>x</bold>`); nested tags render block-form,
+/// the innermost (a text child) inline — matching minidom's single-text-child
+/// rule at each level.
+fn emit_styled(out: &mut Out, depth: i32, tags: &[&str], inner: &str) {
+    match tags {
+        [] => emit_text_node(out, depth, inner),
+        [tag] => out.push(depth, format!("<{tag}>{inner}</{tag}>")),
+        [tag, rest @ ..] => {
+            out.push(depth, format!("<{tag}>"));
+            emit_styled(out, depth + 1, rest, inner);
+            out.push(depth, format!("</{tag}>"));
+        }
+    }
+}
+
+/// Render a [`Node::Furniture`] wrapper: the inner element with a
+/// `<layer value="furniture"/>` head (which forces the block form). Only the
+/// heading case (the HTML `<title>`) is emitted today; other furniture nodes
+/// fall back to their body rendering.
+fn emit_furniture(out: &mut Out, depth: i32, inner: &Node) {
+    match inner {
+        Node::Heading { level, text } => {
+            let open = if *level <= 1 {
+                "heading".to_string()
+            } else {
+                format!("heading level=\"{level}\"")
+            };
+            out.push(depth, format!("<{open}>"));
+            out.push(depth + 1, "<layer value=\"furniture\"/>".to_string());
+            out.push(depth + 1, escape_text(text));
+            out.push(depth, "</heading>".to_string());
+        }
+        other => {
+            let mut i = 0usize;
+            emit_nodes(out, depth, std::slice::from_ref(other), &mut i, 0);
         }
     }
 }
@@ -517,6 +647,101 @@ mod tests {
         );
         // Aliased label: bash -> Shell.
         assert!(code(Some("bash"), "ls -la").contains("<label value=\"Shell\"/>"));
+    }
+
+    fn plain(text: &str) -> InlineRun {
+        InlineRun {
+            text: text.into(),
+            ..Default::default()
+        }
+    }
+    fn bold(text: &str) -> InlineRun {
+        InlineRun {
+            text: text.into(),
+            bold: true,
+            ..Default::default()
+        }
+    }
+    fn ig(unwrapped: bool, runs: Vec<InlineRun>) -> String {
+        let body = export_to_doclang(&[Node::InlineGroup {
+            unwrapped,
+            runs,
+            md_text: String::new(),
+        }]);
+        // strip the <doclang> envelope for readable assertions
+        body.trim_start_matches("<doclang version=\"0.7\">\n")
+            .trim_end_matches("\n</doclang>")
+            .to_string()
+    }
+
+    #[test]
+    fn inline_group_matches_reference_layout() {
+        // wrapped, mixed: first text indented, post-element text at col 0.
+        assert_eq!(
+            ig(
+                false,
+                vec![plain("This is a"), bold("bold"), plain("example")]
+            ),
+            "  <text>\n    This is a\n    <bold>bold</bold>\nexample\n  </text>"
+        );
+        // unwrapped, mixed: text at col 0, elements at depth 1.
+        assert_eq!(
+            ig(
+                true,
+                vec![
+                    plain("aa"),
+                    bold("bb"),
+                    plain("cc"),
+                    bold("dd"),
+                    plain("ee")
+                ]
+            ),
+            "aa\n  <bold>bb</bold>\ncc\n  <bold>dd</bold>\nee"
+        );
+        // wrapped, all-plain: single text node with trailing newline.
+        assert_eq!(
+            ig(false, vec![plain("aa"), plain("bb")]),
+            "  <text>aa\nbb\n</text>"
+        );
+        assert_eq!(ig(false, vec![plain("aa")]), "  <text>aa\n</text>");
+        // wrapped, single element.
+        assert_eq!(
+            ig(false, vec![bold("bb")]),
+            "  <text>\n    <bold>bb</bold>\n  </text>"
+        );
+    }
+
+    #[test]
+    fn nested_styles_wrap_outermost_last_applied() {
+        let bi = InlineRun {
+            text: "bi".into(),
+            bold: true,
+            italic: true,
+            ..Default::default()
+        };
+        // italic (applied after bold) is outermost; block form.
+        assert_eq!(
+            ig(true, vec![bi]),
+            "  <italic>\n    <bold>bi</bold>\n  </italic>"
+        );
+        let sub = InlineRun {
+            text: "2".into(),
+            script: Script::Sub,
+            ..Default::default()
+        };
+        assert_eq!(ig(true, vec![sub]), "  <subscript>2</subscript>");
+    }
+
+    #[test]
+    fn furniture_heading_gets_layer_head() {
+        let out = export_to_doclang(&[Node::Furniture(Box::new(Node::Heading {
+            level: 1,
+            text: "Anchor Links Test".into(),
+        }))]);
+        assert_eq!(
+            out,
+            "<doclang version=\"0.7\">\n  <heading>\n    <layer value=\"furniture\"/>\n    Anchor Links Test\n  </heading>\n</doclang>"
+        );
     }
 
     #[test]

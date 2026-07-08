@@ -359,6 +359,12 @@ fn render_one(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
                 }
             }
         }
+        // A rich inline group renders exactly like a paragraph of its Markdown
+        // text — the structured runs are DocLang-only.
+        Node::InlineGroup { md_text, .. } => blocks.push(strict_text(md_text, ctx.strict)),
+        // Furniture (page headers/footers, HTML `<title>`) is excluded from
+        // Markdown by default, mirroring docling.
+        Node::Furniture(_) => {}
         // Handled by the run-merging branch in `render`.
         Node::ListItem { .. } => unreachable!("list items are rendered in runs"),
     }

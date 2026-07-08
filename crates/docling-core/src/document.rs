@@ -71,6 +71,59 @@ pub enum Node {
     /// `id`-convention); the serializers render each item's parts as separate
     /// labelled texts (`marker` / `field_key` / `field_value`).
     FieldRegion { items: Vec<FieldItem> },
+    /// Rich inline content — docling's `InlineGroup`: a run of styled text
+    /// segments that a backend captured with formatting (`<bold>`, `<italic>`,
+    /// `<underline>`, `<strikethrough>`, sub/superscript, inline `<code>`) the
+    /// flat Markdown text cannot represent. Markdown/JSON render this exactly
+    /// like `Paragraph { text: md_text }` (so their output is unchanged); the
+    /// DocLang serializer uses the structured `runs`. `unwrapped` is set when the
+    /// group's docling parent is a heading/text (no enclosing `<text>` wrapper).
+    InlineGroup {
+        unwrapped: bool,
+        runs: Vec<InlineRun>,
+        md_text: String,
+    },
+    /// A node in docling's `furniture` content layer (page headers/footers, the
+    /// HTML `<title>`, …). Markdown and JSON omit furniture by default; DocLang
+    /// renders the wrapped node with a `<layer value="furniture"/>` head.
+    Furniture(Box<Node>),
+}
+
+/// Vertical text position of an [`InlineRun`] — docling's `Script`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Script {
+    #[default]
+    Baseline,
+    Sub,
+    Super,
+}
+
+/// One styled segment of a [`Node::InlineGroup`] — the docling.rs analogue of a
+/// `TextItem` inside an `InlineGroup`, carrying the ancestor formatting docling
+/// tracks. `text` is already whitespace-normalized/trimmed (one segment per
+/// source text node). A hyperlink is intentionally not stored: DocLang drops the
+/// target inside inline scope, keeping only the anchor text.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct InlineRun {
+    pub text: String,
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+    pub strike: bool,
+    pub script: Script,
+    pub code: bool,
+}
+
+impl InlineRun {
+    /// A run with no active formatting (renders as bare inline text).
+    pub fn is_plain(&self) -> bool {
+        !self.bold
+            && !self.italic
+            && !self.underline
+            && !self.strike
+            && !self.code
+            && self.script == Script::Baseline
+    }
 }
 
 /// One entry of a [`Node::FieldRegion`]: a marker/key/value triple, any of which

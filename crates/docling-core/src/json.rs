@@ -184,6 +184,13 @@ impl Builder {
             }
             Node::Group { label, children } => Some(self.add_group(label, children, parent)),
             Node::FieldRegion { items } => Some(self.add_field_region(items, parent)),
+            // A rich inline group is a text item over its Markdown text; the
+            // structured runs are DocLang-only, so the JSON matches a paragraph.
+            Node::InlineGroup { md_text, .. } => {
+                Some(self.add_text("text", md_text, parent, json!({})))
+            }
+            // Furniture is not emitted into the body/JSON (DocLang-only layer).
+            Node::Furniture(_) => None,
             // Handled by `add_list` in `walk`.
             Node::ListItem { .. } => None,
         }
