@@ -1,0 +1,752 @@
+//! Node.js / Bun bindings for docling.rs, via napi-rs.
+//!
+//! The surface mirrors the Rust `DocumentConverter`: convert a file (or
+//! in-memory bytes) to Markdown or docling-core JSON, with the same options —
+//! strict Markdown, picture image modes, allowed-format restriction, external
+//! `<img>` fetching — plus incremental Markdown streaming. Everything here is
+//! thin glue; the conversion logic lives in the `docling.rs` crate.
+//!
+//! Two ways to call it:
+//! - the module-level [`convert_file`] / [`convert`] (+ their `*_async`
+//!   variants), for one-shot use;
+//! - the [`DocumentConverter`] class, which holds converter config so it can be
+//!   reused across many documents.
+
+use std::cell::RefCell;
+
+use napi::bindgen_prelude::*;
+use napi::threadsafe_function::{ErrorStrategy, ThreadsafeFunction, ThreadsafeFunctionCallMode};
+use napi_derive::napi;
+
+use docling::{
+    ConversionStatus, DoclingDocument, DocumentConverter as RsConverter, ImageMode, InputFormat,
+    Pipeline as RsPipeline, SourceDocument,
+};
+
+// ---------------------------------------------------------------------------
+// Options / result shapes exposed to TypeScript.
+// ---------------------------------------------------------------------------
+
+/// Config for a reusable [`DocumentConverter`].
+#[napi(object)]
+#[derive(Clone, Default)]
+pub struct ConverterOptions {
+    /// Emit cleaner, more conformant Markdown (code-fence languages preserved,
+    /// no inline-run spacing artifacts) instead of docling's byte-for-byte
+    /// legacy output. Markdown only. Default `false`.
+    pub strict: Option<bool>,
+    /// For HTML/EPUB, resolve external `<img src>` (data: URIs, local files,
+    /// http(s) URLs, EPUB entries) and embed the bytes. Off by default; when on,
+    /// http(s) URLs are fetched over the network — enable only for trusted input.
+    pub fetch_images: Option<bool>,
+    /// Restrict the converter to these formats (ids like `"md"`, `"pdf"`, or
+    /// extensions like `".html"`); anything else is rejected. Default: accept all.
+    pub allowed_formats: Option<Vec<String>>,
+}
+
+/// Per-call output options (how to render the converted document).
+#[napi(object)]
+#[derive(Clone, Default)]
+pub struct OutputOptions {
+    /// `"markdown"` (default) or `"json"` (docling-core DoclingDocument wire format).
+    pub to: Option<String>,
+    /// Picture handling for Markdown: `"placeholder"` (default), `"embedded"`
+    /// (base64 data URIs inline), or `"referenced"` (returns image files in
+    /// `images`). Ignored for JSON, which always embeds images as data URIs.
+    pub image_mode: Option<String>,
+    /// Directory name used in `referenced` image links. Default `"artifacts"`.
+    pub artifacts_dir: Option<String>,
+}
+
+/// All options for the one-shot module-level functions (converter config +
+/// output options in a single object).
+#[napi(object)]
+#[derive(Clone, Default)]
+pub struct ConvertOptions {
+    pub strict: Option<bool>,
+    pub fetch_images: Option<bool>,
+    pub allowed_formats: Option<Vec<String>>,
+    pub to: Option<String>,
+    pub image_mode: Option<String>,
+    pub artifacts_dir: Option<String>,
+}
+
+/// In-memory input for [`DocumentConverter::convert`] / [`convert`].
+#[napi(object)]
+pub struct ConvertInput {
+    /// Logical document name (used as the docling document name).
+    pub name: String,
+    /// Raw file bytes.
+    pub data: Buffer,
+    /// Format id or extension (e.g. `"md"`, `"pdf"`, `".html"`). Omit to infer
+    /// from an extension on `name`.
+    pub format: Option<String>,
+}
+
+/// One extracted image file, returned for the `referenced` image mode.
+#[napi(object)]
+pub struct ImageArtifact {
+    /// Path relative to the Markdown file (e.g. `"artifacts/image_000000.png"`).
+    pub path: String,
+    /// The image bytes to write at `path`.
+    pub data: Buffer,
+}
+
+/// The result of a conversion.
+#[napi(object)]
+pub struct ConvertResult {
+    /// The rendered document: Markdown or JSON, per `to`.
+    pub content: String,
+    /// Detected input format id (e.g. `"md"`, `"pdf"`).
+    pub format: String,
+    /// `"success"`, `"partial_success"`, or `"failure"`.
+    pub status: String,
+    /// The document name.
+    pub input_name: String,
+    /// For the `referenced` image mode, the image files to write next to the
+    /// Markdown; empty otherwise.
+    pub images: Vec<ImageArtifact>,
+}
+
+// ---------------------------------------------------------------------------
+// Internal, Send-safe conversion plumbing (shared by sync, async, streaming).
+// ---------------------------------------------------------------------------
+
+/// Fully-resolved conversion config, free of any napi/JS types so it can move
+/// onto a worker thread for the async and streaming paths.
+struct ConvertConfig {
+    strict: bool,
+    fetch_images: bool,
+    allowed_formats: Option<Vec<InputFormat>>,
+    to: OutputKind,
+    image_mode: ImageMode,
+    artifacts_dir: String,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum OutputKind {
+    Markdown,
+    Json,
+}
+
+/// A Send-safe conversion result (raw bytes, no `Buffer`), so it can be produced
+/// off the JS thread and turned into a [`ConvertResult`] on resolve. Public only
+/// because it is the `Output` of the public [`Task`] impls; not exposed to JS.
+#[doc(hidden)]
+pub struct RawResult {
+    content: String,
+    format: String,
+    status: String,
+    input_name: String,
+    images: Vec<(String, Vec<u8>)>,
+}
+
+impl RawResult {
+    fn into_js(self) -> ConvertResult {
+        ConvertResult {
+            content: self.content,
+            format: self.format,
+            status: self.status,
+            input_name: self.input_name,
+            images: self
+                .images
+                .into_iter()
+                .map(|(path, data)| ImageArtifact {
+                    path,
+                    data: data.into(),
+                })
+                .collect(),
+        }
+    }
+}
+
+fn build_config(
+    strict: Option<bool>,
+    fetch_images: Option<bool>,
+    allowed_formats: Option<Vec<String>>,
+    to: Option<String>,
+    image_mode: Option<String>,
+    artifacts_dir: Option<String>,
+) -> Result<ConvertConfig> {
+    let allowed = match allowed_formats {
+        Some(list) => Some(
+            list.iter()
+                .map(|s| parse_format(s))
+                .collect::<Result<Vec<_>>>()?,
+        ),
+        None => None,
+    };
+    Ok(ConvertConfig {
+        strict: strict.unwrap_or(false),
+        fetch_images: fetch_images.unwrap_or(false),
+        allowed_formats: allowed,
+        to: parse_output_kind(to.as_deref())?,
+        image_mode: parse_image_mode(image_mode.as_deref())?,
+        artifacts_dir: artifacts_dir.unwrap_or_else(|| "artifacts".to_string()),
+    })
+}
+
+fn build_converter(cfg: &ConvertConfig) -> RsConverter {
+    let base = match &cfg.allowed_formats {
+        Some(list) => RsConverter::with_allowed_formats(list.iter().copied()),
+        None => RsConverter::new(),
+    };
+    base.strict(cfg.strict).fetch_images(cfg.fetch_images)
+}
+
+/// Render an already-converted document to Markdown/JSON per the config. The
+/// document's `strict_markdown` is assumed already set by whoever produced it.
+fn render_doc(
+    doc: DoclingDocument,
+    cfg: &ConvertConfig,
+    input_name: String,
+    format: String,
+    status: String,
+) -> RawResult {
+    let (content, images) = match cfg.to {
+        OutputKind::Json => (doc.export_to_json(), Vec::new()),
+        OutputKind::Markdown => match cfg.image_mode {
+            ImageMode::Placeholder => (doc.export_to_markdown(), Vec::new()),
+            mode => doc.export_to_markdown_with_images(mode, &cfg.artifacts_dir),
+        },
+    };
+    RawResult {
+        content,
+        format,
+        status,
+        input_name,
+        images,
+    }
+}
+
+/// Run a buffered conversion and render it per the config. Runs off the JS
+/// thread for the async path, so it must stay free of napi/JS types.
+fn run_convert(source: SourceDocument, cfg: &ConvertConfig) -> Result<RawResult> {
+    let converter = build_converter(cfg);
+    let result = converter.convert(source).map_err(convert_err)?;
+    let format = result.format.as_str().to_string();
+    let status = status_str(result.status);
+    Ok(render_doc(
+        result.document,
+        cfg,
+        result.input_name,
+        format,
+        status,
+    ))
+}
+
+/// Load a [`SourceDocument`] from an in-memory [`ConvertInput`].
+fn source_from_input(input: ConvertInput) -> Result<SourceDocument> {
+    let format = match &input.format {
+        Some(f) => parse_format(f)?,
+        None => infer_format(&input.name).ok_or_else(|| {
+            Error::new(
+                Status::InvalidArg,
+                format!(
+                    "could not infer a format from name '{}'; pass `format` explicitly",
+                    input.name
+                ),
+            )
+        })?,
+    };
+    Ok(SourceDocument::from_bytes(
+        input.name,
+        format,
+        input.data.to_vec(),
+    ))
+}
+
+// ---------------------------------------------------------------------------
+// Module-level one-shot API.
+// ---------------------------------------------------------------------------
+
+/// Convert a file on disk. Detects the format from the extension and (for
+/// HTML/EPUB image fetching) resolves relative `<img src>` against the file's
+/// directory.
+#[napi]
+pub fn convert_file(path: String, options: Option<ConvertOptions>) -> Result<ConvertResult> {
+    let o = options.unwrap_or_default();
+    let cfg = build_config(
+        o.strict,
+        o.fetch_images,
+        o.allowed_formats,
+        o.to,
+        o.image_mode,
+        o.artifacts_dir,
+    )?;
+    let source = SourceDocument::from_file(&path).map_err(convert_err)?;
+    Ok(run_convert(source, &cfg)?.into_js())
+}
+
+/// Convert in-memory bytes.
+#[napi]
+pub fn convert(input: ConvertInput, options: Option<ConvertOptions>) -> Result<ConvertResult> {
+    let o = options.unwrap_or_default();
+    let cfg = build_config(
+        o.strict,
+        o.fetch_images,
+        o.allowed_formats,
+        o.to,
+        o.image_mode,
+        o.artifacts_dir,
+    )?;
+    let source = source_from_input(input)?;
+    Ok(run_convert(source, &cfg)?.into_js())
+}
+
+/// Async (Promise-returning) [`convert_file`]. The CPU-bound work runs on the
+/// libuv thread pool, keeping the event loop free — use this for PDF/image.
+#[napi(ts_return_type = "Promise<ConvertResult>")]
+pub fn convert_file_async(
+    path: String,
+    options: Option<ConvertOptions>,
+) -> Result<AsyncTask<ConvertFileTask>> {
+    let o = options.unwrap_or_default();
+    let cfg = build_config(
+        o.strict,
+        o.fetch_images,
+        o.allowed_formats,
+        o.to,
+        o.image_mode,
+        o.artifacts_dir,
+    )?;
+    Ok(AsyncTask::new(ConvertFileTask { path, cfg }))
+}
+
+/// Async (Promise-returning) [`convert`].
+#[napi(ts_return_type = "Promise<ConvertResult>")]
+pub fn convert_async(
+    input: ConvertInput,
+    options: Option<ConvertOptions>,
+) -> Result<AsyncTask<ConvertBytesTask>> {
+    let o = options.unwrap_or_default();
+    let cfg = build_config(
+        o.strict,
+        o.fetch_images,
+        o.allowed_formats,
+        o.to,
+        o.image_mode,
+        o.artifacts_dir,
+    )?;
+    let source = source_from_input(input)?;
+    Ok(AsyncTask::new(ConvertBytesTask {
+        source: Some(source),
+        cfg,
+    }))
+}
+
+pub struct ConvertFileTask {
+    path: String,
+    cfg: ConvertConfig,
+}
+
+impl Task for ConvertFileTask {
+    type Output = RawResult;
+    type JsValue = ConvertResult;
+
+    fn compute(&mut self) -> Result<RawResult> {
+        let source = SourceDocument::from_file(&self.path).map_err(convert_err)?;
+        run_convert(source, &self.cfg)
+    }
+
+    fn resolve(&mut self, _env: Env, output: RawResult) -> Result<ConvertResult> {
+        Ok(output.into_js())
+    }
+}
+
+pub struct ConvertBytesTask {
+    // `Option` so `compute` can take ownership of the (non-Copy) source.
+    source: Option<SourceDocument>,
+    cfg: ConvertConfig,
+}
+
+impl Task for ConvertBytesTask {
+    type Output = RawResult;
+    type JsValue = ConvertResult;
+
+    fn compute(&mut self) -> Result<RawResult> {
+        let source = self
+            .source
+            .take()
+            .ok_or_else(|| Error::new(Status::GenericFailure, "conversion task reused"))?;
+        run_convert(source, &self.cfg)
+    }
+
+    fn resolve(&mut self, _env: Env, output: RawResult) -> Result<ConvertResult> {
+        Ok(output.into_js())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Reusable converter class.
+// ---------------------------------------------------------------------------
+
+/// A reusable converter. Holds config (strict / fetch-images / allowed formats)
+/// so you can convert many documents without re-parsing options each time —
+/// the analogue of the Rust `DocumentConverter`.
+#[napi]
+pub struct DocumentConverter {
+    strict: bool,
+    fetch_images: bool,
+    allowed_formats: Option<Vec<InputFormat>>,
+}
+
+#[napi]
+impl DocumentConverter {
+    #[napi(constructor)]
+    pub fn new(options: Option<ConverterOptions>) -> Result<Self> {
+        let o = options.unwrap_or_default();
+        let allowed = match o.allowed_formats {
+            Some(list) => Some(
+                list.iter()
+                    .map(|s| parse_format(s))
+                    .collect::<Result<Vec<_>>>()?,
+            ),
+            None => None,
+        };
+        Ok(Self {
+            strict: o.strict.unwrap_or(false),
+            fetch_images: o.fetch_images.unwrap_or(false),
+            allowed_formats: allowed,
+        })
+    }
+
+    fn config(&self, out: Option<OutputOptions>) -> Result<ConvertConfig> {
+        let out = out.unwrap_or_default();
+        Ok(ConvertConfig {
+            strict: self.strict,
+            fetch_images: self.fetch_images,
+            allowed_formats: self.allowed_formats.clone(),
+            to: parse_output_kind(out.to.as_deref())?,
+            image_mode: parse_image_mode(out.image_mode.as_deref())?,
+            artifacts_dir: out.artifacts_dir.unwrap_or_else(|| "artifacts".to_string()),
+        })
+    }
+
+    /// Convert a file on disk (sync).
+    #[napi]
+    pub fn convert_file(
+        &self,
+        path: String,
+        options: Option<OutputOptions>,
+    ) -> Result<ConvertResult> {
+        let cfg = self.config(options)?;
+        let source = SourceDocument::from_file(&path).map_err(convert_err)?;
+        Ok(run_convert(source, &cfg)?.into_js())
+    }
+
+    /// Convert in-memory bytes (sync).
+    #[napi]
+    pub fn convert(
+        &self,
+        input: ConvertInput,
+        options: Option<OutputOptions>,
+    ) -> Result<ConvertResult> {
+        let cfg = self.config(options)?;
+        let source = source_from_input(input)?;
+        Ok(run_convert(source, &cfg)?.into_js())
+    }
+
+    /// Async (Promise-returning) file conversion (runs off the event loop).
+    #[napi(ts_return_type = "Promise<ConvertResult>")]
+    pub fn convert_file_async(
+        &self,
+        path: String,
+        options: Option<OutputOptions>,
+    ) -> Result<AsyncTask<ConvertFileTask>> {
+        let cfg = self.config(options)?;
+        Ok(AsyncTask::new(ConvertFileTask { path, cfg }))
+    }
+
+    /// Async (Promise-returning) bytes conversion (runs off the event loop).
+    #[napi(ts_return_type = "Promise<ConvertResult>")]
+    pub fn convert_async(
+        &self,
+        input: ConvertInput,
+        options: Option<OutputOptions>,
+    ) -> Result<AsyncTask<ConvertBytesTask>> {
+        let cfg = self.config(options)?;
+        let source = source_from_input(input)?;
+        Ok(AsyncTask::new(ConvertBytesTask {
+            source: Some(source),
+            cfg,
+        }))
+    }
+
+    /// Stream a file's Markdown in chunks, in document order, as conversion
+    /// progresses (the headline win for PDF, whose pages convert in parallel).
+    ///
+    /// `callback` is invoked as `(err, chunk)`: once per Markdown chunk with
+    /// `chunk` a string, once with `chunk === null` at the end, or once with a
+    /// non-null `err` on failure. Only `placeholder` / `embedded` image modes
+    /// stream; `referenced` is rejected. Prefer the `streamFileMarkdown`
+    /// async-generator wrapper in JS over calling this directly.
+    #[napi]
+    pub fn convert_file_streaming(
+        &self,
+        path: String,
+        callback: ThreadsafeFunction<Option<String>, ErrorStrategy::CalleeHandled>,
+        options: Option<OutputOptions>,
+    ) -> Result<()> {
+        let cfg = self.config(options)?;
+        let converter = build_converter(&cfg);
+        let image_mode = cfg.image_mode;
+        // The background conversion thread owns the stream and pushes each chunk
+        // through the threadsafe function (which marshals back to the JS loop).
+        std::thread::spawn(move || {
+            let source = match SourceDocument::from_file(&path).map_err(convert_err) {
+                Ok(s) => s,
+                Err(e) => {
+                    callback.call(Err(e), ThreadsafeFunctionCallMode::NonBlocking);
+                    return;
+                }
+            };
+            let stream = match converter.convert_streaming_images(source, image_mode) {
+                Ok(s) => s,
+                Err(e) => {
+                    callback.call(Err(convert_err(e)), ThreadsafeFunctionCallMode::NonBlocking);
+                    return;
+                }
+            };
+            for chunk in stream {
+                match chunk {
+                    Ok(s) => {
+                        callback.call(Ok(Some(s)), ThreadsafeFunctionCallMode::NonBlocking);
+                    }
+                    Err(e) => {
+                        callback.call(Err(convert_err(e)), ThreadsafeFunctionCallMode::NonBlocking);
+                        return;
+                    }
+                }
+            }
+            // End-of-stream sentinel.
+            callback.call(Ok(None), ThreadsafeFunctionCallMode::NonBlocking);
+        });
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Reusable warm PDF/image pipeline.
+// ---------------------------------------------------------------------------
+
+/// A reusable PDF/image pipeline that keeps the ONNX models (layout, OCR,
+/// TableFormer) loaded across calls — the analogue of the Rust `Pipeline`. Use
+/// this instead of the per-call `convertFile` when converting many PDFs/images:
+/// the one-shot functions rebuild the pipeline (reloading every model) each
+/// call, whereas this loads them once.
+///
+/// Handles `pdf` and `image` inputs (the ML pipeline). Models load lazily on
+/// first use, so constructing a `Pipeline` is cheap; the first conversion pays
+/// the model-load cost. Synchronous and single-threaded — reuse one instance
+/// for a sequence of documents (e.g. behind a job queue).
+#[napi]
+pub struct Pipeline {
+    // RefCell: the Rust pipeline needs `&mut` to convert (models are mutable
+    // sessions), but napi hands us `&self`. A Pipeline is bound to the JS thread,
+    // so single-threaded interior mutability is sound here.
+    inner: RefCell<RsPipeline>,
+    strict: bool,
+}
+
+#[napi]
+impl Pipeline {
+    /// Construct the pipeline. Only `strict` is read (cleaner Markdown);
+    /// `fetchImages` / `allowedFormats` don't apply to the PDF/image pipeline.
+    #[napi(constructor)]
+    pub fn new(options: Option<ConverterOptions>) -> Result<Self> {
+        let strict = options.and_then(|o| o.strict).unwrap_or(false);
+        Ok(Self {
+            inner: RefCell::new(RsPipeline::new().map_err(convert_err)?),
+            strict,
+        })
+    }
+
+    /// Convert a PDF or image file, reusing the warm models.
+    #[napi]
+    pub fn convert_file(
+        &self,
+        path: String,
+        options: Option<OutputOptions>,
+    ) -> Result<ConvertResult> {
+        let source = SourceDocument::from_file(&path).map_err(convert_err)?;
+        self.run(source, options)
+    }
+
+    /// Convert PDF or image bytes, reusing the warm models.
+    #[napi]
+    pub fn convert(
+        &self,
+        input: ConvertInput,
+        options: Option<OutputOptions>,
+    ) -> Result<ConvertResult> {
+        let source = source_from_input(input)?;
+        self.run(source, options)
+    }
+}
+
+impl Pipeline {
+    fn run(&self, source: SourceDocument, options: Option<OutputOptions>) -> Result<ConvertResult> {
+        let cfg = output_config(options, self.strict)?;
+        let mut pipe = self.inner.borrow_mut();
+        let mut doc = match source.format {
+            InputFormat::Pdf => pipe
+                .convert(&source.bytes, None, &source.name)
+                .map_err(convert_err)?,
+            InputFormat::Image => pipe
+                .convert_image(&source.bytes, &source.name)
+                .map_err(convert_err)?,
+            other => {
+                return Err(Error::new(
+                    Status::InvalidArg,
+                    format!(
+                        "Pipeline handles pdf and image inputs (the ML pipeline); got '{}'. \
+                         Use convertFile / convert for other formats.",
+                        other.as_str()
+                    ),
+                ))
+            }
+        };
+        doc.strict_markdown = self.strict;
+        Ok(render_doc(
+            doc,
+            &cfg,
+            source.name,
+            source.format.as_str().to_string(),
+            "success".to_string(),
+        )
+        .into_js())
+    }
+}
+
+/// Build a render-only [`ConvertConfig`] from per-call output options (the
+/// converter-config fields are unused when rendering a document we already have).
+fn output_config(out: Option<OutputOptions>, strict: bool) -> Result<ConvertConfig> {
+    let out = out.unwrap_or_default();
+    Ok(ConvertConfig {
+        strict,
+        fetch_images: false,
+        allowed_formats: None,
+        to: parse_output_kind(out.to.as_deref())?,
+        image_mode: parse_image_mode(out.image_mode.as_deref())?,
+        artifacts_dir: out.artifacts_dir.unwrap_or_else(|| "artifacts".to_string()),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Format helpers exposed to JS.
+// ---------------------------------------------------------------------------
+
+/// The list of supported input format ids.
+#[napi]
+pub fn supported_formats() -> Vec<String> {
+    [
+        "docx",
+        "pptx",
+        "html",
+        "image",
+        "pdf",
+        "asciidoc",
+        "md",
+        "csv",
+        "xlsx",
+        "odt",
+        "ods",
+        "odp",
+        "xml_uspto",
+        "xml_jats",
+        "xml_xbrl",
+        "mets_gbs",
+        "json_docling",
+        "vtt",
+        "latex",
+        "email",
+        "epub",
+        "mhtml",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
+}
+
+/// Detect a format id from a filename or extension (e.g. `"report.pdf"` →
+/// `"pdf"`). Returns `null` for unknown extensions.
+#[napi]
+pub fn format_from_name(name: String) -> Option<String> {
+    infer_format(&name).map(|f| f.as_str().to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Non-exported helpers.
+// ---------------------------------------------------------------------------
+
+fn infer_format(name: &str) -> Option<InputFormat> {
+    let ext = name.rsplit('.').next().filter(|e| *e != name)?;
+    InputFormat::from_extension(ext)
+}
+
+fn parse_output_kind(to: Option<&str>) -> Result<OutputKind> {
+    match to.map(str::to_ascii_lowercase).as_deref() {
+        None | Some("md") | Some("markdown") => Ok(OutputKind::Markdown),
+        Some("json") => Ok(OutputKind::Json),
+        Some(other) => Err(Error::new(
+            Status::InvalidArg,
+            format!("unknown `to` '{other}' (expected: markdown, json)"),
+        )),
+    }
+}
+
+fn parse_image_mode(mode: Option<&str>) -> Result<ImageMode> {
+    match mode.map(str::to_ascii_lowercase).as_deref() {
+        None | Some("placeholder") => Ok(ImageMode::Placeholder),
+        Some("embedded") => Ok(ImageMode::Embedded),
+        Some("referenced") => Ok(ImageMode::Referenced),
+        Some(other) => Err(Error::new(
+            Status::InvalidArg,
+            format!("unknown imageMode '{other}' (expected: placeholder, embedded, referenced)"),
+        )),
+    }
+}
+
+/// Resolve a user-supplied format string — a format id (as reported by
+/// [`supported_formats`]) or a file extension — to an [`InputFormat`].
+fn parse_format(s: &str) -> Result<InputFormat> {
+    let key = s.trim().trim_start_matches('.').to_ascii_lowercase();
+    // Extensions first (covers ".html", "jpg", "eml", …); then format ids for
+    // the ones extensions don't name (e.g. "image", "xml_uspto").
+    if let Some(f) = InputFormat::from_extension(&key) {
+        return Ok(f);
+    }
+    let f = match key.as_str() {
+        "image" => InputFormat::Image,
+        "asciidoc" => InputFormat::Asciidoc,
+        "markdown" => InputFormat::Md,
+        "xml_uspto" | "uspto" => InputFormat::XmlUspto,
+        "xml_jats" | "jats" => InputFormat::XmlJats,
+        "xml_xbrl" | "xbrl" => InputFormat::XmlXbrl,
+        "json_docling" => InputFormat::JsonDocling,
+        "mets_gbs" => InputFormat::MetsGbs,
+        "email" => InputFormat::Email,
+        "latex" => InputFormat::Latex,
+        _ => {
+            return Err(Error::new(
+                Status::InvalidArg,
+                format!("unknown format '{s}'"),
+            ))
+        }
+    };
+    Ok(f)
+}
+
+fn status_str(status: ConversionStatus) -> String {
+    match status {
+        ConversionStatus::Success => "success",
+        ConversionStatus::PartialSuccess => "partial_success",
+        ConversionStatus::Failure => "failure",
+    }
+    .to_string()
+}
+
+fn convert_err(e: impl std::fmt::Display) -> Error {
+    Error::new(Status::GenericFailure, e.to_string())
+}

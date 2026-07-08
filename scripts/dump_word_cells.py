@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Dump docling-parse word_cells for one PDF page in TOP-LEFT page-point coords
-(matching fleischwolf's TextCell), the oracle for the parser word-grouping port.
+(matching docling.rs's TextCell), the oracle for the parser word-grouping port.
 
 Usage: dump_word_cells.py <pdf> <page_1based>
 Prints TSV: l<tab>t<tab>r<tab>b<tab>text  (sorted reading order as emitted)

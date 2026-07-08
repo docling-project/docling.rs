@@ -1,4 +1,11 @@
-# Fleischwolf (meat grinder in German, [ˈflaɪ̯ˌʃvɔlf])
+# docling.rs
+
+<p align="center">
+  <img src="assets/logo.svg" alt="docling.rs — the document meat grinder" width="480"/>
+</p>
+
+> Formerly **Fleischwolf** (meat grinder in German, [ˈflaɪ̯ˌʃvɔlf]) — renamed
+> on joining the docling ecosystem. The meat grinder stays as the mascot:
 
 ```
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⠀⠀⠀⠀⠀⠀⠀⠀
@@ -29,25 +36,25 @@ the full architecture, the Python → Rust mapping, and the phased plan.
 The public API works end to end across **Markdown, CSV, HTML, AsciiDoc, DOCX,
 PPTX, XLSX, EPUB, ODF, WebVTT, Email, MHTML, JATS, USPTO, XBRL, LaTeX, JSON,
 PDF, images, METS and audio** — plus Markdown / docling-JSON output and image
-extraction. MHTML is a fleischwolf-only extension (docling has no MHTML
+extraction. MHTML is a docling.rs-only extension (docling has no MHTML
 backend): saved-webpage `.mhtml`/`.mht` archives are parsed as a MIME message
 with [`mail-parser`](https://crates.io/crates/mail-parser) (which conforms to
 [RFC 2557](https://datatracker.ietf.org/doc/html/rfc2557), the MHTML spec) and
 routed through the HTML backend, with embedded images resolved from the
 archive by `Content-Location`/`cid:`. The discriminative PDF/image pipeline
-lives in `fleischwolf-pdf`: a pure-Rust PDF text parser, pdfium for page
+lives in `docling-pdf`: a pure-Rust PDF text parser, pdfium for page
 rasterization, and an ONNX layout/TableFormer/OCR stack. TableFormer is ported
 to ONNX and run on every detected table region to recover its structure;
 geometric reconstruction from cell positions remains only as the fallback when
 the TableFormer graphs aren't present (see `PDF_CONFORMANCE.md`).
 
-**Audio/ASR** (docling's Whisper pipeline) lives in `fleischwolf-asr`, and it is
+**Audio/ASR** (docling's Whisper pipeline) lives in `docling-asr`, and it is
 Rust all the way down: [`symphonia`](https://crates.io/crates/symphonia)
 demuxes/decodes the container in-process (wav, mp3, flac, ogg, aac, m4a — plus
 the audio track of mp4/mov; no ffmpeg), a ported log-mel front-end feeds a
 **Whisper tiny** encoder/decoder exported to ONNX (run on `ort`, greedy with
 OpenAI's timestamp rules — docling's ASR defaults), and each segment becomes a
-`[time: start-end] text` paragraph. `FLEISCHWOLF_ASR_LANG` picks the language
+`[time: start-end] text` paragraph. `DOCLING_RS_ASR_LANG` picks the language
 (default `en`). AVI is the one container symphonia cannot demux.
 
 Output is checked against upstream Python docling — declarative formats
@@ -57,7 +64,7 @@ snapshot baseline. See [`COMPARING.md`](./COMPARING.md) and
 
 ## RAG subsystem
 
-[`crates/fleischwolf-rag`](./crates/fleischwolf-rag) builds a pluggable
+[`crates/docling-rag`](./crates/docling-rag) builds a pluggable
 Retrieval-Augmented-Generation layer on top of the converter: it turns documents
 into Markdown, chunks them (configurable size / overlap), embeds the chunks, and
 stores them in a vector database for semantic search. Every external dependency is
@@ -66,15 +73,15 @@ a swappable trait — embedders (**Ollama**/Gemini/local-ONNX), vector stores
 document sources (**folder**/FTP/SFTP), and message queues
 (**in-process**/RabbitMQ/Redis). It ships Hybrid, Multi-Query fusion and HyDE
 retrieval plus an evaluation harness to compare configurations and an
-API-key-protected REST API (`fleischwolf-rag serve`) for document info and
+API-key-protected REST API (`docling-rag serve`) for document info and
 search. Configure it via [`.env`](./.env.example); see the
-[crate README](./crates/fleischwolf-rag/README.md) for a quickstart on any
+[crate README](./crates/docling-rag/README.md) for a quickstart on any
 documents folder.
 
 ## The API
 
 ```rust
-use fleischwolf::{DocumentConverter, SourceDocument};
+use docling::{DocumentConverter, SourceDocument};
 
 let converter = DocumentConverter::new();
 let result = converter
@@ -95,7 +102,7 @@ println!("{}", result.document.export_to_json());     // docling DoclingDocument
 back into Python docling-core (`DoclingDocument.load_from_json(...)`) and
 round-trips to the same Markdown.
 
-> Note: Fleischwolf's model bakes inline formatting (bold, links, inline math)
+> Note: docling.rs's model bakes inline formatting (bold, links, inline math)
 > into the text, so for those spans the JSON carries the rendered text rather
 > than docling's structured `formatting` / `hyperlink` fields. Block structure,
 > headings, lists, tables, code and display equations match.
@@ -111,7 +118,7 @@ Pick how pictures render with an [`ImageMode`] — the analogue of docling's
 `image_mode`:
 
 ```rust
-use fleischwolf::ImageMode;
+use docling::ImageMode;
 
 // self-contained Markdown: ![Image](data:image/png;base64,…)
 let (md, _) = result.document.export_to_markdown_with_images(ImageMode::Embedded, "artifacts");
@@ -161,7 +168,7 @@ document straight to stdout, an HTTP response, or a socket as it is produced:
 
 ```rust
 use std::io::Write;
-use fleischwolf::{DocumentConverter, SourceDocument};
+use docling::{DocumentConverter, SourceDocument};
 
 let source = SourceDocument::from_file("input.pdf").unwrap();
 let mut out = std::io::stdout();
@@ -216,10 +223,10 @@ It's gated behind the off-by-default `web-browser` Cargo feature, so the standar
 build stays browser-dependency-free:
 
 ```bash
-cargo run -p fleischwolf-cli --features web-browser -- --use-web-browser page.html
+cargo run -p docling-cli --features web-browser -- --use-web-browser page.html
 ```
 
-Chromium is located via `$FLEISCHWOLF_CHROME`/`$CHROME`, then
+Chromium is located via `$DOCLING_RS_CHROME`/`$CHROME`, then
 `$PLAYWRIGHT_BROWSERS_PATH/chromium`, else autodetected. The page's CSS must be
 reachable for the cascade to resolve — inline `<style>` works offline, but a
 saved page that links external stylesheets needs those fetchable (with a base
@@ -228,9 +235,9 @@ silent no-op.
 
 ## Node.js / Bun bindings
 
-Fleischwolf ships as an npm package, [**`fleischwolf`**](https://www.npmjs.com/package/fleischwolf)
+docling.rs ships as an npm package, [**`docling.rs`**](https://www.npmjs.com/package/docling.rs)
 — native TypeScript bindings (built with [napi-rs](https://napi.rs)) that live in
-[`crates/fleischwolf-node`](./crates/fleischwolf-node). It's a real `.node` addon
+[`crates/docling-node`](./crates/docling-node). It's a real `.node` addon
 that loads in both Node.js and Bun (Bun implements N-API — same binary, no
 rebuild), exposing the converter with the same knobs as the Rust API: Markdown /
 docling JSON output, `strict` mode, image modes, allowed-format restriction,
@@ -241,11 +248,11 @@ Install — no Rust toolchain needed, the prebuilt binary for your platform (Lin
 x64/arm64, Windows x64) is pulled in automatically:
 
 ```bash
-npm install fleischwolf   # or: bun add fleischwolf
+npm install docling.rs   # or: bun add docling.rs
 ```
 
 ```ts
-import { convert, convertFile, convertFileAsync } from 'fleischwolf'
+import { convert, convertFile, convertFileAsync } from 'docling.rs'
 
 // in-memory bytes → Markdown
 const md = convert({ name: 'notes.md', data: Buffer.from('# Hello\n\nWorld **bold**') })
@@ -264,9 +271,9 @@ until you fetch them with `scripts/download_dependencies.sh` — see
 A reusable `Pipeline` keeps those models warm across many PDFs.
 
 Runnable Node + Bun examples are in
-[`crates/fleischwolf-node/examples`](./crates/fleischwolf-node/examples)
+[`crates/docling-node/examples`](./crates/docling-node/examples)
 (`npm install && node node-basic.mjs`). See
-[`crates/fleischwolf-node/README.md`](./crates/fleischwolf-node/README.md) for
+[`crates/docling-node/README.md`](./crates/docling-node/README.md) for
 the full API.
 
 ## Getting the ML models
@@ -276,17 +283,17 @@ the npm addon: [pdfium](https://pdfium.googlesource.com/pdfium/) (text
 extraction + page rendering) and three ONNX models — RT-DETR layout, PP-OCRv3
 recognition, and TableFormer (optional; tables fall back to geometric
 reconstruction without it). `scripts/download_dependencies.sh` fetches all of
-them from this repo's [GitHub Releases](https://github.com/artiz/fleischwolf/releases)
+them from this repo's [GitHub Releases](https://github.com/artiz/docling.rs/releases)
 (tag `models-v1`) straight into `./models` and `./.pdfium`, relative to the
 current directory — both the Rust CLI/library and the Node.js/Bun bindings
 look there by default, so no env vars or extra setup are needed afterwards:
 
 ```bash
-# from a checkout of this repo, or any directory you'll run fleischwolf from:
+# from a checkout of this repo, or any directory you'll run docling.rs from:
 scripts/download_dependencies.sh
 
 # or, without a checkout — e.g. a container build step, or a fresh npm project:
-curl -fsSL https://raw.githubusercontent.com/artiz/fleischwolf/master/scripts/download_dependencies.sh | sh
+curl -fsSL https://raw.githubusercontent.com/artiz/docling.rs/master/scripts/download_dependencies.sh | sh
 ```
 
 | Asset | Destination |
@@ -299,9 +306,9 @@ curl -fsSL https://raw.githubusercontent.com/artiz/fleischwolf/master/scripts/do
 | INT8 CPU models (optional; fetch with `--int8`) | `models/layout_heron_int8.onnx`, `models/tableformer/decoder_int8.onnx` |
 
 Idempotent — safe to re-run; it skips files already on disk. Pass `--force` to
-re-fetch everything, or set `$FLEISCHWOLF_MODELS_URL` to fetch from a
+re-fetch everything, or set `$DOCLING_RS_MODELS_URL` to fetch from a
 different host (your own export, an internal mirror, …); the Whisper assets
-come from Hugging Face (`$FLEISCHWOLF_ASR_MODELS_URL` overrides, or point
+come from Hugging Face (`$DOCLING_RS_ASR_MODELS_URL` overrides, or point
 `DOCLING_ASR_{ENCODER,DECODER,VOCAB}` at explicit files). pdfium is Linux x64
 only for now — other platforms, or building the models from source, need
 [`scripts/pdf_setup.sh`](#testing) instead.
@@ -322,7 +329,7 @@ default; `--no-int8` skips, or build them with `python
 scripts/quantize_models.py`). To force full precision:
 
 ```bash
-FLEISCHWOLF_FP32=1 fleischwolf input.pdf          # keep the int8 files, use fp32
+DOCLING_RS_FP32=1 docling-rs input.pdf          # keep the int8 files, use fp32
 # or pin a model explicitly — an explicit path always wins:
 export DOCLING_LAYOUT_ONNX=$PWD/models/layout_heron.onnx
 export DOCLING_TABLEFORMER_DECODER=$PWD/models/tableformer/decoder.onnx
@@ -334,17 +341,17 @@ defaults to INT8; build with `--build-arg INT8=0` for pure fp32.)
 Then either:
 
 ```bash
-cargo run -p fleischwolf-cli -- document.pdf
+cargo run -p docling-cli -- document.pdf
 ```
 
 or, in a Node.js/Bun app:
 
 ```bash
-npm i fleischwolf
+npm i docling.rs
 ```
 
 ```js
-import { convertFileAsync } from 'fleischwolf'
+import { convertFileAsync } from 'docling.rs'
 const { content } = await convertFileAsync('document.pdf', { to: 'markdown' })
 console.log(content)
 ```
@@ -362,22 +369,22 @@ env var always wins over the `./models` / `./.pdfium` default.
 
 ## Testing
 
-All commands run from the `fleischwolf/` workspace root.
+All commands run from the repo workspace root.
 
 ```bash
 # everything — unit tests + the output-regression suite (pure Rust; no Python/models)
 cargo test
 
 # just the regression suite: re-convert every source under
-# crates/fleischwolf/tests/data/<fmt>/sources/ and assert that legacy Markdown,
+# crates/docling/tests/data/<fmt>/sources/ and assert that legacy Markdown,
 # strict Markdown and docling JSON match the committed fixtures (catches drift)
-cargo test -p fleischwolf --test regression
+cargo test -p docling --test regression
 
 # refresh the fixtures after an *intentional* output change, then review `git diff`
-FLEISCHWOLF_REGEN=1 cargo test -p fleischwolf --test regression
+DOCLING_RS_REGEN=1 cargo test -p docling --test regression
 
 # a single crate / a single test (with output)
-cargo test -p fleischwolf-core
+cargo test -p docling-core
 cargo test outputs_match_fixtures -- --nocapture
 ```
 
@@ -397,7 +404,7 @@ export DOCLING_OCR_REC_ONNX="$(pwd)/models/ocr_rec.onnx"
 export DOCLING_OCR_DICT="$(pwd)/models/ppocr_keys_v1.txt"
 # Optional (falls back to geometric table reconstruction if unset/missing —
 # but the fallback is *silent*, so set these to be sure TableFormer is used,
-# especially if you invoke fleischwolf from anywhere but the repo root: the
+# especially if you invoke docling.rs from anywhere but the repo root: the
 # defaults baked into the binary are relative paths, so a different working
 # directory makes them silently miss even when the files exist elsewhere).
 export DOCLING_TABLEFORMER_ENCODER="$(pwd)/models/tableformer/encoder.onnx"
@@ -410,32 +417,32 @@ bash scripts/pdf_conformance.sh     # regenerate + diff the snapshot baseline (9
 
 ```bash
 # convert a file from the CLI — Markdown to stdout (add --strict for cleaner MD)
-cargo run -p fleischwolf-cli -- crates/fleischwolf/sample.html
-cargo run -p fleischwolf-cli -- --strict crates/fleischwolf/sample.html
+cargo run -p docling-cli -- crates/docling/sample.html
+cargo run -p docling-cli -- --strict crates/docling/sample.html
 
 # emit docling's native DoclingDocument JSON instead (--to md is the default)
-cargo run -p fleischwolf-cli -- --to json crates/fleischwolf/sample.html
-cargo run -p fleischwolf-cli -- --to json crates/fleischwolf/sample.html > out.json
+cargo run -p docling-cli -- --to json crates/docling/sample.html
+cargo run -p docling-cli -- --to json crates/docling/sample.html > out.json
 
 # PDF/image conversion needs the ML models — see "Getting the ML models" above.
 scripts/download_dependencies.sh
-cargo run -p fleischwolf-cli -- document.pdf
+cargo run -p docling-cli -- document.pdf
 
 # transcribe audio (wav/mp3/flac/ogg/aac/m4a, or an mp4/mov audio track) — the
 # Whisper models come from the same download script
-cargo run -p fleischwolf-cli -- recording.mp3
+cargo run -p docling-cli -- recording.mp3
 
 # extract pictures (PDF/image inputs): embed as data URIs, or write ./artifacts/*.png
-cargo run -p fleischwolf-cli -- --images embedded   document.pdf
-cargo run -p fleischwolf-cli -- --images referenced document.pdf > out.md
+cargo run -p docling-cli -- --images embedded   document.pdf
+cargo run -p docling-cli -- --images referenced document.pdf > out.md
 
 # stream Markdown to stdout page by page (the CLI's default; --no-stream to buffer)
-cargo run -p fleischwolf-cli -- document.pdf
-cargo run -p fleischwolf-cli -- --no-stream document.pdf
+cargo run -p docling-cli -- document.pdf
+cargo run -p docling-cli -- --no-stream document.pdf
 
 # or via the examples
-cargo run -p fleischwolf --example convert -- crates/fleischwolf/sample.md
-cargo run -p fleischwolf --example stream  -- crates/fleischwolf/sample.md
+cargo run -p docling --example convert -- crates/docling/sample.md
+cargo run -p docling --example stream  -- crates/docling/sample.md
 
 # score HTML output against the latest published docling (installed from PyPI)
 scripts/conformance.sh html
@@ -457,26 +464,26 @@ into `.venv-compare` automatically on first run. See
 tree — for a dev box or a pipeline step:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/artiz/fleischwolf/master/scripts/install.sh | bash
-fleischwolf your.pdf > out.md
+curl -fsSL https://raw.githubusercontent.com/artiz/docling.rs/master/scripts/install.sh | bash
+docling-rs your.pdf > out.md
 ```
 
 It checks for a Rust toolchain (installs one via rustup if `cargo` is
-missing), runs `cargo build --release -p fleischwolf-cli`, installs the
-binary + all models + pdfium under `/usr/local/fleischwolf`, symlinks
-`/usr/local/bin/fleischwolf`, and writes `/etc/profile.d/fleischwolf.sh` with
+missing), runs `cargo build --release -p docling-cli`, installs the
+binary + all models + pdfium under `/usr/local/docling.rs`, symlinks
+`/usr/local/bin/docling-rs`, and writes `/etc/profile.d/docling-rs.sh` with
 the `DOCLING_*`/`PDFIUM_*` exports. The env file is a convenience for other
 consumers of the model tree — the CLI itself resolves `models/` and
 `.pdfium/` **relative to its own (symlink-resolved) location**, so the
 command works from any directory with no environment at all. ONNX Runtime is
 statically linked; nothing else lands outside the prefix.
 
-Knobs (env vars before the call): `FLEISCHWOLF_PREFIX` (default
-`/usr/local/fleischwolf`), `FLEISCHWOLF_BIN_DIR`, `FLEISCHWOLF_REF` (git ref
-to build), `FLEISCHWOLF_NO_ASR=1` (skip the ~150 MB Whisper models),
-`FLEISCHWOLF_SUDO=0` (never escalate). Re-running is idempotent — it only
+Knobs (env vars before the call): `DOCLING_RS_PREFIX` (default
+`/usr/local/docling.rs`), `DOCLING_RS_BIN_DIR`, `DOCLING_RS_REF` (git ref
+to build), `DOCLING_RS_NO_ASR=1` (skip the ~150 MB Whisper models),
+`DOCLING_RS_SUDO=0` (never escalate). Re-running is idempotent — it only
 fetches missing model files. Uninstall:
-`rm -rf /usr/local/fleischwolf /usr/local/bin/fleischwolf /etc/profile.d/fleischwolf.sh`.
+`rm -rf /usr/local/docling.rs /usr/local/bin/docling-rs /etc/profile.d/docling-rs.sh`.
 
 ## Deploy in a container
 
@@ -489,9 +496,9 @@ the binary, `libonnxruntime`, pdfium, and the models, with the `DOCLING_*` env v
 preset:
 
 ```bash
-docker build -f examples/Dockerfile -t fleischwolf .
-docker run --rm -v "$PWD:/data" fleischwolf /data/input.pdf          # Markdown to stdout
-docker run --rm -v "$PWD:/data" fleischwolf /data/input.pdf --to json
+docker build -f examples/Dockerfile -t docling-rs .
+docker run --rm -v "$PWD:/data" docling-rs /data/input.pdf          # Markdown to stdout
+docker run --rm -v "$PWD:/data" docling-rs /data/input.pdf --to json
 ```
 
 The image converts PDFs/images fully offline; the model export (torch +
@@ -502,7 +509,7 @@ The image converts PDFs/images fully offline; the model export (torch +
 `scripts/performance.sh` runs a representative fixture of each supported type
 through both engines (published Python `docling` vs the Rust release binary) and
 reports peak RSS, CPU utilization, and conversion time. Ratios below are
-docling ÷ fleischwolf — bigger means Rust wins by more. The PDF row is the
+docling ÷ docling.rs — bigger means Rust wins by more. The PDF row is the
 **fp32** stack; the optional [INT8 models](#int8-models-faster-pdf-conversion-on-cpu)
 roughly double layout-inference speed on top of it (measured 1.83× end-to-end
 on a 1913-page document — see [`PDF_PERFORMANCE.md`](./PDF_PERFORMANCE.md)).
@@ -539,13 +546,13 @@ on a 1913-page document — see [`PDF_PERFORMANCE.md`](./PDF_PERFORMANCE.md)).
 
 | Crate | Role | Python analogue |
 |---|---|---|
-| `fleischwolf-core` | `DoclingDocument` model + serializers | `docling-core` |
-| `fleischwolf` | `DocumentConverter`, source loading, backends | `docling` |
-| `fleischwolf-pdf` | PDF/image ML pipeline (pdfium + ONNX layout/table/OCR) | `docling` PDF pipeline |
-| `fleischwolf-asr` | audio/ASR pipeline (symphonia + ONNX Whisper) | `docling` ASR pipeline |
-| `fleischwolf-cli` | command-line interface | `docling.cli` |
-| `fleischwolf-node` | Node.js / Bun N-API bindings (npm package) | — |
-| `fleischwolf-rag` | RAG layer: chunking, embeddings, vector search, REST API | — |
+| `docling-core` | `DoclingDocument` model + serializers | `docling-core` |
+| `docling` | `DocumentConverter`, source loading, backends | `docling` |
+| `docling-pdf` | PDF/image ML pipeline (pdfium + ONNX layout/table/OCR) | `docling` PDF pipeline |
+| `docling-asr` | audio/ASR pipeline (symphonia + ONNX Whisper) | `docling` ASR pipeline |
+| `docling-cli` | command-line interface | `docling.cli` |
+| `docling-node` | Node.js / Bun N-API bindings (npm package) | — |
+| `docling-rag` | RAG layer: chunking, embeddings, vector search, REST API | — |
 
 ## License
 

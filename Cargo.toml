@@ -1,35 +1,35 @@
-# Fleischwolf — a Rust port of docling.
+# docling.rs — a Rust port of docling.
 #
 # A Cargo workspace of five crates:
-#   fleischwolf-core  — the DoclingDocument data model + Markdown/JSON serializers
-#   fleischwolf       — the DocumentConverter and the per-format backends
-#   fleischwolf-pdf   — the PDF/image ML pipeline (pdfium text + ONNX layout/OCR)
-#   fleischwolf-asr   — the audio/ASR pipeline (symphonia decode + ONNX Whisper)
-#   fleischwolf-cli   — the `fleischwolf` command-line binary
-#   fleischwolf-rag   — pluggable RAG (chunk/embed/store/search) over the converter
+#   docling-core  — the DoclingDocument data model + Markdown/JSON serializers
+#   docling       — the DocumentConverter and the per-format backends
+#   docling-pdf   — the PDF/image ML pipeline (pdfium text + ONNX layout/OCR)
+#   docling-asr   — the audio/ASR pipeline (symphonia decode + ONNX Whisper)
+#   docling-cli   — the `docling-rs` command-line binary
+#   docling-rag   — pluggable RAG (chunk/embed/store/search) over the converter
 # See MIGRATION.md for the Python → Rust mapping and what is / isn't ported.
 
 [workspace]
 resolver = "2"
 members = [
-    "crates/fleischwolf-core",
-    "crates/fleischwolf",
-    "crates/fleischwolf-asr",
-    "crates/fleischwolf-cli",
-    "crates/fleischwolf-pdf",
+    "crates/docling-core",
+    "crates/docling",
+    "crates/docling-asr",
+    "crates/docling-cli",
+    "crates/docling-pdf",
     # Node.js / Bun N-API bindings (published to npm, not crates.io).
-    "crates/fleischwolf-node",
+    "crates/docling-node",
     # RAG subsystem: chunking + embeddings + vector store + semantic search.
     # A self-contained async (tokio) island; does not touch the sync crates above.
-    "crates/fleischwolf-rag",
+    "crates/docling-rag",
 ]
 
 [workspace.package]
 version = "0.16.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/artiz/fleischwolf"
-homepage = "https://github.com/artiz/fleischwolf"
+repository = "https://github.com/artiz/docling.rs"
+homepage = "https://github.com/artiz/docling.rs"
 readme = "README.md"
 keywords = ["docling", "document", "pdf", "markdown", "converter"]
 categories = ["text-processing", "parser-implementations"]

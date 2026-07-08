@@ -58,7 +58,7 @@ is cell-for-cell exact).
 
 ### Performance / parallelism
 
-Profiling a 14-page document (`FLEISCHWOLF_TIMING=1` prints an env-gated per-stage
+Profiling a 14-page document (`DOCLING_RS_TIMING=1` prints an env-gated per-stage
 wall-clock breakdown) shows ~80 % of the time is the two ONNX models (layout ~58 %,
 TableFormer ~22 %) and ~16 % the page-image downsample — all per-page work that is
 independent across pages. A multi-page PDF therefore renders on one thread (pdfium
@@ -74,7 +74,7 @@ threads only reaches ~2.1× core utilisation), so the pool defaults to two intra
 threads per worker with `workers ≈ cores / 2` (capped at 4): two threads sharing one
 in-cache copy of the weights beats both one fat model and many single-thread workers.
 The speed-up scales with cores and memory bandwidth. Tune per machine with
-`FLEISCHWOLF_PDF_WORKERS` (pool size) and `FLEISCHWOLF_PDF_INTRA` (intra-op threads
+`DOCLING_RS_PDF_WORKERS` (pool size) and `DOCLING_RS_PDF_INTRA` (intra-op threads
 per worker).
 
 ### Text reconstruction: a pure-Rust PDF text parser (default)

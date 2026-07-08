@@ -1,0 +1,16 @@
+{
+  "name": "docling.rs-examples",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runnable examples for the docling.rs npm package. Run `npm install` here, then the scripts below.",
+  "type": "module",
+  "scripts": {
+    "start": "node node-basic.mjs",
+    "node": "node node-basic.mjs",
+    "bun": "bun run bun-basic.ts",
+    "pdf": "node pdf-pipeline.mjs"
+  },
+  "dependencies": {
+    "docling.rs": "^0.16.0"
+  }
+}

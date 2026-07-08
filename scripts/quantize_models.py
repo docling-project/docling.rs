@@ -39,13 +39,13 @@ import numpy as np
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Where the fp32 models live and the int8 outputs go (a checkout's models/ by
-# default); FLEISCHWOLF_MODELS_DIR relocates it (e.g. /opt/models in a Docker
+# default); DOCLING_RS_MODELS_DIR relocates it (e.g. /opt/models in a Docker
 # models stage).
-MODELS = os.environ.get("FLEISCHWOLF_MODELS_DIR", f"{REPO}/models")
-# FLEISCHWOLF_CALIBRATION_DIR: a directory scanned recursively for calibration
+MODELS = os.environ.get("DOCLING_RS_MODELS_DIR", f"{REPO}/models")
+# DOCLING_RS_CALIBRATION_DIR: a directory scanned recursively for calibration
 # *.pdf files; defaults to the repo's PDF + scanned corpus (the set the
 # published quality numbers were measured with).
-CALIB = os.environ.get("FLEISCHWOLF_CALIBRATION_DIR")
+CALIB = os.environ.get("DOCLING_RS_CALIBRATION_DIR")
 SIDE = 640  # layout model input side (layout.rs)
 
 
@@ -63,7 +63,7 @@ def calibration_pages():
             glob.glob(f"{REPO}/tests/data/scanned/sources/*.pdf")
         )
     if not pdfs:
-        sys.exit("no calibration PDFs found (set FLEISCHWOLF_CALIBRATION_DIR)")
+        sys.exit("no calibration PDFs found (set DOCLING_RS_CALIBRATION_DIR)")
     for path in pdfs:
         try:
             doc = pdfium.PdfDocument(path)

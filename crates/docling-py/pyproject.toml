@@ -1,0 +1,26 @@
+# NOT published to PyPI yet — the distribution name below is tentative and the
+# package is built/installed locally with maturin (see README.md).
+[build-system]
+requires = ["maturin>=1.5,<2"]
+build-backend = "maturin"
+
+[project]
+name = "docling-rs"
+version = "0.15.1"
+description = "Rust port of docling (docling.rs): convert PDF/DOCX/HTML/... to Markdown or docling JSON. Python bindings."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+
+[project.urls]
+Repository = "https://github.com/artiz/docling.rs"
+
+[tool.maturin]
+module-name = "docling_rs._native"
+python-source = "python"

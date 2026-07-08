@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Compare Markdown output of Python `docling` vs Rust `fleischwolf` for one
+# Compare Markdown output of Python `docling` vs Rust `docling.rs` for one
 # input file, and show a unified diff.
 #
 # Usage:
@@ -8,9 +8,9 @@
 #   scripts/compare.sh tests/data/html/sources/example_03.html
 #
 # Python docling is the latest PUBLISHED release, installed from PyPI into
-# fleischwolf/.venv-compare on first run (see _common.sh). For declarative
+# docling.rs/.venv-compare on first run (see _common.sh). For declarative
 # formats the Python side calls the format backend directly via
-# docling_convert.py, mirroring the work fleischwolf does.
+# docling_convert.py, mirroring the work docling.rs does.
 
 set -euo pipefail
 
@@ -32,9 +32,9 @@ ensure_docling
 echo ">> running Python docling ..."
 "$PYBIN" "$PY_RUNNER" "$INPUT" "$OUT_DIR/python.md"
 
-# --- Rust fleischwolf -----------------------------------------------------
-echo ">> running Rust fleischwolf ..."
-cargo run --quiet --manifest-path "$MANIFEST" -p fleischwolf-cli -- "$INPUT" \
+# --- Rust docling.rs -----------------------------------------------------
+echo ">> running Rust docling.rs ..."
+cargo run --quiet --manifest-path "$MANIFEST" -p docling-cli -- "$INPUT" \
   > "$OUT_DIR/rust.md"
 
 # Normalize trailing whitespace/newlines so a single missing final newline
@@ -49,7 +49,7 @@ echo ">> rust   -> $OUT_DIR/rust.md"
 echo
 
 if diff -u --label "python/docling" "$OUT_DIR/python.md" \
-            --label "rust/fleischwolf" "$OUT_DIR/rust.md"; then
+            --label "rust/docling.rs" "$OUT_DIR/rust.md"; then
   echo
   echo "✅ IDENTICAL"
 else

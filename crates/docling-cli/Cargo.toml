@@ -1,0 +1,25 @@
+[package]
+name = "docling-cli"
+description = "Command-line interface for docling.rs (the `docling-rs` binary; a Rust port of docling)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories = ["command-line-utilities", "text-processing"]
+rust-version.workspace = true
+
+[[bin]]
+name = "docling-rs"
+path = "src/main.rs"
+
+[features]
+# Pass through to the library's optional headless-browser HTML pre-render, so
+# `cargo run -p docling-cli --features web-browser -- --use-web-browser …`
+# activates it. Off by default (keeps the default binary browser-dependency-free).
+web-browser = ["docling/web-browser"]
+
+[dependencies]
+docling = { path = "../docling", version = "0.16.0" }

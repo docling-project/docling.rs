@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Dump docling-parse textline cells per PDF as JSON in TOP-LEFT page-point coords
-(matching fleischwolf's TextCell), for the parser-overhaul ceiling experiment.
+(matching docling.rs's TextCell), for the parser-overhaul ceiling experiment.
 
 Output: <out>/<stem>.cells.json = {"pages":[{"w":..,"h":..,
         "cells":[{"text","l","t","r","b"}, ...]}, ...]}

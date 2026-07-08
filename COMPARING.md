@@ -1,4 +1,4 @@
-# Comparing `docling` (Python) and `fleischwolf` (Rust)
+# Comparing `docling` (Python) and `docling.rs` (Rust)
 
 This guide explains how to check the Rust port against the original Python
 `docling` so you can track conformance as the migration proceeds.
@@ -15,7 +15,7 @@ There are two axes to compare:
 ### Local docling setup
 
 The comparison scripts install the **latest published** `docling` from PyPI into
-an isolated `fleischwolf/.venv-compare` (via `uv`) on first run:
+an isolated `docling.rs/.venv-compare` (via `uv`) on first run:
 
 ```bash
 scripts/setup-docling.sh      # optional; the other scripts call this automatically
@@ -26,7 +26,7 @@ Published docling 2.x bundles every format backend plus the full PDF pipeline
 declarative formats the Python side still calls the format backend directly (see
 `scripts/docling_convert.py`) rather than `DocumentConverter`, so it avoids
 paying the `torch` import cost on every run — the same conversion work, kept
-apples-to-apples with what `fleischwolf` does.
+apples-to-apples with what `docling.rs` does.
 
 ---
 
@@ -91,7 +91,7 @@ Do it by hand if you prefer:
 .venv-compare/bin/python scripts/docling_convert.py in.html > py.md
 
 # Rust
-cargo run -p fleischwolf-cli -- in.html > rs.md
+cargo run -p docling-cli -- in.html > rs.md
 
 diff -u py.md rs.md
 ```
@@ -113,7 +113,7 @@ scripts/performance.sh tests/data/html/sources/wiki_duck.html 10   # 10 runs
 ================ end-to-end (whole process) ================
 ENGINE                     RUNS   TIME-min   TIME-avg      CPU     PEAK-MEM
 docling (python)              6      1.39s      1.41s     363%     125.5 MB
-fleischwolf (rust)           6   0.00755s   0.00755s     100%       4.8 MB
+docling.rs (rust)           6   0.00755s   0.00755s     100%       4.8 MB
 
   wall-time speedup (avg):  186.8x faster (rust)
   peak-memory ratio:        26.4x less (rust)

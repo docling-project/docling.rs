@@ -4,7 +4,7 @@ Cargo.lock
 # Secrets — never commit (holds CARGO_REGISTRY_TOKEN)
 .env
 .env.*
-# …but the documented template for fleischwolf-rag config is committed.
+# …but the documented template for docling-rag config is committed.
 !.env.example
 
 # Local RAG vector store (default RAG_DATABASE_URL=sqlite://data/rag.db)
@@ -30,7 +30,7 @@ __pycache__/
 /scratch-gt
 
 
-# fleischwolf-py is a standalone crate (own workspace) — its build dirs
-crates/fleischwolf-py/target/
-crates/fleischwolf-py/.venv/
-crates/fleischwolf-py/python/fleischwolf/*.so
+# docling-py is a standalone crate (own workspace) — its build dirs
+crates/docling-py/target/
+crates/docling-py/.venv/
+crates/docling-py/python/docling_rs/*.so

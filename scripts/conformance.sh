@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Score fleischwolf's Markdown output against the latest PUBLISHED Python docling
+# Score docling.rs's Markdown output against the latest PUBLISHED Python docling
 # across a corpus. docling is installed from PyPI on first use (see _common.sh);
 # it is always the reference now. The committed groundtruth under
 # tests/data/<fmt>/groundtruth/*.md is used only as a fallback for sources the
@@ -32,7 +32,7 @@ ensure_docling
 echo ">> reference: latest published Python docling (committed groundtruth as fallback)"
 
 # Build once up front so per-file timing isn't dominated by compilation.
-cargo build --quiet --manifest-path "$MANIFEST" -p fleischwolf-cli
+cargo build --quiet --manifest-path "$MANIFEST" -p docling-cli
 
 # Write the reference Markdown for a source into $1; returns non-zero to skip.
 # The installed docling is the reference; when it can't produce output for a
@@ -70,7 +70,7 @@ for src in "$SRC_DIR"/*; do
   reference_into "$src" "$ref" || continue
   total=$((total + 1))
 
-  out="$(cargo run --quiet --manifest-path "$MANIFEST" -p fleischwolf-cli -- "$src" 2>/dev/null || echo '<ERROR>')"
+  out="$(cargo run --quiet --manifest-path "$MANIFEST" -p docling-cli -- "$src" 2>/dev/null || echo '<ERROR>')"
   # Strict, trailing-newline-insensitive byte comparison.
   d="$(diff <(printf '%s' "$out") <(printf '%s' "$(cat "$ref")") | grep -cE '^[<>]' || true)"
   # Whitespace-normalized comparison (spacing-only diffs ignored).

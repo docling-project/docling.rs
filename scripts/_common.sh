@@ -50,6 +50,6 @@ ensure_docling() {
 
 # Build the optimized Rust CLI once and echo the binary path.
 build_rust_release() {
-  cargo build --release --quiet --manifest-path "$MANIFEST" -p fleischwolf-cli >&2
-  echo "$WORKSPACE_DIR/target/release/fleischwolf"
+  cargo build --release --quiet --manifest-path "$MANIFEST" -p docling-cli >&2
+  echo "$WORKSPACE_DIR/target/release/docling-rs"
 }

@@ -1,4 +1,4 @@
-# Migrating Docling to Rust — Fleischwolf
+# Migrating Docling to Rust — docling.rs
 
 A port of [docling](https://github.com/docling-project/docling) from Python to
 Rust. This document is the **current status**: what is migrated, how it compares
@@ -7,10 +7,10 @@ phased plan is kept at the end as history.)
 
 > **Status: the format migration is complete.** Every document format in
 > docling's pipeline is supported — including **audio/ASR** (Whisper via ONNX,
-> in `fleischwolf-asr`) — plus Markdown (legacy + a Rust-only *strict* mode),
+> in `docling-asr`) — plus Markdown (legacy + a Rust-only *strict* mode),
 > docling-native **JSON** output, **image extraction**, and **MHTML** (a
-> fleischwolf-only extension docling doesn't have). The declarative formats are pure-Rust and checked byte-for-byte
-> against *live* docling; the PDF/image/METS ML path lives in `fleischwolf-pdf`
+> docling.rs-only extension docling doesn't have). The declarative formats are pure-Rust and checked byte-for-byte
+> against *live* docling; the PDF/image/METS ML path lives in `docling-pdf`
 > (a pure-Rust PDF text parser + pdfium rasterization + ONNX
 > layout/TableFormer/OCR + a port of docling-parse's line sanitizer) and is also
 > measured byte-for-byte against live docling — **6 / 14 PDF fixtures exact, 7 / 14
@@ -35,30 +35,30 @@ phased plan is kept at the end as history.)
 
 The layers mirror docling's:
 
-| Layer | docling (Python) | `fleischwolf` (Rust) |
+| Layer | docling (Python) | `docling.rs` (Rust) |
 |---|---|---|
-| **Data model + serializers** | `docling-core` | `fleischwolf-core` — `DoclingDocument`, the `Node` tree, Markdown + JSON serializers, base64 |
-| **Converter** | `docling/document_converter.py` | `fleischwolf` — `converter.rs` (format dispatch + XML content sniffing) |
-| **Backends** | `docling/backend/*` | `fleischwolf` — `backend/*` (one per format) |
-| **PDF/ML pipeline** | `docling/pipeline/*`, `docling/models/*` | `fleischwolf-pdf` — pdfium + ONNX layout/OCR + assembly |
-| **Audio/ASR pipeline** | `docling/pipeline/asr_pipeline.py` | `fleischwolf-asr` — symphonia decode + log-mel + ONNX Whisper |
-| **CLI** | `docling/cli` | `fleischwolf-cli` |
+| **Data model + serializers** | `docling-core` | `docling-core` — `DoclingDocument`, the `Node` tree, Markdown + JSON serializers, base64 |
+| **Converter** | `docling/document_converter.py` | `docling.rs` — `converter.rs` (format dispatch + XML content sniffing) |
+| **Backends** | `docling/backend/*` | `docling.rs` — `backend/*` (one per format) |
+| **PDF/ML pipeline** | `docling/pipeline/*`, `docling/models/*` | `docling-pdf` — pdfium + ONNX layout/OCR + assembly |
+| **Audio/ASR pipeline** | `docling/pipeline/asr_pipeline.py` | `docling-asr` — symphonia decode + log-mel + ONNX Whisper |
+| **CLI** | `docling/cli` | `docling-cli` |
 
 ```text
 crates/
-├── fleischwolf-core/   # DoclingDocument, Node model, markdown.rs, json.rs, base64.rs, labels.rs
-├── fleischwolf/        # DocumentConverter, source/format detection, backend/*.rs, ooxml.rs
-├── fleischwolf-pdf/    # pdfium_backend, layout (RT-DETR/ONNX), ocr (PP-OCRv3/ONNX), assemble, mets
-├── fleischwolf-asr/    # audio decode (symphonia), mel.rs, whisper.rs (ONNX), tokenizer.rs
-├── fleischwolf-cli/    # `--strict`, `--to md|json`, `--images placeholder|embedded|referenced`
-├── fleischwolf-node/   # Node.js/Bun N-API bindings (napi-rs), published to npm as `fleischwolf`
-└── fleischwolf-rag/    # RAG layer on top of the converter (chunking, embeddings, vector search, REST API)
+├── docling-core/   # DoclingDocument, Node model, markdown.rs, json.rs, base64.rs, labels.rs
+├── docling.rs/        # DocumentConverter, source/format detection, backend/*.rs, ooxml.rs
+├── docling-pdf/    # pdfium_backend, layout (RT-DETR/ONNX), ocr (PP-OCRv3/ONNX), assemble, mets
+├── docling-asr/    # audio decode (symphonia), mel.rs, whisper.rs (ONNX), tokenizer.rs
+├── docling-cli/    # `--strict`, `--to md|json`, `--images placeholder|embedded|referenced`
+├── docling-node/   # Node.js/Bun N-API bindings (napi-rs), published to npm as `docling.rs`
+└── docling-rag/    # RAG layer on top of the converter (chunking, embeddings, vector search, REST API)
 ```
 
 The public API is unchanged from day one:
 
 ```rust
-use fleischwolf::{DocumentConverter, SourceDocument};
+use docling::{DocumentConverter, SourceDocument};
 
 let result = DocumentConverter::new()
     .convert(SourceDocument::from_file("input.docx")?)?;
@@ -95,12 +95,12 @@ PyPI; run via `scripts/conformance.sh <fmt>`), not the committed groundtruth
 | XBRL | `xbrl.rs` | arelle-free core (dei facts → title, `*TextBlock` → HTML) |
 | JSON-docling | `docling_json.rs` (serde_json) | reads docling's native JSON; ~51/145 round-trip exact |
 | LaTeX | `latex.rs` (scanner) | simple `.tex` ≈ live; multi-file arxiv out of scope |
-| MHTML (.mhtml/.mht) | `mhtml.rs` (mail-parser) → HTML backend | **fleischwolf extension — no docling backend to compare against**; embedded images resolved by `Content-Location`/`cid:` |
+| MHTML (.mhtml/.mht) | `mhtml.rs` (mail-parser) → HTML backend | **docling.rs extension — no docling backend to compare against**; embedded images resolved by `Content-Location`/`cid:` |
 
 Shared OOXML infrastructure (`ooxml.rs`): a `zip` reader, `.rels` parsing, part
 content-type resolution, and image extraction — reused by DOCX/PPTX/XLSX/EPUB.
 
-### ML formats — `fleischwolf-pdf`
+### ML formats — `docling-pdf`
 
 These run docling's *discriminative* PDF pipeline ported to ONNX. They are now
 measured **byte-for-byte against live docling** (the committed PDF groundtruth is
@@ -113,7 +113,7 @@ close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
 | PDF | **pure-Rust text parser** (`textparse.rs`, font-advance glyph boxes) + pdfium page render → RT-DETR layout (ONNX) → **TableFormer** table structure (ONNX) → PP-OCRv3 OCR for scanned pages → **docling-parse line sanitizer** (`dp_lines.rs`) + reading-order assembly |
 | Images (tiff/webp/png/jpeg) | the same pipeline, image as a single page |
 | METS / Google Books | `.tar.gz` of per-page hOCR + TIFF → cells from hOCR → the same layout+assembly path (no OCR needed) |
-| Audio (wav/mp3/flac/ogg/aac/m4a + mp4/mov audio tracks) | `fleischwolf-asr`: **symphonia** decode (no ffmpeg) → 16 kHz mono → ported log-mel front-end → **Whisper tiny** encoder/decoder (ONNX, greedy with OpenAI's timestamp rules — docling's ASR defaults) → `[time: start-end] text` paragraphs. AVI is the one container symphonia can't demux. |
+| Audio (wav/mp3/flac/ogg/aac/m4a + mp4/mov audio tracks) | `docling-asr`: **symphonia** decode (no ffmpeg) → 16 kHz mono → ported log-mel front-end → **Whisper tiny** encoder/decoder (ONNX, greedy with OpenAI's timestamp rules — docling's ASR defaults) → `[time: start-end] text` paragraphs. AVI is the one container symphonia can't demux. |
 
 ---
 
@@ -143,7 +143,7 @@ close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
 
 These are deliberate or unavoidable divergences, not bugs.
 
-1. **Simplified document model.** `fleischwolf`'s `Node` enum
+1. **Simplified document model.** `docling.rs`'s `Node` enum
    (`Heading`/`Paragraph`/`ListItem`/`Code`/`Table`/`Picture`/`Group`) is flatter
    than docling-core's `DocItem` graph. JSON export *reconstructs* the full
    `$ref` wire format from it; JSON input maps the other way.
@@ -258,20 +258,20 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
 
 Shipped:
 
-- **`fleischwolf-rag`** — documents → chunking → embeddings → vector search,
+- **`docling-rag`** — documents → chunking → embeddings → vector search,
   with swappable embedders (Ollama/Gemini/local ONNX), stores
   (SQLite+sqlite-vec / PostgreSQL+pgvector), LLM, sources and queues, plus an
   eval harness and a REST API. See the crate README.
-- **`fleischwolf-node`** — Node.js/Bun N-API bindings (npm package).
+- **`docling-node`** — Node.js/Bun N-API bindings (npm package).
 - **MHTML backend** — no docling analogue.
 
 Experimental (in-repo, unpublished):
 
-- **PyO3 bindings** (`crates/fleischwolf-py`) — a strangler-fig drop-in for
+- **PyO3 bindings** (`crates/docling-py`) — a strangler-fig drop-in for
   docling's common path (`DocumentConverter().convert(p).document
   .export_to_markdown()` / `export_to_dict()`), built locally with maturin;
   models download in pure Python from the `models-v1` release into
-  `~/.cache/fleischwolf`, mirroring docling's artifact handling. The PyPI
+  `~/.cache/docling.rs`, mirroring docling's artifact handling. The PyPI
   name is tentative; see the crate README for local testing. Deliberately
   outside the Cargo workspace and the crates.io publish flow.
 
@@ -285,10 +285,10 @@ Planned:
 ## 7. Testing
 
 - **`cargo test`** — unit tests per backend/serializer **plus an output-
-  regression suite** (`crates/fleischwolf/tests/regression.rs`): every
-  declarative source under `crates/fleischwolf/tests/data/<fmt>/sources/` is
+  regression suite** (`crates/docling/tests/regression.rs`): every
+  declarative source under `crates/docling/tests/data/<fmt>/sources/` is
   converted to legacy Markdown, strict Markdown and docling JSON and compared to
-  committed fixtures (133 sources × 3). `FLEISCHWOLF_REGEN=1` refreshes them.
+  committed fixtures (133 sources × 3). `DOCLING_RS_REGEN=1` refreshes them.
   The JSON fixtures double as a docling-core load check.
 - **Snapshot harness** — `scripts/pdf_conformance.sh` regenerates and diffs the
   PDF/image/METS baseline (needs pdfium + the ONNX models; **91/91 exact**).
@@ -322,7 +322,7 @@ dependency order — skipping any version already on crates.io.
 - Output byte-compatible with docling-core's serializers where it reasonably can
   be, so the port is a drop-in for downstream Markdown/JSON consumers.
 - The ML stack is *not* reimplemented in PyTorch-equivalent Rust; it is
-  quarantined behind ONNX (`ort`) inference in `fleischwolf-pdf`.
+  quarantined behind ONNX (`ort`) inference in `docling-pdf`.
 
 ---
 
@@ -371,9 +371,11 @@ WebVTT, JSON) → **Phase 5–6** the PDF/image ML pipeline (pdfium + ONNX layou
 **Phase 7** audio/ASR (symphonia + ONNX Whisper). PyO3 interop bindings remain
 the one unbuilt piece.
 
-## Why "Fleischwolf"? 🦀
+## The meat-grinder mascot 🦀
 
-A *Fleischwolf* (German for "meat grinder") is the machine you push anything
-through to get a single, uniform mince — which is exactly what this does to
-documents: PDF, DOCX, HTML, XLSX … all come out as one `DoclingDocument`. And
-it's written in Rust, so Ferris the crab 🦀 still gets a seat.
+The project began life as **Fleischwolf** (German for "meat grinder",
+[ˈflaɪ̯ˌʃvɔlf]) — the machine you push anything through to get a single,
+uniform mince, which is exactly what this does to documents: PDF, DOCX, HTML,
+XLSX … all come out as one `DoclingDocument`. On joining the docling
+ecosystem it was renamed **docling.rs**, but the meat grinder stays as the
+mascot — and it's written in Rust, so Ferris the crab 🦀 still gets a seat.

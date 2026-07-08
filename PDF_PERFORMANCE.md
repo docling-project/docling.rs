@@ -27,10 +27,10 @@ Cumulative head-to-head vs Python docling (measured on an 8-thread desktop,
 before this work. Model sizes: layout 172 → 68 MB, TF decoder 78 → 50 MB.
 Also fixed along the way: the `"` show-text operator dropped its word/char
 spacing operands (real spec violation), and OCR/TableFormer sub-stages are
-now visible in `FLEISCHWOLF_TIMING` profiles.
+now visible in `DOCLING_RS_TIMING` profiles.
 
 Measured on a 4-core AVX-512(+VNNI/AMX) Xeon, release build (`lto = "thin"`),
-models from `scripts/download_dependencies.sh`, `FLEISCHWOLF_TIMING=1`.
+models from `scripts/download_dependencies.sh`, `DOCLING_RS_TIMING=1`.
 
 ## Where the time goes
 
@@ -70,7 +70,7 @@ default 2×2 on 4 cores) was re-validated: 2×2 beat both 4×1 and 1×4 on the
 
 **These are now the default:** when the `*_int8` files sit next to the fp32
 models at the default paths, the pipeline loads them automatically.
-`FLEISCHWOLF_FP32=1` forces full precision, and an explicit
+`DOCLING_RS_FP32=1` forces full precision, and an explicit
 `DOCLING_LAYOUT_ONNX` / `DOCLING_TABLEFORMER_DECODER` always wins (the
 conformance/groundtruth scripts pin fp32 explicitly, so snapshots stay
 deterministic).
@@ -137,7 +137,7 @@ Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.
 
 1. ~~**Ship/document the INT8 layout model as the default CPU
    configuration**~~ **Done on this branch:** the pipeline prefers the int8
-   models when present (`FLEISCHWOLF_FP32=1` opts out),
+   models when present (`DOCLING_RS_FP32=1` opts out),
    `download_dependencies.sh` fetches them by default, and
    `publish-models.yml` builds them. Biggest single validated win: ~1.4–2×
    end-to-end.
@@ -171,7 +171,7 @@ Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.
    on the 16-page doc. The SIMD fixed-point path differs from the scalar one
    by ±1/255 on some pixels, which can flip borderline table cells, so it was
    gated like INT8: groundtruth distance over the corpus is **817 (SIMD) vs
-   818 (scalar)** — conformance-neutral. `FLEISCHWOLF_SLOW_RESIZE=1` restores
+   818 (scalar)** — conformance-neutral. `DOCLING_RS_SLOW_RESIZE=1` restores
    the scalar path, and `pdf_conformance.sh`/`pdf_groundtruth.sh` pin it so
    the committed snapshot baselines stay valid. (The render-side `as_image()`
    copy turned out to be a non-issue: pdfium already renders with reversed
@@ -220,7 +220,7 @@ paper, INT8 stack:
 | 2 workers | 2183 MB | **1517 MB** |
 | 4 workers, table-free doc | 682 MB | **331 MB** (TableFormer never loads) |
 
-`FLEISCHWOLF_PDF_WORKERS` remains the coarse memory knob on top.
+`DOCLING_RS_PDF_WORKERS` remains the coarse memory knob on top.
 
 ## Determinism note (pre-existing, worth knowing)
 
@@ -230,7 +230,7 @@ binary can differ in a handful of borderline table cells (measured 0–20
 Markdown diff-lines between repeat runs, before any of this branch's
 changes). `ocr.rs` already pins its session to one thread for exactly this
 reason. Regression checks for structural changes should therefore compare
-outputs under `FLEISCHWOLF_PDF_THREADS=1` (single-thread inference is
+outputs under `DOCLING_RS_PDF_THREADS=1` (single-thread inference is
 deterministic and byte-stable); multi-threaded corpus diffs of a few lines on
 table-dense fixtures are thread-scheduling jitter, not necessarily a real
 change.
@@ -254,7 +254,7 @@ scripts/download_dependencies.sh
 cargo build --release
 
 # stage timing
-FLEISCHWOLF_TIMING=1 ./target/release/fleischwolf input.pdf > /dev/null
+DOCLING_RS_TIMING=1 ./target/release/docling-rs input.pdf > /dev/null
 
 # build the int8 models (used automatically once present)
 uv venv .venv-quant && uv pip install --python .venv-quant/bin/python \
@@ -262,13 +262,13 @@ uv venv .venv-quant && uv pip install --python .venv-quant/bin/python \
 .venv-quant/bin/python scripts/quantize_models.py
 
 # force full precision for a run
-FLEISCHWOLF_FP32=1 ./target/release/fleischwolf input.pdf > /dev/null
+DOCLING_RS_FP32=1 ./target/release/docling-rs input.pdf > /dev/null
 ```
 
 Integration points: `scripts/download_dependencies.sh` fetches the
 pre-quantized assets by default (`--no-int8` skips; published by
 `.github/workflows/publish-models.yml`, which quantizes after export);
-`scripts/pdf_setup.sh` quantizes locally unless `FLEISCHWOLF_FP32=1`;
+`scripts/pdf_setup.sh` quantizes locally unless `DOCLING_RS_FP32=1`;
 `scripts/performance.sh` benchmarks whatever the pipeline default resolves to
-(int8 when present, `FLEISCHWOLF_FP32=1` for fp32); `examples/Dockerfile`
+(int8 when present, `DOCLING_RS_FP32=1` for fp32); `examples/Dockerfile`
 bakes both precisions and defaults to int8 (`--build-arg INT8=0` for fp32).

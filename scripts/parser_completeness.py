@@ -9,7 +9,7 @@ garbled text doesn't confuse it. Reports, per PDF, characters the parser drops
 (docling has more) or invents (parser has more), with counts.
 
 Run after building the example:
-  cargo build --release -p fleischwolf-pdf --example textparse_glyphs
+  cargo build --release -p docling-pdf --example textparse_glyphs
   python scripts/parser_completeness.py
 """
 import collections
@@ -23,7 +23,7 @@ from docling_parse.pdf_parser import DoclingPdfParser
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "tests/data/pdf/sources"
-BIN_EXAMPLE = ["cargo", "run", "--release", "--quiet", "-p", "fleischwolf-pdf",
+BIN_EXAMPLE = ["cargo", "run", "--release", "--quiet", "-p", "docling-pdf",
                "--example", "textparse_glyphs", "--"]
 
 

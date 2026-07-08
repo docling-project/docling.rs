@@ -1,8 +1,8 @@
 # Third-party model notice
 
-`fleischwolf`'s PDF/image pipeline uses two ONNX graphs that are **format
-conversions of docling-project's own PyTorch models**, not weights fleischwolf
-trains or modifies. They're licensed separately from fleischwolf's own MIT
+`docling.rs`'s PDF/image pipeline uses two ONNX graphs that are **format
+conversions of docling-project's own PyTorch models**, not weights docling.rs
+trains or modifies. They're licensed separately from docling.rs's own MIT
 code (see [`LICENSE`](./LICENSE)) under their upstream terms:
 
 | Model | Source | License |
@@ -16,7 +16,7 @@ fine-tuned, or otherwise altered. `.github/workflows/publish-models.yml` runs
 that conversion (and re-hosts pdfium + the OCR model alongside it) and
 publishes everything as GitHub Release assets on this repo (tag `models-v1`),
 fetched by `scripts/download_dependencies.sh` — see that script and
-`crates/fleischwolf-node/deps.js` — purely to spare downstream users the
+`crates/docling-node/deps.js` — purely to spare downstream users the
 PyTorch/`transformers`/`docling_ibm_models` toolchain needed to export them
 locally.
 

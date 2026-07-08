@@ -1,15 +1,15 @@
 # syntax=docker/dockerfile:1
 #
-# Example deployment image for fleischwolf (the Rust docling port) with the full
+# Example deployment image for docling.rs (the Rust docling port) with the full
 # PDF ML pipeline — pdfium rasterization + RT-DETR layout + TableFormer table
 # structure (KV-cached decoder) + PP-OCRv3. Builds a slim runtime with the
-# `fleischwolf` CLI, the native libs, and all models baked in, so a container can
+# `docling.rs` CLI, the native libs, and all models baked in, so a container can
 # convert PDFs/images offline with no Python at runtime.
 #
 # Build from the repository root:
-#   docker build -f examples/Dockerfile -t fleischwolf .
+#   docker build -f examples/Dockerfile -t docling.rs .
 # Convert a document (Markdown to stdout):
-#   docker run --rm -v "$PWD:/data" fleischwolf /data/input.pdf
+#   docker run --rm -v "$PWD:/data" docling.rs /data/input.pdf
 #
 # By default the models stage also INT8-quantizes the layout model (Conv-only,
 # calibrated on the repo's PDF corpus) and the TableFormer decoder, and the
@@ -74,7 +74,7 @@ RUN mkdir -p /opt/models /opt/pdfium \
 # either way, so a container can switch back via the DOCLING_* env vars.
 ARG INT8=1
 RUN if [ "$INT8" = "1" ]; then \
-        FLEISCHWOLF_MODELS_DIR=/opt/models python scripts/quantize_models.py \
+        DOCLING_RS_MODELS_DIR=/opt/models python scripts/quantize_models.py \
         && ln -s layout_heron_int8.onnx /opt/models/layout_heron_active.onnx \
         && ln -s decoder_int8.onnx /opt/models/tableformer/decoder_active.onnx; \
     else \
@@ -97,11 +97,11 @@ WORKDIR /app
 # Warm the dependency cache on the manifests first (fast rebuilds on src edits).
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
-RUN cargo build --release -p fleischwolf-cli --locked
+RUN cargo build --release -p docling-cli --locked
 
 # Collect the binary + the ONNX Runtime shared lib `ort` downloaded during build.
 RUN mkdir -p /artifacts \
-    && cp target/release/fleischwolf /artifacts/ \
+    && cp target/release/docling-rs /artifacts/ \
     && find target -name 'libonnxruntime*.so*' -exec cp -av {} /artifacts/ \; || true
 
 # ----------------------------------------------------------------------------
@@ -114,7 +114,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /artifacts/ /tmp/artifacts/
-RUN cp /tmp/artifacts/fleischwolf /usr/local/bin/ \
+RUN cp /tmp/artifacts/docling.rs /usr/local/bin/ \
     && (cp /tmp/artifacts/libonnxruntime*.so* /usr/local/lib/ 2>/dev/null || true) \
     && rm -rf /tmp/artifacts \
     && ldconfig
@@ -139,5 +139,5 @@ ENV PDFIUM_DYNAMIC_LIB_PATH=/opt/pdfium/lib \
     LD_LIBRARY_PATH=/usr/local/lib:/opt/pdfium/lib
 
 # Default: read a file arg and print Markdown to stdout, e.g.
-#   docker run --rm -v "$PWD:/data" fleischwolf /data/input.pdf --to json
-ENTRYPOINT ["fleischwolf"]
+#   docker run --rm -v "$PWD:/data" docling.rs /data/input.pdf --to json
+ENTRYPOINT ["docling.rs"]

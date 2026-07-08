@@ -4,13 +4,13 @@
 # clean checkout should report every fixture EXACT; a non-zero diff means the
 # output drifted. Run scripts/pdf_setup.sh first to fetch the libs/models.
 set -euo pipefail
-cd "$(dirname "$0")/.."   # fleischwolf/
+cd "$(dirname "$0")/.."   # docling.rs/
 
 export PDFIUM_DYNAMIC_LIB_PATH="${PDFIUM_DYNAMIC_LIB_PATH:-$(pwd)/.pdfium/lib}"
 # Pin the snapshot-baseline pixel path: the scalar image-crate resize (the
 # committed snapshots were generated with it; the SIMD default differs by
 # ±1/255 per pixel, enough to flip borderline table cells).
-export FLEISCHWOLF_SLOW_RESIZE="${FLEISCHWOLF_SLOW_RESIZE:-1}"
+export DOCLING_RS_SLOW_RESIZE="${DOCLING_RS_SLOW_RESIZE:-1}"
 export DOCLING_LAYOUT_ONNX="${DOCLING_LAYOUT_ONNX:-$(pwd)/models/layout_heron.onnx}"
 export DOCLING_OCR_REC_ONNX="${DOCLING_OCR_REC_ONNX:-$(pwd)/models/ocr_rec.onnx}"
 export DOCLING_OCR_DICT="${DOCLING_OCR_DICT:-$(pwd)/models/ppocr_keys_v1.txt}"
@@ -29,7 +29,7 @@ done
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 echo "regenerating PDF output ..."
-cargo run --release -q -p fleischwolf-pdf --example snapshot -- tests/data "$tmp" 1>&2
+cargo run --release -q -p docling-pdf --example snapshot -- tests/data "$tmp" 1>&2
 
 exact=0; drift=0; tot=0
 while IFS= read -r snap; do

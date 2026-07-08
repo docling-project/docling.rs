@@ -35,7 +35,7 @@ echo ">> releasing v$new (was v$current)"
 prev_tag="$(git tag --list 'v*' --sort=-version:refname | head -n1)"
 notes_range="${prev_tag:+$prev_tag..}HEAD"
 notes_file="$(pwd)/release-notes.md"
-repo="${GITHUB_REPOSITORY:-artiz/fleischwolf}"
+repo="${GITHUB_REPOSITORY:-artiz/docling.rs}"
 {
   echo "## What's changed"
   echo
@@ -53,7 +53,7 @@ sed -i -E "0,/^version = \"[^\"]+\"/ s//version = \"$new\"/" Cargo.toml
 # version. Without this the published crates resolve each other to an OLDER
 # release (the version req is a literal, not inherited), which fails to build.
 for manifest in crates/*/Cargo.toml; do
-  sed -i -E "/path = \"\.\.\/fleischwolf/ s/version = \"[^\"]+\"/version = \"$new\"/" "$manifest"
+  sed -i -E "/path = \"\.\.\/docling/ s/version = \"[^\"]+\"/version = \"$new\"/" "$manifest"
 done
 
 git config user.name "github-actions[bot]"

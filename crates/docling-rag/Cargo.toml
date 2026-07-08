@@ -1,0 +1,81 @@
+[package]
+name = "docling-rag"
+description = "Pluggable RAG subsystem for docling.rs: chunking, embeddings, vector store, and semantic search."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["rag", "embeddings", "semantic-search", "vector", "docling"]
+categories = ["text-processing", "database"]
+# MSRV is raised over the workspace default by tokio/sqlx/reqwest; kept in step
+# with docling-pdf (ort) which already needs a recent toolchain.
+rust-version = "1.82"
+
+[[bin]]
+name = "docling-rag"
+path = "src/bin/docling-rag.rs"
+
+[features]
+# The default build is fully offline-testable: bundled SQLite + HTTP embedders.
+default = ["sqlite", "ollama"]
+sqlite = ["sqlx/sqlite", "dep:sqlite-vec", "dep:libsqlite3-sys"]
+postgres = ["sqlx/postgres"]
+# HTTP-only backends ride on reqwest (no native deps) and always compile; the
+# feature flags below just gate the small amount of provider-specific code.
+ollama = []
+gemini = []
+openrouter = []
+# Heavy / native-dependency backends. Real code, but not exercised in offline CI.
+onnx-embed = ["dep:ort", "dep:tokenizers"]
+remote-sources = ["dep:suppaftp", "dep:ssh2"]
+rabbitmq = ["dep:lapin", "dep:futures-lite"]
+redis = ["dep:redis", "dep:futures-lite"]
+
+[dependencies]
+# `>=` requirements on purpose while this crate rides an open PR: release.sh
+# bumps every sibling's exact pin on master with each release, which would
+# break this branch's merge-ref build. Post-merge, release.sh rewrites these
+# to exact pins automatically (its sed matches any quoted version here).
+docling = { path = "../docling", version = "0.16.0" }
+# Direct dep only for pdfium_backend::page_count (PDF page metrics); already in
+# the graph via docling.rs, so this adds no compile cost.
+docling-pdf = { path = "../docling-pdf", version = "0.16.0" }
+# Counting slides/sheets in OOXML containers for page metrics (names only).
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
+
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "time", "signal"] }
+axum = "0.8"
+async-trait = "0.1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dotenvy = "0.15"
+clap = { version = "4", features = ["derive", "env"] }
+# rustls-tls so the crypto/TLS stack matches what the workspace already builds via
+# `ort` (tls-rustls) and sqlx below — no OpenSSL system dependency.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls"] }
+# sqlite-vec: the `vec0` ANN virtual table, statically compiled into the bundled
+# SQLite. libsqlite3-sys must match sqlx's (cargo enforces one copy via `links`);
+# we need it directly for sqlite3_auto_extension to register the extension.
+sqlite-vec = { version = "0.1.6", optional = true }
+libsqlite3-sys = { version = "0.30", optional = true }
+pulldown-cmark = { version = "0.13", default-features = false }
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# --- feature-gated / optional backends ---
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "download-binaries", "tls-rustls"], optional = true }
+tokenizers = { version = "0.20", default-features = false, features = ["onig"], optional = true }
+suppaftp = { version = "6", optional = true }
+ssh2 = { version = "0.9", optional = true }
+lapin = { version = "2", optional = true }
+futures-lite = { version = "2", optional = true }
+redis = { version = "0.27", default-features = false, features = ["tokio-comp"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "test-util"] }

@@ -9,16 +9,16 @@
 # Run from your app's directory (or a checkout of this repo):
 #   scripts/download_dependencies.sh
 # or, without a checkout:
-#   curl -fsSL https://raw.githubusercontent.com/artiz/fleischwolf/master/scripts/download_dependencies.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/artiz/docling.rs/master/scripts/download_dependencies.sh | sh
 #
 # Then either:
-#   cargo run -p fleischwolf-cli -- <file>
+#   cargo run -p docling-cli -- <file>
 # or:
-#   npm i fleischwolf
-#   node -e "import { convertFileAsync } from 'fleischwolf'; const r = await convertFileAsync('example.pdf', { to: 'markdown' }); console.log(r.content) "
+#   npm i docling.rs
+#   node -e "import { convertFileAsync } from 'docling.rs'; const r = await convertFileAsync('example.pdf', { to: 'markdown' }); console.log(r.content) "
 #
-# Downloads (from https://github.com/artiz/fleischwolf/releases, tag
-# models-v1 by default — override the base with $FLEISCHWOLF_MODELS_URL):
+# Downloads (from https://github.com/artiz/docling.rs/releases, tag
+# models-v1 by default — override the base with $DOCLING_RS_MODELS_URL):
 #   .pdfium/lib/libpdfium.so                      (Linux x64)
 #   models/layout_heron.onnx
 #   models/ocr_rec.onnx
@@ -34,7 +34,7 @@
 #   models/layout_heron_int8.onnx
 #   models/tableformer/decoder_int8.onnx
 # The pipeline picks these up automatically when they sit next to the fp32
-# files (no env vars needed); set FLEISCHWOLF_FP32=1 at runtime to force full
+# files (no env vars needed); set DOCLING_RS_FP32=1 at runtime to force full
 # precision, or skip fetching them entirely with --no-int8. If the release
 # doesn't host the int8 assets (older tag), a note explains how to produce
 # them locally with scripts/quantize_models.py.
@@ -45,12 +45,12 @@
 # Idempotent: skips files already on disk. Pass --force to re-fetch everything.
 set -eu
 
-BASE_URL="${FLEISCHWOLF_MODELS_URL:-https://github.com/artiz/fleischwolf/releases/download/models-v1}"
+BASE_URL="${DOCLING_RS_MODELS_URL:-https://github.com/artiz/docling.rs/releases/download/models-v1}"
 # Whisper tiny (docling's ASR default) for the audio pipeline, fetched straight
 # from the onnx-community export on Hugging Face (~150 MB). Override the base
-# with $FLEISCHWOLF_ASR_MODELS_URL (e.g. to re-host alongside the other models);
+# with $DOCLING_RS_ASR_MODELS_URL (e.g. to re-host alongside the other models);
 # skip entirely with --no-asr.
-ASR_BASE_URL="${FLEISCHWOLF_ASR_MODELS_URL:-https://huggingface.co/onnx-community/whisper-tiny/resolve/main}"
+ASR_BASE_URL="${DOCLING_RS_ASR_MODELS_URL:-https://huggingface.co/onnx-community/whisper-tiny/resolve/main}"
 
 FORCE=false
 WITH_ASR=true
@@ -100,7 +100,7 @@ fetch_optional() { # <url> <dest> — ignore a missing/failed asset (sidecar fil
   fi
 }
 
-echo "fetching fleischwolf ML dependencies from $BASE_URL"
+echo "fetching docling.rs ML dependencies from $BASE_URL"
 fetch "$BASE_URL/libpdfium.so" .pdfium/lib/libpdfium.so
 fetch "$BASE_URL/layout_heron.onnx" models/layout_heron.onnx
 fetch "$BASE_URL/ocr_rec.onnx" models/ocr_rec.onnx
@@ -124,12 +124,12 @@ fi
 
 if [ "$WITH_INT8" = true ]; then
   # INT8-quantized CPU models (optional release assets). The pipeline prefers
-  # them automatically when they sit at the default paths; FLEISCHWOLF_FP32=1
+  # them automatically when they sit at the default paths; DOCLING_RS_FP32=1
   # forces the fp32 models at runtime.
   fetch_optional "$BASE_URL/layout_heron_int8.onnx" models/layout_heron_int8.onnx
   fetch_optional "$BASE_URL/decoder_int8.onnx" models/tableformer/decoder_int8.onnx
   if [ -f models/layout_heron_int8.onnx ]; then
-    echo "int8 models present — used by default (FLEISCHWOLF_FP32=1 forces full precision)"
+    echo "int8 models present — used by default (DOCLING_RS_FP32=1 forces full precision)"
   else
     echo "int8 assets not hosted at $BASE_URL — the fp32 models will be used."
     echo "To build the int8 models locally (see PDF_PERFORMANCE.md):"

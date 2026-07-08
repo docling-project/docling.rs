@@ -1,8 +1,8 @@
-# Publish the `fleischwolf` npm package (Node.js / Bun native bindings) for a
+# Publish the `docling.rs` npm package (Node.js / Bun native bindings) for a
 # chosen release. The package is a native N-API addon, so it can't be a one-line
 # `npm publish`: it's built on a matrix of native runners (one per OS/arch),
 # each producing a platform `.node`, then a publish job assembles the main
-# package plus per-platform `optionalDependencies` (fleischwolf-<triple>) via
+# package plus per-platform `optionalDependencies` (docling.rs-<triple>) via
 # napi-rs and publishes them all.
 #
 # Trigger: manual only (workflow_dispatch). By default it builds the latest
@@ -13,7 +13,7 @@
 # `gh workflow run npm-publish.yml`, optionally `-f tag=v0.7.0`).
 #
 # Requires one repository secret: NPM_TOKEN — an npm automation token with
-# publish rights to `fleischwolf` and the `fleischwolf-*` platform packages.
+# publish rights to `docling.rs` and the `docling.rs-*` platform packages.
 
 name: npm publish
 
@@ -35,7 +35,7 @@ concurrency:
 
 defaults:
   run:
-    working-directory: crates/fleischwolf-node
+    working-directory: crates/docling-node
 
 jobs:
   build:
@@ -97,7 +97,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.target }}
-          path: crates/fleischwolf-node/fleischwolf.*.node
+          path: crates/docling-node/docling-rs.*.node
           if-no-files-found: error
 
       # The JS loader + types are platform-agnostic; upload them once (from the
@@ -108,8 +108,8 @@ jobs:
         with:
           name: js-binding
           path: |
-            crates/fleischwolf-node/native.js
-            crates/fleischwolf-node/native.d.ts
+            crates/docling-node/native.js
+            crates/docling-node/native.d.ts
           if-no-files-found: error
 
   publish:
@@ -129,19 +129,19 @@ jobs:
       - name: Install napi CLI
         run: npm install
 
-      # Prebuilt binaries → artifacts/<name>/fleischwolf.<triple>.node
+      # Prebuilt binaries → artifacts/<name>/docling-rs.<triple>.node
       - name: Download prebuilt binaries
         uses: actions/download-artifact@v8
         with:
           pattern: bindings-*
-          path: crates/fleischwolf-node/artifacts
+          path: crates/docling-node/artifacts
 
       # The JS loader + types → the package root.
       - name: Download JS binding
         uses: actions/download-artifact@v8
         with:
           name: js-binding
-          path: crates/fleischwolf-node
+          path: crates/docling-node
 
       # Version = the explicit override, else the selected tag (sans leading `v`),
       # else the workspace version from the root Cargo.toml (latest-master run).
@@ -157,16 +157,16 @@ jobs:
             fi
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "Publishing fleischwolf@$v (ref: ${{ inputs.tag || github.ref }})"
+          echo "Publishing docling.rs@$v (ref: ${{ inputs.tag || github.ref }})"
 
       # Skip cleanly if this version is already on npm (idempotent re-runs).
       - name: Check if already published
         id: check
         run: |
           v="${{ steps.ver.outputs.version }}"
-          if npm view "fleischwolf@$v" version >/dev/null 2>&1; then
+          if npm view "docling.rs@$v" version >/dev/null 2>&1; then
             echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "fleischwolf@$v is already on npm — skipping."
+            echo "docling.rs@$v is already on npm — skipping."
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
@@ -177,7 +177,7 @@ jobs:
 
       # Create the per-platform package dirs and move each prebuilt .node into
       # its dir. `npm publish` then runs `prepublishOnly` (napi prepublish), which
-      # publishes the fleischwolf-<triple> packages and wires them into the main
+      # publishes the docling.rs-<triple> packages and wires them into the main
       # package's optionalDependencies before the main package is published.
       - name: Assemble platform packages
         if: steps.check.outputs.published == 'false'

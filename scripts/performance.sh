@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Compare *processing cost* of Python `docling` vs Rust `fleischwolf` for one
+# Compare *processing cost* of Python `docling` vs Rust `docling.rs` for one
 # input file: wall-clock time, CPU utilization, and peak memory (RSS).
 #
 # Usage:
@@ -44,9 +44,9 @@ RUST_BIN="$(build_rust_release)"
 # Harmless for non-PDF inputs (the binary only reads these for PDFs/images).
 # Mirrors the pipeline's own default: the INT8 layout model + TableFormer
 # decoder when present (scripts/quantize_models.py; see PDF_PERFORMANCE.md),
-# fp32 with FLEISCHWOLF_FP32=1.
+# fp32 with DOCLING_RS_FP32=1.
 [[ -e "$WORKSPACE_DIR/.pdfium/lib/libpdfium.so" ]] && export PDFIUM_DYNAMIC_LIB_PATH="${PDFIUM_DYNAMIC_LIB_PATH:-$WORKSPACE_DIR/.pdfium/lib}"
-if [[ "${FLEISCHWOLF_FP32:-0}" != "1" && -e "$WORKSPACE_DIR/models/layout_heron_int8.onnx" ]]; then
+if [[ "${DOCLING_RS_FP32:-0}" != "1" && -e "$WORKSPACE_DIR/models/layout_heron_int8.onnx" ]]; then
   export DOCLING_LAYOUT_ONNX="${DOCLING_LAYOUT_ONNX:-$WORKSPACE_DIR/models/layout_heron_int8.onnx}"
   [[ -e "$WORKSPACE_DIR/models/tableformer/decoder_int8.onnx" ]] && export DOCLING_TABLEFORMER_DECODER="${DOCLING_TABLEFORMER_DECODER:-$WORKSPACE_DIR/models/tableformer/decoder_int8.onnx}"
 fi
@@ -140,7 +140,7 @@ if ! "$PYBIN" "$PY_RUNNER" "$INPUT" "$probe" >/dev/null 2>&1 || [[ ! -s "$probe"
 fi
 rm -f "$probe"
 
-echo ">> measuring Rust fleischwolf (end-to-end process) ..."
+echo ">> measuring Rust docling.rs (end-to-end process) ..."
 read -r rs_min rs_avg rs_rss rs_cpu < <(bench_process "$RUST_BIN" "$INPUT")
 
 if [[ "$PY_OK" -eq 1 ]]; then
@@ -152,7 +152,7 @@ if [[ "$PY_OK" -eq 1 ]]; then
   # counterpart to Python's warm number. Only the PDF/image pipeline supports it.
   rsw_avg=""
   if [[ "$PY_KIND" == full* ]]; then
-    echo ">> measuring Rust fleischwolf (warm, in-process) ..."
+    echo ">> measuring Rust docling.rs (warm, in-process) ..."
     rsw_avg=$("$RUST_BIN" --bench-warm "$RUNS" "$INPUT" 2>/dev/null || echo "")
   fi
 fi
@@ -166,7 +166,7 @@ if [[ "$PY_OK" -eq 1 ]]; then
   echo "================ end-to-end (whole process) ================"
   printf "%-22s %8s %10s %10s %8s %12s\n" "ENGINE" "RUNS" "TIME-min" "TIME-avg" "CPU" "PEAK-MEM"
   printf "%-22s %8s %9ss %9ss %8s %9s MB\n" "docling (python)"   "$RUNS" "$(fmtt "$py_min")" "$(fmtt "$py_avg")" "$py_cpu" "$(mb "$py_rss")"
-  printf "%-22s %8s %9ss %9ss %8s %9s MB\n" "fleischwolf (rust)" "$RUNS" "$(fmtt "$rs_min")" "$(fmtt "$rs_avg")" "$rs_cpu" "$(mb "$rs_rss")"
+  printf "%-22s %8s %9ss %9ss %8s %9s MB\n" "docling.rs (rust)" "$RUNS" "$(fmtt "$rs_min")" "$(fmtt "$rs_avg")" "$rs_cpu" "$(mb "$rs_rss")"
   echo
   echo "  wall-time speedup (avg):  $(ratio "$py_avg" "$rs_avg")x faster (rust)"
   echo "  peak-memory ratio:        $(ratio "$py_rss" "$rs_rss")x less (rust)"
@@ -186,7 +186,7 @@ if [[ "$PY_OK" -eq 1 ]]; then
     echo "tables + OCR). The end-to-end figures re-pay process startup (torch import +"
     echo "cold ONNX model load) on every run; the warm figures load the pipeline once"
     echo "and time conversion only, so warm-vs-warm is the fair conversion-speed"
-    echo "comparison. (Rust warm = 'fleischwolf --bench-warm'.)"
+    echo "comparison. (Rust warm = 'docling.rs --bench-warm'.)"
   else
     echo "Note: Python end-to-end time includes interpreter + import startup"
     echo "(~0.3-0.6s), which dominates on small inputs. The warm number isolates the"
@@ -194,9 +194,9 @@ if [[ "$PY_OK" -eq 1 ]]; then
   fi
 else
   echo
-  echo "================ fleischwolf (rust) — whole process ================"
+  echo "================ docling.rs (rust) — whole process ================"
   printf "%-22s %8s %10s %10s %8s %12s\n" "ENGINE" "RUNS" "TIME-min" "TIME-avg" "CPU" "PEAK-MEM"
-  printf "%-22s %8s %9ss %9ss %8s %9s MB\n" "fleischwolf (rust)" "$RUNS" "$(fmtt "$rs_min")" "$(fmtt "$rs_avg")" "$rs_cpu" "$(mb "$rs_rss")"
+  printf "%-22s %8s %9ss %9ss %8s %9s MB\n" "docling.rs (rust)" "$RUNS" "$(fmtt "$rs_min")" "$(fmtt "$rs_avg")" "$rs_cpu" "$(mb "$rs_rss")"
   echo
   echo "Note: the local Python docling (.venv-compare) can't convert this format —"
   echo "PDF/images/audio need the full torch/ML pipeline it omits — so no head-to-head"

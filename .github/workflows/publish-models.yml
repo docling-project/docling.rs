@@ -136,6 +136,6 @@ jobs:
           else
             gh release create "$TAG" release-assets/* \
               --repo "${{ github.repository }}" \
-              --title "fleischwolf ML models ($TAG)" \
+              --title "docling.rs ML models ($TAG)" \
               --notes-file MODELS_NOTICE.md
           fi

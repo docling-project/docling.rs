@@ -1,0 +1,61 @@
+[package]
+name = "docling"
+description = "DocumentConverter and format backends for docling.rs (a Rust port of docling)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+# The 25 MB output-regression corpus under tests/ is dev-only — keep it out of
+# the published crate (and under crates.io's size limit). benches/ reference that
+# corpus by path, so they're dev-only too.
+exclude = ["tests", "benches"]
+
+[features]
+# Optional headless-browser HTML pre-render (the `--use-web-browser` flag /
+# `DocumentConverter::use_web_browser`). Off by default so the standard build
+# stays pure-Rust with no browser/runtime dependency; enable with
+# `--features web-browser`. Drives the system Chromium over the DevTools
+# protocol purely from Rust (no Node/Playwright) via `headless_chrome`.
+web-browser = ["dep:headless_chrome"]
+
+[dependencies]
+calamine = { version = "0.26", features = ["dates"] }
+csv = "1.4.0"
+headless_chrome = { version = "1.0", optional = true }
+docling-asr = { path = "../docling-asr", version = "0.16.0" }
+docling-core = { path = "../docling-core", version = "0.16.0" }
+docling-pdf = { path = "../docling-pdf", version = "0.16.0" }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "webp"] }
+mail-parser = "0.11"
+pulldown-cmark = { version = "0.13.4", default-features = false }
+quick-xml = "0.37"
+regex = "1.11"
+roxmltree = "0.20"
+scraper = "0.27.0"
+serde_json = "1"
+# Blocking HTTP client for fetching remote <img src> images when image fetching
+# is enabled (DocumentConverter::fetch_images). 3.x matches the version `ort`
+# already pulls in (so the graph keeps a single ureq); it needs Rust 1.85, which
+# this crate already requires transitively via docling-pdf → ort.
+ureq = "3"
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
+
+[[example]]
+name = "convert"
+path = "examples/convert.rs"
+
+[[example]]
+name = "stream"
+path = "examples/stream.rs"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "parse"
+harness = false

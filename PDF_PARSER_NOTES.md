@@ -21,7 +21,7 @@ pipeline (keeping our layout + TableFormer) — measured:
 
 So the text parser is the lever; 50% is reachable.
 
-## What's built (`crates/fleischwolf-pdf/src/textparse.rs`)
+## What's built (`crates/docling-pdf/src/textparse.rs`)
 
 The **default** text layer (opt out with `DOCLING_PDFIUM_TEXT=1`). Pdfium still
 provides page rasters + word/code cells; the parser replaces prose line cells,

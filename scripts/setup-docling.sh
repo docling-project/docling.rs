@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Install the latest PUBLISHED docling from PyPI into fleischwolf/.venv-compare
+# Install the latest PUBLISHED docling from PyPI into docling.rs/.venv-compare
 # so the comparison scripts can import it. (Published docling 2.x bundles every
 # format backend plus the full PDF pipeline — torch + models — so the first run
 # downloads several hundred MB.)
