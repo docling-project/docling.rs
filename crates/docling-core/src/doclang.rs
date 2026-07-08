@@ -169,6 +169,146 @@ fn inline_runs(text: &str) -> Vec<Run> {
     runs
 }
 
+/// Parse a docling-legacy Markdown string into structured [`InlineRun`]s for a
+/// [`Node::InlineGroup`]. Handles the marker set docling emits — `***`, `**`,
+/// `*`, `~~`, `` ` ``, `[t](u)` — recursively so nested markers combine
+/// formatting, and splits plain text on newlines (docling's `<br>` / text-node
+/// boundaries become separate runs). Underline and sub/superscript have no
+/// Markdown representation and therefore never appear via this path.
+pub fn inline_runs_from_markdown(text: &str) -> Vec<InlineRun> {
+    let mut out = Vec::new();
+    parse_md_runs(
+        &text.chars().collect::<Vec<_>>(),
+        InlineRun::default(),
+        &mut out,
+    );
+    out
+}
+
+/// Flush `acc`'s buffered text into `out` as one run, trimmed; a blank segment
+/// yields nothing (docling has no empty text items). Internal newlines (soft
+/// breaks) are kept — docling holds them in a single text item.
+fn flush_md_plain(buf: &mut String, style: &InlineRun, out: &mut Vec<InlineRun>) {
+    let text = std::mem::take(buf);
+    let text = text.trim();
+    if !text.is_empty() {
+        out.push(InlineRun {
+            text: text.to_string(),
+            ..style.clone()
+        });
+    }
+}
+
+/// Recursive marker scanner: `style` carries the formatting active from enclosing
+/// spans; plain text inherits it, and each marker recurses with the extra flag.
+fn parse_md_runs(chars: &[char], style: InlineRun, out: &mut Vec<InlineRun>) {
+    let n = chars.len();
+    let mut i = 0;
+    let mut plain = String::new();
+    let find = |open: usize, pat: &str| -> Option<usize> {
+        let hay: String = chars[open..].iter().collect();
+        hay.find(pat).map(|p| open + hay[..p].chars().count())
+    };
+    let sub = |a: usize, b: usize| -> Vec<char> { chars[a..b].to_vec() };
+    while i < n {
+        let rest: String = chars[i..].iter().collect();
+        // Longest markers first so `**`/`***` aren't mis-split.
+        if rest.starts_with("***") {
+            if let Some(end) = find(i + 3, "***") {
+                flush_md_plain(&mut plain, &style, out);
+                parse_md_runs(
+                    &sub(i + 3, end),
+                    InlineRun {
+                        bold: true,
+                        italic: true,
+                        ..style.clone()
+                    },
+                    out,
+                );
+                i = end + 3;
+                continue;
+            }
+        }
+        if rest.starts_with("**") {
+            if let Some(end) = find(i + 2, "**") {
+                flush_md_plain(&mut plain, &style, out);
+                parse_md_runs(
+                    &sub(i + 2, end),
+                    InlineRun {
+                        bold: true,
+                        ..style.clone()
+                    },
+                    out,
+                );
+                i = end + 2;
+                continue;
+            }
+        }
+        if rest.starts_with('*') {
+            if let Some(end) = find(i + 1, "*") {
+                if end > i + 1 {
+                    flush_md_plain(&mut plain, &style, out);
+                    parse_md_runs(
+                        &sub(i + 1, end),
+                        InlineRun {
+                            italic: true,
+                            ..style.clone()
+                        },
+                        out,
+                    );
+                    i = end + 1;
+                    continue;
+                }
+            }
+        }
+        if rest.starts_with("~~") {
+            if let Some(end) = find(i + 2, "~~") {
+                flush_md_plain(&mut plain, &style, out);
+                parse_md_runs(
+                    &sub(i + 2, end),
+                    InlineRun {
+                        strike: true,
+                        ..style.clone()
+                    },
+                    out,
+                );
+                i = end + 2;
+                continue;
+            }
+        }
+        if rest.starts_with('`') {
+            if let Some(end) = find(i + 1, "`") {
+                flush_md_plain(&mut plain, &style, out);
+                let inner: String = sub(i + 1, end).iter().collect();
+                let inner = inner.trim();
+                if !inner.is_empty() {
+                    out.push(InlineRun {
+                        text: inner.to_string(),
+                        code: true,
+                        ..style.clone()
+                    });
+                }
+                i = end + 1;
+                continue;
+            }
+        }
+        if rest.starts_with('[') {
+            if let Some(close) = find(i + 1, "](") {
+                if let Some(endp) = find(close + 2, ")") {
+                    flush_md_plain(&mut plain, &style, out);
+                    // Inline scope drops the href; the anchor keeps its styling.
+                    parse_md_runs(&sub(i + 1, close), style.clone(), out);
+                    i = endp + 1;
+                    continue;
+                }
+            }
+        }
+        plain.push(chars[i]);
+        i += 1;
+    }
+    flush_md_plain(&mut plain, &style, out);
+}
+
 /// Attribute-value escaping for generated URIs/labels.
 fn attr_escape(v: &str) -> String {
     v.replace('&', "&amp;").replace('"', "&quot;")

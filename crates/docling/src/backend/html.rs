@@ -57,6 +57,16 @@ pub(crate) fn convert_html(name: &str, html: &str, images: &dyn ImageResolver) -
 /// docling does).
 pub(crate) fn append_fragment(html: &str, out: &mut Vec<Node>, images: &dyn ImageResolver) {
     let parsed = Html::parse_document(html);
+    // The document `<title>` is docling's furniture-layer title heading — it
+    // precedes the body content and is excluded from Markdown/JSON. Fragments
+    // (e.g. Markdown-embedded HTML) carry no `<title>`, so none is added.
+    if let Some(title) = parsed.select(cached_selector!("title")).next() {
+        let text = normalize_ws(&title.text().collect::<String>());
+        if !text.is_empty() {
+            out.push(Node::Furniture(Box::new(Node::Heading { level: 1, text })));
+        }
+    }
+
     // Prefer <body>; fall back to the root element for fragments.
     let body = parsed.select(cached_selector!("body")).next();
     let root = body.unwrap_or_else(|| parsed.root_element());
@@ -210,12 +220,39 @@ fn walk_block(
 
 fn flush_inline(buf: &mut Vec<String>, nodes: &mut Vec<Node>) {
     if !buf.is_empty() {
-        let text = finalize(buf);
-        if !text.is_empty() {
-            nodes.push(Node::Paragraph { text });
-        }
+        push_inline_paragraph(nodes, finalize(buf));
     }
     buf.clear();
+}
+
+/// Push a paragraph of inline content as docling's `InlineGroup`. The Markdown
+/// text drives Markdown/JSON output unchanged; the structured runs (derived from
+/// the same text) drive DocLang. The group serializes unwrapped (no `<text>`)
+/// once any body heading has been emitted — mirroring docling, where such
+/// content is nested under the heading rather than the body group.
+fn push_inline_paragraph(nodes: &mut Vec<Node>, text: String) {
+    if text.is_empty() {
+        return;
+    }
+    let runs = docling_core::inline_runs_from_markdown(&text);
+    // docling only forms an `InlineGroup` when a paragraph has inline structure:
+    //   * two or more segments (formatting/link boundaries) — unwrapped once a
+    //     body heading precedes it (its docling parent becomes that heading);
+    //   * a single uniformly-formatted segment — a wrapped `<text>` element.
+    // A single plain segment (or a lone hyperlink) stays a plain text item,
+    // which the existing `Paragraph` path renders as `<text>…</text>` (and a
+    // lone link via an `<href>` head).
+    let single_plain = runs.len() <= 1 && runs.first().map_or(true, |r| r.is_plain());
+    if single_plain {
+        nodes.push(Node::Paragraph { text });
+        return;
+    }
+    let unwrapped = runs.len() >= 2 && nodes.iter().any(|n| matches!(n, Node::Heading { .. }));
+    nodes.push(Node::InlineGroup {
+        unwrapped,
+        runs,
+        md_text: text,
+    });
 }
 
 fn handle_block(
@@ -242,10 +279,7 @@ fn handle_block(
                     text: code,
                 });
             } else {
-                let text = render_inline_fmt(elem, base);
-                if !text.is_empty() {
-                    nodes.push(Node::Paragraph { text });
-                }
+                push_inline_paragraph(nodes, render_inline_fmt(elem, base));
             }
         }
         "ul" | "ol" => walk_list(elem, name == "ol", nodes, list_level, base),
