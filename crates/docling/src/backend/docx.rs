@@ -79,8 +79,10 @@ impl DeclarativeBackend for DocxBackend {
         // as furniture text; Markdown/JSON drop them, DocLang emits `<layer
         // value="notes"/>` items.
         for comment in parse_comments(&mut pkg) {
-            doc.nodes
-                .push(Node::Furniture(Box::new(Node::Paragraph { text: comment })));
+            doc.nodes.push(Node::Furniture {
+                layer: docling_core::ContentLayer::Notes,
+                inner: Box::new(Node::Paragraph { text: comment }),
+            });
         }
         Ok(doc)
     }

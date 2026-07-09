@@ -63,7 +63,10 @@ pub(crate) fn append_fragment(html: &str, out: &mut Vec<Node>, images: &dyn Imag
     if let Some(title) = parsed.select(cached_selector!("title")).next() {
         let text = normalize_ws(&title.text().collect::<String>());
         if !text.is_empty() {
-            out.push(Node::Furniture(Box::new(Node::Heading { level: 1, text })));
+            out.push(Node::Furniture {
+                layer: docling_core::ContentLayer::Furniture,
+                inner: Box::new(Node::Heading { level: 1, text }),
+            });
         }
     }
 

@@ -119,10 +119,14 @@ pub enum Node {
         runs: Vec<InlineRun>,
         md_text: String,
     },
-    /// A node in docling's `furniture` content layer (page headers/footers, the
-    /// HTML `<title>`, …). Markdown and JSON omit furniture by default; DocLang
-    /// renders the wrapped node with a `<layer value="furniture"/>` head.
-    Furniture(Box<Node>),
+    /// A node in a non-body content layer — `furniture` (page headers/footers,
+    /// the HTML `<title>`, site navigation/chrome) or `notes` (docx comments).
+    /// Markdown and JSON omit these layers by default; DocLang renders the wrapped
+    /// node with a `<layer value="{layer}"/>` head.
+    Furniture {
+        layer: ContentLayer,
+        inner: Box<Node>,
+    },
     /// A node carrying layout provenance — the four DocLang `<location>` values
     /// (`x0,y0,x1,y1`, normalized to 0–511) docling attaches to elements from
     /// backends with real geometry (e.g. the slide shapes in PPTX). Markdown and
@@ -170,6 +174,25 @@ pub struct InlineRun {
     /// An inline equation (`text` holds LaTeX): DocLang renders `<formula>…`,
     /// Markdown/JSON keep the `$…$` already baked into the group's `md_text`.
     pub formula: bool,
+}
+
+/// A DocLang content layer other than the default `body` (see [`Node::Furniture`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContentLayer {
+    /// Page headers/footers, HTML `<title>`, site navigation/chrome.
+    Furniture,
+    /// Editorial notes (docx reviewer comments).
+    Notes,
+}
+
+impl ContentLayer {
+    /// The `<layer value="…"/>` token value.
+    pub fn value(self) -> &'static str {
+        match self {
+            ContentLayer::Furniture => "furniture",
+            ContentLayer::Notes => "notes",
+        }
+    }
 }
 
 /// DocLang-only content for a [`Node::ListItem`] whose DocLang form differs from

@@ -15,7 +15,7 @@
 //! docling-legacy Markdown markers; [`inline_runs`] re-parses those into the
 //! structural `<bold>`/`<italic>`/`<code>` elements DocLang expects.
 
-use crate::document::{FieldItem, InlineRun, Node, Script, Table};
+use crate::document::{ContentLayer, FieldItem, InlineRun, Node, Script, Table};
 use std::borrow::Cow;
 
 const INDENT: &str = "  ";
@@ -757,8 +757,8 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
                 emit_inline_group(out, depth, *unwrapped, runs);
                 *i += 1;
             }
-            Node::Furniture(inner) => {
-                emit_furniture(out, depth, inner);
+            Node::Furniture { layer, inner } => {
+                emit_furniture(out, depth, *layer, inner);
                 *i += 1;
             }
             Node::Located { location, inner } => {
@@ -893,10 +893,11 @@ fn emit_styled(out: &mut Out, depth: i32, tags: &[&str], inner: &str) {
 }
 
 /// Render a [`Node::Furniture`] wrapper: the inner element with a
-/// `<layer value="furniture"/>` head (which forces the block form). Only the
-/// heading case (the HTML `<title>`) is emitted today; other furniture nodes
-/// fall back to their body rendering.
-fn emit_furniture(out: &mut Out, depth: i32, inner: &Node) {
+/// `<layer value="{layer}"/>` head (which forces the block form). Headings (the
+/// HTML `<title>`, section chrome) and body text (docx comments, nav items) are
+/// emitted with the layer token; other nodes fall back to their body rendering.
+fn emit_furniture(out: &mut Out, depth: i32, layer: ContentLayer, inner: &Node) {
+    let token = format!("<layer value=\"{}\"/>", layer.value());
     match inner {
         Node::Heading { level, text } => {
             let open = if *level <= 1 {
@@ -905,15 +906,13 @@ fn emit_furniture(out: &mut Out, depth: i32, inner: &Node) {
                 format!("heading level=\"{level}\"")
             };
             out.push(depth, format!("<{open}>"));
-            out.push(depth + 1, "<layer value=\"furniture\"/>".to_string());
+            out.push(depth + 1, token);
             out.push(depth + 1, escape_text(text));
             out.push(depth, "</heading>".to_string());
         }
-        // A furniture-layer body text — docx comments (docling's `notes` layer):
-        // a `<text>` with a `<layer value="notes"/>` head and the note text.
         Node::Paragraph { text } => {
             out.push(depth, "<text>".to_string());
-            out.push(depth + 1, "<layer value=\"notes\"/>".to_string());
+            out.push(depth + 1, token);
             out.push(depth + 1, escape_text(text));
             out.push(depth, "</text>".to_string());
         }
@@ -1273,10 +1272,13 @@ mod tests {
 
     #[test]
     fn furniture_heading_gets_layer_head() {
-        let out = export_to_doclang(&[Node::Furniture(Box::new(Node::Heading {
-            level: 1,
-            text: "Anchor Links Test".into(),
-        }))]);
+        let out = export_to_doclang(&[Node::Furniture {
+            layer: ContentLayer::Furniture,
+            inner: Box::new(Node::Heading {
+                level: 1,
+                text: "Anchor Links Test".into(),
+            }),
+        }]);
         assert_eq!(
             out,
             "<doclang version=\"0.7\">\n  <heading>\n    <layer value=\"furniture\"/>\n    Anchor Links Test\n  </heading>\n</doclang>"

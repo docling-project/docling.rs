@@ -201,7 +201,7 @@ impl Builder {
                 Some(self.add_text("text", md_text, parent, json!({})))
             }
             // Furniture is not emitted into the body/JSON (DocLang-only layer).
-            Node::Furniture(_) => None,
+            Node::Furniture { .. } => None,
             // Layout provenance is DocLang-only; emit the wrapped node.
             Node::Located { inner, .. } => self.add_node(inner, parent),
             // Page breaks are DocLang-only; docling omits them from the JSON body.
