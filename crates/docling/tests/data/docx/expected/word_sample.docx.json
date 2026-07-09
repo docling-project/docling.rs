@@ -69,6 +69,9 @@
         "$ref": "#/texts/18"
       },
       {
+        "$ref": "#/texts/19"
+      },
+      {
         "$ref": "#/groups/2"
       }
     ],
@@ -124,13 +127,13 @@
       },
       "children": [
         {
-          "$ref": "#/texts/19"
-        },
-        {
           "$ref": "#/texts/20"
         },
         {
           "$ref": "#/texts/21"
+        },
+        {
+          "$ref": "#/texts/22"
         }
       ],
       "content_layer": "body",
@@ -378,11 +381,23 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/19",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
       "orig": "And let’s add another list in the end:",
       "text": "And let’s add another list in the end:"
     },
     {
-      "self_ref": "#/texts/19",
+      "self_ref": "#/texts/20",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -396,7 +411,7 @@
       "marker": "1."
     },
     {
-      "self_ref": "#/texts/20",
+      "self_ref": "#/texts/21",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -410,7 +425,7 @@
       "marker": "2."
     },
     {
-      "self_ref": "#/texts/21",
+      "self_ref": "#/texts/22",
       "parent": {
         "$ref": "#/groups/2"
       },

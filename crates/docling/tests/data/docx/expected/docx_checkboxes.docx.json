@@ -21,10 +21,10 @@
         "$ref": "#/texts/0"
       },
       {
-        "$ref": "#/tables/0"
+        "$ref": "#/texts/1"
       },
       {
-        "$ref": "#/texts/1"
+        "$ref": "#/tables/0"
       },
       {
         "$ref": "#/texts/2"
@@ -37,6 +37,18 @@
       },
       {
         "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/texts/6"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/texts/9"
       }
     ],
     "content_layer": "body",
@@ -65,6 +77,30 @@
       },
       "children": [],
       "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
       "label": "section_header",
       "prov": [],
       "orig": "Paragraph with options",
@@ -72,7 +108,19 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/2",
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/5",
       "parent": {
         "$ref": "#/body"
       },
@@ -84,7 +132,7 @@
       "text": "Tasks before release:"
     },
     {
-      "self_ref": "#/texts/3",
+      "self_ref": "#/texts/6",
       "parent": {
         "$ref": "#/body"
       },
@@ -96,7 +144,7 @@
       "text": "- [x] Design"
     },
     {
-      "self_ref": "#/texts/4",
+      "self_ref": "#/texts/7",
       "parent": {
         "$ref": "#/body"
       },
@@ -108,7 +156,7 @@
       "text": "- [x] Implementation"
     },
     {
-      "self_ref": "#/texts/5",
+      "self_ref": "#/texts/8",
       "parent": {
         "$ref": "#/body"
       },
@@ -118,6 +166,18 @@
       "prov": [],
       "orig": "- [ ] Documentation of the task with a very long text that goes beyond the maximum length of a single line.",
       "text": "- [ ] Documentation of the task with a very long text that goes beyond the maximum length of a single line."
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
     }
   ],
   "pictures": [],

@@ -84,7 +84,85 @@
         "$ref": "#/texts/21"
       },
       {
+        "$ref": "#/texts/22"
+      },
+      {
+        "$ref": "#/texts/23"
+      },
+      {
+        "$ref": "#/texts/24"
+      },
+      {
+        "$ref": "#/texts/25"
+      },
+      {
+        "$ref": "#/texts/26"
+      },
+      {
+        "$ref": "#/texts/27"
+      },
+      {
+        "$ref": "#/texts/28"
+      },
+      {
+        "$ref": "#/texts/29"
+      },
+      {
+        "$ref": "#/texts/30"
+      },
+      {
+        "$ref": "#/texts/31"
+      },
+      {
+        "$ref": "#/texts/32"
+      },
+      {
+        "$ref": "#/texts/33"
+      },
+      {
+        "$ref": "#/texts/34"
+      },
+      {
+        "$ref": "#/texts/35"
+      },
+      {
+        "$ref": "#/texts/36"
+      },
+      {
+        "$ref": "#/texts/37"
+      },
+      {
+        "$ref": "#/texts/38"
+      },
+      {
+        "$ref": "#/texts/39"
+      },
+      {
+        "$ref": "#/texts/40"
+      },
+      {
+        "$ref": "#/texts/41"
+      },
+      {
+        "$ref": "#/texts/42"
+      },
+      {
+        "$ref": "#/texts/43"
+      },
+      {
+        "$ref": "#/texts/44"
+      },
+      {
+        "$ref": "#/texts/45"
+      },
+      {
+        "$ref": "#/texts/46"
+      },
+      {
         "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/61"
       }
     ],
     "content_layer": "body",
@@ -99,7 +177,7 @@
       },
       "children": [
         {
-          "$ref": "#/texts/22"
+          "$ref": "#/texts/47"
         }
       ],
       "content_layer": "body",
@@ -109,11 +187,11 @@
     {
       "self_ref": "#/groups/1",
       "parent": {
-        "$ref": "#/texts/22"
+        "$ref": "#/texts/47"
       },
       "children": [
         {
-          "$ref": "#/texts/23"
+          "$ref": "#/texts/48"
         }
       ],
       "content_layer": "body",
@@ -123,35 +201,35 @@
     {
       "self_ref": "#/groups/2",
       "parent": {
-        "$ref": "#/texts/23"
+        "$ref": "#/texts/48"
       },
       "children": [
         {
-          "$ref": "#/texts/24"
+          "$ref": "#/texts/49"
         },
         {
-          "$ref": "#/texts/25"
+          "$ref": "#/texts/50"
         },
         {
-          "$ref": "#/texts/26"
+          "$ref": "#/texts/51"
         },
         {
-          "$ref": "#/texts/27"
+          "$ref": "#/texts/52"
         },
         {
-          "$ref": "#/texts/28"
+          "$ref": "#/texts/53"
         },
         {
-          "$ref": "#/texts/29"
+          "$ref": "#/texts/54"
         },
         {
-          "$ref": "#/texts/30"
+          "$ref": "#/texts/55"
         },
         {
-          "$ref": "#/texts/31"
+          "$ref": "#/texts/56"
         },
         {
-          "$ref": "#/texts/32"
+          "$ref": "#/texts/57"
         }
       ],
       "content_layer": "body",
@@ -161,17 +239,17 @@
     {
       "self_ref": "#/groups/3",
       "parent": {
-        "$ref": "#/texts/32"
+        "$ref": "#/texts/57"
       },
       "children": [
         {
-          "$ref": "#/texts/33"
+          "$ref": "#/texts/58"
         },
         {
-          "$ref": "#/texts/34"
+          "$ref": "#/texts/59"
         },
         {
-          "$ref": "#/texts/35"
+          "$ref": "#/texts/60"
         }
       ],
       "content_layer": "body",
@@ -199,6 +277,18 @@
       },
       "children": [],
       "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
       "label": "section_header",
       "prov": [],
       "orig": "1 Section 1",
@@ -206,7 +296,19 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/2",
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/4",
       "parent": {
         "$ref": "#/body"
       },
@@ -218,7 +320,19 @@
       "text": "Paragraph 1.1"
     },
     {
-      "self_ref": "#/texts/3",
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/6",
       "parent": {
         "$ref": "#/body"
       },
@@ -230,7 +344,19 @@
       "text": "Paragraph 1.2"
     },
     {
-      "self_ref": "#/texts/4",
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/8",
       "parent": {
         "$ref": "#/body"
       },
@@ -243,7 +369,19 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/5",
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/10",
       "parent": {
         "$ref": "#/body"
       },
@@ -255,7 +393,19 @@
       "text": "Paragraph 1.1.1"
     },
     {
-      "self_ref": "#/texts/6",
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/12",
       "parent": {
         "$ref": "#/body"
       },
@@ -267,7 +417,19 @@
       "text": "Paragraph 1.1.2"
     },
     {
-      "self_ref": "#/texts/7",
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/14",
       "parent": {
         "$ref": "#/body"
       },
@@ -280,7 +442,19 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/8",
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/16",
       "parent": {
         "$ref": "#/body"
       },
@@ -292,7 +466,19 @@
       "text": "Paragraph 1.1.1"
     },
     {
-      "self_ref": "#/texts/9",
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/18",
       "parent": {
         "$ref": "#/body"
       },
@@ -304,7 +490,19 @@
       "text": "Paragraph 1.1.2"
     },
     {
-      "self_ref": "#/texts/10",
+      "self_ref": "#/texts/19",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/20",
       "parent": {
         "$ref": "#/body"
       },
@@ -317,7 +515,19 @@
       "level": 3
     },
     {
-      "self_ref": "#/texts/11",
+      "self_ref": "#/texts/21",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/22",
       "parent": {
         "$ref": "#/body"
       },
@@ -329,7 +539,19 @@
       "text": "Paragraph 1.2.3.1"
     },
     {
-      "self_ref": "#/texts/12",
+      "self_ref": "#/texts/23",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/24",
       "parent": {
         "$ref": "#/body"
       },
@@ -341,7 +563,31 @@
       "text": "Paragraph 1.2.3.1"
     },
     {
-      "self_ref": "#/texts/13",
+      "self_ref": "#/texts/25",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/26",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/27",
       "parent": {
         "$ref": "#/body"
       },
@@ -354,7 +600,19 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/14",
+      "self_ref": "#/texts/28",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/29",
       "parent": {
         "$ref": "#/body"
       },
@@ -366,7 +624,19 @@
       "text": "Paragraph 2.1"
     },
     {
-      "self_ref": "#/texts/15",
+      "self_ref": "#/texts/30",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/31",
       "parent": {
         "$ref": "#/body"
       },
@@ -378,7 +648,19 @@
       "text": "Paragraph 2.2"
     },
     {
-      "self_ref": "#/texts/16",
+      "self_ref": "#/texts/32",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/33",
       "parent": {
         "$ref": "#/body"
       },
@@ -391,7 +673,19 @@
       "level": 3
     },
     {
-      "self_ref": "#/texts/17",
+      "self_ref": "#/texts/34",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/35",
       "parent": {
         "$ref": "#/body"
       },
@@ -403,7 +697,19 @@
       "text": "Paragraph 2.1.1.1"
     },
     {
-      "self_ref": "#/texts/18",
+      "self_ref": "#/texts/36",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/37",
       "parent": {
         "$ref": "#/body"
       },
@@ -415,7 +721,19 @@
       "text": "Paragraph 2.1.1.1"
     },
     {
-      "self_ref": "#/texts/19",
+      "self_ref": "#/texts/38",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/39",
       "parent": {
         "$ref": "#/body"
       },
@@ -428,7 +746,19 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/20",
+      "self_ref": "#/texts/40",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/41",
       "parent": {
         "$ref": "#/body"
       },
@@ -440,7 +770,19 @@
       "text": "Paragraph 2.1.1"
     },
     {
-      "self_ref": "#/texts/21",
+      "self_ref": "#/texts/42",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/43",
       "parent": {
         "$ref": "#/body"
       },
@@ -452,7 +794,43 @@
       "text": "Paragraph 2.1.2"
     },
     {
-      "self_ref": "#/texts/22",
+      "self_ref": "#/texts/44",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/45",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/46",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/47",
       "parent": {
         "$ref": "#/groups/0"
       },
@@ -470,7 +848,7 @@
       "marker": "1."
     },
     {
-      "self_ref": "#/texts/23",
+      "self_ref": "#/texts/48",
       "parent": {
         "$ref": "#/groups/1"
       },
@@ -488,7 +866,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/24",
+      "self_ref": "#/texts/49",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -502,7 +880,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/25",
+      "self_ref": "#/texts/50",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -516,7 +894,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/26",
+      "self_ref": "#/texts/51",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -530,7 +908,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/27",
+      "self_ref": "#/texts/52",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -544,7 +922,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/28",
+      "self_ref": "#/texts/53",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -558,7 +936,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/29",
+      "self_ref": "#/texts/54",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -572,7 +950,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/30",
+      "self_ref": "#/texts/55",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -586,7 +964,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/31",
+      "self_ref": "#/texts/56",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -600,7 +978,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/32",
+      "self_ref": "#/texts/57",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -618,7 +996,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/33",
+      "self_ref": "#/texts/58",
       "parent": {
         "$ref": "#/groups/3"
       },
@@ -632,7 +1010,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/34",
+      "self_ref": "#/texts/59",
       "parent": {
         "$ref": "#/groups/3"
       },
@@ -646,7 +1024,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/35",
+      "self_ref": "#/texts/60",
       "parent": {
         "$ref": "#/groups/3"
       },
@@ -658,6 +1036,18 @@
       "text": "2.3.8.3. Third sub-item at this level",
       "enumerated": false,
       "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/61",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
     }
   ],
   "pictures": [],

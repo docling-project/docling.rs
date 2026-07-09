@@ -36,13 +36,22 @@
         "$ref": "#/texts/5"
       },
       {
+        "$ref": "#/texts/6"
+      },
+      {
         "$ref": "#/groups/0"
       },
       {
-        "$ref": "#/texts/11"
+        "$ref": "#/texts/12"
       },
       {
-        "$ref": "#/texts/12"
+        "$ref": "#/texts/13"
+      },
+      {
+        "$ref": "#/texts/14"
+      },
+      {
+        "$ref": "#/texts/15"
       }
     ],
     "content_layer": "body",
@@ -57,9 +66,6 @@
       },
       "children": [
         {
-          "$ref": "#/texts/6"
-        },
-        {
           "$ref": "#/texts/7"
         },
         {
@@ -67,6 +73,9 @@
         },
         {
           "$ref": "#/texts/9"
+        },
+        {
+          "$ref": "#/texts/10"
         }
       ],
       "content_layer": "body",
@@ -76,11 +85,11 @@
     {
       "self_ref": "#/groups/1",
       "parent": {
-        "$ref": "#/texts/9"
+        "$ref": "#/texts/10"
       },
       "children": [
         {
-          "$ref": "#/texts/10"
+          "$ref": "#/texts/11"
         }
       ],
       "content_layer": "body",
@@ -164,6 +173,18 @@
     {
       "self_ref": "#/texts/6",
       "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
         "$ref": "#/groups/0"
       },
       "children": [],
@@ -176,7 +197,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/7",
+      "self_ref": "#/texts/8",
       "parent": {
         "$ref": "#/groups/0"
       },
@@ -190,7 +211,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/8",
+      "self_ref": "#/texts/9",
       "parent": {
         "$ref": "#/groups/0"
       },
@@ -204,7 +225,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/9",
+      "self_ref": "#/texts/10",
       "parent": {
         "$ref": "#/groups/0"
       },
@@ -222,7 +243,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/10",
+      "self_ref": "#/texts/11",
       "parent": {
         "$ref": "#/groups/1"
       },
@@ -236,7 +257,19 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/11",
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/13",
       "parent": {
         "$ref": "#/body"
       },
@@ -248,7 +281,19 @@
       "text": "The second page of the document with same header and footer"
     },
     {
-      "self_ref": "#/texts/12",
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/15",
       "parent": {
         "$ref": "#/body"
       },

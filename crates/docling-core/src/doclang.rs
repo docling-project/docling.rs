@@ -321,6 +321,12 @@ fn attr_escape(v: &str) -> String {
 /// formatted fragments as their own inline elements — matching minidom's
 /// output for a `<text>` with element children.
 fn emit_text_element(out: &mut Out, depth: i32, tag_open: &str, tag: &str, text: &str) {
+    // An empty text item renders as an empty element on one line (docling emits
+    // one per blank body paragraph).
+    if text.is_empty() {
+        out.push(depth, format!("<{tag_open}></{tag}>"));
+        return;
+    }
     let runs = inline_runs(text);
     let only_plain = runs.len() == 1 && matches!(runs[0], Run::Plain(_));
     // A lone `[anchor](uri)` becomes `<href uri=…/>` in the head + plain anchor.
@@ -793,6 +799,18 @@ fn emit_list(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8
             }
             Node::ListItem { level: l, .. } if *l > level => {
                 emit_list(out, depth + 1, nodes, i, *l);
+            }
+            // An empty paragraph between two list items is absorbed into the
+            // list (docling keeps the ListGroup contiguous) — skip it and carry
+            // on rather than closing the list.
+            Node::Paragraph { text }
+                if text.is_empty()
+                    && matches!(
+                        nodes.get(*i + 1),
+                        Some(Node::ListItem { level: nl, .. }) if *nl >= level
+                    ) =>
+            {
+                *i += 1;
             }
             _ => break,
         }

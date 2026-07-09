@@ -30,40 +30,76 @@
         "$ref": "#/texts/2"
       },
       {
-        "$ref": "#/tables/1"
+        "$ref": "#/texts/3"
       },
       {
-        "$ref": "#/texts/3"
+        "$ref": "#/tables/1"
       },
       {
         "$ref": "#/texts/4"
       },
       {
-        "$ref": "#/tables/2"
-      },
-      {
         "$ref": "#/texts/5"
-      },
-      {
-        "$ref": "#/tables/3"
       },
       {
         "$ref": "#/texts/6"
       },
       {
-        "$ref": "#/tables/4"
-      },
-      {
         "$ref": "#/texts/7"
       },
       {
-        "$ref": "#/tables/5"
+        "$ref": "#/tables/2"
       },
       {
         "$ref": "#/texts/8"
       },
       {
+        "$ref": "#/texts/9"
+      },
+      {
+        "$ref": "#/texts/10"
+      },
+      {
+        "$ref": "#/tables/3"
+      },
+      {
+        "$ref": "#/texts/11"
+      },
+      {
+        "$ref": "#/texts/12"
+      },
+      {
+        "$ref": "#/texts/13"
+      },
+      {
+        "$ref": "#/tables/4"
+      },
+      {
+        "$ref": "#/texts/14"
+      },
+      {
+        "$ref": "#/texts/15"
+      },
+      {
+        "$ref": "#/texts/16"
+      },
+      {
+        "$ref": "#/tables/5"
+      },
+      {
+        "$ref": "#/texts/17"
+      },
+      {
+        "$ref": "#/texts/18"
+      },
+      {
+        "$ref": "#/texts/19"
+      },
+      {
         "$ref": "#/tables/6"
+      },
+      {
+        "$ref": "#/texts/20"
       }
     ],
     "content_layer": "body",
@@ -92,6 +128,18 @@
       },
       "children": [],
       "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
       "label": "section_header",
       "prov": [],
       "orig": "Table with nested table",
@@ -99,7 +147,7 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/2",
+      "self_ref": "#/texts/3",
       "parent": {
         "$ref": "#/body"
       },
@@ -111,7 +159,7 @@
       "text": "Before table"
     },
     {
-      "self_ref": "#/texts/3",
+      "self_ref": "#/texts/4",
       "parent": {
         "$ref": "#/body"
       },
@@ -123,7 +171,19 @@
       "text": "After table with **bold** , underline , ~~strikethrough~~ , and *italic* formatting"
     },
     {
-      "self_ref": "#/texts/4",
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/6",
       "parent": {
         "$ref": "#/body"
       },
@@ -136,7 +196,31 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/5",
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/9",
       "parent": {
         "$ref": "#/body"
       },
@@ -149,7 +233,31 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/6",
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/12",
       "parent": {
         "$ref": "#/body"
       },
@@ -162,7 +270,31 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/7",
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/15",
       "parent": {
         "$ref": "#/body"
       },
@@ -175,7 +307,31 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/8",
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/18",
       "parent": {
         "$ref": "#/body"
       },
@@ -186,6 +342,30 @@
       "orig": "Mixed content - list and regular text in different cells",
       "text": "Mixed content - list and regular text in different cells",
       "level": 2
+    },
+    {
+      "self_ref": "#/texts/19",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/20",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
     }
   ],
   "pictures": [],

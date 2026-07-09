@@ -33,10 +33,19 @@
         "$ref": "#/texts/2"
       },
       {
+        "$ref": "#/texts/3"
+      },
+      {
         "$ref": "#/pictures/2"
       },
       {
-        "$ref": "#/texts/3"
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/texts/6"
       }
     ],
     "content_layer": "body",
@@ -90,8 +99,44 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
       "orig": "**This is test 2** 0:16\nYeah, exactly.",
       "text": "**This is test 2** 0:16\nYeah, exactly."
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
     }
   ],
   "pictures": [

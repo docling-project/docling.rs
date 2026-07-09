@@ -248,8 +248,21 @@ fn render(nodes: &[Node], blocks: &mut Vec<String>, ctx: &mut Ctx) {
         match &nodes[i] {
             Node::ListItem { .. } => {
                 let start = i;
-                while matches!(nodes.get(i), Some(Node::ListItem { .. })) {
-                    i += 1;
+                i += 1;
+                loop {
+                    match nodes.get(i) {
+                        Some(Node::ListItem { .. }) => i += 1,
+                        // An empty paragraph between two list items is absorbed
+                        // into the run — docling keeps such a ListGroup
+                        // contiguous rather than splitting it.
+                        Some(Node::Paragraph { text })
+                            if text.is_empty()
+                                && matches!(nodes.get(i + 1), Some(Node::ListItem { .. })) =>
+                        {
+                            i += 1
+                        }
+                        _ => break,
+                    }
                 }
                 render_list_run(&nodes[start..i], blocks, ctx.strict);
             }
@@ -323,6 +336,9 @@ fn render_one(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
             let hashes = "#".repeat((*level).clamp(1, 6) as usize);
             blocks.push(format!("{hashes} {}", strict_text(text, ctx.strict)));
         }
+        // An empty body paragraph (docling's blank-line text item) contributes
+        // nothing to Markdown — only DocLang/JSON keep it.
+        Node::Paragraph { text } if text.is_empty() => {}
         Node::Paragraph { text } => blocks.push(strict_text(text, ctx.strict)),
         Node::Code { language, text } => {
             // Legacy docling never emits a language on the fence; strict keeps it.

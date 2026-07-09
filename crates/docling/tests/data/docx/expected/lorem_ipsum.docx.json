@@ -31,6 +31,18 @@
       },
       {
         "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/texts/6"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
       }
     ],
     "content_layer": "body",
@@ -60,11 +72,35 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
       "orig": "Duis condimentum dui eget ullamcorper maximus. Nulla tortor lectus, hendrerit at diam fermentum, euismod ornare orci. Integer ac mauris sed augue ultricies pellentesque. Etiam condimentum turpis a risus dictum, sed tempor arcu vestibulum. Quisque at venenatis tellus. Morbi id lobortis elit. In gravida metus at ornare suscipit. Donec euismod nibh sit amet commodo porttitor. Integer commodo sit amet nisi vel accumsan. Donec lacinia posuere porta. Pellentesque vulputate porta risus, vel consectetur nisl gravida sit amet. Nam scelerisque enim sodales lacus tempor, et tristique ante aliquet.",
       "text": "Duis condimentum dui eget ullamcorper maximus. Nulla tortor lectus, hendrerit at diam fermentum, euismod ornare orci. Integer ac mauris sed augue ultricies pellentesque. Etiam condimentum turpis a risus dictum, sed tempor arcu vestibulum. Quisque at venenatis tellus. Morbi id lobortis elit. In gravida metus at ornare suscipit. Donec euismod nibh sit amet commodo porttitor. Integer commodo sit amet nisi vel accumsan. Donec lacinia posuere porta. Pellentesque vulputate porta risus, vel consectetur nisl gravida sit amet. Nam scelerisque enim sodales lacus tempor, et tristique ante aliquet."
     },
     {
-      "self_ref": "#/texts/2",
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/4",
       "parent": {
         "$ref": "#/body"
       },
@@ -76,7 +112,19 @@
       "text": "Maecenas id neque pharetra, eleifend lectus a, vehicula sapien. Aliquam erat volutpat. Ut arcu erat, blandit id elementum at, aliquet pretium mauris. Nulla at semper orci. Nunc sed maximus metus. Duis eget tristique arcu. Phasellus fringilla augue est, ut bibendum est bibendum vitae. Nam et urna interdum, egestas velit a, consectetur metus. Pellentesque facilisis vehicula orci, eu posuere justo imperdiet non. Vestibulum tincidunt orci ac lorem consequat semper. Fusce semper sollicitudin orci, id lacinia nulla faucibus eu. Donec ut nisl metus."
     },
     {
-      "self_ref": "#/texts/3",
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/6",
       "parent": {
         "$ref": "#/body"
       },
@@ -88,7 +136,19 @@
       "text": "Duis ac tellus sed turpis feugiat aliquam sed vel justo. Fusce sit amet volutpat massa. Duis tristique finibus metus quis tincidunt. Etiam dapibus fringilla diam at pharetra. Vivamus dolor est, hendrerit ac ligula nec, pharetra lacinia sapien. Phasellus at malesuada orci. Maecenas est justo, mollis non ultrices ut, sagittis commodo odio. Integer viverra mauris pellentesque bibendum vestibulum. Sed eu felis mattis, efficitur justo non, finibus lorem. Phasellus viverra diam et sapien imperdiet interdum. Cras a convallis libero. Integer maximus dui vel lorem hendrerit, sit amet convallis ligula lobortis. Duis eu lacus elementum, scelerisque nunc eget, dignissim libero. Suspendisse mi quam, vehicula sit amet pellentesque rhoncus, blandit eu nisl."
     },
     {
-      "self_ref": "#/texts/4",
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/8",
       "parent": {
         "$ref": "#/body"
       },

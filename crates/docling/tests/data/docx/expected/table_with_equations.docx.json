@@ -19,6 +19,9 @@
     "children": [
       {
         "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/texts/0"
       }
     ],
     "content_layer": "body",
@@ -26,7 +29,20 @@
     "label": "unspecified"
   },
   "groups": [],
-  "texts": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    }
+  ],
   "pictures": [],
   "tables": [
     {

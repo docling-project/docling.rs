@@ -24,13 +24,22 @@
         "$ref": "#/texts/1"
       },
       {
+        "$ref": "#/texts/2"
+      },
+      {
         "$ref": "#/groups/0"
       },
       {
-        "$ref": "#/texts/4"
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/texts/6"
       },
       {
         "$ref": "#/groups/1"
+      },
+      {
+        "$ref": "#/texts/12"
       }
     ],
     "content_layer": "body",
@@ -45,10 +54,10 @@
       },
       "children": [
         {
-          "$ref": "#/texts/2"
+          "$ref": "#/texts/3"
         },
         {
-          "$ref": "#/texts/3"
+          "$ref": "#/texts/4"
         }
       ],
       "content_layer": "body",
@@ -62,12 +71,6 @@
       },
       "children": [
         {
-          "$ref": "#/texts/5"
-        },
-        {
-          "$ref": "#/texts/6"
-        },
-        {
           "$ref": "#/texts/7"
         },
         {
@@ -75,6 +78,12 @@
         },
         {
           "$ref": "#/texts/9"
+        },
+        {
+          "$ref": "#/texts/10"
+        },
+        {
+          "$ref": "#/texts/11"
         }
       ],
       "content_layer": "body",
@@ -90,6 +99,18 @@
       },
       "children": [],
       "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
       "label": "section_header",
       "prov": [],
       "orig": "Chính sách bảo hành",
@@ -97,7 +118,7 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/1",
+      "self_ref": "#/texts/2",
       "parent": {
         "$ref": "#/body"
       },
@@ -110,7 +131,7 @@
       "level": 3
     },
     {
-      "self_ref": "#/texts/2",
+      "self_ref": "#/texts/3",
       "parent": {
         "$ref": "#/groups/0"
       },
@@ -124,7 +145,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/3",
+      "self_ref": "#/texts/4",
       "parent": {
         "$ref": "#/groups/0"
       },
@@ -138,7 +159,19 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/4",
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/6",
       "parent": {
         "$ref": "#/body"
       },
@@ -151,7 +184,7 @@
       "level": 2
     },
     {
-      "self_ref": "#/texts/5",
+      "self_ref": "#/texts/7",
       "parent": {
         "$ref": "#/groups/1"
       },
@@ -165,7 +198,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/6",
+      "self_ref": "#/texts/8",
       "parent": {
         "$ref": "#/groups/1"
       },
@@ -179,7 +212,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/7",
+      "self_ref": "#/texts/9",
       "parent": {
         "$ref": "#/groups/1"
       },
@@ -193,7 +226,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/8",
+      "self_ref": "#/texts/10",
       "parent": {
         "$ref": "#/groups/1"
       },
@@ -207,7 +240,7 @@
       "marker": "-"
     },
     {
-      "self_ref": "#/texts/9",
+      "self_ref": "#/texts/11",
       "parent": {
         "$ref": "#/groups/1"
       },
@@ -219,6 +252,18 @@
       "text": "**Term 5** : Definition 5",
       "enumerated": false,
       "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
     }
   ],
   "pictures": [],

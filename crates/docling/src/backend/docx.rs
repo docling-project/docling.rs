@@ -374,7 +374,21 @@ fn handle_paragraph_inner(
             let runs = run_inline_runs(tuples);
             doc.push(docling_core::inline_paragraph_node(text, runs, false));
         }
+    } else if !rich && !has_equations && !has_drawing(p) {
+        // docling emits an empty text item for a blank body paragraph
+        // (`skip_empty_text=False`); paragraphs carrying a drawing skip it. This
+        // is DocLang/JSON-only — Markdown drops empty paragraphs.
+        doc.push(Node::Paragraph {
+            text: String::new(),
+        });
     }
+}
+
+/// Whether a paragraph carries any drawing (image/shape/textbox) — docling
+/// suppresses the blank-paragraph text item in that case.
+fn has_drawing(p: XmlNode) -> bool {
+    p.descendants()
+        .any(|n| matches!(n.tag_name().name(), "drawing" | "pict" | "object"))
 }
 
 /// Whether a node is inside a textbox (`<w:txbxContent>` or `<v:textbox>`),

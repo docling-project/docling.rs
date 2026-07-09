@@ -309,6 +309,12 @@ impl Builder {
         let mut children = Vec::new();
         let mut i = 0;
         while i < items.len() {
+            // Empty paragraphs absorbed into the run (blank lines between items)
+            // are not list items — skip them.
+            if !matches!(items[i], Node::ListItem { .. }) {
+                i += 1;
+                continue;
+            }
             let lvl = level_of(&items[i]);
             if lvl > base {
                 // shouldn't happen at the head; skip defensively
@@ -489,8 +495,20 @@ impl Builder {
         while i < nodes.len() {
             if matches!(nodes[i], Node::ListItem { .. }) {
                 let start = i;
-                while i < nodes.len() && matches!(nodes[i], Node::ListItem { .. }) {
-                    i += 1;
+                i += 1;
+                loop {
+                    match nodes.get(i) {
+                        Some(Node::ListItem { .. }) => i += 1,
+                        // Absorb an empty paragraph sitting between two list
+                        // items (docling keeps the ListGroup contiguous).
+                        Some(Node::Paragraph { text })
+                            if text.is_empty()
+                                && matches!(nodes.get(i + 1), Some(Node::ListItem { .. })) =>
+                        {
+                            i += 1
+                        }
+                        _ => break,
+                    }
                 }
                 self.add_sibling_lists(&nodes[start..i], parent, &mut children);
             } else {
