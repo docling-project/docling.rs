@@ -338,7 +338,25 @@ fn attr_escape(v: &str) -> String {
 /// the reference's block form: plain fragments as bare indented lines,
 /// formatted fragments as their own inline elements — matching minidom's
 /// output for a `<text>` with element children.
-fn emit_text_element(out: &mut Out, depth: i32, tag_open: &str, tag: &str, text: &str) {
+fn emit_text_element(
+    out: &mut Out,
+    depth: i32,
+    tag_open: &str,
+    tag: &str,
+    text: &str,
+    location: Option<&[u16; 4]>,
+) {
+    // With layout provenance the element renders in block form: the `<location>`
+    // tokens are element children, then the text runs.
+    if let Some(loc) = location {
+        out.push(depth, format!("<{tag_open}>"));
+        push_location(out, depth + 1, loc);
+        if !text.is_empty() {
+            emit_runs(out, depth + 1, inline_runs(text));
+        }
+        out.push(depth, format!("</{tag}>"));
+        return;
+    }
     // An empty text item renders as an empty element on one line (docling emits
     // one per blank body paragraph).
     if text.is_empty() {
@@ -535,14 +553,20 @@ fn emit_code(out: &mut Out, depth: i32, language: Option<&str>, text: &str) {
     }
 }
 
+/// Emit the four `<location>` provenance tokens (`x0,y0,x1,y1`) as element
+/// children — docling's element head for backends with real geometry.
+fn push_location(out: &mut Out, depth: i32, loc: &[u16; 4]) {
+    for v in loc {
+        out.push(depth, format!("<location value=\"{v}\"/>"));
+    }
+}
+
 fn emit_table(out: &mut Out, depth: i32, table: &Table) {
     out.push(depth, "<table>".to_string());
-    // Layout provenance (spreadsheet backends): four `<location>` tokens
+    // Layout provenance (spreadsheet/slide backends): four `<location>` tokens
     // (x0,y0,x1,y1) precede the cells, matching docling's element head.
-    if let Some(loc) = table.location {
-        for v in loc {
-            out.push(depth + 1, format!("<location value=\"{v}\"/>"));
-        }
+    if let Some(loc) = &table.location {
+        push_location(out, depth + 1, loc);
     }
     for (ri, row) in table.rows.iter().enumerate() {
         for (ci, cell) in row.iter().enumerate() {
@@ -605,11 +629,11 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
                 } else {
                     format!("heading level=\"{level}\"")
                 };
-                emit_text_element(out, depth, &open, "heading", text);
+                emit_text_element(out, depth, &open, "heading", text, None);
                 *i += 1;
             }
             Node::Paragraph { text } => {
-                emit_text_element(out, depth, "text", "text", text);
+                emit_text_element(out, depth, "text", "text", text, None);
                 *i += 1;
             }
             Node::Code { language, text } => {
@@ -621,13 +645,7 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
                 *i += 1;
             }
             Node::Picture { caption, image: _ } => {
-                if let Some(c) = caption.as_ref().filter(|c| !c.trim().is_empty()) {
-                    out.push(depth, "<picture>".to_string());
-                    out.push(depth + 1, format!("<caption>{}</caption>", escape_text(c)));
-                    out.push(depth, "</picture>".to_string());
-                } else {
-                    out.push(depth, "<picture></picture>".to_string());
-                }
+                emit_picture(out, depth, caption.as_deref(), None);
                 *i += 1;
             }
             Node::ListItem { level: l, .. } => {
@@ -653,6 +671,10 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
             }
             Node::Furniture(inner) => {
                 emit_furniture(out, depth, inner);
+                *i += 1;
+            }
+            Node::Located { location, inner } => {
+                emit_located(out, depth, location, inner);
                 *i += 1;
             }
         }
@@ -779,6 +801,56 @@ fn emit_furniture(out: &mut Out, depth: i32, inner: &Node) {
     }
 }
 
+/// Render a `<picture>` — with optional layout provenance and caption. Empty
+/// (no location, no caption) collapses to `<picture></picture>`.
+fn emit_picture(out: &mut Out, depth: i32, caption: Option<&str>, location: Option<&[u16; 4]>) {
+    let caption = caption.filter(|c| !c.trim().is_empty());
+    if location.is_none() && caption.is_none() {
+        out.push(depth, "<picture></picture>".to_string());
+        return;
+    }
+    out.push(depth, "<picture>".to_string());
+    if let Some(loc) = location {
+        push_location(out, depth + 1, loc);
+    }
+    if let Some(c) = caption {
+        out.push(depth + 1, format!("<caption>{}</caption>", escape_text(c)));
+    }
+    out.push(depth, "</picture>".to_string());
+}
+
+/// Render a [`Node::Located`] wrapper: the inner element with its `<location>`
+/// tokens as the first children.
+fn emit_located(out: &mut Out, depth: i32, location: &[u16; 4], inner: &Node) {
+    match inner {
+        Node::Heading { level, text } => {
+            let open = if *level <= 1 {
+                "heading".to_string()
+            } else {
+                format!("heading level=\"{level}\"")
+            };
+            emit_text_element(out, depth, &open, "heading", text, Some(location));
+        }
+        Node::Paragraph { text } => {
+            emit_text_element(out, depth, "text", "text", text, Some(location));
+        }
+        Node::Picture { caption, .. } => {
+            emit_picture(out, depth, caption.as_deref(), Some(location));
+        }
+        Node::Table(t) => {
+            // The wrapper's location takes precedence over any on the table.
+            let mut t = t.clone();
+            t.location = Some(*location);
+            emit_table(out, depth, &t);
+        }
+        // Other node kinds carry no location today — render them as-is.
+        other => {
+            let mut i = 0usize;
+            emit_nodes(out, depth, std::slice::from_ref(other), &mut i, 0);
+        }
+    }
+}
+
 fn emit_list(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8) {
     let ordered = matches!(nodes[*i], Node::ListItem { ordered: true, .. });
     let open = if ordered {
@@ -865,7 +937,7 @@ fn emit_list_item_content(out: &mut Out, depth: i32, text: &str, has_nested: boo
     let runs = inline_runs_from_markdown(text);
     let single_plain = runs.len() <= 1 && runs.first().map_or(true, |r| r.is_plain());
     if single_plain {
-        emit_text_element(out, depth, "text", "text", text);
+        emit_text_element(out, depth, "text", "text", text, None);
     } else {
         emit_inline_group(out, depth, false, &runs);
     }
@@ -892,6 +964,24 @@ fn emit_field_region(out: &mut Out, depth: i32, items: &[FieldItem]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn located_heading_emits_location_tokens_in_block_form() {
+        let doclang = export_to_doclang(&[Node::Located {
+            location: [44, 170, 340, 386],
+            inner: Box::new(Node::Heading {
+                level: 1,
+                text: "X-Library".into(),
+            }),
+        }]);
+        assert!(
+            doclang.contains(
+                "<heading>\n    <location value=\"44\"/>\n    <location value=\"170\"/>\n    \
+                 <location value=\"340\"/>\n    <location value=\"386\"/>\n    X-Library\n  </heading>"
+            ),
+            "got:\n{doclang}"
+        );
+    }
 
     fn code(language: Option<&str>, text: &str) -> String {
         export_to_doclang(&[Node::Code {

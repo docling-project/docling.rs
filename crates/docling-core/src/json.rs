@@ -191,6 +191,8 @@ impl Builder {
             }
             // Furniture is not emitted into the body/JSON (DocLang-only layer).
             Node::Furniture(_) => None,
+            // Layout provenance is DocLang-only; emit the wrapped node.
+            Node::Located { inner, .. } => self.add_node(inner, parent),
             // Handled by `add_list` in `walk`.
             Node::ListItem { .. } => None,
         }
