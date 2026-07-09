@@ -232,6 +232,7 @@ impl Parser {
             doc.push(Node::Table(Table {
                 rows,
                 location: None,
+                structure: None,
             }));
         }
         self.in_table = false;

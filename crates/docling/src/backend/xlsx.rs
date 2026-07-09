@@ -261,6 +261,7 @@ fn find_tables(
                 table: Table {
                     rows,
                     location: None,
+                    structure: None,
                 },
                 min_r,
                 min_c,

@@ -16,6 +16,7 @@
 //! structural `<bold>`/`<italic>`/`<code>` elements DocLang expects.
 
 use crate::document::{FieldItem, InlineRun, Node, Script, Table};
+use std::borrow::Cow;
 
 const INDENT: &str = "  ";
 
@@ -63,9 +64,26 @@ impl Out {
     }
 }
 
+/// Reverse the Markdown-oriented escaping backends bake into node text
+/// (`&amp;`/`&lt;`/`&gt;` and `\_`), recovering the raw text DocLang serializes:
+/// `<`/`>`/`&` go into a CDATA section verbatim, `_` stays literal.
+fn unescape_stored(text: &str) -> Cow<'_, str> {
+    if !text.contains('&') && !text.contains('\\') {
+        return Cow::Borrowed(text);
+    }
+    Cow::Owned(
+        text.replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&")
+            .replace("\\_", "_"),
+    )
+}
+
 /// AUTO escape: any of `"' &<>` in the text → CDATA; leading/trailing
 /// whitespace or a newline → additionally wrapped in `<content>`.
 fn escape_text(text: &str) -> String {
+    let raw = unescape_stored(text);
+    let text = raw.as_ref();
     let needs_cdata = text.contains(['"', '\'', '&', '<', '>']);
     let needs_content = text != text.trim() || text.contains('\n');
     let mut t = if needs_cdata {
@@ -527,16 +545,31 @@ fn emit_table(out: &mut Out, depth: i32, table: &Table) {
         }
     }
     for (ri, row) in table.rows.iter().enumerate() {
-        for cell in row {
-            let tok = if cell.trim().is_empty() {
+        for (ci, cell) in row.iter().enumerate() {
+            // A horizontal-span continuation is `<lcel/>` regardless of text;
+            // otherwise empty→`<ecel/>`, header→`<ched/>`, else `<fcel/>`.
+            let is_lcel = table
+                .structure
+                .as_ref()
+                .and_then(|s| s.col_continuation.get(ri))
+                .and_then(|r| r.get(ci))
+                .copied()
+                .unwrap_or(false);
+            let is_header = match &table.structure {
+                Some(s) => s.header_row.get(ri).copied().unwrap_or(false),
+                None => ri == 0,
+            };
+            let tok = if is_lcel {
+                "<lcel/>"
+            } else if cell.trim().is_empty() {
                 "<ecel/>"
-            } else if ri == 0 {
+            } else if is_header {
                 "<ched/>"
             } else {
                 "<fcel/>"
             };
             out.push(depth + 1, tok.to_string());
-            if !cell.trim().is_empty() {
+            if !is_lcel && !cell.trim().is_empty() {
                 emit_cell_text(out, depth + 1, cell);
             }
         }

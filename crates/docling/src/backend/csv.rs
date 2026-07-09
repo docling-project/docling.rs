@@ -41,6 +41,7 @@ impl DeclarativeBackend for CsvBackend {
             doc.push(Node::Table(Table {
                 rows,
                 location: None,
+                structure: None,
             }));
         }
         Ok(doc)

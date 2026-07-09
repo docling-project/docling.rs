@@ -310,6 +310,7 @@ impl MarkdownBackend {
             out.push(Node::Table(Table {
                 rows,
                 location: None,
+                structure: None,
             }));
         }
     }

@@ -1025,6 +1025,7 @@ fn parse_table_cells(
     (!rows.is_empty()).then_some(Table {
         rows,
         location: None,
+        structure: None,
     })
 }
 

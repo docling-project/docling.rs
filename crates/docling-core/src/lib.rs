@@ -19,7 +19,8 @@ mod markdown;
 
 pub use doclang::inline_runs_from_markdown;
 pub use document::{
-    inline_paragraph_node, DoclingDocument, FieldItem, InlineRun, Node, PictureImage, Script, Table,
+    inline_paragraph_node, DoclingDocument, FieldItem, InlineRun, Node, PictureImage, Script,
+    Table, TableStructure,
 };
 pub use labels::DocItemLabel;
 pub use markdown::{ImageMode, MarkdownStreamer};

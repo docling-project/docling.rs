@@ -209,6 +209,7 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
         doc.push(Node::Table(Table {
             rows,
             location: None,
+            structure: None,
         }));
     }
     push_captions(item, root, doc);

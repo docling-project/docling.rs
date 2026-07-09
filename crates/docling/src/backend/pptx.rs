@@ -280,6 +280,7 @@ fn parse_table(tbl: XmlNode) -> Option<Table> {
     Some(Table {
         rows: grid,
         location: None,
+        structure: None,
     })
 }
 

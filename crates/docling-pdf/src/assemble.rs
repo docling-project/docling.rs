@@ -1069,6 +1069,7 @@ pub fn assemble_page(
                 nodes.push(Node::Table(Table {
                     rows,
                     location: None,
+                    structure: None,
                 }));
             }
             // docling does not decode formulas in the standard pipeline; it emits

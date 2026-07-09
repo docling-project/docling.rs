@@ -8,7 +8,8 @@ phased plan is kept at the end as history.)
 > **Status: the format migration is complete.** Every document format in
 > docling's pipeline is supported — including **audio/ASR** (Whisper via ONNX,
 > in `docling-asr`) — plus Markdown (legacy + a Rust-only *strict* mode),
-> docling-native **JSON** output, **image extraction**, and **MHTML** (a
+> docling-native **JSON** output, **DocLang (`.dclx`)** output (docling 2.110's
+> OPC archive), **image extraction**, and **MHTML** (a
 > docling.rs-only extension docling doesn't have). The declarative formats are pure-Rust and checked byte-for-byte
 > against *live* docling; the PDF/image/METS ML path lives in `docling-pdf`
 > (a pure-Rust PDF text parser + pdfium rasterization + ONNX
@@ -27,7 +28,7 @@ phased plan is kept at the end as history.)
 | **Performance** | PDF ML pipeline **4.3× faster warm / 4.7× end-to-end** than Python docling at 2.3–2.6× less peak RAM (INT8 + SIMD, conformance-validated); declarative formats 20–60× warm, ~60× less RAM; details + methodology in [`PDF_PERFORMANCE.md`](./PDF_PERFORMANCE.md) |
 | **Models** | docling's own checkpoints (layout heron, TableFormer, PP-OCRv3, Whisper tiny), format-converted to ONNX by `scripts/export_*.py` — no retraining; INT8 variants are calibrated post-training quantizations (`scripts/install/quantize_models.py`) |
 | **Tracking upstream** | See [§9](#9-keeping-up-with-upstream-docling): conformance is measured against the *latest published* docling on demand, so an upstream release that changes output surfaces as a concrete per-fixture diff |
-| **Not ported (by design)** | VLM pipelines, enrichment models, DocTags input, legacy patent schemas (§5); inline formatting is baked into text rather than structured fields (§4) |
+| **Not ported (by design)** | VLM pipelines, enrichment models, DocTags input, the legacy APS-text patent dump (§5); inline formatting is baked into text rather than structured fields (§4) |
 
 ---
 
@@ -91,7 +92,7 @@ PyPI; run via `scripts/conformance/conformance.sh <fmt>`), not the committed gro
 | EPUB | `epub.rs` → HTML backend | core exact (shares HTML residual) |
 | ODF (odt/ods/odp) | `odf.rs` | core + list continuation + rich table cells + ODS table regions; residual in §5 |
 | JATS | `jats.rs` (roxmltree) | metadata + full `<body>`/`<back>` (tables, figures, references, lists, footnotes, formulas) |
-| USPTO | `uspto.rs` | modern `us-patent-*-v4x` core; residual in §5 |
+| USPTO | `uspto.rs` | modern `us-patent-*-v4x` **+ legacy `pap-v15` applications + `PATDOC`/ST.32 grants**, incl. CALS tables; APS-text residual in §5 |
 | XBRL | `xbrl.rs` | arelle-free core (dei facts → title, `*TextBlock` → HTML) |
 | JSON-docling | `docling_json.rs` (serde_json) | reads docling's native JSON; ~51/145 round-trip exact |
 | LaTeX | `latex.rs` (scanner) | simple `.tex` ≈ live; multi-file arxiv out of scope |
@@ -124,7 +125,20 @@ close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
 | **Markdown (legacy)** | `export_to_markdown()` / default | byte-for-byte docling, quirks included |
 | **Markdown (strict)** | `.strict(true)` / `--strict` | Rust-only cleaner mode — **no docling equivalent** |
 | **JSON** | `export_to_json()` / `--to json` | docling-core native wire format (schema 1.10.0) |
+| **DocLang (`.dclx`)** | `export_to_doclang()` · `docling::dclx::save_as_dclx()` / `--to dclx` | DocLang 0.7 XML (`<doclang>`), and the OPC archive docling 2.110's `save_as_doclang()` writes |
 | **Image extraction** | `export_to_markdown_with_images(mode, dir)` / `--images` | `placeholder` (default) · `embedded` (base64 data URI) · `referenced` (writes PNG files) |
+
+- **DocLang** reproduces docling-core's `DocLangDocSerializer` (`minidom.toprettyxml`
+  layout) directly: headings, rich inline runs (`<bold>`/`<italic>`/`<underline>`/
+  `<strikethrough>`/`<sub|superscript>`), lists with enumeration `<marker>`s, OTSL
+  tables (`<ched>`/`<fcel>`/`<lcel>`…) with per-cell `<location>`, code, formulas,
+  pictures and furniture. Conformance is scored against docling's own `.dclx`
+  archives (`scripts/conformance/dclx_conformance.sh`): **≈83% mean similarity over
+  the 134-fixture non-PDF corpus** and climbing — csv/asciidoc/email/json exact,
+  html/docx/jats/md/latex/xlsx/webvtt/uspto in the 80s–90s, with the format-by-format
+  gaps tracked as [issue #32](https://github.com/artiz/docling.rs/issues/32) and its
+  children (#38–#41, #44). This is an **output** format; a DocLang *input* backend is
+  still out of scope (§5).
 
 - **JSON** rebuilds docling's full `body`-tree-of-`$ref`s model from the `Node`
   tree (texts/groups/tables/pictures, labels, list grouping, table grids,
@@ -222,11 +236,16 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
   classification, formula understanding, code understanding). Model-bound; out of
   scope for the discriminative port. (**Audio/ASR is now done** — see §2; the
   only container gap is AVI, which symphonia cannot demux.)
-- **XML DocLang / DocTags** input backend — no `.dclg` sources in the corpus to
-  verify against, and not in the requested scope.
-- **Older patent schemas.** USPTO covers the modern `v4x` XML only; the
-  `pap-v1` / 2001-era `pa`/`pg` schemas and the legacy **APS text** (`pftaps`)
-  format are not handled (two files even use HTML entities roxmltree rejects).
+- **XML DocLang / DocTags *input* backend** — DocLang is supported as an
+  **output** format (§3), but reading `.dclx`/DocTags *back in* is not: no such
+  sources in the corpus to verify against, and not in the requested scope.
+- **Legacy APS-text patents.** USPTO now covers the modern `v4x` XML **and** the
+  2001-era `pap-v15` applications (`pa`) and `PATDOC`/ST.32 grants (`pg`),
+  including their CALS tables. The one remaining format is the legacy **APS
+  plain text** (`pftaps`): docling doesn't parse it either — it dumps the raw
+  file into a single DocLang `<text>` — so matching that reference is a
+  serialization detail tracked in
+  [issue #44](https://github.com/artiz/docling.rs/issues/44), not a parsing gap.
 
 **Minor known gaps (cosmetic, tracked per-fixture):**
 

@@ -190,7 +190,8 @@ impl PictureImage {
     }
 }
 
-/// A simple row-major table. `rows[0]` is the header row.
+/// A simple row-major table. By default `rows[0]` is the header row; a
+/// [`TableStructure`] overlay overrides that and adds column spans.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Table {
     pub rows: Vec<Vec<String>>,
@@ -200,6 +201,23 @@ pub struct Table {
     /// the spreadsheet backend, whose cell grid yields a bounding box); left
     /// `None` by declarative backends, which have no coordinates.
     pub location: Option<[u16; 4]>,
+    /// Optional OTSL structure overlay for backends that parse real table
+    /// geometry (USPTO CALS): explicit header-row count and horizontal-span
+    /// continuations. `None` → the default (row 0 is the header, no spans).
+    /// `rows` still carries the full text grid (span text replicated) for
+    /// Markdown/JSON; DocLang uses this overlay to emit `<ched/>`/`<lcel/>`.
+    pub structure: Option<TableStructure>,
+}
+
+/// OTSL structure overlay for a [`Table`], parallel to [`Table::rows`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct TableStructure {
+    /// Per-row: `true` if the row's non-empty cells are column headers
+    /// (emitted as `<ched/>` rather than `<fcel/>`).
+    pub header_row: Vec<bool>,
+    /// Same shape as [`Table::rows`]; `true` where a cell continues a
+    /// horizontal span from its left neighbour (emitted as `<lcel/>`).
+    pub col_continuation: Vec<Vec<bool>>,
 }
 
 impl DoclingDocument {

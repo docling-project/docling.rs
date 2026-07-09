@@ -651,6 +651,7 @@ fn parse_table(table: XmlNode, styles: &Styles) -> Option<Table> {
     trim_grid_to_bounds(grid).map(|rows| Table {
         rows,
         location: None,
+        structure: None,
     })
 }
 
@@ -904,6 +905,7 @@ fn add_ods_sheet(table: XmlNode, doc: &mut DoclingDocument) {
             doc.push(Node::Table(Table {
                 rows,
                 location: None,
+                structure: None,
             }));
         }
     }
