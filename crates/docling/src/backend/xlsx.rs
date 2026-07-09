@@ -262,6 +262,7 @@ fn find_tables(
                     rows,
                     location: None,
                     structure: None,
+                    cell_blocks: None,
                 },
                 min_r,
                 min_c,

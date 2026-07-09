@@ -474,6 +474,7 @@ fn parse_table(tbl: XmlNode) -> Option<Table> {
             col_continuation,
             row_continuation,
         }),
+        cell_blocks: None,
     })
 }
 

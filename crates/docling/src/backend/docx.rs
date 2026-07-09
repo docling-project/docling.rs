@@ -884,6 +884,7 @@ fn parse_table_with(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
         rows: grid,
         location: None,
         structure: None,
+        cell_blocks: None,
     })
 }
 

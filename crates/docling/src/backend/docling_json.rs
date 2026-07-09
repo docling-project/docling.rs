@@ -212,6 +212,7 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
             rows,
             location: None,
             structure: None,
+            cell_blocks: None,
         }));
     }
     push_captions(item, root, doc);

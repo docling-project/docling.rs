@@ -234,6 +234,7 @@ impl Parser {
                 rows,
                 location: None,
                 structure: None,
+                cell_blocks: None,
             }));
         }
         self.in_table = false;

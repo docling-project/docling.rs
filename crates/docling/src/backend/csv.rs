@@ -42,6 +42,7 @@ impl DeclarativeBackend for CsvBackend {
                 rows,
                 location: None,
                 structure: None,
+                cell_blocks: None,
             }));
         }
         Ok(doc)

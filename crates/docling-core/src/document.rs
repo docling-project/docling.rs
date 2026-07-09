@@ -77,6 +77,17 @@ pub enum Node {
         caption: Option<String>,
         image: Option<PictureImage>,
     },
+    /// A chart (docling's `PictureItem` classified as a chart, carrying a
+    /// `PictureTabularChartData` annotation). Markdown and JSON render it exactly
+    /// like a [`Node::Picture`] placeholder (an `<!-- image -->` / `picture`
+    /// item); the DocLang serializer emits `<picture class="chart">` with a
+    /// `<label value="{kind}"/>` and the data `table` as a `<tabular>`.
+    Chart {
+        /// docling's classification label, e.g. `bar_chart`, `line_chart`.
+        kind: String,
+        /// The chart's data grid (row 0 is the header band).
+        table: Table,
+    },
     /// A logical grouping of child nodes (e.g. a list, a section).
     Group { label: String, children: Vec<Node> },
     /// A form key-value region (docling's `field_region`): a set of form fields,
@@ -115,6 +126,11 @@ pub enum Node {
     /// `<page_break/>`; Markdown and JSON omit it (matching docling's default
     /// exports, which carry page breaks only in the document model).
     PageBreak,
+    /// A node docling keeps in the document model (and DocLang) but leaves out
+    /// of the Markdown and JSON exports — e.g. an ODF *presentation*'s pictures
+    /// and charts, which appear in the `.dclx` body but not in its `.md`/`.json`.
+    /// DocLang renders the wrapped node in place; Markdown and JSON skip it.
+    DoclangOnly(Box<Node>),
 }
 
 /// Vertical text position of an [`InlineRun`] — docling's `Script`.
@@ -228,6 +244,13 @@ pub struct Table {
     /// `rows` still carries the full text grid (span text replicated) for
     /// Markdown/JSON; DocLang uses this overlay to emit `<ched/>`/`<lcel/>`.
     pub structure: Option<TableStructure>,
+    /// Optional per-cell block content, parallel to `rows`. A *rich* cell (an
+    /// ODF cell holding a list, several paragraphs, or a nested table) carries
+    /// its DocLang blocks here; the DocLang serializer emits them after the
+    /// cell token instead of the flat `rows` text. Markdown/JSON ignore this
+    /// and render `rows`, so their output is unchanged. `None` (or an empty
+    /// `Vec` for a given cell) → the flat text is used everywhere.
+    pub cell_blocks: Option<Vec<Vec<Vec<Node>>>>,
 }
 
 /// OTSL structure overlay for a [`Table`], parallel to [`Table::rows`].

@@ -602,6 +602,7 @@ fn parse_jats_table(table: XmlNode) -> Option<Table> {
         rows: grid,
         location: None,
         structure: None,
+        cell_blocks: None,
     })
 }
 

@@ -1072,6 +1072,7 @@ pub fn assemble_page(
                     rows,
                     location: None,
                     structure: None,
+                    cell_blocks: None,
                 }));
             }
             // docling does not decode formulas in the standard pipeline; it emits

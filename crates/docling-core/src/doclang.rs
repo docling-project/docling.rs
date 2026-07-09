@@ -563,6 +563,28 @@ fn push_location(out: &mut Out, depth: i32, loc: &[u16; 4]) {
 
 fn emit_table(out: &mut Out, depth: i32, table: &Table) {
     out.push(depth, "<table>".to_string());
+    emit_table_rows(out, depth, table);
+    out.push(depth, "</table>".to_string());
+}
+
+/// A chart — docling's `PictureItem` with a tabular chart-data annotation:
+/// `<picture class="chart">` wrapping a `<label value="{kind}"/>` and the data
+/// grid as a `<tabular>` (same cell tokens as a table).
+fn emit_chart(out: &mut Out, depth: i32, kind: &str, table: &Table) {
+    out.push(depth, "<picture class=\"chart\">".to_string());
+    out.push(
+        depth + 1,
+        format!("<label value=\"{}\"/>", attr_escape(kind)),
+    );
+    out.push(depth + 1, "<tabular>".to_string());
+    emit_table_rows(out, depth + 1, table);
+    out.push(depth + 1, "</tabular>".to_string());
+    out.push(depth, "</picture>".to_string());
+}
+
+/// Emit a grid's cells (the shared body of `<table>` and a chart's `<tabular>`):
+/// the location head, then each row's OTSL cell tokens at `depth + 1`.
+fn emit_table_rows(out: &mut Out, depth: i32, table: &Table) {
     // Layout provenance (spreadsheet/slide backends): four `<location>` tokens
     // (x0,y0,x1,y1) precede the cells, matching docling's element head.
     if let Some(loc) = &table.location {
@@ -593,7 +615,10 @@ fn emit_table(out: &mut Out, depth: i32, table: &Table) {
                 Some(s) => s.header_row.get(ri).copied().unwrap_or(false),
                 None => ri == 0,
             };
-            let tok = if is_lcel {
+            let tok = if is_lcel && is_ucel {
+                // Continues a span in both axes (a 2-D covered cell) → `<xcel/>`.
+                "<xcel/>"
+            } else if is_lcel {
                 "<lcel/>"
             } else if is_ucel {
                 "<ucel/>"
@@ -605,13 +630,26 @@ fn emit_table(out: &mut Out, depth: i32, table: &Table) {
                 "<fcel/>"
             };
             out.push(depth + 1, tok.to_string());
-            if !is_lcel && !is_ucel && !cell.trim().is_empty() {
-                emit_cell_text(out, depth + 1, cell);
+            if !is_lcel && !is_ucel {
+                // A rich cell (ODF lists / nested tables / multi-paragraph)
+                // emits its structured blocks after the token; otherwise the
+                // flat cell text renders inline.
+                let blocks = table
+                    .cell_blocks
+                    .as_ref()
+                    .and_then(|b| b.get(ri))
+                    .and_then(|r| r.get(ci))
+                    .filter(|b| !b.is_empty());
+                if let Some(blocks) = blocks {
+                    let mut bi = 0;
+                    emit_nodes(out, depth + 1, blocks, &mut bi, 0);
+                } else if !cell.trim().is_empty() {
+                    emit_cell_text(out, depth + 1, cell);
+                }
             }
         }
         out.push(depth + 1, "<nl/>".to_string());
     }
-    out.push(depth, "</table>".to_string());
 }
 
 /// Table-cell content: virtual text (no wrapper), inline markers re-parsed.
@@ -658,6 +696,15 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
             }
             Node::Picture { caption, image: _ } => {
                 emit_picture(out, depth, caption.as_deref(), None);
+                *i += 1;
+            }
+            Node::Chart { kind, table } => {
+                emit_chart(out, depth, kind, table);
+                *i += 1;
+            }
+            Node::DoclangOnly(inner) => {
+                let mut j = 0;
+                emit_nodes(out, depth, std::slice::from_ref(inner), &mut j, level);
                 *i += 1;
             }
             Node::ListItem { level: l, .. } => {
@@ -739,9 +786,17 @@ fn emit_inline_group(out: &mut Out, depth: i32, unwrapped: bool, runs: &[InlineR
     out.push(depth, "<text>".to_string());
     for (i, run) in runs.iter().enumerate() {
         if run.is_plain() {
-            // First child has no leading newline → indented; the rest sit at 0.
-            let d = if i == 0 { depth + 1 } else { 0 };
-            out.push(d, escape_text(&run.text));
+            let e = escape_text(&run.text);
+            // A `<content>`-wrapped run is an *element* child → indented like the
+            // styled runs. A bare text/CDATA node sits at column 0 (its record
+            // delimiter's leading newline), except the first child, which has no
+            // leading newline and stays indented.
+            let d = if e.starts_with("<content>") || i == 0 {
+                depth + 1
+            } else {
+                0
+            };
+            out.push(d, e);
         } else {
             emit_styled(out, depth + 1, &style_tags(run), &escape_text(&run.text));
         }

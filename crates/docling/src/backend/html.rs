@@ -1029,6 +1029,7 @@ fn parse_table_cells(
         rows,
         location: None,
         structure: None,
+        cell_blocks: None,
     })
 }
 

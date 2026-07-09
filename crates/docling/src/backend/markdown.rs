@@ -311,6 +311,7 @@ impl MarkdownBackend {
                 rows,
                 location: None,
                 structure: None,
+                cell_blocks: None,
             }));
         }
     }
