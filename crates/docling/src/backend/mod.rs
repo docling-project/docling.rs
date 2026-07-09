@@ -33,7 +33,7 @@ mod email;
 mod epub;
 mod html;
 pub(crate) mod images;
-mod jats;
+pub(crate) mod jats;
 mod latex;
 mod markdown;
 mod mhtml;

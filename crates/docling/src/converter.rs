@@ -248,7 +248,10 @@ impl DocumentConverter {
             InputFormat::Md if looks_like_xml(source.text()?) => match sniff_xml(source.text()?) {
                 InputFormat::XmlUspto => UsptoBackend.convert(&source)?,
                 InputFormat::XmlXbrl => XbrlBackend.convert(&source)?,
-                _ => JatsBackend.convert(&source)?,
+                // A JATS/other XML document saved as `.txt` is reconstructed
+                // generically (element-by-element), as docling does — the
+                // semantic JATS backend is only used for real `.xml`/`.nxml`.
+                _ => crate::backend::jats::convert_generic(&source)?,
             },
             // DeepSeek-OCR annotated Markdown (VLM token format) is detected by
             // its `<|ref|>…[[bbox]]` annotations and parsed separately.

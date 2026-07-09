@@ -106,6 +106,87 @@ fn raw_text(node: XmlNode, out: &mut String) {
     }
 }
 
+/// Generic XML text reconstruction — docling's fallback for an XML document
+/// saved with a `.txt` extension (it is *not* parsed with the semantic JATS
+/// backend). Every leaf/mixed element with text becomes a `<text>` item in
+/// document order; `<table-wrap>`/`<table>` become tables. This mirrors
+/// docling's behaviour of walking such a file element-by-element.
+pub(crate) fn convert_generic(source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
+    let xml = source.text()?;
+    let opts = ParsingOptions {
+        allow_dtd: true,
+        ..Default::default()
+    };
+    let dom = Document::parse_with_options(xml, opts)
+        .map_err(|e| ConversionError::Parse(format!("xml: {e}")))?;
+    let mut doc = DoclingDocument::new(&source.name);
+    walk_generic(dom.root_element(), &mut doc);
+    Ok(doc)
+}
+
+fn walk_generic(node: XmlNode, doc: &mut DoclingDocument) {
+    for child in node.children().filter(XmlNode::is_element) {
+        let tag = child.tag_name().name();
+        if tag == "table-wrap" {
+            add_table(doc, child);
+            continue;
+        }
+        if tag == "table" {
+            if let Some(t) = parse_jats_table(child) {
+                doc.push(Node::Table(t));
+            }
+            continue;
+        }
+        // A leaf element (no child elements) or a mixed-content element (its own
+        // text interleaved with inline markup) is one text item; a pure
+        // container (only child elements, no direct text) is walked into.
+        let has_direct_text = child
+            .children()
+            .any(|c| c.is_text() && !c.text().unwrap_or("").trim().is_empty());
+        let has_element_children = child.children().any(|c| c.is_element());
+        if !has_element_children || has_direct_text {
+            let t = normalize(&sanitize_generic(&generic_text(child)));
+            if !t.trim().is_empty() {
+                doc.push(Node::Paragraph {
+                    text: escape_text(&t),
+                });
+            }
+        } else {
+            walk_generic(child, doc);
+        }
+    }
+}
+
+/// docling's Unicode text sanitization (em/en dashes → hyphen, curly quotes →
+/// straight) applied to the generically reconstructed text.
+fn sanitize_generic(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            '\u{2014}' | '\u{2013}' => '-',
+            '\u{2019}' | '\u{2018}' => '\'',
+            '\u{201C}' | '\u{201D}' => '"',
+            c => c,
+        })
+        .collect()
+}
+
+/// Concatenate an element's text as docling does for the generic reconstruction:
+/// a nested element's text is padded with a space on each side (so inline
+/// cross-references read `text ( ref ) text`); collapsed by [`normalize`].
+fn generic_text(node: XmlNode) -> String {
+    let mut s = String::new();
+    for child in node.children() {
+        if child.is_text() {
+            s.push_str(child.text().unwrap_or(""));
+        } else if child.is_element() {
+            s.push(' ');
+            s.push_str(&generic_text(child));
+            s.push(' ');
+        }
+    }
+    s
+}
+
 fn node_text(node: XmlNode) -> String {
     let mut s = String::new();
     raw_text(node, &mut s);
