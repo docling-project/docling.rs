@@ -295,10 +295,17 @@ fn render_list_run(items: &[Node], blocks: &mut Vec<String>, strict: bool) {
             marker: _,
             location: _,
             dclx: _,
+            href: _,
+            layer,
         } = item
         else {
             continue;
         };
+        // A non-body (furniture) list item is omitted from Markdown, matching
+        // docling's content-layer filtering.
+        if layer.is_some() {
+            continue;
+        }
         let level = *level as usize;
 
         // Returning to a shallower level ends the deeper sibling lists.
@@ -329,7 +336,11 @@ fn render_list_run(items: &[Node], blocks: &mut Vec<String>, strict: bool) {
         prev[level] = Some((*ordered, *number));
     }
 
-    blocks.push(lines.join("\n"));
+    // A run consisting only of furniture (content-layer-filtered) items yields no
+    // lines; pushing an empty block here would surface as a stray blank line.
+    if !lines.is_empty() {
+        blocks.push(lines.join("\n"));
+    }
 }
 
 fn render_one(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
@@ -632,6 +643,8 @@ mod tests {
             marker: None,
             location: None,
             dclx: None,
+            href: None,
+            layer: None,
         });
         doc.push(Node::ListItem {
             ordered: false,
@@ -642,6 +655,8 @@ mod tests {
             marker: None,
             location: None,
             dclx: None,
+            href: None,
+            layer: None,
         });
         let md = doc.export_to_markdown();
         assert_eq!(md, "# Title\n\nHello world.\n\n- first\n- second\n");
@@ -726,6 +741,8 @@ mod tests {
             marker: None,
             location: None,
             dclx: None,
+            href: None,
+            layer: None,
         });
         // Legacy reproduces docling's `\_` escaping byte-for-byte.
         assert_eq!(doc.export_to_markdown(), "# a\\_b\n\nx\\_y\n\n- i\\_j\n");
@@ -785,6 +802,8 @@ mod tests {
             marker: None,
             location: None,
             dclx: None,
+            href: None,
+            layer: None,
         });
         doc.push(Node::ListItem {
             ordered: false,
@@ -795,6 +814,8 @@ mod tests {
             marker: None,
             location: None,
             dclx: None,
+            href: None,
+            layer: None,
         });
         doc.push(Node::Code {
             language: Some("rust".into()),

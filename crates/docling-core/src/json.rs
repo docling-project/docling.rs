@@ -689,6 +689,8 @@ mod tests {
             marker: None,
             location: None,
             dclx: None,
+            href: None,
+            layer: None,
         });
         doc.push(Node::ListItem {
             ordered: false,
@@ -699,6 +701,8 @@ mod tests {
             marker: None,
             location: None,
             dclx: None,
+            href: None,
+            layer: None,
         });
         doc.push(Node::Table(Table {
             rows: vec![vec!["A".into(), "B".into()]],

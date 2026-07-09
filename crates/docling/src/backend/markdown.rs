@@ -483,6 +483,8 @@ fn emit_item(
             marker: None,
             location: None,
             dclx: None,
+            href: None,
+            layer: None,
         });
         *emitted = true;
     }

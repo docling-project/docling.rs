@@ -262,6 +262,8 @@ fn emit_list(inner: &str, doc: &mut DoclingDocument) {
                 marker: None,
                 location: None,
                 dclx: None,
+                href: None,
+                layer: None,
             });
             first = false;
         }

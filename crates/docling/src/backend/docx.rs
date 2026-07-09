@@ -378,6 +378,8 @@ fn handle_paragraph_inner(
                     marker: Some(marker),
                     location: None,
                     dclx: None,
+                    href: None,
+                    layer: None,
                 });
             } else {
                 // A multilevel marker (`1.1.`) is a Markdown bullet with the
@@ -398,6 +400,8 @@ fn handle_paragraph_inner(
                     marker: None,
                     location: None,
                     dclx,
+                    href: None,
+                    layer: None,
                 });
             }
         } else {
@@ -420,6 +424,8 @@ fn handle_paragraph_inner(
                 marker: None,
                 location: None,
                 dclx,
+                href: None,
+                layer: None,
             });
         }
         return;

@@ -186,6 +186,8 @@ impl Parser {
             marker: None,
             location: None,
             dclx: None,
+            href: None,
+            layer: None,
         });
         self.fresh_list = false;
     }

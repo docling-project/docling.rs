@@ -74,6 +74,15 @@ pub enum Node {
         /// (Markdown shows `- 1.1. x`, DocLang an ordered `<marker>1.1.</marker>`
         /// with clean text) and inline equations/formatting in list items.
         dclx: Option<ListItemDclx>,
+        /// The item's hyperlink target, when its content is a link — docling's
+        /// HTML backend emits it as an `<href uri=…/>` in the item head, and the
+        /// anchor's Markdown link markup is stripped from the rendered content.
+        /// `None` for a plain item; ignored by Markdown/JSON.
+        href: Option<String>,
+        /// Non-body content layer (docling's HTML site chrome before the first
+        /// heading → `furniture`). DocLang emits a `<layer value=…/>` in the item
+        /// head; Markdown/JSON drop a non-body item entirely.
+        layer: Option<ContentLayer>,
     },
     /// A fenced code block.
     Code {

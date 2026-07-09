@@ -746,6 +746,8 @@ fn add_odf_list(
             marker,
             location: None,
             dclx: None,
+            href: None,
+            layer: None,
         });
         has_last = true;
         for n in &nested {

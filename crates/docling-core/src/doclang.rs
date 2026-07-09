@@ -916,6 +916,30 @@ fn emit_furniture(out: &mut Out, depth: i32, layer: ContentLayer, inner: &Node) 
             out.push(depth + 1, escape_text(text));
             out.push(depth, "</text>".to_string());
         }
+        // A furniture picture (site-chrome logo/banner): the layer token, then a
+        // caption that carries its own `<href>`/`<layer>` head when the caption is
+        // a link.
+        Node::Picture { caption, .. } => {
+            let caption = caption.as_deref().filter(|c| !c.trim().is_empty());
+            out.push(depth, "<picture>".to_string());
+            out.push(depth + 1, token.clone());
+            if let Some(c) = caption {
+                out.push(depth + 1, "<caption>".to_string());
+                match inline_runs(c).into_iter().next() {
+                    Some(Run::Link { anchor, uri }) => {
+                        out.push(depth + 2, format!("<href uri=\"{}\"/>", attr_escape(&uri)));
+                        out.push(depth + 2, token.clone());
+                        out.push(depth + 2, escape_text(&anchor));
+                    }
+                    _ => {
+                        out.push(depth + 2, token.clone());
+                        out.push(depth + 2, escape_text(c));
+                    }
+                }
+                out.push(depth + 1, "</caption>".to_string());
+            }
+            out.push(depth, "</picture>".to_string());
+        }
         other => {
             let mut i = 0usize;
             emit_nodes(out, depth, std::slice::from_ref(other), &mut i, 0);
@@ -956,9 +980,43 @@ fn emit_picture(
         out.push(depth + 1, format!("<src uri=\"{}\"/>", attr_escape(&s)));
     }
     if let Some(c) = caption {
-        out.push(depth + 1, format!("<caption>{}</caption>", escape_text(c)));
+        emit_caption(out, depth + 1, c);
     }
     out.push(depth, "</picture>".to_string());
+}
+
+/// A `<caption>` — inline when plain text, or block form with an `<href uri=…/>`
+/// head + anchor text when the caption is a single Markdown link (docling's
+/// linked image captions).
+fn emit_caption(out: &mut Out, depth: i32, text: &str) {
+    if let Some(Run::Link { anchor, uri }) = inline_runs(text).into_iter().next() {
+        if inline_runs(text).len() == 1 {
+            out.push(depth, "<caption>".to_string());
+            out.push(depth + 1, format!("<href uri=\"{}\"/>", attr_escape(&uri)));
+            out.push(depth + 1, escape_text(&anchor));
+            out.push(depth, "</caption>".to_string());
+            return;
+        }
+    }
+    out.push(depth, format!("<caption>{}</caption>", escape_text(text)));
+}
+
+/// If `text` is a single `[anchor](uri)` Markdown link, return just `anchor`;
+/// otherwise return `text` unchanged. Used when the link's uri rides in a list
+/// item's `<href>` head, so the content keeps only the anchor text.
+fn strip_lone_link(text: &str) -> Cow<'_, str> {
+    if let Some(rest) = text.strip_prefix('[') {
+        if let Some(close) = rest.find("](") {
+            if rest.ends_with(')') {
+                let anchor = &rest[..close];
+                let uri = &rest[close + 2..rest.len() - 1];
+                if !anchor.contains(['[', ']']) && !uri.contains(['(', ')']) {
+                    return Cow::Owned(anchor.to_string());
+                }
+            }
+        }
+    }
+    Cow::Borrowed(text)
 }
 
 /// Lowercase hex SHA-256 of `bytes` (image asset content hash).
@@ -1033,6 +1091,8 @@ fn emit_list(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8
                 first_in_list,
                 location,
                 dclx,
+                href,
+                layer,
             } if *l == level => {
                 // The DocLang overlay wins over the flat Markdown fields for the
                 // list kind and marker (see `ListItemDclx`).
@@ -1082,7 +1142,33 @@ fn emit_list(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8
                     // A clean-text override (multilevel numbering) re-parses like
                     // a normal item but from the overlay's text.
                     Some(d) => emit_list_item_content(out, depth + 1, &d.text, has_nested),
-                    None => emit_list_item_content(out, depth + 1, text, has_nested),
+                    None => {
+                        // docling emits an `<href>` head only when the item's whole
+                        // content is a lone link (`[anchor](uri)`); a mixed item
+                        // (`text [anchor](uri) …`) keeps the anchor inline with no
+                        // head. A non-body layer always rides in the head.
+                        let stripped = strip_lone_link(text);
+                        let eff_href = href
+                            .as_deref()
+                            .filter(|_| matches!(stripped, Cow::Owned(_)));
+                        if eff_href.is_some() || layer.is_some() {
+                            let content: &str = if eff_href.is_some() {
+                                stripped.as_ref()
+                            } else {
+                                text.as_str()
+                            };
+                            emit_list_item_with_head(
+                                out,
+                                depth + 1,
+                                content,
+                                has_nested,
+                                eff_href,
+                                *layer,
+                            );
+                        } else {
+                            emit_list_item_content(out, depth + 1, text, has_nested);
+                        }
+                    }
                 }
                 *i += 1;
             }
@@ -1113,17 +1199,60 @@ fn emit_list(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8
 /// one as its inline elements). (A uniformly-formatted item that docling stores
 /// with direct formatting rather than an inline group is also wrapped, but that
 /// backend-structural distinction isn't recoverable from the flat model.)
-fn emit_list_item_content(out: &mut Out, depth: i32, text: &str, has_nested: bool) {
-    if !has_nested {
+/// A list item whose head carries an `<href>` and/or `<layer>` (HTML links /
+/// site chrome). Bare content puts the head right after the `<ldiv>` then the
+/// anchor text; wrapped content (a `<text>` element, e.g. an item with a nested
+/// sublist) puts the head *inside* the `<text>`.
+fn emit_list_item_with_head(
+    out: &mut Out,
+    depth: i32,
+    text: &str,
+    has_nested: bool,
+    href: Option<&str>,
+    layer: Option<ContentLayer>,
+) {
+    let head = |out: &mut Out, d: i32| {
+        if let Some(uri) = href {
+            out.push(d, format!("<href uri=\"{}\"/>", attr_escape(uri)));
+        }
+        if let Some(l) = layer {
+            out.push(d, format!("<layer value=\"{}\"/>", l.value()));
+        }
+    };
+    if has_nested {
+        out.push(depth, "<text>".to_string());
+        head(out, depth + 1);
+        emit_runs(out, depth + 1, inline_runs(text));
+        out.push(depth, "</text>".to_string());
+    } else {
+        head(out, depth);
         emit_runs(out, depth, inline_runs(text));
-        return;
     }
+}
+
+fn emit_list_item_content(out: &mut Out, depth: i32, text: &str, has_nested: bool) {
+    // docling models an HTML list item's inline content as an InlineGroup: each
+    // text node / inline element becomes a separate child, links flatten to
+    // their anchor (the href is dropped in inline scope), and the children are
+    // rendered on their own lines. Re-parse the Markdown markers into runs and
+    // mirror that layout.
     let runs = inline_runs_from_markdown(text);
     let single_plain = runs.len() <= 1 && runs.first().map_or(true, |r| r.is_plain());
     if single_plain {
-        emit_text_element(out, depth, "text", "text", text, None);
-    } else {
+        if has_nested {
+            emit_text_element(out, depth, "text", "text", text, None);
+        } else {
+            let t = runs.first().map_or("", |r| r.text.as_str());
+            if !t.is_empty() {
+                emit_text_node(out, depth, t);
+            }
+        }
+    } else if has_nested {
         emit_inline_group(out, depth, false, &runs);
+    } else {
+        // Bare multi-segment item: the runs render at the item's own depth, the
+        // first indented and the rest column-0 (minidom's text-child layout).
+        emit_inline_runs_body(out, depth, &runs);
     }
 }
 
