@@ -1,10 +1,10 @@
-//! USPTO patent XML backend (core) — a port of the modern
-//! `us-patent-application`/`us-patent-grant` (v4x) path of docling's
-//! `PatentUsptoDocumentBackend`. Emits the invention title (#), the ABSTRACT
-//! (###) + text, the description's `<heading>`s (by their `level`) and `<p>`s,
-//! and the CLAIMS, including CALS `<table>`s (ported from docling's `XmlTable`).
-//! Older schemas (pap-v15, PATDOC, the legacy APS text format) and maths are
-//! out of scope for the core.
+//! USPTO patent XML backend — a port of docling's `PatentUsptoDocumentBackend`.
+//! Dispatches on the document root to the modern ICE path
+//! (`us-patent-application`/`-grant`), the pap-v15 applications path
+//! (`patent-application-publication`) or the ST.32 grant path (`PATDOC`). Emits
+//! the title (#), the ABSTRACT (###) + text, headings, paragraphs, the CLAIMS,
+//! and CALS `<table>`s (ported from docling's `XmlTable`). The legacy APS
+//! plain-text format and maths are out of scope.
 
 use std::borrow::Cow;
 
@@ -22,6 +22,8 @@ pub struct UsptoBackend;
 impl DeclarativeBackend for UsptoBackend {
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
         let raw = source.text()?;
+        let mut doc = DoclingDocument::new(&source.name);
+
         let xml = resolve_named_entities(raw);
         let opts = ParsingOptions {
             allow_dtd: true,
@@ -29,57 +31,302 @@ impl DeclarativeBackend for UsptoBackend {
         };
         let dom = Document::parse_with_options(&xml, opts)
             .map_err(|e| ConversionError::Parse(format!("uspto: {e}")))?;
-        let mut doc = DoclingDocument::new(&source.name);
 
-        if let Some(title) = dom
-            .descendants()
-            .find(|n| n.has_tag_name("invention-title"))
-            .map(node_text)
-            .filter(|s| !s.is_empty())
-        {
-            doc.push(Node::Heading {
-                level: 1,
-                text: escape_text(&title),
-            });
+        // Dispatch on the document root, mirroring docling's `_set_parser`.
+        match dom.root_element().tag_name().name() {
+            "patent-application-publication" => parse_app_v1(&dom, &mut doc),
+            "PATDOC" => parse_grant_v2(&dom, &mut doc),
+            _ => parse_ice(&dom, &mut doc), // modern us-patent-application / -grant
         }
+        Ok(doc)
+    }
+}
 
-        if let Some(abs) = dom.descendants().find(|n| n.has_tag_name("abstract")) {
-            let paras = paragraphs(abs);
-            if !paras.is_empty() {
-                doc.push(Node::Heading {
-                    level: 3,
-                    text: "ABSTRACT".into(),
-                });
-                // docling emits the abstract as a single text item — its
-                // paragraphs (with any chemistry-drawing `<p>` dropped as empty)
-                // are joined into one, not split per `<p>`.
-                doc.push(Node::Paragraph {
-                    text: escape_text(&paras.join(" ")),
-                });
-            }
-        }
+/// Modern ICE path (`us-patent-application` / `us-patent-grant`, v4x).
+fn parse_ice(dom: &Document, doc: &mut DoclingDocument) {
+    if let Some(title) = dom
+        .descendants()
+        .find(|n| n.has_tag_name("invention-title"))
+        .map(node_text)
+        .filter(|s| !s.is_empty())
+    {
+        doc.push(Node::Heading {
+            level: 1,
+            text: escape_text(&title),
+        });
+    }
 
-        if let Some(desc) = dom.descendants().find(|n| n.has_tag_name("description")) {
-            walk_description(desc, &mut doc);
-        }
-
-        if let Some(claims) = dom.descendants().find(|n| n.has_tag_name("claims")) {
+    if let Some(abs) = dom.descendants().find(|n| n.has_tag_name("abstract")) {
+        let paras = paragraphs(abs);
+        if !paras.is_empty() {
             doc.push(Node::Heading {
                 level: 3,
-                text: "CLAIMS".into(),
+                text: "ABSTRACT".into(),
             });
-            for claim in claims.children().filter(|c| c.has_tag_name("claim")) {
-                for ct in claim.children().filter(|c| c.has_tag_name("claim-text")) {
-                    let t = node_text(ct);
-                    if !t.is_empty() {
+            // docling emits the abstract as a single text item — its
+            // paragraphs (with any chemistry-drawing `<p>` dropped as empty)
+            // are joined into one, not split per `<p>`.
+            doc.push(Node::Paragraph {
+                text: escape_text(&paras.join(" ")),
+            });
+        }
+    }
+
+    if let Some(desc) = dom.descendants().find(|n| n.has_tag_name("description")) {
+        walk_description(desc, doc);
+    }
+
+    if let Some(claims) = dom.descendants().find(|n| n.has_tag_name("claims")) {
+        doc.push(Node::Heading {
+            level: 3,
+            text: "CLAIMS".into(),
+        });
+        for claim in claims.children().filter(|c| c.has_tag_name("claim")) {
+            for ct in claim.children().filter(|c| c.has_tag_name("claim-text")) {
+                let t = node_text(ct);
+                if !t.is_empty() {
+                    doc.push(Node::Paragraph {
+                        text: escape_text(&t),
+                    });
+                }
+            }
+        }
+    }
+}
+
+// ===========================================================================
+// Legacy application v1.x (`pap-v15`): `patent-application-publication` root.
+// Ported from docling's `PatentUsptoAppV1.PatentHandler`.
+// ===========================================================================
+
+/// Heading-nesting state machine mirroring docling's `self.level` / `parents`.
+struct HeadingLevels {
+    level: i32,
+    present: std::collections::BTreeSet<i32>,
+}
+
+impl HeadingLevels {
+    fn new() -> Self {
+        let mut present = std::collections::BTreeSet::new();
+        present.insert(1);
+        Self { level: 1, present }
+    }
+
+    /// docling's `PatentHeading` sections (ABSTRACT/CLAIMS, base level 2): the
+    /// emitted DocLang level is `base + 1` when `base` is already a known level.
+    fn tagged_section_level(&self, base: i32) -> u8 {
+        let lvl = if self.present.contains(&base) {
+            base
+        } else {
+            1
+        };
+        (lvl + 1) as u8
+    }
+
+    /// A `<heading lvl="L">`: pick `self.level`, return the DocLang level to
+    /// emit, then advance — the port of docling's heading branch.
+    fn heading_level(&mut self, lvl_attr: i32) -> u8 {
+        let cand = lvl_attr + 1;
+        self.level = if self.present.contains(&cand) {
+            cand
+        } else {
+            *self.present.iter().next().unwrap()
+        };
+        let dclx = (self.level + 1) as u8;
+        self.present.insert(self.level + 1);
+        self.level += 1;
+        dclx
+    }
+}
+
+/// Raw styled text (super/subscript applied, whitespace *not* collapsed) — what
+/// docling accumulates for the abstract (which keeps its trailing space).
+fn styled_raw(node: XmlNode) -> String {
+    let mut s = String::new();
+    raw_text(node, &mut s);
+    s
+}
+
+fn parse_app_v1(dom: &Document, doc: &mut DoclingDocument) {
+    let mut lv = HeadingLevels::new();
+    walk_app_v1(dom.root_element(), doc, &mut lv);
+}
+
+fn walk_app_v1(node: XmlNode, doc: &mut DoclingDocument, lv: &mut HeadingLevels) {
+    for child in node.children().filter(XmlNode::is_element) {
+        match child.tag_name().name() {
+            "title-of-invention" => {
+                let t = node_text(child);
+                if !t.is_empty() {
+                    doc.push(Node::Heading {
+                        level: 1,
+                        text: escape_text(&t),
+                    });
+                    lv.level += 1;
+                    lv.present.insert(lv.level);
+                }
+            }
+            "subdoc-abstract" => {
+                let abstract_text: String = child
+                    .descendants()
+                    .filter(|n| n.has_tag_name("paragraph"))
+                    .map(styled_raw)
+                    .collect();
+                if !abstract_text.trim().is_empty() {
+                    doc.push(Node::Heading {
+                        level: lv.tagged_section_level(2),
+                        text: "ABSTRACT".into(),
+                    });
+                    doc.push(Node::Paragraph {
+                        text: escape_text(&abstract_text),
+                    });
+                }
+            }
+            "heading" => {
+                let lvl_attr = child.attribute("lvl").and_then(as_index).unwrap_or(1) as i32;
+                let t = node_text(child);
+                if !t.is_empty() {
+                    let level = lv.heading_level(lvl_attr);
+                    doc.push(Node::Heading {
+                        level,
+                        text: escape_text(&t),
+                    });
+                }
+            }
+            "paragraph" => {
+                // docling adds a table at each `<table>` position (fires at
+                // `</table>`), then the paragraph's own text at `</paragraph>`.
+                if child.descendants().any(|n| n.has_tag_name("table")) {
+                    push_tables(child, doc);
+                }
+                let t = node_text(child);
+                if !t.is_empty() {
+                    doc.push(Node::Paragraph {
+                        text: escape_text(&t),
+                    });
+                }
+            }
+            "subdoc-claims" => {
+                let claims: Vec<String> = child
+                    .descendants()
+                    .filter(|n| n.has_tag_name("claim"))
+                    .map(node_text)
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                if !claims.is_empty() {
+                    doc.push(Node::Heading {
+                        level: lv.tagged_section_level(2),
+                        text: "CLAIMS".into(),
+                    });
+                    for claim in claims {
                         doc.push(Node::Paragraph {
-                            text: escape_text(&t),
+                            text: escape_text(&claim),
                         });
                     }
                 }
             }
+            "tables" | "table" => push_tables(child, doc),
+            "math-cwu" | "math" | "maths" => {}
+            _ => walk_app_v1(child, doc, lv),
         }
-        Ok(doc)
+    }
+}
+
+// ===========================================================================
+// Legacy grant v2 (`PATDOC`, ST.32 `us-grant-025`). Ported from docling's
+// `PatentUsptoGrantV2.PatentHandler`. Text lives in `<PDAT>` leaves; the tag
+// stack decides styling (`SP`/`SB`/`ITALIC`) and destination (title, abstract,
+// paragraph, heading, claim).
+// ===========================================================================
+
+/// Styled text with runs of whitespace collapsed to single spaces — PATDOC
+/// splits text across many `<PDAT>` leaves separated by source indentation, so
+/// collapsing reproduces docling's single-spaced paragraphs/claims.
+fn grant_text(node: XmlNode) -> String {
+    node_text(node)
+}
+
+fn parse_grant_v2(dom: &Document, doc: &mut DoclingDocument) {
+    let mut lv = HeadingLevels::new();
+    walk_grant_v2(dom.root_element(), doc, &mut lv);
+}
+
+fn walk_grant_v2(node: XmlNode, doc: &mut DoclingDocument, lv: &mut HeadingLevels) {
+    for child in node.children().filter(XmlNode::is_element) {
+        match child.tag_name().name() {
+            "B540" => {
+                let t = grant_text(child);
+                if !t.is_empty() {
+                    doc.push(Node::Heading {
+                        level: 1,
+                        text: escape_text(&t),
+                    });
+                    lv.level += 1;
+                    lv.present.insert(lv.level);
+                }
+            }
+            "SDOAB" => {
+                let t = grant_text(child);
+                if !t.is_empty() {
+                    doc.push(Node::Heading {
+                        level: lv.tagged_section_level(2),
+                        text: "ABSTRACT".into(),
+                    });
+                    doc.push(Node::Paragraph {
+                        text: escape_text(&t),
+                    });
+                }
+            }
+            // A heading inside the claim statement ("What is claimed is:",
+            // under <SDOCL>) is skipped; the <CL> under it still yields claims.
+            "H" => {
+                if child.ancestors().any(|a| a.has_tag_name("SDOCL")) {
+                    continue;
+                }
+                let lvl_attr = child.attribute("LVL").and_then(as_index).unwrap_or(1) as i32;
+                let t = grant_text(child);
+                if !t.is_empty() {
+                    let level = lv.heading_level(lvl_attr);
+                    doc.push(Node::Heading {
+                        level,
+                        text: escape_text(&t),
+                    });
+                }
+            }
+            "PARA" => {
+                if child.descendants().any(|n| n.has_tag_name("table")) {
+                    push_tables(child, doc);
+                }
+                let t = grant_text(child);
+                if !t.is_empty() {
+                    doc.push(Node::Paragraph {
+                        text: escape_text(&t),
+                    });
+                }
+            }
+            "CL" => {
+                let claims: Vec<String> = child
+                    .children()
+                    .filter(|c| c.has_tag_name("CLM"))
+                    .map(grant_text)
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                if !claims.is_empty() {
+                    doc.push(Node::Heading {
+                        level: lv.tagged_section_level(2),
+                        text: "CLAIMS".into(),
+                    });
+                    for claim in claims {
+                        doc.push(Node::Paragraph {
+                            text: escape_text(&claim),
+                        });
+                    }
+                }
+            }
+            "tables" | "table" => push_tables(child, doc),
+            "CWU" => {}
+            _ => walk_grant_v2(child, doc, lv),
+        }
     }
 }
 
@@ -393,17 +640,86 @@ fn raw_text(node: XmlNode, out: &mut String) {
             }
         } else if child.is_element() {
             match child.tag_name().name() {
-                // <sup>/<sub> digits and signs render as Unicode super/subscript.
-                "sup" | "sub" => {
+                // Super/subscript: <sup>/<sub> (ICE), <superscript>/<subscript>
+                // (app-v1), <SP>/<SB> (PATDOC).
+                tag @ ("sup" | "sub" | "superscript" | "subscript" | "SP" | "SB") => {
                     let mut inner = String::new();
                     raw_text(child, &mut inner);
-                    let sup = child.tag_name().name() == "sup";
+                    let sup = matches!(tag, "sup" | "superscript" | "SP");
                     out.extend(inner.chars().map(|c| script_char(c, sup)));
                 }
-                "maths" => {}
+                // PATDOC math italic (<ITALIC>) maps letters to Unicode italics.
+                "ITALIC" => {
+                    let mut inner = String::new();
+                    raw_text(child, &mut inner);
+                    out.extend(inner.chars().map(math_italic_char));
+                }
+                // Formulas, tables and the [NNNN] paragraph number never
+                // contribute to surrounding text.
+                "maths" | "math-cwu" | "table" | "tables" | "number" | "CWU" => {}
                 _ => raw_text(child, out),
             }
         }
+    }
+}
+
+/// Map an ASCII letter to its Unicode mathematical-italic form for PATDOC
+/// `<ITALIC>` runs (docling's `mathematical_italic` table; note 'X' is absent
+/// upstream, so it is left unchanged here too).
+fn math_italic_char(c: char) -> char {
+    match c {
+        'A' => '\u{1D434}',
+        'B' => '\u{1D435}',
+        'C' => '\u{1D436}',
+        'D' => '\u{1D437}',
+        'E' => '\u{1D438}',
+        'F' => '\u{1D439}',
+        'G' => '\u{1D43A}',
+        'H' => '\u{1D43B}',
+        'I' => '\u{1D43C}',
+        'J' => '\u{1D43D}',
+        'K' => '\u{1D43E}',
+        'L' => '\u{1D43F}',
+        'M' => '\u{1D440}',
+        'N' => '\u{1D441}',
+        'O' => '\u{1D442}',
+        'P' => '\u{1D443}',
+        'Q' => '\u{1D444}',
+        'R' => '\u{1D445}',
+        'S' => '\u{1D446}',
+        'T' => '\u{1D447}',
+        'U' => '\u{1D448}',
+        'V' => '\u{1D449}',
+        'W' => '\u{1D44A}',
+        'Y' => '\u{1D44C}',
+        'Z' => '\u{1D44D}',
+        'a' => '\u{1D44E}',
+        'b' => '\u{1D44F}',
+        'c' => '\u{1D450}',
+        'd' => '\u{1D451}',
+        'e' => '\u{1D452}',
+        'f' => '\u{1D453}',
+        'g' => '\u{1D454}',
+        'h' => '\u{1D455}',
+        'i' => '\u{1D456}',
+        'j' => '\u{1D457}',
+        'k' => '\u{1D458}',
+        'l' => '\u{1D459}',
+        'm' => '\u{1D45A}',
+        'n' => '\u{1D45B}',
+        'o' => '\u{1D45C}',
+        'p' => '\u{1D45D}',
+        'q' => '\u{1D45E}',
+        'r' => '\u{1D45F}',
+        's' => '\u{1D460}',
+        't' => '\u{1D461}',
+        'u' => '\u{1D462}',
+        'v' => '\u{1D463}',
+        'w' => '\u{1D464}',
+        'x' => '\u{1D465}',
+        'y' => '\u{1D466}',
+        'z' => '\u{1D467}',
+        _ => c,
     }
 }
 
@@ -592,6 +908,52 @@ mod tests {
     fn dclx_of(xml: &str) -> String {
         let src = SourceDocument::from_bytes("p", InputFormat::XmlUspto, xml.as_bytes().to_vec());
         UsptoBackend.convert(&src).unwrap().export_to_doclang()
+    }
+
+    #[test]
+    fn app_v1_title_abstract_heading_levels() {
+        // pap-v15: title -> <heading>, abstract joined, heading lvl="1" -> level 3.
+        let xml = r#"<patent-application-publication>
+            <subdoc-bibliographic-information>
+              <title-of-invention>My Widget</title-of-invention>
+            </subdoc-bibliographic-information>
+            <subdoc-abstract><paragraph>An abstract about H<subscript>2</subscript>O.</paragraph></subdoc-abstract>
+            <subdoc-description>
+              <section><heading lvl="1">EXAMPLE 1</heading>
+                <paragraph id="P-1" lvl="0"><number>[0001]</number> Body text here.</paragraph>
+              </section>
+            </subdoc-description>
+          </patent-application-publication>"#;
+        let src = SourceDocument::from_bytes("p", InputFormat::XmlUspto, xml.as_bytes().to_vec());
+        let md = UsptoBackend.convert(&src).unwrap().export_to_markdown();
+        assert!(
+            md.starts_with("# My Widget\n\n### ABSTRACT\n"),
+            "got:\n{md}"
+        );
+        assert!(md.contains("An abstract about H₂O."), "got:\n{md}");
+        // The [0001] number is dropped; heading present; body without the number.
+        assert!(md.contains("EXAMPLE 1"), "got:\n{md}");
+        assert!(
+            md.contains("Body text here.") && !md.contains("[0001]"),
+            "got:\n{md}"
+        );
+    }
+
+    #[test]
+    fn grant_v2_patdoc_pdat_and_styles() {
+        // PATDOC: text in <PDAT>, <SB> subscript, <ITALIC> math-italic, <CWU> skipped.
+        let xml = r#"<PATDOC><SDOBI><B540><PTEXT><PDAT>Turbo Code</PDAT></PTEXT></B540></SDOBI>
+            <SDODE>
+              <H LVL="1"><PTEXT><PDAT>FIELD</PDAT></PTEXT></H>
+              <PARA><PTEXT><PDAT>Array N</PDAT><SB><PDAT>1</PDAT></SB><PDAT> uses </PDAT><ITALIC><PDAT>x</PDAT></ITALIC><CWU><PDAT>DROP</PDAT></CWU></PTEXT></PARA>
+            </SDODE>
+          </PATDOC>"#;
+        let src = SourceDocument::from_bytes("p", InputFormat::XmlUspto, xml.as_bytes().to_vec());
+        let md = UsptoBackend.convert(&src).unwrap().export_to_markdown();
+        assert!(md.starts_with("# Turbo Code\n"), "got:\n{md}");
+        assert!(md.contains("Array N₁ uses"), "subscript wrong:\n{md}");
+        assert!(md.contains('\u{1D465}'), "italic x not mapped:\n{md}"); // 𝑥
+        assert!(!md.contains("DROP"), "CWU not skipped:\n{md}");
     }
 
     #[test]
