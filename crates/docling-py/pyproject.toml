@@ -19,7 +19,7 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/artiz/docling.rs"
+Repository = "https://github.com/docling-project/docling.rs"
 
 [tool.maturin]
 module-name = "docling_rs._native"

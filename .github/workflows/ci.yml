@@ -35,12 +35,23 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.LINT_TOOLCHAIN }}
-          components: rustfmt, clippy
+      # rustup is preinstalled on GitHub-hosted runners; use it directly rather
+      # than a marketplace toolchain action (the docling-project org allowlists
+      # only GitHub-owned / vetted actions).
+      - name: Install Rust ${{ env.LINT_TOOLCHAIN }}
+        run: |
+          rustup toolchain install ${{ env.LINT_TOOLCHAIN }} --profile minimal --component rustfmt --component clippy
+          rustup default ${{ env.LINT_TOOLCHAIN }}
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-lint-
 
       - name: Format
         run: cargo fmt --all --check
@@ -55,9 +66,20 @@ jobs:
       - uses: actions/checkout@v7
 
       # Tests stay on the current stable so they catch real compiler breakage.
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust (stable)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-test-
 
       # Pure-Rust unit tests + the output-regression suite. The PDF/image/METS
       # snapshot tests need pdfium + the ONNX models, so they are NOT run here —
@@ -82,9 +104,20 @@ jobs:
           # `master` ruleset; the default GITHUB_TOKEN can't be granted a bypass.
           token: ${{ secrets.RELEASE_PAT }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust (stable)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-cargo-publish-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-publish-
 
       # Decide the next version from conventional commits since the last tag (or
       # use force_version on a manual dispatch); if there is one, bump + commit +

@@ -1,7 +1,7 @@
 # docling.rs (Node.js / Bun bindings)
 
 Native [Node.js](https://nodejs.org) / [Bun](https://bun.sh) bindings for
-[docling.rs](https://github.com/artiz/docling.rs) — a Rust port of
+[docling.rs](https://github.com/docling-project/docling.rs) — a Rust port of
 [docling](https://github.com/docling-project/docling). Convert Markdown, HTML,
 DOCX, PPTX, XLSX, EPUB, ODF, LaTeX, email, PDF, images and more into a unified
 `DoclingDocument`, and export it as **Markdown** or docling-core **JSON**.
@@ -102,7 +102,7 @@ PDF/image/METS input **throws** until they're on disk. Fetch them with a
 one-liner from your app's directory (where you'll `npm install docling.rs`):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/artiz/docling.rs/master/scripts/install/download_dependencies.sh | sh
+curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/install/download_dependencies.sh | sh
 ```
 
 ```js
@@ -112,7 +112,7 @@ const res = await convertFileAsync('paper.pdf', { to: 'markdown' }) // ✅ works
 ```
 
 `scripts/install/download_dependencies.sh` fetches everything from this repo's
-[GitHub Releases](https://github.com/artiz/docling.rs/releases) straight into
+[GitHub Releases](https://github.com/docling-project/docling.rs/releases) straight into
 `./models` and `./.pdfium` — which this package (and the Rust CLI) look for by
 default, relative to the process's current directory, so no env vars or setup
 call are needed afterwards:
@@ -136,7 +136,7 @@ call are needed afterwards:
 > Run it from wherever your app lives — the script only writes to `./models`
 > and `./.pdfium` under the current directory, e.g. in a container build step:
 > ```bash
-> cd /path/to/your/app && curl -fsSL https://raw.githubusercontent.com/artiz/docling.rs/master/scripts/install/download_dependencies.sh | sh
+> cd /path/to/your/app && curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/install/download_dependencies.sh | sh
 > ```
 >
 > To use your own export/host instead, point the env vars at it directly:

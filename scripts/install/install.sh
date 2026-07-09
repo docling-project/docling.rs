@@ -3,7 +3,7 @@
 # self-contained tree under /usr/local/docling.rs with a `docling.rs`
 # command on PATH. Designed for one-liner use in dev boxes and pipelines:
 #
-#   curl -fsSL https://raw.githubusercontent.com/artiz/docling.rs/master/scripts/install/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/install/install.sh | bash
 #
 # or from a checkout:
 #
@@ -30,7 +30,7 @@
 #   DOCLING_RS_SUDO=0                    never invoke sudo (fail instead)
 set -euo pipefail
 
-REPO_URL="https://github.com/artiz/docling.rs"
+REPO_URL="https://github.com/docling-project/docling.rs"
 PREFIX="${DOCLING_RS_PREFIX:-/usr/local/docling.rs}"
 BIN_DIR="${DOCLING_RS_BIN_DIR:-/usr/local/bin}"
 REF="${DOCLING_RS_REF:-master}"

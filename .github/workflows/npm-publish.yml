@@ -65,15 +65,26 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+      # rustup is preinstalled on GitHub-hosted runners (Linux + Windows); use it
+      # directly — the docling-project org allowlists only GitHub-owned / vetted
+      # actions, not marketplace toolchain actions.
+      - name: Install Rust (stable)
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add ${{ matrix.target }}
 
-      - uses: Swatinem/rust-cache@v2
+      # One workspace, key the cache per target so the 5 jobs don't collide.
+      - uses: actions/cache@v4
         with:
-          # One workspace, key the cache per target so the 5 jobs don't collide.
-          key: ${{ matrix.target }}
-          workspaces: "."
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-${{ matrix.target }}-
 
       - uses: actions/setup-node@v6
         with:

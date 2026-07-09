@@ -139,7 +139,7 @@ function downloadGuide() {
     'straight into ./models and ./.pdfium, which this package looks for by',
     'default; no env vars needed afterwards):',
     '',
-    '  curl -fsSL https://raw.githubusercontent.com/artiz/docling.rs/master/scripts/download_dependencies.sh | sh',
+    '  curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/download_dependencies.sh | sh',
     '',
     'or, from a checkout of the repo:',
     '',

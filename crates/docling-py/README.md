@@ -1,7 +1,7 @@
 # docling-py — Python bindings (PyO3)
 
 A **strangler-fig drop-in** for Python docling's common conversion path,
-backed by the Rust [docling.rs](https://github.com/artiz/docling.rs) engine:
+backed by the Rust [docling.rs](https://github.com/docling-project/docling.rs) engine:
 same call shape, no torch, ~4× faster PDF conversion at a fraction of the
 memory (see [`PDF_PERFORMANCE.md`](../../PDF_PERFORMANCE.md)).
 

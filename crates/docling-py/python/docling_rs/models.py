@@ -5,7 +5,7 @@ into a per-user cache directory (default ``~/.cache/docling.rs``, override
 with ``$DOCLING_RS_CACHE_DIR``) and the pipeline is pointed at them via the
 same ``DOCLING_*`` / ``PDFIUM_*`` environment variables the Rust CLI uses.
 Assets come from this repo's GitHub model release
-(https://github.com/artiz/docling.rs/releases/tag/models-v1 — override the
+(https://github.com/docling-project/docling.rs/releases/tag/models-v1 — override the
 base URL with ``$DOCLING_RS_MODELS_URL``).
 
 Usage::
@@ -26,7 +26,7 @@ from pathlib import Path
 
 BASE_URL = os.environ.get(
     "DOCLING_RS_MODELS_URL",
-    "https://github.com/artiz/docling.rs/releases/download/models-v1",
+    "https://github.com/docling-project/docling.rs/releases/download/models-v1",
 )
 
 # release asset name -> path under the cache dir (the CLI's layout).

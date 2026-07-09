@@ -9,7 +9,7 @@
 # Run from your app's directory (or a checkout of this repo):
 #   scripts/install/download_dependencies.sh
 # or, without a checkout:
-#   curl -fsSL https://raw.githubusercontent.com/artiz/docling.rs/master/scripts/install/download_dependencies.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/install/download_dependencies.sh | sh
 #
 # Then either:
 #   cargo run -p docling-cli -- <file>
@@ -17,7 +17,7 @@
 #   npm i docling.rs
 #   node -e "import { convertFileAsync } from 'docling.rs'; const r = await convertFileAsync('example.pdf', { to: 'markdown' }); console.log(r.content) "
 #
-# Downloads (from https://github.com/artiz/docling.rs/releases, tag
+# Downloads (from https://github.com/docling-project/docling.rs/releases, tag
 # models-v1 by default — override the base with $DOCLING_RS_MODELS_URL):
 #   .pdfium/lib/libpdfium.so                      (Linux x64)
 #   models/layout_heron.onnx
@@ -45,7 +45,7 @@
 # Idempotent: skips files already on disk. Pass --force to re-fetch everything.
 set -eu
 
-BASE_URL="${DOCLING_RS_MODELS_URL:-https://github.com/artiz/docling.rs/releases/download/models-v1}"
+BASE_URL="${DOCLING_RS_MODELS_URL:-https://github.com/docling-project/docling.rs/releases/download/models-v1}"
 # Whisper tiny (docling's ASR default) for the audio pipeline, fetched straight
 # from the onnx-community export on Hugging Face (~150 MB). Override the base
 # with $DOCLING_RS_ASR_MODELS_URL (e.g. to re-host alongside the other models);

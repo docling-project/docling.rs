@@ -136,7 +136,7 @@ close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
   archives (`scripts/conformance/dclx_conformance.sh`): **≈83% mean similarity over
   the 134-fixture non-PDF corpus** and climbing — csv/asciidoc/email/json exact,
   html/docx/jats/md/latex/xlsx/webvtt/uspto in the 80s–90s, with the format-by-format
-  gaps tracked as [issue #32](https://github.com/artiz/docling.rs/issues/32) and its
+  gaps tracked as [issue #32](https://github.com/docling-project/docling.rs/issues/32) and its
   children (#38–#41, #44). This is an **output** format; a DocLang *input* backend is
   still out of scope (§5).
 
@@ -245,7 +245,7 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
   plain text** (`pftaps`): docling doesn't parse it either — it dumps the raw
   file into a single DocLang `<text>` — so matching that reference is a
   serialization detail tracked in
-  [issue #44](https://github.com/artiz/docling.rs/issues/44), not a parsing gap.
+  [issue #44](https://github.com/docling-project/docling.rs/issues/44), not a parsing gap.
 
 **Minor known gaps (cosmetic, tracked per-fixture):**
 

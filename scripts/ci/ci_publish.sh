@@ -15,7 +15,7 @@ cd "$(dirname "$0")/../.."
 # Dependency order: a crate must be published before anything that depends on it.
 CRATES=(docling-core docling-pdf docling-asr docling docling-cli)
 
-UA="docling.rs-ci (https://github.com/artiz/docling.rs)"
+UA="docling.rs-ci (https://github.com/docling-project/docling.rs)"
 
 # Version of a workspace crate, read from `cargo metadata` (handles workspace
 # inheritance, so it stays correct if a crate ever pins its own version).

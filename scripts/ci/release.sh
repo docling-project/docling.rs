@@ -35,7 +35,7 @@ echo ">> releasing v$new (was v$current)"
 prev_tag="$(git tag --list 'v*' --sort=-version:refname | head -n1)"
 notes_range="${prev_tag:+$prev_tag..}HEAD"
 notes_file="$(pwd)/release-notes.md"
-repo="${GITHUB_REPOSITORY:-artiz/docling.rs}"
+repo="${GITHUB_REPOSITORY:-docling-project/docling.rs}"
 {
   echo "## What's changed"
   echo

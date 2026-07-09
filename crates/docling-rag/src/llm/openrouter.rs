@@ -64,7 +64,10 @@ impl ChatModel for OpenRouterClient {
             .post(&url)
             .bearer_auth(&self.api_key)
             // OpenRouter attribution headers (optional but recommended).
-            .header("HTTP-Referer", "https://github.com/artiz/docling.rs")
+            .header(
+                "HTTP-Referer",
+                "https://github.com/docling-project/docling.rs",
+            )
             .header("X-Title", "docling-rag")
             .json(&ChatReq {
                 model: &self.model,

@@ -15,10 +15,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/artiz/docling.rs.git",
+    "url": "git+https://github.com/docling-project/docling.rs.git",
     "directory": "crates/docling-node"
   },
-  "homepage": "https://github.com/artiz/docling.rs",
+  "homepage": "https://github.com/docling-project/docling.rs",
   "main": "index.js",
   "types": "index.d.ts",
   "exports": {

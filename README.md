@@ -313,7 +313,7 @@ the npm addon: [pdfium](https://pdfium.googlesource.com/pdfium/) (text
 extraction + page rendering) and three ONNX models — RT-DETR layout, PP-OCRv3
 recognition, and TableFormer (optional; tables fall back to geometric
 reconstruction without it). `scripts/install/download_dependencies.sh` fetches all of
-them from this repo's [GitHub Releases](https://github.com/artiz/docling.rs/releases)
+them from this repo's [GitHub Releases](https://github.com/docling-project/docling.rs/releases)
 (tag `models-v1`) straight into `./models` and `./.pdfium`, relative to the
 current directory — both the Rust CLI/library and the Node.js/Bun bindings
 look there by default, so no env vars or extra setup are needed afterwards:
@@ -323,7 +323,7 @@ look there by default, so no env vars or extra setup are needed afterwards:
 scripts/install/download_dependencies.sh
 
 # or, without a checkout — e.g. a container build step, or a fresh npm project:
-curl -fsSL https://raw.githubusercontent.com/artiz/docling.rs/master/scripts/install/download_dependencies.sh | sh
+curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/install/download_dependencies.sh | sh
 ```
 
 | Asset | Destination |
@@ -494,7 +494,7 @@ into `.venv-compare` automatically on first run. See
 tree — for a dev box or a pipeline step:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/artiz/docling.rs/master/scripts/install/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/install/install.sh | bash
 docling-rs your.pdf > out.md
 ```
 
