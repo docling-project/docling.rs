@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Local / CI installer for docling.rs: build from source and install a
-# self-contained tree under /usr/local/docling.rs with a `docling.rs`
+# self-contained tree under /usr/local/docling.rs with a `docling-rs`
 # command on PATH. Designed for one-liner use in dev boxes and pipelines:
 #
 #   curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/install/install.sh | bash
@@ -102,13 +102,18 @@ say "fetching models + pdfium into $PREFIX (idempotent)"
 # shellcheck disable=SC2086
 (cd "$PREFIX" && $SUDO sh "$SRC_DIR/scripts/install/download_dependencies.sh" $DL_ARGS)
 
-say "linking $BIN_DIR/docling.rs -> $PREFIX/bin/docling-rs"
+say "linking $BIN_DIR/docling-rs -> $PREFIX/bin/docling-rs"
 $SUDO mkdir -p "$BIN_DIR"
-$SUDO ln -sfn "$PREFIX/bin/docling-rs" "$BIN_DIR/docling.rs"
+$SUDO ln -sfn "$PREFIX/bin/docling-rs" "$BIN_DIR/docling-rs"
+# Older installers linked the command as `docling.rs` (dot instead of dash);
+# drop that stale symlink so only the documented name remains.
+if [ -L "$BIN_DIR/docling.rs" ] && [ "$(readlink "$BIN_DIR/docling.rs")" = "$PREFIX/bin/docling-rs" ]; then
+  $SUDO rm -f "$BIN_DIR/docling.rs"
+fi
 
 # --- 5. Environment (optional convenience) --------------------------------------
 # The binary resolves models/.pdfium next to its own location through the
-# symlink, so these exports are not required for `docling.rs` itself — they
+# symlink, so these exports are not required for `docling-rs` itself — they
 # help other tools (scripts, the Node bindings) find the same assets.
 if [ -d /etc/profile.d ] && [ -n "$SUDO" -o -w /etc/profile.d ]; then
   say "writing /etc/profile.d/docling-rs.sh"
@@ -128,8 +133,8 @@ fi
 say "smoke test: converting a trivial Markdown document"
 TMP_MD="$(mktemp --suffix=.md 2>/dev/null || mktemp -t docling.rs.XXXXXX.md)"
 printf '# docling.rs\n\ninstalled.\n' > "$TMP_MD"
-"$BIN_DIR/docling.rs" "$TMP_MD" >/dev/null || die "smoke test failed"
+"$BIN_DIR/docling-rs" "$TMP_MD" >/dev/null || die "smoke test failed"
 rm -f "$TMP_MD"
 
 say "done. Try:  docling-rs your.pdf > out.md"
-say "layout: $PREFIX  (binary, models/, .pdfium/); uninstall: rm -rf $PREFIX $BIN_DIR/docling.rs /etc/profile.d/docling-rs.sh"
+say "layout: $PREFIX  (binary, models/, .pdfium/); uninstall: rm -rf $PREFIX $BIN_DIR/docling-rs /etc/profile.d/docling-rs.sh"
