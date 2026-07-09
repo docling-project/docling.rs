@@ -849,6 +849,10 @@ fn parse_table_with(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
     }
 
     let mut grid: Vec<Vec<String>> = vec![vec![String::new(); num_cols]; rows.len()];
+    // Structured block content for rich cells (dclx-only; Markdown/JSON use the
+    // flat `grid` text). Never built for a `nested` (flattened) table.
+    let mut blocks: Vec<Vec<Vec<Node>>> = vec![vec![Vec::new(); num_cols]; rows.len()];
+    let mut any_rich = false;
     for (ri, row) in rows.iter().enumerate() {
         let mut ci = 0usize;
         for tc in row.children().filter(|n| n.has_tag_name("tc")) {
@@ -873,6 +877,19 @@ fn parse_table_with(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
             } else {
                 cell_markdown(tc, ctx)
             };
+            if ci < num_cols {
+                let cb = if v_continue && ri > 0 {
+                    blocks[ri - 1][ci].clone()
+                } else if nested {
+                    Vec::new()
+                } else {
+                    cell_blocks_of(tc, ctx)
+                };
+                if !cb.is_empty() {
+                    any_rich = true;
+                    blocks[ri][ci] = cb;
+                }
+            }
             let col_end = (ci + span).min(num_cols);
             for cell in grid[ri].iter_mut().take(col_end).skip(ci) {
                 *cell = text.clone();
@@ -884,7 +901,7 @@ fn parse_table_with(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
         rows: grid,
         location: None,
         structure: None,
-        cell_blocks: None,
+        cell_blocks: any_rich.then_some(blocks),
     })
 }
 
@@ -974,6 +991,31 @@ fn rich_cell_markdown(tc: XmlNode, ctx: &Ctx) -> String {
         }
     }
     sub.export_to_markdown().trim().to_string()
+}
+
+/// A rich cell's DocLang block content — the structured counterpart of
+/// [`rich_cell_markdown`]: the cell's paragraphs/lists plus *full* nested tables
+/// (kept as `Node::Table`, not flattened), built by walking the cell like a
+/// document body. Empty for a plain cell, whose flat text the serializer uses.
+/// Markdown/JSON never consult this (they render the flat cell text).
+fn cell_blocks_of(tc: XmlNode, ctx: &Ctx) -> Vec<Node> {
+    if !is_rich_cell(tc) {
+        return Vec::new();
+    }
+    let mut sub = DoclingDocument::new("");
+    let mut state = ListState::default();
+    for child in child_elements(tc) {
+        match child.tag_name().name() {
+            "p" => handle_paragraph_inner(child, ctx, &mut state, &mut sub, true, false),
+            "tbl" => {
+                if let Some(table) = parse_table_with(child, ctx, false) {
+                    sub.push(Node::Table(table));
+                }
+            }
+            _ => {}
+        }
+    }
+    sub.nodes
 }
 
 /// `<m:oMath>` elements introduced by a child (the child itself, or those inside
