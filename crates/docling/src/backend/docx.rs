@@ -77,7 +77,62 @@ impl DeclarativeBackend for DocxBackend {
         for node in body.children().filter(XmlNode::is_element) {
             process_block(node, &ctx, &mut state, &mut doc);
         }
+        // Reviewer comments (docling's `notes` layer) are appended after the body
+        // as furniture text; Markdown/JSON drop them, DocLang emits `<layer
+        // value="notes"/>` items.
+        for comment in parse_comments(&mut pkg) {
+            doc.nodes
+                .push(Node::Furniture(Box::new(Node::Paragraph { text: comment })));
+        }
         Ok(doc)
+    }
+}
+
+/// Parse `word/comments.xml` into docling's per-comment note strings:
+/// `[author: {author} ({initials}), time: {iso}]: {text}` (the author/initials
+/// parts drop out when absent). Empty when the part is missing.
+fn parse_comments(pkg: &mut Package) -> Vec<String> {
+    let Some(xml) = pkg.read("word/comments.xml") else {
+        return Vec::new();
+    };
+    let Ok(dom) = Document::parse(&xml) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for c in dom.descendants().filter(|n| n.has_tag_name("comment")) {
+        let author = attr(c, "author").unwrap_or("").trim();
+        let initials = attr(c, "initials").unwrap_or("").trim();
+        let date = attr(c, "date").map(format_comment_date).unwrap_or_default();
+        let text: String = c
+            .descendants()
+            .filter(|n| n.has_tag_name("t"))
+            .filter_map(|n| n.text())
+            .collect();
+        let head = if author.is_empty() {
+            format!("[time: {date}]")
+        } else if initials.is_empty() {
+            format!("[author: {author}, time: {date}]")
+        } else {
+            format!("[author: {author} ({initials}), time: {date}]")
+        };
+        out.push(format!("{head}: {text}"));
+    }
+    out
+}
+
+/// OOXML comment dates use e.g. `2026-01-04T05:48:07Z`; docling normalizes them
+/// to `2026-01-04T05:48:07.000+00:00` (millisecond precision, explicit offset).
+fn format_comment_date(raw: &str) -> String {
+    let base = raw.strip_suffix('Z').unwrap_or(raw);
+    let with_ms = if base.contains('.') {
+        base.to_string()
+    } else {
+        format!("{base}.000")
+    };
+    if raw.ends_with('Z') {
+        format!("{with_ms}+00:00")
+    } else {
+        with_ms
     }
 }
 

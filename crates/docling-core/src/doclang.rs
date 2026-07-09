@@ -885,6 +885,14 @@ fn emit_furniture(out: &mut Out, depth: i32, inner: &Node) {
             out.push(depth + 1, escape_text(text));
             out.push(depth, "</heading>".to_string());
         }
+        // A furniture-layer body text — docx comments (docling's `notes` layer):
+        // a `<text>` with a `<layer value="notes"/>` head and the note text.
+        Node::Paragraph { text } => {
+            out.push(depth, "<text>".to_string());
+            out.push(depth + 1, "<layer value=\"notes\"/>".to_string());
+            out.push(depth + 1, escape_text(text));
+            out.push(depth, "</text>".to_string());
+        }
         other => {
             let mut i = 0usize;
             emit_nodes(out, depth, std::slice::from_ref(other), &mut i, 0);
