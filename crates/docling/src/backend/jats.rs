@@ -299,6 +299,7 @@ fn add_citation(doc: &mut DoclingDocument, parent_is_list: bool, text: &str) {
             text: escape_text(text),
             level: 0,
             marker: None,
+            location: None,
         });
     } else {
         doc.push(Node::Paragraph {
@@ -367,6 +368,7 @@ fn walk_linear(
                         text: escape_text(&text),
                         level: 0,
                         marker: None,
+                        location: None,
                     });
                 }
                 stop_walk = true;
@@ -646,6 +648,7 @@ fn add_footnote_group(doc: &mut DoclingDocument, node: XmlNode, hlevel: i32) {
             text: escape_text(&item),
             level: 0,
             marker: None,
+            location: None,
         });
     }
 }

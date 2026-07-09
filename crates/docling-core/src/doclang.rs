@@ -570,14 +570,24 @@ fn emit_table(out: &mut Out, depth: i32, table: &Table) {
     }
     for (ri, row) in table.rows.iter().enumerate() {
         for (ci, cell) in row.iter().enumerate() {
-            // A horizontal-span continuation is `<lcel/>` regardless of text;
-            // otherwise empty→`<ecel/>`, header→`<ched/>`, else `<fcel/>`.
+            // A span continuation is a token-only cell (no text child):
+            // horizontal → `<lcel/>`, vertical → `<ucel/>`. Otherwise
+            // empty→`<ecel/>`, header→`<ched/>`, else `<fcel/>`.
+            let cont = |grid: &Vec<Vec<bool>>| {
+                grid.get(ri)
+                    .and_then(|r| r.get(ci))
+                    .copied()
+                    .unwrap_or(false)
+            };
             let is_lcel = table
                 .structure
                 .as_ref()
-                .and_then(|s| s.col_continuation.get(ri))
-                .and_then(|r| r.get(ci))
-                .copied()
+                .map(|s| cont(&s.col_continuation))
+                .unwrap_or(false);
+            let is_ucel = table
+                .structure
+                .as_ref()
+                .map(|s| cont(&s.row_continuation))
                 .unwrap_or(false);
             let is_header = match &table.structure {
                 Some(s) => s.header_row.get(ri).copied().unwrap_or(false),
@@ -585,6 +595,8 @@ fn emit_table(out: &mut Out, depth: i32, table: &Table) {
             };
             let tok = if is_lcel {
                 "<lcel/>"
+            } else if is_ucel {
+                "<ucel/>"
             } else if cell.trim().is_empty() {
                 "<ecel/>"
             } else if is_header {
@@ -593,7 +605,7 @@ fn emit_table(out: &mut Out, depth: i32, table: &Table) {
                 "<fcel/>"
             };
             out.push(depth + 1, tok.to_string());
-            if !is_lcel && !cell.trim().is_empty() {
+            if !is_lcel && !is_ucel && !cell.trim().is_empty() {
                 emit_cell_text(out, depth + 1, cell);
             }
         }
@@ -675,6 +687,10 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
             }
             Node::Located { location, inner } => {
                 emit_located(out, depth, location, inner);
+                *i += 1;
+            }
+            Node::PageBreak => {
+                out.push(depth, "<page_break/>".to_string());
                 *i += 1;
             }
         }
@@ -870,6 +886,7 @@ fn emit_list(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8
                 ordered: o,
                 number,
                 first_in_list,
+                location,
             } if *l == level => {
                 // A new sibling list at this depth closes this one (the caller
                 // re-opens): the backend flagged a fresh list, the kind flips, or
@@ -898,6 +915,12 @@ fn emit_list(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8
                         out.push(depth + 1, "</ldiv>".to_string());
                     }
                     None => out.push(depth + 1, "<ldiv/>".to_string()),
+                }
+                // Layout provenance (PPTX shapes): the four `<location>` tokens
+                // follow the `<ldiv>` and precede the item's content, matching
+                // docling's element head inside the list.
+                if let Some(loc) = location {
+                    push_location(out, depth + 1, loc);
                 }
                 emit_list_item_content(out, depth + 1, text, has_nested);
                 *i += 1;

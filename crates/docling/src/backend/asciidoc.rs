@@ -184,6 +184,7 @@ impl Parser {
             text: escape_text(text.trim()),
             level,
             marker: None,
+            location: None,
         });
         self.fresh_list = false;
     }

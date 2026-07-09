@@ -56,6 +56,13 @@ pub enum Node {
         text: String,
         level: u8,
         marker: Option<String>,
+        /// Optional layout provenance (`x0,y0,x1,y1`, normalized to 0–511): the
+        /// four DocLang `<location>` values emitted inside the `<list>` right
+        /// after the item's `<ldiv>`. Set only by backends with real geometry
+        /// (e.g. PPTX shapes); `None` for the declarative backends. Kept on the
+        /// item itself (rather than a [`Node::Located`] wrapper) so consecutive
+        /// items still group into one `<list>`.
+        location: Option<[u16; 4]>,
     },
     /// A fenced code block.
     Code {
@@ -103,6 +110,11 @@ pub enum Node {
         location: [u16; 4],
         inner: Box<Node>,
     },
+    /// A page boundary — docling's implicit page break between pages. The PPTX
+    /// backend emits one between consecutive slides. DocLang renders it as
+    /// `<page_break/>`; Markdown and JSON omit it (matching docling's default
+    /// exports, which carry page breaks only in the document model).
+    PageBreak,
 }
 
 /// Vertical text position of an [`InlineRun`] — docling's `Script`.
@@ -227,6 +239,10 @@ pub struct TableStructure {
     /// Same shape as [`Table::rows`]; `true` where a cell continues a
     /// horizontal span from its left neighbour (emitted as `<lcel/>`).
     pub col_continuation: Vec<Vec<bool>>,
+    /// Same shape as [`Table::rows`]; `true` where a cell continues a
+    /// vertical span from the cell above (emitted as `<ucel/>`). Empty or all
+    /// `false` when the backend has no vertical spans (e.g. USPTO CALS).
+    pub row_continuation: Vec<Vec<bool>>,
 }
 
 impl DoclingDocument {

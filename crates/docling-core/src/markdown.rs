@@ -293,6 +293,7 @@ fn render_list_run(items: &[Node], blocks: &mut Vec<String>, strict: bool) {
             text,
             level,
             marker: _,
+            location: _,
         } = item
         else {
             continue;
@@ -384,6 +385,8 @@ fn render_one(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
         Node::Furniture(_) => {}
         // Layout provenance is DocLang-only; render the wrapped node.
         Node::Located { inner, .. } => render_one(inner, blocks, ctx),
+        // Page breaks are DocLang-only; docling omits them from Markdown.
+        Node::PageBreak => {}
         // Handled by the run-merging branch in `render`.
         Node::ListItem { .. } => unreachable!("list items are rendered in runs"),
     }
@@ -617,6 +620,7 @@ mod tests {
             text: "first".into(),
             level: 0,
             marker: None,
+            location: None,
         });
         doc.push(Node::ListItem {
             ordered: false,
@@ -625,6 +629,7 @@ mod tests {
             text: "second".into(),
             level: 0,
             marker: None,
+            location: None,
         });
         let md = doc.export_to_markdown();
         assert_eq!(md, "# Title\n\nHello world.\n\n- first\n- second\n");
@@ -705,6 +710,7 @@ mod tests {
             text: "i\\_j".into(),
             level: 0,
             marker: None,
+            location: None,
         });
         // Legacy reproduces docling's `\_` escaping byte-for-byte.
         assert_eq!(doc.export_to_markdown(), "# a\\_b\n\nx\\_y\n\n- i\\_j\n");
@@ -762,6 +768,7 @@ mod tests {
             text: "a".into(),
             level: 0,
             marker: None,
+            location: None,
         });
         doc.push(Node::ListItem {
             ordered: false,
@@ -770,6 +777,7 @@ mod tests {
             text: "b".into(),
             level: 0,
             marker: None,
+            location: None,
         });
         doc.push(Node::Code {
             language: Some("rust".into()),

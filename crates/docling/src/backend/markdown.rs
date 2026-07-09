@@ -480,6 +480,7 @@ fn emit_item(
             text,
             level,
             marker: None,
+            location: None,
         });
         *emitted = true;
     }

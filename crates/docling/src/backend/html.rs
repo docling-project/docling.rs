@@ -429,6 +429,7 @@ fn walk_list(list: ElementRef, ordered: bool, nodes: &mut Vec<Node>, level: u8, 
                 // docling's HTML backend passes an enumeration marker only for
                 // an ordered list with an explicit `start`; otherwise none.
                 marker: has_start.then(|| format!("{number}.")),
+                location: None,
             });
         }
         number += 1;
@@ -525,6 +526,7 @@ fn walk_dl(dl: ElementRef, nodes: &mut Vec<Node>, level: u8, base: Fmt) {
                         text,
                         level,
                         marker: None,
+                        location: None,
                     });
                 }
             }
@@ -569,6 +571,7 @@ fn walk_dd(dd: ElementRef, nodes: &mut Vec<Node>, level: u8, base: Fmt) {
             text,
             level,
             marker: None,
+            location: None,
         });
     }
     for (kind, el) in nested {

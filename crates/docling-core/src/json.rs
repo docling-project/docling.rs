@@ -193,6 +193,8 @@ impl Builder {
             Node::Furniture(_) => None,
             // Layout provenance is DocLang-only; emit the wrapped node.
             Node::Located { inner, .. } => self.add_node(inner, parent),
+            // Page breaks are DocLang-only; docling omits them from the JSON body.
+            Node::PageBreak => None,
             // Handled by `add_list` in `walk`.
             Node::ListItem { .. } => None,
         }
@@ -674,6 +676,7 @@ mod tests {
             text: "one".into(),
             level: 0,
             marker: None,
+            location: None,
         });
         doc.push(Node::ListItem {
             ordered: false,
@@ -682,6 +685,7 @@ mod tests {
             text: "two".into(),
             level: 0,
             marker: None,
+            location: None,
         });
         doc.push(Node::Table(Table {
             rows: vec![vec!["A".into(), "B".into()]],

@@ -260,6 +260,7 @@ fn emit_list(inner: &str, doc: &mut DoclingDocument) {
                 text,
                 level: 0,
                 marker: None,
+                location: None,
             });
             first = false;
         }

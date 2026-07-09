@@ -10,7 +10,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use docling_core::{DoclingDocument, Node, PictureImage, Table};
+use docling_core::{DoclingDocument, Node, PictureImage, Table, TableStructure};
 use roxmltree::{Document, Node as XmlNode};
 
 use crate::backend::ooxml::{content_type, picture_image, resolve, Package};
@@ -37,10 +37,14 @@ impl DeclarativeBackend for PptxBackend {
             .map(|r| (r.id.clone(), resolve("ppt", &r.target)))
             .collect();
 
-        for rid in slide_rids(&presentation) {
+        for (slide_ix, rid) in slide_rids(&presentation).into_iter().enumerate() {
             let Some(part) = rid_to_part.get(&rid).cloned() else {
                 continue;
             };
+            // Placeholder geometry inherited from the slide's layout → master,
+            // for shapes that carry no own `<a:xfrm>` (python-pptx resolves
+            // `shape.left/top/...` up this chain).
+            let phmap = slide_placeholders(&mut pkg, &part);
             // Relationship ids whose target is a real, image-typed part — only
             // these become pictures (linked/missing/wrong-type blips are dropped,
             // matching python-pptx + PIL).
@@ -74,8 +78,13 @@ impl DeclarativeBackend for PptxBackend {
                 continue;
             };
             if let Some(tree) = descendant(slide.root_element(), "spTree") {
+                // docling emits a page break at each slide boundary (one between
+                // consecutive slides).
+                if slide_ix > 0 {
+                    doc.push(Node::PageBreak);
+                }
                 for shape in tree.children().filter(XmlNode::is_element) {
-                    handle_shape(shape, &valid_imgs, &images, slide_size, &mut doc);
+                    handle_shape(shape, &valid_imgs, &images, slide_size, &phmap, &mut doc);
                 }
             }
         }
@@ -103,18 +112,23 @@ fn handle_shape(
     valid_imgs: &HashSet<String>,
     images: &HashMap<String, PictureImage>,
     slide_size: (i64, i64),
+    phmap: &PhMap,
     doc: &mut DoclingDocument,
 ) {
     match shape.tag_name().name() {
         "grpSp" => {
             for child in shape.children().filter(XmlNode::is_element) {
-                handle_shape(child, valid_imgs, images, slide_size, doc);
+                handle_shape(child, valid_imgs, images, slide_size, phmap, doc);
             }
         }
         "graphicFrame" => {
             if let Some(tbl) = descendant(shape, "tbl") {
                 if let Some(table) = parse_table(tbl) {
-                    push_located(doc, shape_location(shape, slide_size), Node::Table(table));
+                    push_located(
+                        doc,
+                        shape_location(shape, slide_size, phmap),
+                        Node::Table(table),
+                    );
                 }
             }
         }
@@ -128,7 +142,7 @@ fn handle_shape(
             if let Some(rid) = embedded.filter(|rid| valid_imgs.contains(rid)) {
                 push_located(
                     doc,
-                    shape_location(shape, slide_size),
+                    shape_location(shape, slide_size, phmap),
                     Node::Picture {
                         caption: None,
                         image: images.get(&rid).cloned(),
@@ -136,7 +150,7 @@ fn handle_shape(
                 );
             }
         }
-        "sp" => handle_text_shape(shape, shape_location(shape, slide_size), doc),
+        "sp" => handle_text_shape(shape, shape_location(shape, slide_size, phmap), doc),
         _ => {}
     }
 }
@@ -156,22 +170,15 @@ fn slide_size(presentation: &str) -> (i64, i64) {
 }
 
 /// docling's `_generate_prov`: the shape's bbox normalized to DocLang's 0–511
-/// grid. The bbox is bottom-left origin (so y is flipped); a shape with no
-/// transform — or `left == 0` (docling's `if shape.left:` truthiness) — takes
-/// the whole slide.
-fn shape_location(shape: XmlNode, (w, h): (i64, i64)) -> [u16; 4] {
-    let geom = descendant(shape, "xfrm").and_then(|x| {
-        let off = x.children().find(|n| n.has_tag_name("off"))?;
-        let ext = x.children().find(|n| n.has_tag_name("ext"))?;
-        Some((
-            off.attribute("x")?.parse::<i64>().ok()?,
-            off.attribute("y")?.parse::<i64>().ok()?,
-            ext.attribute("cx")?.parse::<i64>().ok()?,
-            ext.attribute("cy")?.parse::<i64>().ok()?,
-        ))
-    });
+/// grid. The bbox is bottom-left origin (so y is flipped). The shape's geometry
+/// is its own `<a:xfrm>` if present, else the placeholder box it inherits from
+/// the slide layout/master (python-pptx `shape.left/top/...`). A shape with no
+/// resolvable geometry — or `left == 0` (docling's `if shape.left:` truthiness)
+/// — takes the whole slide.
+fn shape_location(shape: XmlNode, (w, h): (i64, i64), phmap: &PhMap) -> [u16; 4] {
+    let geom = xfrm_geom(shape).or_else(|| inherited_geom(shape, phmap));
     let (left, top, cw, ch) = match geom {
-        Some((x, y, cx, cy)) if x != 0 => (x, y, cx, cy),
+        Some([x, y, cx, cy]) if x != 0 => (x, y, cx, cy),
         _ => (0, 0, w, h),
     };
     let n = |v: i64, dim: i64| -> u16 {
@@ -186,6 +193,101 @@ fn shape_location(shape: XmlNode, (w, h): (i64, i64)) -> [u16; 4] {
         n(left + cw, w),
         n(h - top, h),
     ]
+}
+
+/// A shape/placeholder's own transform `[x, y, cx, cy]` in EMU, from its
+/// `<a:xfrm>` (`<p:xfrm>` for a graphic frame — `descendant` matches either).
+fn xfrm_geom(node: XmlNode) -> Option<[i64; 4]> {
+    let x = descendant(node, "xfrm")?;
+    let off = x.children().find(|n| n.has_tag_name("off"))?;
+    let ext = x.children().find(|n| n.has_tag_name("ext"))?;
+    Some([
+        off.attribute("x")?.parse().ok()?,
+        off.attribute("y")?.parse().ok()?,
+        ext.attribute("cx")?.parse().ok()?,
+        ext.attribute("cy")?.parse().ok()?,
+    ])
+}
+
+/// The geometry a placeholder shape inherits from its layout/master: match its
+/// `<p:ph>` by `idx` first, then by `type` (python-pptx's inheritance keys).
+fn inherited_geom(shape: XmlNode, phmap: &PhMap) -> Option<[i64; 4]> {
+    let ph = descendant(shape, "ph")?;
+    if let Some(idx) = ph.attribute("idx") {
+        if let Some(g) = phmap.by_idx.get(idx) {
+            return Some(*g);
+        }
+    }
+    if let Some(t) = ph.attribute("type") {
+        if let Some(g) = phmap.by_type.get(t) {
+            return Some(*g);
+        }
+    }
+    None
+}
+
+/// Placeholder geometries a slide can inherit, keyed by `<p:ph>` `idx` and
+/// `type`. The layout is consulted before the master (layout wins).
+#[derive(Default)]
+struct PhMap {
+    by_idx: HashMap<String, [i64; 4]>,
+    by_type: HashMap<String, [i64; 4]>,
+}
+
+/// Build the [`PhMap`] for a slide: its layout part (via the slide's `.rels`)
+/// then that layout's master (via the layout's `.rels`). Placeholders already
+/// seen (layout) are not overwritten by the master.
+fn slide_placeholders(pkg: &mut Package, slide_part: &str) -> PhMap {
+    let mut map = PhMap::default();
+    let slide_dir = slide_part.rsplit_once('/').map_or("", |(d, _)| d);
+    let Some(layout_part) = rel_target(pkg, slide_part, slide_dir, "/slideLayout") else {
+        return map;
+    };
+    if let Some(xml) = pkg.read(&layout_part) {
+        collect_placeholders(&xml, &mut map);
+    }
+    let layout_dir = layout_part.rsplit_once('/').map_or("", |(d, _)| d);
+    if let Some(master_part) = rel_target(pkg, &layout_part, layout_dir, "/slideMaster") {
+        if let Some(xml) = pkg.read(&master_part) {
+            collect_placeholders(&xml, &mut map);
+        }
+    }
+    map
+}
+
+/// Resolve the first relationship of `part` whose type ends with `suffix` to a
+/// package path (against `base_dir`).
+fn rel_target(pkg: &mut Package, part: &str, base_dir: &str, suffix: &str) -> Option<String> {
+    pkg.rels_for(part)
+        .iter()
+        .find(|r| r.rel_type.ends_with(suffix))
+        .map(|r| resolve(base_dir, &r.target))
+}
+
+/// Record every placeholder's own `<a:xfrm>` geometry from a layout/master part,
+/// keyed by its `<p:ph>` `idx` and `type`. `or_insert` keeps the earlier source
+/// (layout before master).
+fn collect_placeholders(xml: &str, map: &mut PhMap) {
+    let Ok(doc) = Document::parse(xml) else {
+        return;
+    };
+    let Some(tree) = descendant(doc.root_element(), "spTree") else {
+        return;
+    };
+    for sp in tree.children().filter(|n| n.has_tag_name("sp")) {
+        let Some(ph) = descendant(sp, "ph") else {
+            continue;
+        };
+        let Some(geom) = xfrm_geom(sp) else {
+            continue;
+        };
+        if let Some(idx) = ph.attribute("idx") {
+            map.by_idx.entry(idx.to_string()).or_insert(geom);
+        }
+        if let Some(t) = ph.attribute("type") {
+            map.by_type.entry(t.to_string()).or_insert(geom);
+        }
+    }
 }
 
 /// Wrap `node` in a [`Node::Located`] carrying the shape's provenance.
@@ -245,8 +347,9 @@ fn handle_text_shape(sp: XmlNode, location: [u16; 4], doc: &mut DoclingDocument)
                 } else {
                     0
                 };
-                // List items stay bare so consecutive items still group into
-                // one `<list>`; their per-item `<location>` is a follow-up.
+                // Each item carries its shape's `<location>` (all items of a
+                // body placeholder share the one box); the location rides on the
+                // item itself so consecutive items still group into one `<list>`.
                 doc.push(Node::ListItem {
                     ordered: numbered,
                     number: n,
@@ -254,6 +357,7 @@ fn handle_text_shape(sp: XmlNode, location: [u16; 4], doc: &mut DoclingDocument)
                     text,
                     level: 0,
                     marker: None,
+                    location: Some(location),
                 });
             }
             None => {
@@ -319,33 +423,57 @@ fn parse_table(tbl: XmlNode) -> Option<Table> {
     if rows.is_empty() || num_cols == 0 {
         return None;
     }
+    // `<a:tblPr firstRow="1">` marks the first row as a header band (→ `<ched/>`).
+    let first_row_header = descendant(tbl, "tblPr")
+        .and_then(|p| p.attribute("firstRow"))
+        .map(|v| v == "1" || v == "true")
+        .unwrap_or(false);
 
+    // Every grid position has its own `<a:tc>` (merge continuations included), so
+    // the column index maps directly. A `hMerge` continuation is a horizontal
+    // span (`<lcel/>`), a `vMerge` continuation a vertical span (`<ucel/>`); the
+    // structure overlay carries those for DocLang. The `rows` text grid keeps
+    // docling's Markdown/JSON behaviour: the origin cell's text is replicated
+    // across its whole `rowSpan × gridSpan` region.
     let mut grid = vec![vec![String::new(); num_cols]; rows.len()];
+    let mut col_continuation = vec![vec![false; num_cols]; rows.len()];
+    let mut row_continuation = vec![vec![false; num_cols]; rows.len()];
     for (ri, row) in rows.iter().enumerate() {
         let cells: Vec<XmlNode> = row.children().filter(|n| n.has_tag_name("tc")).collect();
-        for (ci, tc) in cells.iter().enumerate() {
-            // Continuation cells of a merge are filled by their origin.
-            if tc.attribute("hMerge").is_some() || tc.attribute("vMerge").is_some() {
+        for (ci, tc) in cells.iter().enumerate().take(num_cols) {
+            let h = tc.attribute("hMerge").is_some();
+            let v = tc.attribute("vMerge").is_some();
+            col_continuation[ri][ci] = h;
+            row_continuation[ri][ci] = v;
+            // Continuation cells carry no text of their own (DocLang emits only
+            // the token); the origin below fills their grid text for Markdown.
+            if h || v {
                 continue;
             }
             let text = cell_text(*tc);
             let span = |name: &str| -> usize {
                 tc.attribute(name).and_then(|s| s.parse().ok()).unwrap_or(1)
             };
-            let (gridspan, rowspan) = (span("gridSpan"), span("rowSpan"));
-            let row_end = (ri + rowspan).min(rows.len());
-            let col_end = (ci + gridspan).min(num_cols);
-            for row in grid.iter_mut().take(row_end).skip(ri) {
-                for cell in row.iter_mut().take(col_end).skip(ci) {
+            let row_end = (ri + span("rowSpan")).min(rows.len());
+            let col_end = (ci + span("gridSpan")).min(num_cols);
+            for grow in grid.iter_mut().take(row_end).skip(ri) {
+                for cell in grow.iter_mut().take(col_end).skip(ci) {
                     *cell = text.clone();
                 }
             }
         }
     }
+    let header_row = (0..rows.len())
+        .map(|ri| first_row_header && ri == 0)
+        .collect();
     Some(Table {
         rows: grid,
         location: None,
-        structure: None,
+        structure: Some(TableStructure {
+            header_row,
+            col_continuation,
+            row_continuation,
+        }),
     })
 }
 

@@ -313,6 +313,7 @@ fn handle_paragraph_inner(
                     level,
                     // docling's DOCX backend passes the enumeration marker.
                     marker: Some(marker.clone()),
+                    location: None,
                 });
             } else {
                 // A multilevel marker (`1.1.`) renders as a bullet with the
@@ -324,6 +325,7 @@ fn handle_paragraph_inner(
                     text: format!("{marker} {text}"),
                     level,
                     marker: None,
+                    location: None,
                 });
             }
         } else {
@@ -334,6 +336,7 @@ fn handle_paragraph_inner(
                 text,
                 level,
                 marker: None,
+                location: None,
             });
         }
         return;
