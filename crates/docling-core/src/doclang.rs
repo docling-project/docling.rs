@@ -748,14 +748,29 @@ fn emit_list(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8
         "<list>"
     };
     out.push(depth, open.to_string());
+    let start = *i;
+    let mut prev_number: Option<u64> = None;
     while *i < nodes.len() {
         match &nodes[*i] {
             Node::ListItem {
                 level: l,
                 text,
                 marker,
-                ..
+                ordered: o,
+                number,
+                first_in_list,
             } if *l == level => {
+                // A new sibling list at this depth closes this one (the caller
+                // re-opens): the backend flagged a fresh list, the kind flips, or
+                // an ordered run breaks — matching the Markdown serializer.
+                if *i != start
+                    && (*first_in_list
+                        || *o != ordered
+                        || (ordered && Some(*number) != prev_number.map(|n| n + 1)))
+                {
+                    break;
+                }
+                prev_number = Some(*number);
                 // docling wraps a list item's content in `<text>` when it carries
                 // formatting or is followed by a nested list (a "segment
                 // sibling"); a plain item with no nested list stays bare.
