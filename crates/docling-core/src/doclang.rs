@@ -751,8 +751,15 @@ fn emit_list(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8
     while *i < nodes.len() {
         match &nodes[*i] {
             Node::ListItem { level: l, text, .. } if *l == level => {
+                // docling wraps a list item's content in `<text>` when it carries
+                // formatting or is followed by a nested list (a "segment
+                // sibling"); a plain item with no nested list stays bare.
+                let has_nested = matches!(
+                    nodes.get(*i + 1),
+                    Some(Node::ListItem { level: nl, .. }) if *nl > level
+                );
                 out.push(depth + 1, "<ldiv/>".to_string());
-                emit_runs(out, depth + 1, inline_runs(text));
+                emit_list_item_content(out, depth + 1, text, has_nested);
                 *i += 1;
             }
             Node::ListItem { level: l, .. } if *l > level => {
@@ -762,6 +769,26 @@ fn emit_list(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8
         }
     }
     out.push(depth, "</list>".to_string());
+}
+
+/// Render a list item's content after its `<ldiv/>`. docling wraps the content
+/// in `<text>` when the item has a "segment sibling" — a nested list following
+/// it — and otherwise emits it bare (a plain item as indented text, a formatted
+/// one as its inline elements). (A uniformly-formatted item that docling stores
+/// with direct formatting rather than an inline group is also wrapped, but that
+/// backend-structural distinction isn't recoverable from the flat model.)
+fn emit_list_item_content(out: &mut Out, depth: i32, text: &str, has_nested: bool) {
+    if !has_nested {
+        emit_runs(out, depth, inline_runs(text));
+        return;
+    }
+    let runs = inline_runs_from_markdown(text);
+    let single_plain = runs.len() <= 1 && runs.first().map_or(true, |r| r.is_plain());
+    if single_plain {
+        emit_text_element(out, depth, "text", "text", text);
+    } else {
+        emit_inline_group(out, depth, false, &runs);
+    }
 }
 
 fn emit_field_region(out: &mut Out, depth: i32, items: &[FieldItem]) {
