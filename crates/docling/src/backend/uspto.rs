@@ -49,11 +49,12 @@ impl DeclarativeBackend for UsptoBackend {
                     level: 3,
                     text: "ABSTRACT".into(),
                 });
-                for p in paras {
-                    doc.push(Node::Paragraph {
-                        text: escape_text(&p),
-                    });
-                }
+                // docling emits the abstract as a single text item — its
+                // paragraphs (with any chemistry-drawing `<p>` dropped as empty)
+                // are joined into one, not split per `<p>`.
+                doc.push(Node::Paragraph {
+                    text: escape_text(&paras.join(" ")),
+                });
             }
         }
 
@@ -130,11 +131,16 @@ fn node_text(node: XmlNode) -> String {
 }
 
 fn raw_text(node: XmlNode, out: &mut String) {
-    if let Some(t) = node.text() {
-        out.push_str(&t.replace('\n', " "));
-    }
+    // Walk every child in order. Text is captured from text-node children
+    // directly (not via node.text()/tail shortcuts), so text following a
+    // processing instruction or comment — e.g. the leading "R" in
+    // `<?in-line-formulae?>R<sup>1</sup>—CO…` — is not dropped.
     for child in node.children() {
-        if child.is_element() {
+        if child.is_text() {
+            if let Some(t) = child.text() {
+                out.push_str(&t.replace('\n', " "));
+            }
+        } else if child.is_element() {
             match child.tag_name().name() {
                 // <sup>/<sub> digits and signs render as Unicode super/subscript.
                 "sup" | "sub" => {
@@ -145,9 +151,6 @@ fn raw_text(node: XmlNode, out: &mut String) {
                 }
                 "maths" => {}
                 _ => raw_text(child, out),
-            }
-            if let Some(tail) = child.tail() {
-                out.push_str(&tail.replace('\n', " "));
             }
         }
     }
@@ -316,6 +319,41 @@ mod tests {
         assert!(
             md.starts_with(
                 "# A Device\n\n### ABSTRACT\n\nAn H₂O cell at 10⁻³.\n\n### BACKGROUND\n\nBody of NO₃⁻.\n\n#### Detail"
+            ),
+            "got:\n{md}"
+        );
+    }
+
+    #[test]
+    fn keeps_text_following_a_processing_instruction() {
+        // The leading run before an <?in-line-formulae?> PI is the PI's tail;
+        // it must not be dropped (docling keeps "R¹—CO", not "¹—CO").
+        let xml = r#"<us-patent-application>
+            <description>
+              <p><?in-line-formulae description="In-line Formulae" end="lead"?>R<sup>1</sup>&#x2014;CO</p>
+            </description>
+          </us-patent-application>"#;
+        let src = SourceDocument::from_bytes("p", InputFormat::XmlUspto, xml.as_bytes().to_vec());
+        let md = UsptoBackend.convert(&src).unwrap().export_to_markdown();
+        assert!(md.contains("R¹—CO"), "got:\n{md}");
+    }
+
+    #[test]
+    fn abstract_paragraphs_join_into_one_text() {
+        // docling emits the abstract as a single text item; a chemistry-drawing
+        // <p> in the middle is dropped, the surrounding text stays one paragraph.
+        let xml = r#"<us-patent-application>
+            <abstract>
+              <p>The invention relates to compounds of the formula (I)</p>
+              <p><chemistry><img file="C00001.TIF"/></chemistry></p>
+              <p>in which X has the meaning given above.</p>
+            </abstract>
+          </us-patent-application>"#;
+        let src = SourceDocument::from_bytes("p", InputFormat::XmlUspto, xml.as_bytes().to_vec());
+        let md = UsptoBackend.convert(&src).unwrap().export_to_markdown();
+        assert!(
+            md.contains(
+                "### ABSTRACT\n\nThe invention relates to compounds of the formula (I) in which X has the meaning given above."
             ),
             "got:\n{md}"
         );
