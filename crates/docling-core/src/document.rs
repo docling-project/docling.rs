@@ -94,6 +94,15 @@ pub enum Node {
     /// HTML `<title>`, …). Markdown and JSON omit furniture by default; DocLang
     /// renders the wrapped node with a `<layer value="furniture"/>` head.
     Furniture(Box<Node>),
+    /// A node carrying layout provenance — the four DocLang `<location>` values
+    /// (`x0,y0,x1,y1`, normalized to 0–511) docling attaches to elements from
+    /// backends with real geometry (e.g. the slide shapes in PPTX). Markdown and
+    /// JSON render the wrapped node unchanged; DocLang emits the `<location>`
+    /// tokens as the element's first children.
+    Located {
+        location: [u16; 4],
+        inner: Box<Node>,
+    },
 }
 
 /// Vertical text position of an [`InlineRun`] — docling's `Script`.

@@ -29,6 +29,7 @@ impl DeclarativeBackend for PptxBackend {
         let presentation = pkg
             .read("ppt/presentation.xml")
             .ok_or_else(|| ConversionError::Parse("pptx: no presentation.xml".into()))?;
+        let slide_size = slide_size(&presentation);
         let content_types = pkg.read("[Content_Types].xml").unwrap_or_default();
         let rid_to_part: HashMap<String, String> = pkg
             .rels_for("ppt/presentation.xml")
@@ -74,7 +75,7 @@ impl DeclarativeBackend for PptxBackend {
             };
             if let Some(tree) = descendant(slide.root_element(), "spTree") {
                 for shape in tree.children().filter(XmlNode::is_element) {
-                    handle_shape(shape, &valid_imgs, &images, &mut doc);
+                    handle_shape(shape, &valid_imgs, &images, slide_size, &mut doc);
                 }
             }
         }
@@ -101,18 +102,19 @@ fn handle_shape(
     shape: XmlNode,
     valid_imgs: &HashSet<String>,
     images: &HashMap<String, PictureImage>,
+    slide_size: (i64, i64),
     doc: &mut DoclingDocument,
 ) {
     match shape.tag_name().name() {
         "grpSp" => {
             for child in shape.children().filter(XmlNode::is_element) {
-                handle_shape(child, valid_imgs, images, doc);
+                handle_shape(child, valid_imgs, images, slide_size, doc);
             }
         }
         "graphicFrame" => {
             if let Some(tbl) = descendant(shape, "tbl") {
                 if let Some(table) = parse_table(tbl) {
-                    doc.push(Node::Table(table));
+                    push_located(doc, shape_location(shape, slide_size), Node::Table(table));
                 }
             }
         }
@@ -124,15 +126,74 @@ fn handle_shape(
                     .map(|a| a.value().to_string())
             });
             if let Some(rid) = embedded.filter(|rid| valid_imgs.contains(rid)) {
-                doc.push(Node::Picture {
-                    caption: None,
-                    image: images.get(&rid).cloned(),
-                });
+                push_located(
+                    doc,
+                    shape_location(shape, slide_size),
+                    Node::Picture {
+                        caption: None,
+                        image: images.get(&rid).cloned(),
+                    },
+                );
             }
         }
-        "sp" => handle_text_shape(shape, doc),
+        "sp" => handle_text_shape(shape, shape_location(shape, slide_size), doc),
         _ => {}
     }
+}
+
+/// Slide size (EMU) from `<p:sldSz cx cy>`, defaulting to the 4:3 standard.
+fn slide_size(presentation: &str) -> (i64, i64) {
+    Document::parse(presentation)
+        .ok()
+        .and_then(|d| {
+            let sz = d.descendants().find(|n| n.has_tag_name("sldSz"))?;
+            Some((
+                sz.attribute("cx")?.parse().ok()?,
+                sz.attribute("cy")?.parse().ok()?,
+            ))
+        })
+        .unwrap_or((9144000, 6858000))
+}
+
+/// docling's `_generate_prov`: the shape's bbox normalized to DocLang's 0–511
+/// grid. The bbox is bottom-left origin (so y is flipped); a shape with no
+/// transform — or `left == 0` (docling's `if shape.left:` truthiness) — takes
+/// the whole slide.
+fn shape_location(shape: XmlNode, (w, h): (i64, i64)) -> [u16; 4] {
+    let geom = descendant(shape, "xfrm").and_then(|x| {
+        let off = x.children().find(|n| n.has_tag_name("off"))?;
+        let ext = x.children().find(|n| n.has_tag_name("ext"))?;
+        Some((
+            off.attribute("x")?.parse::<i64>().ok()?,
+            off.attribute("y")?.parse::<i64>().ok()?,
+            ext.attribute("cx")?.parse::<i64>().ok()?,
+            ext.attribute("cy")?.parse::<i64>().ok()?,
+        ))
+    });
+    let (left, top, cw, ch) = match geom {
+        Some((x, y, cx, cy)) if x != 0 => (x, y, cx, cy),
+        _ => (0, 0, w, h),
+    };
+    let n = |v: i64, dim: i64| -> u16 {
+        if dim == 0 {
+            return 0;
+        }
+        ((512.0 * v as f64 / dim as f64).round() as i64).clamp(0, 511) as u16
+    };
+    [
+        n(left, w),
+        n(h - (top + ch), h),
+        n(left + cw, w),
+        n(h - top, h),
+    ]
+}
+
+/// Wrap `node` in a [`Node::Located`] carrying the shape's provenance.
+fn push_located(doc: &mut DoclingDocument, location: [u16; 4], node: Node) {
+    doc.push(Node::Located {
+        location,
+        inner: Box::new(node),
+    });
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -154,7 +215,7 @@ fn placeholder_kind(sp: XmlNode) -> Placeholder {
     }
 }
 
-fn handle_text_shape(sp: XmlNode, doc: &mut DoclingDocument) {
+fn handle_text_shape(sp: XmlNode, location: [u16; 4], doc: &mut DoclingDocument) {
     let Some(tx_body) = descendant(sp, "txBody") else {
         return;
     };
@@ -184,6 +245,8 @@ fn handle_text_shape(sp: XmlNode, doc: &mut DoclingDocument) {
                 } else {
                     0
                 };
+                // List items stay bare so consecutive items still group into
+                // one `<list>`; their per-item `<location>` is a follow-up.
                 doc.push(Node::ListItem {
                     ordered: numbered,
                     number: n,
@@ -196,10 +259,12 @@ fn handle_text_shape(sp: XmlNode, doc: &mut DoclingDocument) {
             None => {
                 in_list = false;
                 match kind {
-                    Placeholder::Title => doc.push(Node::Heading { level: 1, text }),
+                    Placeholder::Title => {
+                        push_located(doc, location, Node::Heading { level: 1, text })
+                    }
                     // docling intends SECTION_HEADER for subtitles but a bug
                     // leaves the label as PARAGRAPH, so subtitles render as text.
-                    _ => doc.push(Node::Paragraph { text }),
+                    _ => push_located(doc, location, Node::Paragraph { text }),
                 }
             }
         }
