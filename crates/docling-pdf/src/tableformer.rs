@@ -473,6 +473,12 @@ impl TableFormer {
                 .map(|&i| words[i].text.trim())
                 .collect::<Vec<_>>()
                 .join(" ");
+            // docling glues `@` to whatever follows it (`mAP @0.5`, an email):
+            // the PDF's word cells split `@` from the next token, and joining them
+            // with a space would widen the cell and — via the column pad — shift
+            // every row of the table. The groundtruth never contains "@ ", so this
+            // is always the right normalization.
+            let text = text.replace("@ ", "@");
             // Spanned cells repeat their text across the covered grid positions.
             for row in grid.iter_mut().skip(c.row).take(c.rowspan) {
                 for cell in row.iter_mut().skip(c.col).take(c.colspan) {
