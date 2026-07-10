@@ -1,9 +1,14 @@
 # Publish the `docling-rs` PyPI package (the PyO3 Python bindings in
 # crates/docling-py) for a chosen release. Like the npm package, the bindings are
-# a compiled native extension, so it can't be a one-line `twine upload`: wheels
-# are built on a matrix of runners (one abi3 wheel per OS/arch — `abi3-py39`, so
-# a single wheel covers every Python ≥ 3.9), an sdist is built once, and a
-# publish job uploads them all to PyPI.
+# a compiled native extension, so it can't be a one-line `twine upload`: a
+# self-contained sdist is built first (maturin vendors the path-dependency
+# crates), platform wheels are built from it on a matrix of runners (one abi3
+# wheel per OS/arch — `abi3-py39`, so a single wheel covers every Python ≥ 3.9),
+# and a publish job uploads the sdist + wheels to PyPI.
+#
+# Only allow-listed / GitHub-owned actions are used: the wheels are built with
+# `pypa/cibuildwheel` (which orchestrates the manylinux containers and auditwheel
+# repair itself) and uploaded with `pypa/gh-action-pypi-publish`.
 #
 # Trigger: manual only (workflow_dispatch), mirroring npm-publish.yml. By default
 # it builds the checked-out ref at the version already declared in
@@ -39,44 +44,21 @@ concurrency:
   group: pypi-publish-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
 
-defaults:
-  run:
-    working-directory: crates/docling-py
-
 jobs:
-  wheels:
-    name: wheel ${{ matrix.target }}
-    runs-on: ${{ matrix.host }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            host: ubuntu-22.04
-            manylinux: "2_28"
-          # Native ARM64 Linux runner — avoids cross-compiling the ONNX/ort build.
-          - target: aarch64-unknown-linux-gnu
-            host: ubuntu-24.04-arm
-            manylinux: "2_28"
-          - target: x86_64-pc-windows-msvc
-            host: windows-latest
-            manylinux: "auto"
-          # macOS wheels are omitted: GitHub-hosted macOS runners are blocked in
-          # this environment and darwin can't be cross-compiled on Linux (needs
-          # the Apple SDK). macOS users build from source with `maturin develop`.
-          # Re-add when runners are available:
-          #   - { target: aarch64-apple-darwin, host: macos-14, manylinux: "auto" }
-          #   - { target: x86_64-apple-darwin,  host: macos-14, manylinux: "auto" }
+  sdist:
+    name: sdist
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag || github.ref }}
 
       # Version override: patch [project].version in pyproject.toml before the
-      # build so it lands in the wheel metadata/filename. No override → keep the
-      # version already declared in the file.
+      # sdist is built so every wheel (built from the sdist) inherits it. No
+      # override → keep the version already declared in the file.
       - name: Resolve version
         shell: bash
+        working-directory: crates/docling-py
         run: |
           v="${{ inputs.version }}"
           if [ -z "$v" ] && [ -n "${{ inputs.tag }}" ]; then v="${{ inputs.tag }}"; v="${v#v}"; fi
@@ -87,53 +69,82 @@ jobs:
             echo "Building docling-rs $(grep -m1 '^version = ' pyproject.toml | sed -E 's/.*"([^"]+)".*/\1/') (from pyproject.toml)"
           fi
 
-      - name: Build wheel
-        uses: PyO3/maturin-action@v1
+      - uses: actions/setup-python@v5
         with:
-          target: ${{ matrix.target }}
-          manylinux: ${{ matrix.manylinux }}
-          args: --release --out dist
-          sccache: "true"
-          working-directory: crates/docling-py
+          python-version: "3.11"
 
-      - name: Upload wheel
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheel-${{ matrix.target }}
-          path: crates/docling-py/dist/*.whl
-          if-no-files-found: error
-
-  sdist:
-    name: sdist
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || github.ref }}
-      - name: Resolve version
-        shell: bash
-        run: |
-          v="${{ inputs.version }}"
-          if [ -z "$v" ] && [ -n "${{ inputs.tag }}" ]; then v="${{ inputs.tag }}"; v="${v#v}"; fi
-          if [ -n "$v" ]; then
-            sed -i.bak -E "0,/^version = \".*\"/s//version = \"$v\"/" pyproject.toml && rm -f pyproject.toml.bak
-          fi
+      # A maturin sdist vendors docling-py's path-dependency crates (docling,
+      # docling-core, docling-pdf, docling-asr) into a self-contained tarball that
+      # builds from source with a plain `pip install` — the input cibuildwheel
+      # unpacks for the per-platform wheels.
       - name: Build sdist
-        uses: PyO3/maturin-action@v1
-        with:
-          command: sdist
-          args: --out dist
-          working-directory: crates/docling-py
-      - name: Upload sdist
-        uses: actions/upload-artifact@v4
+        run: |
+          python -m pip install "maturin>=1.5,<2"
+          maturin sdist -m crates/docling-py/Cargo.toml --out dist
+
+      - uses: actions/upload-artifact@v4
         with:
           name: sdist
-          path: crates/docling-py/dist/*.tar.gz
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  wheels:
+    name: wheel ${{ matrix.arch }}
+    needs: sdist
+    runs-on: ${{ matrix.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host: ubuntu-22.04
+            arch: x86_64
+          # Native ARM64 Linux runner — avoids QEMU / cross-compiling the ONNX build.
+          - host: ubuntu-24.04-arm
+            arch: aarch64
+          - host: windows-latest
+            arch: AMD64
+          # macOS wheels are omitted: GitHub-hosted macOS runners are blocked in
+          # this environment. macOS users install the sdist (builds from source).
+    steps:
+      - name: Download sdist
+        uses: actions/download-artifact@v4
+        with:
+          name: sdist
+          path: sdist
+
+      # Unpack the self-contained sdist to a fixed dir for cibuildwheel to build.
+      - name: Unpack sdist
+        shell: bash
+        run: |
+          mkdir pkg
+          tar -xzf sdist/*.tar.gz -C pkg --strip-components=1
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.21.3
+        with:
+          package-dir: pkg
+          output-dir: wheelhouse
+        env:
+          # abi3-py39 → build once (on cp39); the wheel covers every Python ≥ 3.9.
+          CIBW_BUILD: "cp39-*"
+          CIBW_ARCHS: ${{ matrix.arch }}
+          # Broad-compat Linux wheels; ONNX is statically linked so no repair pulls.
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
+          # The manylinux containers have no Rust — install the toolchain once per
+          # container and put cargo on PATH for the maturin build.
+          CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable"
+          CIBW_ENVIRONMENT_LINUX: 'PATH="$HOME/.cargo/bin:$PATH"'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.arch }}
+          path: wheelhouse/*.whl
           if-no-files-found: error
 
   publish:
     name: publish to PyPI
-    needs: [wheels, sdist]
+    needs: [sdist, wheels]
     runs-on: ubuntu-latest
     steps:
       # All wheels + the sdist → a single dist/ for the upload.
