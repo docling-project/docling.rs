@@ -379,9 +379,9 @@ and Python (`docling-py`, PyO3) interop bindings followed.
 
 ## The meat-grinder mascot 🦀
 
-The project began life as **Fleischwolf** (German for "meat grinder",
-[ˈflaɪ̯ˌʃvɔlf]) — the machine you push anything through to get a single,
-uniform mince, which is exactly what this does to documents: PDF, DOCX, HTML,
-XLSX … all come out as one `DoclingDocument`. On joining the docling
-ecosystem it was renamed **docling.rs**, but the meat grinder stays as the
-mascot — and it's written in Rust, so Ferris the crab 🦀 still gets a seat.
+The mascot — a duck feeding a document into a meat grinder
+([`docs/assets/logo.svg`](./docs/assets/logo.svg)) — captures what this does: a
+grinder is the machine you push anything through to get a single, uniform mince,
+which is exactly what happens to documents here — PDF, DOCX, HTML, XLSX … all
+come out as one `DoclingDocument`. And it's written in Rust, so Ferris the crab
+🦀 still gets a seat.
