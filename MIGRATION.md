@@ -53,6 +53,7 @@ crates/
 ├── docling-asr/    # audio decode (symphonia), mel.rs, whisper.rs (ONNX), tokenizer.rs
 ├── docling-cli/    # `--strict`, `--to md|json`, `--images placeholder|embedded|referenced`
 ├── docling-node/   # Node.js/Bun N-API bindings (napi-rs), published to npm as `docling.rs`
+├── docling-py/     # PyO3 bindings (maturin), published to PyPI as `docling-rs` (strangler-fig over docling-core)
 └── docling-rag/    # RAG layer on top of the converter (chunking, embeddings, vector search, REST API)
 ```
 
@@ -280,6 +281,11 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
   (SQLite+sqlite-vec / PostgreSQL+pgvector), LLM, sources and queues, plus an
   eval harness and a REST API. See the crate README.
 - **`docling-node`** — Node.js/Bun N-API bindings (npm package).
+- **`docling-py`** — PyO3 bindings (PyPI package `docling-rs`): a strangler-fig
+  drop-in for docling's Python API where the Rust engine is the document
+  processor and `result.document` is a genuine `docling_core` `DoclingDocument`,
+  so its `export_to_markdown()` / `export_to_dict()` / chunkers are docling's
+  own code.
 - **MHTML backend** — no docling analogue.
 
 ## 7. Testing
@@ -368,8 +374,8 @@ The port followed roughly: **Phase 0** skeleton & API → **Phase 2** text/marku
 PPTX, XLSX, EPUB, ODF) → **Phase 4** long tail (XML families, LaTeX, Email,
 WebVTT, JSON) → **Phase 5–6** the PDF/image ML pipeline (pdfium + ONNX layout/OCR
 + geometric tables) → output formats (strict Markdown, JSON, image extraction) →
-**Phase 7** audio/ASR (symphonia + ONNX Whisper). PyO3 interop bindings remain
-the one unbuilt piece.
+**Phase 7** audio/ASR (symphonia + ONNX Whisper). The Node.js/Bun (`docling-node`)
+and Python (`docling-py`, PyO3) interop bindings followed.
 
 ## The meat-grinder mascot 🦀
 
