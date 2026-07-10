@@ -23,9 +23,27 @@ fn inter(a: &Region, l: f32, t: f32, r: f32, b: f32) -> f32 {
     area(il, it, ir, ib)
 }
 
+/// Wrapper (structured-region) labels, ported from docling
+/// `LayoutPostprocessor.WRAPPER_TYPES`: a region that *contains* other regions
+/// and renders as a structured block (a table / table-of-contents index), not as
+/// its own flat text.
+fn is_wrapper(label: &str) -> bool {
+    matches!(
+        label,
+        "table" | "document_index" | "form" | "key_value_region"
+    )
+}
+
+/// Labels docling's table-structure (TableFormer) model runs on and that render
+/// as a Markdown table: a plain `table` and a `document_index` (a table of
+/// contents), which docling assembles as a `TableItem` too.
+pub fn is_table_like(label: &str) -> bool {
+    matches!(label, "table" | "document_index")
+}
+
 /// Greedily keep regions by descending score, dropping a region that is mostly
 /// covered by an already-kept one (RT-DETR emits overlapping duplicates).
-pub fn resolve(mut regions: Vec<Region>) -> Vec<Region> {
+fn greedy(mut regions: Vec<Region>) -> Vec<Region> {
     regions.sort_by(|a, b| b.score.total_cmp(&a.score));
     let mut kept: Vec<Region> = Vec::new();
     for r in regions {
@@ -40,8 +58,86 @@ pub fn resolve(mut regions: Vec<Region>) -> Vec<Region> {
             kept.push(r);
         }
     }
-    dedup_nested_code(&mut kept);
     kept
+}
+
+/// Resolve overlapping RT-DETR detections, ported from the bucket structure of
+/// docling's `LayoutPostprocessor`: regular, picture and wrapper clusters live in
+/// **separate** spatial indexes and are de-overlapped independently, so a
+/// high-score picture never suppresses a lower-score table or table-of-contents
+/// index (the redp5110 TOC that was otherwise replaced by a picture box). A
+/// cross-type pass first drops a picture that nearly coincides with a table
+/// (`_handle_cross_type_overlaps`), keeping the structured table.
+pub fn resolve(regions: Vec<Region>) -> Vec<Region> {
+    // Cross-type: a region proposed as BOTH a picture and a table survives twice
+    // (the two buckets de-overlap independently). Keep the structured table and
+    // drop the coincident picture — IoU (not containment), so a genuine small
+    // figure fully inside a large table region is not removed.
+    let tables: Vec<(f32, f32, f32, f32)> = regions
+        .iter()
+        .filter(|r| r.label == "table")
+        .map(|r| (r.l, r.t, r.r, r.b))
+        .collect();
+    let mut regions = regions;
+    regions.retain(|r| {
+        if r.label != "picture" {
+            return true;
+        }
+        let ra = area(r.l, r.t, r.r, r.b).max(1.0);
+        !tables.iter().any(|&(l, t, rr, b)| {
+            let i = inter(r, l, t, rr, b);
+            let u = ra + area(l, t, rr, b) - i;
+            u > 0.0 && i / u > 0.8
+        })
+    });
+    // De-overlap each bucket on its own.
+    let pictures = greedy(regions.iter().filter(|r| r.label == "picture").cloned().collect());
+    let wrappers = greedy(regions.iter().filter(|r| is_wrapper(r.label)).cloned().collect());
+    let mut kept = greedy(
+        regions
+            .iter()
+            .filter(|r| r.label != "picture" && !is_wrapper(r.label))
+            .cloned()
+            .collect(),
+    );
+    dedup_nested_code(&mut kept);
+    kept.extend(pictures);
+    kept.extend(wrappers);
+    kept
+}
+
+/// Drop a regular region that is >80% contained in a surviving special region we
+/// render **as a single unit** — a picture, or a table/table-of-contents index —
+/// ported from docling's "Remove regular clusters that are included in wrappers"
+/// step: the special absorbs it as a child (a table cell, an in-figure label), so
+/// it must not also be emitted as its own paragraph/list-item. This stops the
+/// survey list-items from appearing both inside the detected table and again as
+/// bullets (`table_mislabeled_as_picture`).
+///
+/// `form` / `key_value_region` wrappers are deliberately **excluded**: this
+/// pipeline does not render them as a structured block (they are skipped), so
+/// their textual content comes precisely from the contained regular regions —
+/// dropping those would erase the page (e.g. `right_to_left_03`'s form-heavy
+/// pages). Runs *after* [`drop_false_pictures`] so a phantom picture can't
+/// swallow real text on its way out.
+pub fn drop_contained_regulars(regions: &mut Vec<Region>) {
+    let specials: Vec<(f32, f32, f32, f32)> = regions
+        .iter()
+        .filter(|r| r.label == "picture" || is_table_like(r.label))
+        .map(|r| (r.l, r.t, r.r, r.b))
+        .collect();
+    if specials.is_empty() {
+        return;
+    }
+    regions.retain(|r| {
+        if r.label == "picture" || is_wrapper(r.label) {
+            return true;
+        }
+        let ra = area(r.l, r.t, r.r, r.b).max(1.0);
+        !specials
+            .iter()
+            .any(|&(l, t, rr, b)| inter(r, l, t, rr, b) / ra > 0.8)
+    });
 }
 
 /// True for a bare, single-token source-code language label (`XML`, `C#`, `JSON`,
@@ -316,7 +412,6 @@ fn is_skipped(label: &str) -> bool {
             | "checkbox_unselected"
             | "form"
             | "key_value_region"
-            | "document_index"
     )
 }
 
@@ -1065,7 +1160,7 @@ pub fn assemble_page(
             // TableFormer structure (cells + spans, text matched from word cells)
             // when available; otherwise geometric grid reconstruction; finally a
             // single cell.
-            "table" => {
+            "table" | "document_index" => {
                 let rows = table_rows[i].clone().unwrap_or_else(|| {
                     let rows = reconstruct_table(region, &page.cells);
                     if rows.iter().any(|r| r.len() > 1) {

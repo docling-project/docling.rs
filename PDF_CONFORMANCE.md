@@ -141,10 +141,23 @@ Each is tracked as its own issue:
    prediction; one cell-structure diff cascades through the padded columns into
    many row diffs (2206's ~92 table-row diffs trace to ~4 structure diffs).
 2. **Layout classification**
-   ([#61](https://github.com/docling-project/docling.rs/issues/61)). The layout
-   ONNX classifies redp5110's table-of-contents as a *picture* (docling renders
-   it as a table) and table_mislabeled's survey as *tables* (docling renders
-   lists/text) — opposite classifications, not a text problem.
+   ([#61](https://github.com/docling-project/docling.rs/issues/61)) — *addressed
+   by porting docling's `LayoutPostprocessor`.* The raw RT-DETR detections now go
+   through the cleanup docling applies before assembly: per-label confidence
+   thresholds (`CONFIDENCE_THRESHOLDS`, stricter than the 0.3 base — a
+   picture/table/list needs ≥ 0.5), regular/picture/wrapper **bucketed** overlap
+   resolution (a high-score picture no longer suppresses a lower-score table or
+   table-of-contents index), the picture-vs-table cross-type rule
+   (`_handle_cross_type_overlaps`), and dropping a regular region absorbed by a
+   table/index/picture so it isn't emitted twice. With this, table_mislabeled's
+   survey is no longer over-detected as tables (108 → 88 vs groundtruth), and
+   redp5110's table-of-contents is now classified and rendered as a **table**
+   (`document_index`) instead of a picture. The TOC table's remaining diff is a
+   TableFormer dot-leader column-matching gap, tracked with the other
+   table-structure work in
+   [#60](https://github.com/docling-project/docling.rs/issues/60). *(The
+   groundtruth byte counts in the table above predate this change; regenerate the
+   committed snapshots with the `models-v1` models to refresh them.)*
 3. **Complex title-page reading order**
    ([#62](https://github.com/docling-project/docling.rs/issues/62)). Author-block
    / abstract interleaving on the academic papers (band reading-order handles the
