@@ -15,6 +15,7 @@ pub mod layout;
 mod mets;
 mod ocr;
 pub mod pdfium_backend;
+mod reading_order;
 pub mod resample;
 pub mod tableformer;
 pub mod textparse;
