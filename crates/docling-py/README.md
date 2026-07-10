@@ -14,6 +14,15 @@ print(result.document.export_to_markdown())
 data = result.document.export_to_dict()     # docling-core JSON wire format (schema 1.10.0)
 ```
 
+**Only the document processor is Rust.** The engine parses the input and returns
+docling-core's JSON wire format; this package validates it into a genuine
+[`docling_core.types.doc.DoclingDocument`](https://github.com/docling-project/docling-core).
+So `result.document` **is** the docling object — `export_to_markdown()`,
+`export_to_dict()`, `export_to_doctags()`, the serializers, and the
+[chunkers](https://github.com/docling-project/docling-core) are docling's own
+Python code, unchanged. `docling-core` is a runtime dependency; nothing else from
+docling is required for the declarative path.
+
 > **Status: experimental, not published.** The PyPI distribution name
 > (`docling.rs`) is tentative and may change; nothing is uploaded anywhere.
 > Build and install locally as below. The crate is intentionally outside the
@@ -51,13 +60,13 @@ PY
 
 | docling.rs | docling counterpart | notes |
 |---|---|---|
-| `DocumentConverter(strict=False, fetch_images=False, artifacts_path=None)` | `DocumentConverter(...)` | `strict` = docling.rs-only cleaner Markdown; default output is docling-legacy byte parity. `artifacts_path` overrides the model cache dir. |
+| `DocumentConverter(fetch_images=False, artifacts_path=None)` | `DocumentConverter(...)` | `fetch_images` resolves remote/local `<img src>` (HTML/EPUB); `artifacts_path` overrides the model cache dir. |
 | `.convert(path) -> ConversionResult` | `.convert(source)` | str / `pathlib.Path`. Releases the GIL during conversion. |
 | `.convert_bytes(name, data)` | `DocumentStream` | extension of `name` drives format detection |
-| `result.status` / `result.document` | same | status: `"success" / "partial_success" / "failure"` |
-| `document.export_to_markdown()` | same | plus `export_to_markdown(strict=True/False)` per-call override |
-| `document.export_to_dict()` / `export_to_json()` | `export_to_dict()` | dict / JSON string of the docling wire format |
-| `document.save_as_markdown(p)` / `save_as_json(p)` | same | |
+| `result.status` / `result.document` / `result.input.file` | same | `.status` is a `ConversionStatus` str-enum (`"success" / "partial_success" / "failure"`); `.document` is a genuine `docling_core` `DoclingDocument` |
+| `document.export_to_markdown(...)` | same | docling-core's own method — all of docling's params (`image_placeholder`, `page_break_placeholder`, …) apply |
+| `document.export_to_dict()` / `export_to_json()` / `export_to_doctags()` | same | docling-core's own serializers over the wire format |
+| `document.save_as_markdown(p)` / `save_as_json(p)` / chunkers | same | anything `docling_core` offers on a `DoclingDocument` works, since it *is* one |
 | `docling_rs.download_models()` | `docling-tools models download` | idempotent; `~/.cache/docling.rs` or `$DOCLING_RS_CACHE_DIR`; INT8 models fetched when hosted and preferred automatically (`DOCLING_RS_FP32=1` opts out) |
 
 Model/env resolution order: explicit `DOCLING_*` env vars → the cache dir set
@@ -67,7 +76,11 @@ platforms set `PDFIUM_DYNAMIC_LIB_PATH` to a local build.
 
 ## Not covered (yet)
 
-Chunkers, VLM/enrichment pipelines, and docling's full options model
-(`PdfPipelineOptions`, per-format backends selection). The document object
-carries rendered text for inline formatting rather than structured
-`formatting` fields — see `MIGRATION.md` §4 for the documented divergences.
+VLM/enrichment pipelines and docling's full options model
+(`PdfPipelineOptions`, per-format backend selection). Chunkers **are** available
+now — the returned object is a real `docling_core` `DoclingDocument`, so
+`docling_core.transforms.chunker`'s `HierarchicalChunker` / `HybridChunker`
+operate on it directly (install docling-core's own extras for those:
+`pip install "docling-core[chunking]"`). The document carries rendered text for
+inline formatting rather than structured `formatting` fields — see
+`MIGRATION.md` §4 for the documented divergences.

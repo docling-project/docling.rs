@@ -17,6 +17,12 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
 ]
+# The document *model* and its serializers/chunkers are docling's own Python
+# code: the Rust engine only produces the JSON wire format, which this package
+# validates into a genuine `docling_core.types.doc.DoclingDocument`.
+dependencies = [
+    "docling-core>=2.0",
+]
 
 [project.urls]
 Repository = "https://github.com/docling-project/docling.rs"
