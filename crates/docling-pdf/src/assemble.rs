@@ -91,8 +91,20 @@ pub fn resolve(regions: Vec<Region>) -> Vec<Region> {
         })
     });
     // De-overlap each bucket on its own.
-    let pictures = greedy(regions.iter().filter(|r| r.label == "picture").cloned().collect());
-    let wrappers = greedy(regions.iter().filter(|r| is_wrapper(r.label)).cloned().collect());
+    let pictures = greedy(
+        regions
+            .iter()
+            .filter(|r| r.label == "picture")
+            .cloned()
+            .collect(),
+    );
+    let wrappers = greedy(
+        regions
+            .iter()
+            .filter(|r| is_wrapper(r.label))
+            .cloned()
+            .collect(),
+    );
     let mut kept = greedy(
         regions
             .iter()

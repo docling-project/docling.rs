@@ -57,8 +57,14 @@ const SIDE: u32 = 640;
 /// tables / list-items out of the assembly, matching docling.
 pub fn label_threshold(label: &str) -> f32 {
     match label {
-        "section_header" | "title" | "code" | "checkbox_selected"
-        | "checkbox_unselected" | "form" | "key_value_region" | "document_index" => 0.45,
+        "section_header"
+        | "title"
+        | "code"
+        | "checkbox_selected"
+        | "checkbox_unselected"
+        | "form"
+        | "key_value_region"
+        | "document_index" => 0.45,
         // caption, footnote, formula, list_item, page_footer, page_header,
         // picture, table, text — all 0.5 in docling.
         _ => 0.5,
