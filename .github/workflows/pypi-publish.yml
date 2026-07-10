@@ -16,10 +16,11 @@
 # override. Run it from the Actions tab (or `gh workflow run pypi-publish.yml`,
 # optionally `-f version=0.16.0`).
 #
-# Requires one repository secret: PYPI_TOKEN — a PyPI API token with publish
-# rights to the `docling-rs` project. (To switch to OIDC trusted publishing
-# instead, drop the `password:` line and add `id-token: write` + an
-# `environment:` to the publish job, as docling-core's pypi.yml does.)
+# No secrets: publishing uses PyPI Trusted Publishing (OIDC), like
+# docling-core's pypi.yml. This requires a one-time setup on PyPI — add a trusted
+# publisher for the `docling-rs` project pointing at this repo, workflow file
+# (`pypi-publish.yml`) and environment (`pypi`). GitHub then mints a short-lived
+# OIDC token per run; there is no API token to store or rotate.
 #
 # The ONNX Runtime is statically bundled at build time (`ort` `download-binaries`)
 # and pdfium is loaded at runtime from the model cache, so the wheels are
@@ -43,6 +44,9 @@ on:
 concurrency:
   group: pypi-publish-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   sdist:
@@ -128,6 +132,9 @@ jobs:
           # abi3-py39 → build once (on cp39); the wheel covers every Python ≥ 3.9.
           CIBW_BUILD: "cp39-*"
           CIBW_ARCHS: ${{ matrix.arch }}
+          # `ort`'s `download-binaries` ships ONNX Runtime only for glibc targets,
+          # not musl — so build manylinux wheels only, never musllinux.
+          CIBW_SKIP: "*-musllinux*"
           # Broad-compat Linux wheels; ONNX is statically linked so no repair pulls.
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
@@ -146,6 +153,14 @@ jobs:
     name: publish to PyPI
     needs: [sdist, wheels]
     runs-on: ubuntu-latest
+    # Trusted Publishing (OIDC): no token secret. `id-token: write` lets the job
+    # mint the OIDC token PyPI verifies against its trusted-publisher config; the
+    # `pypi` environment name is part of what PyPI matches on.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/docling-rs
+    permissions:
+      id-token: write
     steps:
       # All wheels + the sdist → a single dist/ for the upload.
       - name: Download artifacts
@@ -158,6 +173,6 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
-          password: ${{ secrets.PYPI_TOKEN }}
+          attestations: true
           # Idempotent re-runs: don't fail if a version is already uploaded.
           skip-existing: true

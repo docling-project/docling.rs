@@ -101,8 +101,102 @@ gh workflow run pypi-publish.yml                 # version from pyproject.toml
 gh workflow run pypi-publish.yml -f version=0.16.0
 ```
 
-It needs one repository secret, `PYPI_TOKEN` (a PyPI API token with publish
-rights to `docling-rs`); re-runs are idempotent (`skip-existing`). macOS wheels
-are omitted (no hosted runners here); macOS users install the sdist, which
-compiles from source. The ONNX runtime is bundled in the wheel; pdfium is fetched
-at runtime by `download_models()`.
+No secrets: it publishes via PyPI **Trusted Publishing** (OIDC), like
+docling-core — no API token is stored or rotated. This requires a **one-time
+setup on PyPI by the project owner** (below); re-runs are idempotent
+(`skip-existing`). macOS wheels are omitted (no hosted runners here); macOS users
+install the sdist, which compiles from source. The ONNX runtime is bundled in the
+wheel; pdfium is fetched at runtime by `download_models()`.
+
+### First-time PyPI setup (project owner)
+
+Trusted Publishing lets this repo's workflow upload to PyPI without any password
+or API token — GitHub mints a short-lived OIDC token per run and PyPI verifies it
+against a *trusted publisher* you register once. Until that publisher exists, the
+`publish` job fails with `invalid-publisher: valid token, but no corresponding
+publisher`.
+
+Because the `docling-rs` project does not exist on PyPI yet, register a **pending
+publisher** (it both authorizes the workflow and lets the first run create the
+project):
+
+1. Sign in to PyPI as the account that will own `docling-rs`, then open
+   **<https://pypi.org/manage/account/publishing/>**.
+2. Under **“Add a new pending publisher”**, choose **GitHub** and fill in
+   **exactly** these values:
+
+   | Field | Value |
+   |---|---|
+   | PyPI Project Name | `docling-rs` |
+   | Owner | `docling-project` |
+   | Repository name | `docling.rs` |
+   | Workflow name | `pypi-publish.yml` |
+   | Environment name | `pypi` |
+
+3. Click **Add**. Then re-run the **pypi publish** workflow (Actions tab → Run
+   workflow) — the `publish` job will now succeed and create the project on its
+   first upload.
+
+Notes:
+- The Git branch does not matter: PyPI matches on repository + workflow +
+  environment, not the branch, so publishing works from any branch once the
+  publisher is registered.
+- **Environment name must be `pypi`** — it has to match the `environment: pypi`
+  the `publish` job runs in.
+- After the first successful publish the project exists; the *pending* publisher
+  automatically becomes a regular trusted publisher (manage it later at
+  *Project → Manage → Publishing*). To rotate/add publishers there, use the same
+  five values above.
+- To rehearse without touching production PyPI, register the equivalent pending
+  publisher on **TestPyPI** (<https://test.pypi.org/manage/account/publishing/>)
+  and point the workflow's upload at `https://test.pypi.org/legacy/`.
+
+### Test the release build locally
+
+Reproduce what CI does — build the wheel + sdist and verify both install and run
+— before (or instead of) triggering the workflow. Needs a Rust toolchain and
+Python ≥ 3.9.
+
+```bash
+cd crates/docling-py
+python -m venv .venv && source .venv/bin/activate
+pip install maturin
+
+# 1. Build the same two artifacts the workflow builds.
+maturin build --release --out dist      # dist/docling_rs-<v>-cp39-abi3-<platform>.whl
+maturin sdist            --out dist      # dist/docling_rs-<v>.tar.gz  (vendors all crates)
+
+# 2. Smoke-test the WHEEL in a clean env — pip pulls docling-core from the
+#    wheel's declared dependency, exactly as an end user would get it.
+python -m venv /tmp/wheel-test
+/tmp/wheel-test/bin/pip install dist/docling_rs-*.whl
+/tmp/wheel-test/bin/python - <<'PY'
+from docling_rs import DocumentConverter
+r = DocumentConverter().convert("../../tests/data/html/sources/hyperlink_03.html")
+assert r.status == "success"
+assert type(r.document).__module__.startswith("docling_core")   # the real DoclingDocument
+print("wheel OK:", len(r.document.export_to_markdown()), "md chars")
+PY
+
+# 3. Verify the SDIST is self-contained: pip compiles the Rust engine from source
+#    (this is the exact unpack-and-build path cibuildwheel runs in the manylinux
+#    containers, so a green result here means the CI wheel build will work too).
+python -m venv /tmp/sdist-test
+/tmp/sdist-test/bin/pip install dist/docling_rs-*.tar.gz
+/tmp/sdist-test/bin/python -c "import docling_rs; print('sdist build OK')"
+
+# 4. Run the declarative-path test suite (no ML models needed).
+pip install pytest docling-core
+pytest tests/
+```
+
+To exercise the full manylinux wheel build (what `pypa/cibuildwheel` runs) you
+need Docker; with a daemon available:
+
+```bash
+pipx run cibuildwheel==2.21.3 --platform linux --output-dir wheelhouse .
+# env: CIBW_BUILD=cp39-* CIBW_SKIP=*-musllinux*  CIBW_BEFORE_ALL_LINUX="curl … rustup … -y"
+```
+
+An optional final rehearsal uploads to **TestPyPI** (needs a TestPyPI token or a
+pending publisher there): `pip install twine && twine upload --repository testpypi dist/*`.
