@@ -381,6 +381,16 @@ impl Pipeline {
         }
     }
 
+    /// Eagerly load the models (the full-intra serial worker: layout + OCR, and
+    /// the shared TableFormer unless disabled) so the first conversion doesn't pay
+    /// the load cost. Idempotent; respects `no_ocr` / `no_table_former` (with
+    /// `no_ocr` there is nothing to load). The docling.rs analogue of docling's
+    /// `DocumentConverter.initialize_pipeline`.
+    pub fn warm_up(&mut self) -> Result<(), PdfError> {
+        self.primary()?;
+        Ok(())
+    }
+
     /// The full-intra serial worker, loaded on first use.
     fn primary(&mut self) -> Result<&mut Worker, PdfError> {
         if self.primary.is_none() {

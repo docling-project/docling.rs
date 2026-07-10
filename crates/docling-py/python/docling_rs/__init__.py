@@ -14,6 +14,14 @@ returns docling-core's JSON wire format; this module loads that into the genuine
 ``export_to_markdown()`` / ``export_to_dict()`` / ``export_to_doctags()``, the
 serializers, and the chunkers — is docling's own Python code, unchanged.
 
+Configuration follows docling's shape — ``PdfPipelineOptions`` / ``PdfFormatOption``
+and per-call kwargs::
+
+    from docling_rs import DocumentConverter, InputFormat, PdfFormatOption, PdfPipelineOptions
+
+    opts = PdfPipelineOptions(do_ocr=False, do_table_structure=True)
+    conv = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)})
+
 One-time model setup (mirrors docling's artifact download; ~700 MB into
 ``~/.cache/docling.rs``)::
 
@@ -26,23 +34,46 @@ from __future__ import annotations
 
 import enum
 import os
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Union
+from typing import Dict, Iterable, Iterator, Optional, Union
 
-from docling_core.types.doc import DoclingDocument
+from docling_core.types.doc import DoclingDocument, ImageRefMode
 
 from . import models
 from .models import cache_dir, download_models, ensure_env
-from ._native import __version__
+from .options import (
+    AcceleratorDevice,
+    AcceleratorOptions,
+    DocumentStream,
+    InputFormat,
+    PdfFormatOption,
+    PdfPipelineOptions,
+    TableFormerMode,
+    TableStructureOptions,
+)
+from ._native import ConversionError, __version__
 from ._native import DocumentConverter as _NativeDocumentConverter
 
 __all__ = [
     "DocumentConverter",
     "ConversionResult",
     "ConversionStatus",
-    "DoclingDocument",
+    "ConversionError",
     "InputDocument",
+    "DoclingDocument",
+    "ImageRefMode",
+    # docling-shaped configuration
+    "InputFormat",
+    "DocumentStream",
+    "PdfPipelineOptions",
+    "PdfFormatOption",
+    "TableStructureOptions",
+    "TableFormerMode",
+    "AcceleratorOptions",
+    "AcceleratorDevice",
+    # model / env helpers
     "download_models",
     "ensure_env",
     "cache_dir",
@@ -82,26 +113,122 @@ class ConversionResult:
 class DocumentConverter:
     """docling-shaped converter whose processor is Rust.
 
-    ``artifacts_path`` overrides the model cache directory (docling's
-    ``artifacts_path``); by default the pipeline is pointed at
-    ``~/.cache/docling.rs`` (see :func:`download_models`). ``fetch_images``
-    resolves remote/local ``<img src>`` for HTML/EPUB.
+    Parameters mirror docling's converter and ``PdfPipelineOptions``:
+
+    * ``format_options`` — ``{InputFormat.PDF: PdfFormatOption(pipeline_options=...)}``,
+      as in docling. The PDF/image pipeline options ``do_ocr``,
+      ``do_table_structure`` and ``accelerator_options.num_threads`` take effect.
+    * ``do_ocr`` / ``do_table_structure`` — a shorthand for the same, used when no
+      ``format_options`` is given.
+    * ``fetch_images`` — resolve remote/local ``<img src>`` for HTML/EPUB.
+    * ``use_web_browser`` — render HTML via headless Chrome before parsing.
+    * ``allowed_formats`` — restrict conversion to these :class:`InputFormat`\\ s
+      (docling's converter arg); a source of any other format raises.
+    * ``artifacts_path`` — override the model cache dir (docling's
+      ``artifacts_path``); defaults to ``~/.cache/docling.rs``.
     """
 
-    def __init__(self, fetch_images: bool = False, artifacts_path=None):
+    def __init__(
+        self,
+        format_options: Optional[Dict[InputFormat, PdfFormatOption]] = None,
+        *,
+        allowed_formats: Optional[Iterable[InputFormat]] = None,
+        do_ocr: bool = True,
+        do_table_structure: bool = True,
+        fetch_images: bool = False,
+        use_web_browser: bool = False,
+        artifacts_path=None,
+    ):
         ensure_env(artifacts_path)
-        self._inner = _NativeDocumentConverter(fetch_images=fetch_images)
 
-    def convert(self, source: Union[str, os.PathLike]) -> ConversionResult:
-        """Convert a filesystem path (str / pathlib.Path)."""
-        native = self._inner.convert(source)
+        # A PDF/IMAGE PdfFormatOption overrides the shorthand kwargs.
+        pipeline = _pdf_pipeline_options(format_options)
+        if pipeline is not None:
+            do_ocr = pipeline.do_ocr
+            do_table_structure = pipeline.do_table_structure
+            acc = getattr(pipeline, "accelerator_options", None)
+            if acc is not None:
+                if acc.device in (AcceleratorDevice.CUDA, AcceleratorDevice.MPS):
+                    warnings.warn(
+                        f"docling.rs runs ONNX Runtime on the CPU; accelerator "
+                        f"device {acc.device.value!r} is ignored (using CPU).",
+                        stacklevel=2,
+                    )
+                if acc.num_threads:
+                    # Process-wide ONNX Runtime intra-op threads; don't clobber an
+                    # explicit environment override.
+                    os.environ.setdefault("DOCLING_RS_PDF_THREADS", str(acc.num_threads))
+
+        self._inner = _NativeDocumentConverter(
+            fetch_images=fetch_images,
+            do_ocr=do_ocr,
+            do_table_structure=do_table_structure,
+            use_web_browser=use_web_browser,
+            allowed_formats=(
+                [InputFormat(f).value for f in allowed_formats]
+                if allowed_formats is not None
+                else None
+            ),
+        )
+
+    def initialize_pipeline(self, format: Optional[InputFormat] = None) -> None:
+        """Eagerly load the ML models for ``format`` (docling's
+        ``initialize_pipeline``), so the first PDF conversion doesn't pay the
+        model-load cost and later ones reuse the warm pipeline. Only ``PDF`` /
+        ``IMAGE`` have models; other formats are a no-op. Uses the converter's
+        configured ``do_ocr`` / ``do_table_structure`` (and needs the models
+        available — see :func:`download_models`)."""
+        self._inner.initialize_pipeline(
+            InputFormat(format).value if format is not None else None
+        )
+
+    def convert(self, source: Union[str, os.PathLike, DocumentStream]) -> ConversionResult:
+        """Convert a filesystem path (str / pathlib.Path) or an in-memory
+        :class:`DocumentStream`."""
+        native = self._convert_native(source)
         return _wrap(native)
+
+    def convert_all(
+        self,
+        sources: Iterable[Union[str, os.PathLike, DocumentStream]],
+        raises_on_error: bool = True,
+    ) -> Iterator[ConversionResult]:
+        """Convert many sources, yielding a :class:`ConversionResult` each
+        (docling's ``convert_all``). With ``raises_on_error=False`` a failing
+        source yields a ``failure`` result (empty document) instead of raising."""
+        for source in sources:
+            try:
+                yield _wrap(self._convert_native(source))
+            except Exception:
+                if raises_on_error:
+                    raise
+                name = source.name if isinstance(source, DocumentStream) else str(source)
+                yield ConversionResult("failure", name, DoclingDocument(name=Path(name).name))
 
     def convert_bytes(self, name: str, data: bytes) -> ConversionResult:
         """Convert in-memory bytes; ``name``'s extension drives format detection
         (docling's ``DocumentStream`` counterpart)."""
         native = self._inner.convert_bytes(name, data)
         return _wrap(native)
+
+    def _convert_native(self, source):
+        if isinstance(source, DocumentStream):
+            return self._inner.convert_bytes(source.name, source.stream.read())
+        return self._inner.convert(source)
+
+
+def _pdf_pipeline_options(
+    format_options: Optional[Dict[InputFormat, PdfFormatOption]],
+) -> Optional[PdfPipelineOptions]:
+    """The PDF (or image) pipeline options from a docling-style ``format_options``
+    mapping, if any."""
+    if not format_options:
+        return None
+    for fmt in (InputFormat.PDF, InputFormat.IMAGE):
+        fo = format_options.get(fmt)
+        if fo is not None and getattr(fo, "pipeline_options", None) is not None:
+            return fo.pipeline_options
+    return None
 
 
 def _wrap(native) -> ConversionResult:
