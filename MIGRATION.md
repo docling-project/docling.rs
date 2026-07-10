@@ -14,7 +14,7 @@ phased plan is kept at the end as history.)
 > against *live* docling; the PDF/image/METS ML path lives in `docling-pdf`
 > (a pure-Rust PDF text parser + pdfium rasterization + ONNX
 > layout/TableFormer/OCR + a port of docling-parse's line sanitizer) and is also
-> measured byte-for-byte against live docling — **6 / 14 PDF fixtures exact, 7 / 14
+> measured byte-for-byte against live docling — **6 / 16 PDF fixtures exact, 7 / 16
 > whitespace-normalized** (see `PDF_CONFORMANCE.md`), with a snapshot baseline
 > guarding against regressions. `cargo test` is green (unit tests + a 133-source
 > output-regression suite).
@@ -24,11 +24,11 @@ phased plan is kept at the end as history.)
 | | |
 |---|---|
 | **What** | A Rust port of docling's converter, backends, and discriminative PDF/ASR pipelines; same `convert → DoclingDocument → export_to_markdown()/json()` shape, single static binary, no Python/torch at runtime |
-| **Conformance** | Declarative formats byte-for-byte vs *live* PyPI docling (most 100%, see §2); PDF ML path 6/14 fixtures byte-exact, rest close; every optimization is gated on this not regressing |
+| **Conformance** | Declarative formats byte-for-byte vs *live* PyPI docling (most 100%, see §2); `.dclx` DocLang output ≈91% mean vs docling's own `.dclx` (§2); PDF ML path 6/16 fixtures byte-exact, rest close; every optimization is gated on this not regressing |
 | **Performance** | PDF ML pipeline **4.3× faster warm / 4.7× end-to-end** than Python docling at 2.3–2.6× less peak RAM (INT8 + SIMD, conformance-validated); declarative formats 20–60× warm, ~60× less RAM; details + methodology in [`PDF_PERFORMANCE.md`](./PDF_PERFORMANCE.md) |
 | **Models** | docling's own checkpoints (layout heron, TableFormer, PP-OCRv3, Whisper tiny), format-converted to ONNX by `scripts/export_*.py` — no retraining; INT8 variants are calibrated post-training quantizations (`scripts/install/quantize_models.py`) |
 | **Tracking upstream** | See [§9](#9-keeping-up-with-upstream-docling): conformance is measured against the *latest published* docling on demand, so an upstream release that changes output surfaces as a concrete per-fixture diff |
-| **Not ported (by design)** | VLM pipelines, enrichment models, DocTags input, the legacy APS-text patent dump (§5); inline formatting is baked into text rather than structured fields (§4) |
+| **Not ported (by design)** | VLM pipelines, enrichment models, DocTags/DocLang *input* backends (§5); inline formatting is baked into text rather than structured fields (§4) |
 
 ---
 
@@ -106,7 +106,7 @@ content-type resolution, and image extraction — reused by DOCX/PPTX/XLSX/EPUB.
 
 These run docling's *discriminative* PDF pipeline ported to ONNX. They are now
 measured **byte-for-byte against live docling** (the committed PDF groundtruth is
-regenerated from it): **6 / 14 exact (7 / 14 whitespace-normalized)**, the rest
+regenerated from it): **6 / 16 exact (7 / 16 whitespace-normalized)**, the rest
 close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
 (`scripts/conformance/pdf_conformance.sh`) still guards against regressions.
 
@@ -116,6 +116,27 @@ close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
 | Images (tiff/webp/png/jpeg) | the same pipeline, image as a single page |
 | METS / Google Books | `.tar.gz` of per-page hOCR + TIFF → cells from hOCR → the same layout+assembly path (no OCR needed) |
 | Audio (wav/mp3/flac/ogg/aac/m4a + mp4/mov audio tracks) | `docling-asr`: **symphonia** decode (no ffmpeg) → 16 kHz mono → ported log-mel front-end → **Whisper tiny** encoder/decoder (ONNX, greedy with OpenAI's timestamp rules — docling's ASR defaults) → `[time: start-end] text` paragraphs. AVI is the one container symphonia can't demux. |
+
+### DocLang (`.dclx`) coverage
+
+The `.dclx` DocLang output (§3) is scored against docling's own `.dclx` archives
+with `scripts/conformance/dclx_conformance.sh` — the extracted `document.xml`
+line-diffed, similarity `= 100·(1 − difflines / max_lines)`. **≈91% mean over the
+134-fixture non-PDF corpus** (issue #32 target: ≥90%), per source format:
+
+| Format | `.dclx` similarity | Format | `.dclx` similarity |
+|---|---|---|---|
+| CSV / AsciiDoc / Email | **100%** | Markdown | 92% |
+| USPTO | 98% | ODF / LaTeX | 91% |
+| DOCX / PPTX | 96% | XLSX | 87% |
+| JATS | 95% | HTML | 84% |
+| | | WebVTT | 81% |
+
+The remaining format gaps are tracked under
+[issue #32](https://github.com/docling-project/docling.rs/issues/32); its children
+(#38–#41, #44) landed the ODF, USPTO legacy-entity, elife XML, wiki_duck and
+APS-plain-text work — `pftaps` is now byte-exact (§5). PDF `.dclx` is byte-exact
+on the one fixture with a groundtruth archive.
 
 ---
 
@@ -134,10 +155,11 @@ close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
   `<strikethrough>`/`<sub|superscript>`), lists with enumeration `<marker>`s, OTSL
   tables (`<ched>`/`<fcel>`/`<lcel>`…) with per-cell `<location>`, code, formulas,
   pictures and furniture. Conformance is scored against docling's own `.dclx`
-  archives (`scripts/conformance/dclx_conformance.sh`): **≈83% mean similarity over
-  the 134-fixture non-PDF corpus** and climbing — csv/asciidoc/email/json exact,
-  html/docx/jats/md/latex/xlsx/webvtt/uspto in the 80s–90s, with the format-by-format
-  gaps tracked as [issue #32](https://github.com/docling-project/docling.rs/issues/32) and its
+  archives (`scripts/conformance/dclx_conformance.sh`): **≈91% mean similarity over
+  the 134-fixture non-PDF corpus** (issue #32's ≥90% target) — csv/asciidoc/email
+  exact, uspto/docx/pptx/jats in the mid-to-high 90s, md/odf/latex low 90s,
+  xlsx/html/webvtt in the 80s (full table in §2). The format-by-format gaps are
+  tracked as [issue #32](https://github.com/docling-project/docling.rs/issues/32) and its
   children (#38–#41, #44). This is an **output** format; a DocLang *input* backend is
   still out of scope (§5).
 
@@ -203,11 +225,21 @@ These are deliberate or unavoidable divergences, not bugs.
      ligature recomposition, loose-box geometry. Plus docling's markdown escaping,
      typographic-punctuation normalization, wrap dehyphenation,
      paragraph-continuation merging, band-aware two-column reading order, and
-     false-picture / page-number layout fixes.
+     false-picture / page-number layout fixes. The parser is now the **sole** text
+     source — pdfium does only page rasterisation + link annotations. Its per-word
+     cells reproduce docling-parse's `word_cells` byte-for-byte (377/377 on
+     `2305-pg9`), which is what TableFormer matches against; a char-frequency
+     validator (`scripts/test/parser_completeness.py`) confirms nothing is silently
+     dropped (Form-XObject text and glyph-name-only fonts were the two classes it
+     surfaced and fixed).
    - Output is measured **byte-for-byte against live docling** (PDF_CONFORMANCE.md):
-     **6 / 14 exact, 7 / 14 whitespace-normalized**, the rest close. The remaining
+     **6 / 16 exact, 7 / 16 whitespace-normalized**, the rest close. The remaining
      gaps are model-level (TableFormer structure on complex tables, layout
-     classification) plus `amt`'s fraction spacing (a docling quirk).
+     classification, title-page reading order) plus `amt`'s fraction spacing — a
+     docling quirk from its embedded-font OS/2 metrics that our single-spaced output
+     renders more faithfully; matching it exactly needs a font-metrics layer that
+     entangles with the RTL box geometry. The full per-fixture breakdown and the
+     model-level blockers live in `PDF_CONFORMANCE.md`.
 
 6. **Extracted image bytes are real but not byte-identical.** Cropped/embedded
    pixels are correct, but the PNG re-encoding differs from docling's, so the
@@ -240,13 +272,15 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
 - **XML DocLang / DocTags *input* backend** — DocLang is supported as an
   **output** format (§3), but reading `.dclx`/DocTags *back in* is not: no such
   sources in the corpus to verify against, and not in the requested scope.
-- **Legacy APS-text patents.** USPTO now covers the modern `v4x` XML **and** the
-  2001-era `pap-v15` applications (`pa`) and `PATDOC`/ST.32 grants (`pg`),
-  including their CALS tables. The one remaining format is the legacy **APS
-  plain text** (`pftaps`): docling doesn't parse it either — it dumps the raw
-  file into a single DocLang `<text>` — so matching that reference is a
-  serialization detail tracked in
-  [issue #44](https://github.com/docling-project/docling.rs/issues/44), not a parsing gap.
+
+**Now migrated (previously listed here):**
+
+- **Legacy APS-text patents.** USPTO covers the modern `v4x` XML, the 2001-era
+  `pap-v15` applications (`pa`) and `PATDOC`/ST.32 grants (`pg`) with their CALS
+  tables, **and** the legacy **APS plain text** (`pftaps`): docling routes it to
+  its plain-text backend (one DocLang `<text>` dump), and docling.rs reproduces
+  that serialization byte-exactly — the `.dclx` is a perfect match
+  ([issue #44](https://github.com/docling-project/docling.rs/issues/44), done).
 
 **Minor known gaps (cosmetic, tracked per-fixture):**
 
