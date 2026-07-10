@@ -507,6 +507,7 @@ fn clean_text(text: &str) -> String {
         .replace(['\u{201c}', '\u{201d}'], dquote) // “ ” → " (or ' for Hangul)
         .replace(['\u{2013}', '\u{2014}', '\u{2212}'], "-") // – — − → -
         .replace('\u{2044}', "/") // ⁄ fraction slash → /
+        .replace('\u{2022}', "\u{b7}") // • → · (docling never emits •; inline CCS-concept separators)
         .replace('\u{2026}', "..."); // … → ...
     let out = if crate::pdfium_backend::use_dp_lines() {
         // The docling-parse sanitizer already placed the correct spacing (e.g.
