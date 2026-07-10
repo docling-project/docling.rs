@@ -1,0 +1,152 @@
+# Publish the `docling-rs` PyPI package (the PyO3 Python bindings in
+# crates/docling-py) for a chosen release. Like the npm package, the bindings are
+# a compiled native extension, so it can't be a one-line `twine upload`: wheels
+# are built on a matrix of runners (one abi3 wheel per OS/arch — `abi3-py39`, so
+# a single wheel covers every Python ≥ 3.9), an sdist is built once, and a
+# publish job uploads them all to PyPI.
+#
+# Trigger: manual only (workflow_dispatch), mirroring npm-publish.yml. By default
+# it builds the checked-out ref at the version already declared in
+# crates/docling-py/pyproject.toml; pass `version` (or a release `tag`) to
+# override. Run it from the Actions tab (or `gh workflow run pypi-publish.yml`,
+# optionally `-f version=0.16.0`).
+#
+# Requires one repository secret: PYPI_TOKEN — a PyPI API token with publish
+# rights to the `docling-rs` project. (To switch to OIDC trusted publishing
+# instead, drop the `password:` line and add `id-token: write` + an
+# `environment:` to the publish job, as docling-core's pypi.yml does.)
+#
+# The ONNX Runtime is statically bundled at build time (`ort` `download-binaries`)
+# and pdfium is loaded at runtime from the model cache, so the wheels are
+# self-contained for the declarative path and need no extra native setup here —
+# same story as the npm build.
+
+name: pypi publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build (e.g. v0.16.0). Blank = current ref."
+        required: false
+        default: ""
+      version:
+        description: "Override the PyPI version (e.g. 0.16.0). Blank = tag, or the version in pyproject.toml."
+        required: false
+        default: ""
+
+concurrency:
+  group: pypi-publish-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: crates/docling-py
+
+jobs:
+  wheels:
+    name: wheel ${{ matrix.target }}
+    runs-on: ${{ matrix.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            host: ubuntu-22.04
+            manylinux: "2_28"
+          # Native ARM64 Linux runner — avoids cross-compiling the ONNX/ort build.
+          - target: aarch64-unknown-linux-gnu
+            host: ubuntu-24.04-arm
+            manylinux: "2_28"
+          - target: x86_64-pc-windows-msvc
+            host: windows-latest
+            manylinux: "auto"
+          # macOS wheels are omitted: GitHub-hosted macOS runners are blocked in
+          # this environment and darwin can't be cross-compiled on Linux (needs
+          # the Apple SDK). macOS users build from source with `maturin develop`.
+          # Re-add when runners are available:
+          #   - { target: aarch64-apple-darwin, host: macos-14, manylinux: "auto" }
+          #   - { target: x86_64-apple-darwin,  host: macos-14, manylinux: "auto" }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      # Version override: patch [project].version in pyproject.toml before the
+      # build so it lands in the wheel metadata/filename. No override → keep the
+      # version already declared in the file.
+      - name: Resolve version
+        shell: bash
+        run: |
+          v="${{ inputs.version }}"
+          if [ -z "$v" ] && [ -n "${{ inputs.tag }}" ]; then v="${{ inputs.tag }}"; v="${v#v}"; fi
+          if [ -n "$v" ]; then
+            sed -i.bak -E "0,/^version = \".*\"/s//version = \"$v\"/" pyproject.toml && rm -f pyproject.toml.bak
+            echo "Building docling-rs $v"
+          else
+            echo "Building docling-rs $(grep -m1 '^version = ' pyproject.toml | sed -E 's/.*"([^"]+)".*/\1/') (from pyproject.toml)"
+          fi
+
+      - name: Build wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          args: --release --out dist
+          sccache: "true"
+          working-directory: crates/docling-py
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.target }}
+          path: crates/docling-py/dist/*.whl
+          if-no-files-found: error
+
+  sdist:
+    name: sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Resolve version
+        shell: bash
+        run: |
+          v="${{ inputs.version }}"
+          if [ -z "$v" ] && [ -n "${{ inputs.tag }}" ]; then v="${{ inputs.tag }}"; v="${v#v}"; fi
+          if [ -n "$v" ]; then
+            sed -i.bak -E "0,/^version = \".*\"/s//version = \"$v\"/" pyproject.toml && rm -f pyproject.toml.bak
+          fi
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+          working-directory: crates/docling-py
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: crates/docling-py/dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: publish to PyPI
+    needs: [wheels, sdist]
+    runs-on: ubuntu-latest
+    steps:
+      # All wheels + the sdist → a single dist/ for the upload.
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          password: ${{ secrets.PYPI_TOKEN }}
+          # Idempotent re-runs: don't fail if a version is already uploaded.
+          skip-existing: true

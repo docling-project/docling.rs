@@ -306,6 +306,31 @@ Runnable Node + Bun examples are in
 [`crates/docling-node/README.md`](./crates/docling-node/README.md) for
 the full API.
 
+## Python bindings
+
+docling.rs also ships as a PyPI package, **`docling-rs`** — PyO3 bindings (built
+with [maturin](https://www.maturin.rs)) in
+[`crates/docling-py`](./crates/docling-py). It's a *strangler-fig* drop-in for
+docling's Python API: only the document processor is Rust, and
+`result.document` is a genuine `docling_core` `DoclingDocument`, so
+`export_to_markdown()`, `export_to_dict()`, `export_to_doctags()` and the
+chunkers are docling's own Python code.
+
+```python
+# was:  from docling.document_converter import DocumentConverter
+from docling_rs import DocumentConverter
+
+result = DocumentConverter().convert("report.docx")
+print(result.document.export_to_markdown())
+data = result.document.export_to_dict()   # docling JSON wire format (schema 1.10.0)
+```
+
+Declarative formats (Markdown, HTML, DOCX, XLSX, …) work with no models; the
+PDF/image pipeline downloads pdfium + the ONNX models on first use via
+`docling_rs.download_models()`. See
+[`crates/docling-py/README.md`](./crates/docling-py/README.md) for the full API
+and local build steps.
+
 ## Getting the ML models
 
 The PDF/image pipeline needs native assets that aren't bundled in the crate or

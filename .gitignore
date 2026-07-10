@@ -1,6 +1,9 @@
 /target
 Cargo.lock
 
+# Stray CLI conversion outputs (`docling-rs --to dclx <file>` writes next to CWD)
+/*.dclx
+
 # Secrets — never commit (holds CARGO_REGISTRY_TOKEN)
 .env
 .env.*

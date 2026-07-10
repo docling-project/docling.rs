@@ -1,5 +1,7 @@
-# NOT published to PyPI yet — the distribution name below is tentative and the
-# package is built/installed locally with maturin (see README.md).
+# PyPI distribution name: `docling-rs`. Released manually via the
+# `.github/workflows/pypi-publish.yml` workflow (workflow_dispatch), which builds
+# the abi3 wheels + sdist and uploads them; local builds use maturin (see
+# README.md).
 [build-system]
 requires = ["maturin>=1.5,<2"]
 build-backend = "maturin"
@@ -16,6 +18,12 @@ classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
+]
+# The document *model* and its serializers/chunkers are docling's own Python
+# code: the Rust engine only produces the JSON wire format, which this package
+# validates into a genuine `docling_core.types.doc.DoclingDocument`.
+dependencies = [
+    "docling-core>=2.0",
 ]
 
 [project.urls]
