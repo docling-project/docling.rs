@@ -161,7 +161,11 @@ on the one fixture with a groundtruth archive.
   xlsx/html/webvtt in the 80s (full table in §2). The format-by-format gaps are
   tracked as [issue #32](https://github.com/docling-project/docling.rs/issues/32) and its
   children (#38–#41, #44). This is an **output** format; a DocLang *input* backend is
-  still out of scope (§5).
+  still out of scope (§5). For **PDF**, where the reference `<location>` geometry
+  comes from docling's own layout run, the metric is scored with a ±2-grid-unit
+  geometry tolerance (text/structure still byte-exact): **51% exact · 62% at ±2**
+  (issue #32 target ≥50%); the remaining gap is model-level (TableFormer/layout/
+  reading order), not serialization — see [`PDF_CONFORMANCE.md`](./PDF_CONFORMANCE.md).
 
 - **JSON** rebuilds docling's full `body`-tree-of-`$ref`s model from the `Node`
   tree (texts/groups/tables/pictures, labels, list grouping, table grids,
