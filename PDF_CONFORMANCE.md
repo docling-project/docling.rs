@@ -216,4 +216,6 @@ Each is tracked as its own issue:
    (the whitespace-normalized metric credits it); reproducing docling's exact
    spacing needs an embedded-font metrics layer, which globally entangles with RTL
    box geometry (a trial that fixed one `¼` regressed `right_to_left_01`). See
-   `MIGRATION.md` §4.
+   `MIGRATION.md` §4. **Resolved as by-design:** our single space is the correct
+   rendering, so #63 is closed without matching docling's spurious extra space —
+   forcing a byte-match would degrade output and risk the RTL geometry.
