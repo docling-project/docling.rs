@@ -747,9 +747,7 @@ fn region_text(region: &Region, cells: &[TextCell]) -> String {
             );
             let before = joined.chars().nth_back(1); // char before the dash
             let next = t.chars().next();
-            let dehyph = dp
-                && ends_dash
-                && before.is_some_and(|c| c.is_alphabetic())
+            let alpha_dehyph = before.is_some_and(|c| c.is_alphabetic())
                 && next.is_some_and(|n| {
                     // Ordinary hyphenation (lowercase continuation), or a CamelCase
                     // compound name wrapped at the hyphen — a lowercase letter before
@@ -759,6 +757,13 @@ fn region_text(region: &Region, cells: &[TextCell]) -> String {
                     n.is_lowercase()
                         || (n.is_uppercase() && before.is_some_and(|b| b.is_lowercase()))
                 });
+            // A number range wrapped at its hyphen (`pp. 545-` + `561` → `545561`):
+            // docling drops the line-wrap hyphen between two digit runs. A same-line
+            // range (`1162-1167`) never reaches this continuation path, so it keeps
+            // its hyphen.
+            let num_dehyph = before.is_some_and(|c| c.is_ascii_digit())
+                && next.is_some_and(|n| n.is_ascii_digit());
+            let dehyph = dp && ends_dash && (alpha_dehyph || num_dehyph);
             if dehyph {
                 joined.pop();
             } else if dp || !same_band || gap > h * 0.25 {
