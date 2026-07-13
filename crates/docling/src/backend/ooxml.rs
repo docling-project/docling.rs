@@ -219,4 +219,3 @@ pub fn content_type(content_types_xml: &str, part: &str) -> Option<String> {
     }
     default
 }
-
