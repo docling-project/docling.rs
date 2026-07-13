@@ -493,19 +493,28 @@ fn md_escape(text: &str) -> String {
 }
 
 fn clean_text(text: &str) -> String {
-    // Korean (Hangul) bodies use single straight quotes where the font's double
-    // curly glyph maps; docling renders `“ ”` as `'` for these fonts (normal_4pages
-    // `‘코로나’`), not the Latin `"`. Key on Hangul syllables so Latin docs (2305's
-    // genuine `quotedbl` → `"`) are unaffected.
-    let hangul = text.chars().any(|c| ('\u{AC00}'..='\u{D7A3}').contains(&c));
-    let dquote = if hangul { "'" } else { "\"" };
+    // Typographic-quote normalization follows docling-parse's sanitizer table
+    // (`pdf_sanitators/constants.h`): every curly quote — single *and double* —
+    // becomes the ASCII apostrophe `'`, and `‚` a comma. A `"` in docling's
+    // output only ever comes from a literal `quotedbl` glyph, never from `“ ”`
+    // (2206's `'text in the wild"` pairs a curly open with a literal-quote
+    // close). This replaces an earlier Hangul-only special case that patched
+    // one symptom of mapping `“ ”` to `"`.
     let replaced = text
         .replace("\u{2} ", "")
         .replace("\u{ad} ", "")
         .replace(['\u{2}', '\u{ad}'], "") // any stray wrap hyphens not at a join
-        .replace(['\u{2018}', '\u{2019}'], "'") // ‘ ’ → '
-        .replace(['\u{201c}', '\u{201d}'], dquote) // “ ” → " (or ' for Hangul)
-        .replace(['\u{2013}', '\u{2014}', '\u{2212}'], "-") // – — − → -
+        .replace(
+            [
+                '\u{2018}', '\u{2019}', '\u{201b}', '\u{201c}', '\u{201d}', '\u{201e}', '\u{201f}',
+            ],
+            "'",
+        ) // ‘ ’ ‛ “ ” „ ‟ → '
+        .replace('\u{201a}', ",") // ‚ → ,
+        .replace(
+            ['\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}', '\u{2015}', '\u{2212}'],
+            "-",
+        ) // hyphen/dash family → -
         .replace('\u{2044}', "/") // ⁄ fraction slash → /
         .replace('\u{2022}', "\u{b7}") // • → · (docling never emits •; inline CCS-concept separators)
         .replace('\u{2026}', "..."); // … → ...
@@ -1768,10 +1777,11 @@ mod tests {
         assert_eq!(clean_text("end-to\u{2} end deep"), "end-toend deep");
         // A stray wrap hyphen (no following join) is dropped.
         assert_eq!(clean_text("word\u{2}"), "word");
-        // Typographic punctuation → ASCII.
+        // Typographic punctuation → ASCII: every curly quote becomes `'`
+        // (docling-parse's sanitizer table), a literal `"` stays.
         assert_eq!(
-            clean_text("Graph\u{2019}s \u{201c}x\u{201d}"),
-            "Graph's \"x\""
+            clean_text("Graph\u{2019}s \u{201c}x\u{201d} \"y\""),
+            "Graph's 'x' \"y\""
         );
         assert_eq!(clean_text("a\u{2026}"), "a...");
         // The dp default (the docling-parse sanitizer) preserves internal spacing
