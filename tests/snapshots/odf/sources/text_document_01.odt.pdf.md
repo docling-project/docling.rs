@@ -13,7 +13,7 @@ Contrary to popular belief, Lorem Ipsum is not simply random text. It has roots 
 - bullet list 2.2
 - bullet list 2.2.1
 - bullet list 2.3
-- numbered list 3 ·
+- numbered list 3
 - bullet list 3.0.1
 
 ## Heading level 2: B

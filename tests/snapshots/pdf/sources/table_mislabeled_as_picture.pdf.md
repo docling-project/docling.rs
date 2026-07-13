@@ -11,7 +11,7 @@
 - \_\_\_\_\_\_\_ at the national (federal) level
 - \_\_\_\_\_\_\_ at the regional (district) level
 - \_\_\_\_\_\_\_ at the local (municipal) level
--  ‐There is no such limitation
+-  -There is no such limitation
 
 24. If your country has an institutional legal aid provider (e.g. public defender), do the staff lawyers coordinate to uniformly challenge common violations of national and international due process rights and human rights?
 
@@ -53,7 +53,7 @@
 |  Don’t know                                                                                                                                                                                   |
 |  Other (Please specify) _____________________________________________________                                                                                                                 |
 
-- specialized legal aid services 28. Are provided focusing on specific disadvantaged population groups? If yes, please indicate to whom these services are provided, and whether they are provided by State-funded legal aid, civil society organizations, or both.
+28. Are specialized legal aid services provided focusing on specific disadvantaged population groups? If yes, please indicate to whom these services are provided, and whether they are provided by State-funded legal aid, civil society organizations, or both.
 
 (Please select all that apply)
 

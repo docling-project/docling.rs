@@ -56,7 +56,7 @@ Implement roles and separation of duties ibm.com /redbooks Redpaper
 
 DB2 for i Center of Excellence
 
-IBM Systems Lab Services and Training Solution Brief
+Solution Brief IBM Systems Lab Services and Training
 
 <!-- image -->
 
@@ -123,13 +123,13 @@ Chapter 1.
 
 ## Securing and protecting IBM DB2 data
 
-Recent news headlines are filled with reports of data breaches and cyber-attacks impacting 1  reports that almost 5000 global businesses of all sizes. The Identity Theft Resource Center data breaches have occurred since 2005, exposing over 600 million records of data. The 2 financial cost of these data breaches is skyrocketing. Studies from the Ponemon Institute revealed that the average cost of a data breach increased in 2013 by 15% globally and resulted in a brand equity loss of $9.4 million per attack. The average cost that is incurred for each lost record containing sensitive information increased more than 9% to $145 per record.
+Recent news headlines are filled with reports of data breaches and cyber-attacks impacting global businesses of all sizes. The Identity Theft Resource Center 1  reports that almost 5000 data breaches have occurred since 2005, exposing over 600 million records of data. The financial cost of these data breaches is skyrocketing. Studies from the Ponemon Institute 2 revealed that the average cost of a data breach increased in 2013 by 15% globally and resulted in a brand equity loss of $9.4 million per attack. The average cost that is incurred for each lost record containing sensitive information increased more than 9% to $145 per record.
 
 Businesses must make a serious effort to secure their data and recognize that securing information assets is a cost of doing business. In many parts of the world and in many industries, securing the data is required by law and subject to audits. Data security is no longer an option; it is a requirement.
 
 This chapter describes how you can secure and protect data in DB2 for i. The following topics are covered in this chapter:
 
-- Security fundamentals /SM590000
+- /SM590000 Security fundamentals
 - /SM590000 Current state of IBM i security
 - /SM590000 DB2 for i security controls
 
@@ -141,7 +141,7 @@ This chapter describes how you can secure and protect data in DB2 for i. The fol
 
 Before reviewing database security techniques, there are two fundamental steps in securing information assets that must be described:
 
-- First, and most important, is the definition of a company's security policy . Without a /SM590000 security policy, there is no definition of what are acceptable practices for using, accessing, and storing information by who, what, when, where, and how. A security policy should minimally address three things: confidentiality, integrity, and availability.
+- /SM590000 First, and most important, is the definition of a company's security policy . Without a security policy, there is no definition of what are acceptable practices for using, accessing, and storing information by who, what, when, where, and how. A security policy should minimally address three things: confidentiality, integrity, and availability.
 
 The monitoring and assessment of adherence to the security policy determines whether your security strategy is working. Often, IBM security consultants are asked to perform security assessments for companies without regard to the security policy. Although these assessments can be useful for observing how the system is defined and how data is being accessed, they cannot determine the level of security without a security policy. Without a security policy, it really is not an assessment as much as it is a baseline for monitoring the changes in the security settings that are captured.
 
