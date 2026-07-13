@@ -18,9 +18,17 @@ Usage:
 If no output path is given, Markdown is written to stdout.
 """
 
+import mimetypes
 import re
 import sys
 from pathlib import Path
+
+# Minimal containers ship no /etc/mime.types, so Python's mimetypes registry
+# doesn't know epub and docling's InputDocument rejects the file with a
+# validation error — which conformance.sh then silently masks by falling back
+# to the committed groundtruth. Register it explicitly so the live-docling
+# reference is always the one measured.
+mimetypes.add_type("application/epub+zip", ".epub")
 
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.document import InputDocument

@@ -1,0 +1,178 @@
+# Publish the `docling-rs` PyPI package (the PyO3 Python bindings in
+# crates/docling-py) for a chosen release. Like the npm package, the bindings are
+# a compiled native extension, so it can't be a one-line `twine upload`: a
+# self-contained sdist is built first (maturin vendors the path-dependency
+# crates), platform wheels are built from it on a matrix of runners (one abi3
+# wheel per OS/arch — `abi3-py39`, so a single wheel covers every Python ≥ 3.9),
+# and a publish job uploads the sdist + wheels to PyPI.
+#
+# Only allow-listed / GitHub-owned actions are used: the wheels are built with
+# `pypa/cibuildwheel` (which orchestrates the manylinux containers and auditwheel
+# repair itself) and uploaded with `pypa/gh-action-pypi-publish`.
+#
+# Trigger: manual only (workflow_dispatch), mirroring npm-publish.yml. By default
+# it builds the checked-out ref at the version already declared in
+# crates/docling-py/pyproject.toml; pass `version` (or a release `tag`) to
+# override. Run it from the Actions tab (or `gh workflow run pypi-publish.yml`,
+# optionally `-f version=0.16.0`).
+#
+# No secrets: publishing uses PyPI Trusted Publishing (OIDC), like
+# docling-core's pypi.yml. This requires a one-time setup on PyPI — add a trusted
+# publisher for the `docling-rs` project pointing at this repo, workflow file
+# (`pypi-publish.yml`) and environment (`pypi`). GitHub then mints a short-lived
+# OIDC token per run; there is no API token to store or rotate.
+#
+# The ONNX Runtime is statically bundled at build time (`ort` `download-binaries`)
+# and pdfium is loaded at runtime from the model cache, so the wheels are
+# self-contained for the declarative path and need no extra native setup here —
+# same story as the npm build.
+
+name: pypi publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build (e.g. v0.16.0). Blank = current ref."
+        required: false
+        default: ""
+      version:
+        description: "Override the PyPI version (e.g. 0.16.0). Blank = tag, or the version in pyproject.toml."
+        required: false
+        default: ""
+
+concurrency:
+  group: pypi-publish-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sdist:
+    name: sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      # Version override: patch [project].version in pyproject.toml before the
+      # sdist is built so every wheel (built from the sdist) inherits it. No
+      # override → keep the version already declared in the file.
+      - name: Resolve version
+        shell: bash
+        working-directory: crates/docling-py
+        run: |
+          v="${{ inputs.version }}"
+          if [ -z "$v" ] && [ -n "${{ inputs.tag }}" ]; then v="${{ inputs.tag }}"; v="${v#v}"; fi
+          if [ -n "$v" ]; then
+            sed -i.bak -E "0,/^version = \".*\"/s//version = \"$v\"/" pyproject.toml && rm -f pyproject.toml.bak
+            echo "Building docling-rs $v"
+          else
+            echo "Building docling-rs $(grep -m1 '^version = ' pyproject.toml | sed -E 's/.*"([^"]+)".*/\1/') (from pyproject.toml)"
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # A maturin sdist vendors docling-py's path-dependency crates (docling,
+      # docling-core, docling-pdf, docling-asr) into a self-contained tarball that
+      # builds from source with a plain `pip install` — the input cibuildwheel
+      # unpacks for the per-platform wheels.
+      - name: Build sdist
+        run: |
+          python -m pip install "maturin>=1.5,<2"
+          maturin sdist -m crates/docling-py/Cargo.toml --out dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  wheels:
+    name: wheel ${{ matrix.arch }}
+    needs: sdist
+    runs-on: ${{ matrix.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host: ubuntu-22.04
+            arch: x86_64
+          # Native ARM64 Linux runner — avoids QEMU / cross-compiling the ONNX build.
+          - host: ubuntu-24.04-arm
+            arch: aarch64
+          - host: windows-latest
+            arch: AMD64
+          # macOS wheels are omitted: GitHub-hosted macOS runners are blocked in
+          # this environment. macOS users install the sdist (builds from source).
+    steps:
+      - name: Download sdist
+        uses: actions/download-artifact@v4
+        with:
+          name: sdist
+          path: sdist
+
+      # Unpack the self-contained sdist to a fixed dir for cibuildwheel to build.
+      - name: Unpack sdist
+        shell: bash
+        run: |
+          mkdir pkg
+          tar -xzf sdist/*.tar.gz -C pkg --strip-components=1
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.21.3
+        with:
+          package-dir: pkg
+          output-dir: wheelhouse
+        env:
+          # abi3-py39 → build once (on cp39); the wheel covers every Python ≥ 3.9.
+          CIBW_BUILD: "cp39-*"
+          CIBW_ARCHS: ${{ matrix.arch }}
+          # `ort`'s `download-binaries` ships ONNX Runtime only for glibc targets,
+          # not musl — so build manylinux wheels only, never musllinux.
+          CIBW_SKIP: "*-musllinux*"
+          # Broad-compat Linux wheels; ONNX is statically linked so no repair pulls.
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
+          # The manylinux containers have no Rust — install the toolchain once per
+          # container and put cargo on PATH for the maturin build.
+          CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable"
+          CIBW_ENVIRONMENT_LINUX: 'PATH="$HOME/.cargo/bin:$PATH"'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.arch }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+
+  publish:
+    name: publish to PyPI
+    needs: [sdist, wheels]
+    runs-on: ubuntu-latest
+    # Trusted Publishing (OIDC): no token secret. `id-token: write` lets the job
+    # mint the OIDC token PyPI verifies against its trusted-publisher config; the
+    # `pypi` environment name is part of what PyPI matches on.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/docling-rs
+    permissions:
+      id-token: write
+    steps:
+      # All wheels + the sdist → a single dist/ for the upload.
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          attestations: true
+          # Idempotent re-runs: don't fail if a version is already uploaded.
+          skip-existing: true

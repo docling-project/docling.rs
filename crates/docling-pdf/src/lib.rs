@@ -15,9 +15,11 @@ pub mod layout;
 mod mets;
 mod ocr;
 pub mod pdfium_backend;
+mod reading_order;
 pub mod resample;
 pub mod tableformer;
 pub mod textparse;
+mod tf_match;
 pub mod timing;
 
 use std::collections::BTreeMap;
@@ -204,12 +206,22 @@ impl Worker {
                 .predict(&page.image, page.width, page.height)
         })
         .map_err(|e| PdfError::Layout(format!("page {}: {e}", n + 1)))?;
+        // docling's LayoutPostprocessor drops each detection below its label's
+        // confidence threshold (stricter than the 0.3 base the predictor keeps),
+        // before any overlap resolution. This removes the low-confidence tables /
+        // pictures / list-items that otherwise double-emit or mis-classify.
+        let mut regions = regions;
+        regions.retain(|r| r.score >= layout::label_threshold(r.label));
         // Resolve overlapping detections once, before OCR.
         let mut regions = assemble::resolve(regions);
         // Emit text the detector missed as orphan text regions (docling parity).
         assemble::add_orphan_regions(&mut regions, &page.cells);
         // Drop phantom empty low-confidence picture boxes (docling parity).
         assemble::drop_false_pictures(&mut regions, &page.cells, page.width, page.height);
+        // A regular region fully inside a surviving table/index/picture is that
+        // special's child (a cell / in-figure label), not a separate block —
+        // remove it so it isn't emitted twice (docling parity).
+        assemble::drop_contained_regulars(&mut regions);
         // No text layer → recognise text from the page image via OCR.
         if page.cells.is_empty() {
             if self.ocr.is_none() {
@@ -229,7 +241,7 @@ impl Worker {
         // has a table, so table-free documents never pay for TableFormer at all.
         let mut table_rows: Vec<Option<Vec<Vec<String>>>> = vec![None; regions.len()];
         if let Some(slot) = self.tables.as_ref() {
-            if regions.iter().any(|r| r.label == "table") {
+            if regions.iter().any(|r| assemble::is_table_like(r.label)) {
                 timing::timed("tableformer", || {
                     let mut guard = slot.lock().unwrap();
                     if matches!(*guard, TfSlot::Unloaded) {
@@ -242,10 +254,9 @@ impl Worker {
                     }
                     if let TfSlot::Ready(tf) = &mut *guard {
                         for (i, r) in regions.iter().enumerate() {
-                            if r.label == "table" {
+                            if assemble::is_table_like(r.label) {
                                 table_rows[i] = tf.predict_table_rows(
                                     &page.image,
-                                    page.height,
                                     [r.l, r.t, r.r, r.b],
                                     &page.word_cells,
                                 );
@@ -379,6 +390,16 @@ impl Pipeline {
         } else {
             Some(Arc::clone(&self.tables))
         }
+    }
+
+    /// Eagerly load the models (the full-intra serial worker: layout + OCR, and
+    /// the shared TableFormer unless disabled) so the first conversion doesn't pay
+    /// the load cost. Idempotent; respects `no_ocr` / `no_table_former` (with
+    /// `no_ocr` there is nothing to load). The docling.rs analogue of docling's
+    /// `DocumentConverter.initialize_pipeline`.
+    pub fn warm_up(&mut self) -> Result<(), PdfError> {
+        self.primary()?;
+        Ok(())
     }
 
     /// The full-intra serial worker, loaded on first use.

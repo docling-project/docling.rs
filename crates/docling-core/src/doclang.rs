@@ -529,10 +529,32 @@ static IDENTITY_LABELS: &[&str] = &[
 /// forces the block form (matching docling); the code text follows as a text
 /// child (CDATA/plain glued to the closing tag, `<content>`-wrapped text on its
 /// own line). Without a language, single-fragment text renders inline.
-fn emit_code(out: &mut Out, depth: i32, language: Option<&str>, text: &str) {
+fn emit_code(
+    out: &mut Out,
+    depth: i32,
+    language: Option<&str>,
+    text: &str,
+    location: Option<&[u16; 4]>,
+) {
     let label = language.and_then(code_lang_label);
     let escaped = escape_text(text);
     let is_content_element = escaped.starts_with("<content>");
+    // Layout provenance forces the block form: `<location>` tokens follow the
+    // opening `<code>`, before the (optional) label and the code body.
+    if let Some(loc) = location {
+        out.push(depth, "<code>".to_string());
+        push_location(out, depth + 1, loc);
+        if let Some(l) = label {
+            out.push(depth + 1, format!("<label value=\"{}\"/>", attr_escape(l)));
+        }
+        if is_content_element {
+            out.push(depth + 1, escaped);
+        } else {
+            out.push_glue(escaped);
+        }
+        out.push(depth, "</code>".to_string());
+        return;
+    }
     match (label, is_content_element) {
         (None, false) => out.push(depth, format!("<code>{escaped}</code>")),
         (None, true) => {
@@ -716,7 +738,26 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
                 *i += 1;
             }
             Node::Code { language, text } => {
-                emit_code(out, depth, language.as_deref(), text);
+                emit_code(out, depth, language.as_deref(), text, None);
+                *i += 1;
+            }
+            Node::PageFurniture {
+                footer,
+                location,
+                text,
+            } => {
+                let tag = if *footer {
+                    "page_footer"
+                } else {
+                    "page_header"
+                };
+                out.push(depth, format!("<{tag}>"));
+                out.push(depth + 1, "<layer value=\"furniture\"/>".to_string());
+                push_location(out, depth + 1, location);
+                if !text.is_empty() {
+                    out.push(depth + 1, escape_text(text));
+                }
+                out.push(depth, format!("</{tag}>"));
                 *i += 1;
             }
             Node::Table(t) => {
@@ -1289,7 +1330,12 @@ fn emit_located(out: &mut Out, depth: i32, location: &[u16; 4], inner: &Node) {
             t.location = Some(*location);
             emit_table(out, depth, &t);
         }
+        Node::Code { language, text } => {
+            emit_code(out, depth, language.as_deref(), text, Some(location));
+        }
         // Other node kinds carry no location today — render them as-is.
+        // (Located list items are routed to emit_list by emit_nodes so they
+        // still group into one `<list>`.)
         other => {
             let mut i = 0usize;
             emit_nodes(out, depth, std::slice::from_ref(other), &mut i, 0);

@@ -10,14 +10,33 @@
 # Prints per-fixture EXACT / diff-line counts and a summary split into the
 # issue #32 targets: >=90% similarity for non-PDF formats, >=50% for PDF.
 # "Similarity" per fixture = 100 * (1 - difflines / max(lines_ref, lines_ours)).
+#
+# PDF geometry tolerance (DCLX_TOL, default 2 grid units): on the PDF path the
+# reference `<location>` provenance (l,t,r,b on docling's 0-500 normalized page
+# grid) comes from docling's layout clusters while ours come from our own layout
+# post-processing, so the same region is boxed a few grid units apart.
+# dclx_diff.py counts a location pair as matching when the two values are within
+# DCLX_TOL; text, structure, and every non-geometry line stay byte-exact, and
+# unmatched lines always count. The tolerance is applied ONLY to PDF fixtures --
+# formats whose geometry is read from the same source file (OOXML slides/sheets)
+# are still compared exactly (tol=0).
 set -uo pipefail
 cd "$(dirname "$0")/../.."
+TOL="${DCLX_TOL:-2}"
+DIFF="$(dirname "$0")/dclx_diff.py"
 
 BIN="$(pwd)/target/release/docling-rs"
 [ -x "$BIN" ] || { echo "build first: cargo build --release -p docling-cli" >&2; exit 1; }
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+
+# The binary resolves models/.pdfium relative to its CWD (then next to the exe);
+# we run it inside $tmp so the .dclx lands there, so make the assets reachable
+# from $tmp. Harmless for declarative formats that load no models.
+export PDFIUM_DYNAMIC_LIB_PATH="$(pwd)/.pdfium/lib"
+[ -d models ]  && ln -sfn "$(pwd)/models"  "$tmp/models"
+[ -d .pdfium ] && ln -sfn "$(pwd)/.pdfium" "$tmp/.pdfium"
 
 declare -a fmts=()
 if [ $# -gt 0 ]; then fmts=("$@"); else
@@ -49,7 +68,8 @@ for fmt in "${fmts[@]}"; do
       # only a genuine structural difference (missing/extra <src>) then shows up.
       sed -E -i 's#image_[0-9]{6}_[0-9a-f]+\.png#image_NORM.png#g' \
         "$tmp/ref.xml" "$tmp/ours.xml"
-      d=$(diff "$tmp/ref.xml" "$tmp/ours.xml" | grep -c '^[<>]')
+      ftol=0; [ "$is_pdf" -eq 1 ] && ftol="$TOL"   # geometry tolerance: PDF only
+      d=$(python3 "$DIFF" "$tmp/ref.xml" "$tmp/ours.xml" --tol "$ftol")
       lr=$(wc -l < "$tmp/ref.xml"); lo=$(wc -l < "$tmp/ours.xml")
       max=$(( lr > lo ? lr : lo )); [ "$max" -eq 0 ] && max=1
       sim=$(( 100 * (max*2 - d) / (max*2) ))   # d counts both sides
@@ -66,5 +86,5 @@ for fmt in "${fmts[@]}"; do
   done
 done
 echo "----"
-[ "$other_n" -gt 0 ] && echo "non-PDF avg similarity: $((other_sum/other_n))%  (target 90%) over $other_n fixtures"
-[ "$pdf_n" -gt 0 ] && echo "PDF avg similarity:     $((pdf_sum/pdf_n))%  (target 50%) over $pdf_n fixtures"
+[ "$other_n" -gt 0 ] && echo "non-PDF avg similarity: $((other_sum/other_n))%  (target 90%, exact geometry) over $other_n fixtures"
+[ "$pdf_n" -gt 0 ] && echo "PDF avg similarity:     $((pdf_sum/pdf_n))%  (target 50%, +/-${TOL} grid-unit geometry tolerance) over $pdf_n fixtures"

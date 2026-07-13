@@ -182,14 +182,14 @@ case — see the divergence table below.
 | **PPTX** | **7 / 7** ✅ | 7 / 7 |
 | **DOCX** | **25 / 26** | 25 / 26 |
 | **HTML** | **31 / 32** ‡ | 31 / 32 |
-| **PDF** | **6 / 14** † | 7 / 14 |
+| **PDF** | **6 / 16** † | 7 / 16 |
 
 > † The pure-parse backends above are scored against **live** docling. **PDF** is a
 > discriminative ML reconstruction pipeline (not a deterministic parse), so it is
 > scored against a committed groundtruth corpus (`tests/data/pdf/groundtruth`) that
 > is **regenerated from live docling** and therefore matches `scripts/conformance/conformance.sh
 > pdf` (padded GitHub tables, current docling text). The PDF score is reported two
-> ways: **6 / 14 strict** byte-for-byte, and **7 / 14 whitespace-normalized** — the
+> ways: **6 / 16 strict** byte-for-byte, and **7 / 16 whitespace-normalized** — the
 > 7th (`amt_handbook_sample`) differs only by docling's spurious double space in a
 > `1⁄4` fraction, where the Rust output's single space is the more faithful
 > rendering.

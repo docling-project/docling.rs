@@ -25,6 +25,29 @@ if [[ -z "$new" ]]; then
 fi
 [[ -n "${FORCE_VERSION:-}" ]] && echo ">> forced release of v$new"
 
+# A release-worthy *message* is not enough: only cut a new crates.io version when
+# a *publishable* crate's actual source changed since the last tag. This stops a
+# docs / CI / Python-binding-only change (e.g. `feat(docs): …`, `feat(docling-py): …`)
+# from minting and publishing a new version of every crate with no code change.
+# FORCE_VERSION bypasses the gate (a deliberate manual (re)publish).
+if [[ -z "${FORCE_VERSION:-}" ]]; then
+  gate_prev_tag="$(git tag --list 'v*' --sort=-version:refname | head -n1)"
+  gate_range="${gate_prev_tag:+$gate_prev_tag..}HEAD"
+  # Publishable crates — MUST match scripts/ci/ci_publish.sh. A release fires only
+  # if one of these crates' Rust source or manifest changed (root Cargo.toml too,
+  # for workspace-wide dependency/config changes).
+  gate_crates=(docling-core docling-pdf docling-asr docling docling-cli)
+  gate_paths=(Cargo.toml)
+  for c in "${gate_crates[@]}"; do
+    gate_paths+=("crates/$c/src" "crates/$c/Cargo.toml" "crates/$c/build.rs")
+  done
+  if [[ -z "$(git diff --name-only "$gate_range" -- "${gate_paths[@]}")" ]]; then
+    echo "Release-worthy commit found, but no publishable crate source changed" \
+      "since ${gate_prev_tag:-the start of history} — skipping release."
+    exit 0
+  fi
+fi
+
 current="$(grep -m1 '^version = ' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
 echo ">> releasing v$new (was v$current)"
 

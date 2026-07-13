@@ -1,28 +1,62 @@
-<!-- image -->
-
 Front cover
+
+<!-- image -->
 
 ## Row and Column Access Control Support in IBM DB2 for i
 
-Implement roles and separation of duties
+Implement roles and separation of duties ibm.com /redbooks Redpaper
 
 <!-- image -->
-
-Leverage row permissions on the database
-
-Protect columns by defining column masks ibm.com /redbooks
-
-Jim Bainbridge Hernando Bedoya Rob Bestgen Mike Cain Dan Cruikshank Jim Denton Doug Mack Tom McKinley Kent Milligan
-
-Redpaper
 
 ## Contents
 
+| Notices                                                                                                                                                             | . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vii   |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| Trademarks . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                | viii                                                                                                                                    |
+| DB2 for i Center of Excellence                                                                                                                                      | . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ix                                          |
+| Preface                                                                                                                                                             | . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . xi    |
+| Authors. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . xi                       |                                                                                                                                         |
+| Now you can become a published author, too! . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                                     | xiii                                                                                                                                    |
+| Comments welcome. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                       | xiii                                                                                                                                    |
+| Stay connected to IBM Redbooks . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                              | xiv                                                                                                                                     |
+| Chapter 1.  Securing and protecting IBM DB2 data                                                                                                                    | . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1                                                                             |
+| 1.1  Security fundamentals. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                     | 2                                                                                                                                       |
+| 1.2  Current state of IBM i security. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                       | 2                                                                                                                                       |
+| 1.3  DB2 for i security controls                                                                                                                                    | . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3                                       |
+| 1.3.1  Existing row and column control . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                                | 4                                                                                                                                       |
+| 1.3.2  New controls: Row and Column Access Control. . . . . . . . . . . . . . . . . . . . . . . . . . .                                                             | 5                                                                                                                                       |
+| Chapter 2.  Roles and separation of duties . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                                  | 7                                                                                                                                       |
+| 2.1  Roles                                                                                                                                                          | . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8       |
+| 2.1.1  DDM and DRDA application server access: QIBM_DB_DDMDRDA . . . . . . . . . . .                                                                                | 8                                                                                                                                       |
+| 2.1.2  Toolbox application server access: QIBM_DB_ZDA. . . . . . . . . . . . . . . . . . . . . . . .                                                                | 8                                                                                                                                       |
+| 2.1.3  Database Administrator function: QIBM_DB_SQLADM . . . . . . . . . . . . . . . . . . . . .                                                                    | 9                                                                                                                                       |
+| 2.1.4  Database Information function: QIBM_DB_SYSMON                                                                                                                | . . . . . . . . . . . . . . . . . . . . . . 9                                                                                           |
+| 2.1.5  Security Administrator function: QIBM_DB_SECADM . . . . . . . . . . . . . . . . . . . . . .                                                                  | 9                                                                                                                                       |
+| 2.1.6  Change Function Usage CL command. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                                            | 10                                                                                                                                      |
+| 2.1.7  Verifying function usage IDs for RCAC with the FUNCTION_USAGE view                                                                                           | . . . . . 10                                                                                                                            |
+| 2.2  Separation of duties                                                                                                                                           | . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10                                |
+| Chapter 3.  Row and Column Access Control                                                                                                                           | . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13                                                                    |
+| 3.1  Explanation of RCAC and the concept of access control . . . . . . . . . . . . . . . . . . . . . . .                                                            | 14                                                                                                                                      |
+| 3.1.1  Row permission and column mask definitions 3.1.2  Enabling and activating RCAC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | . . . . . . . . . . . . . . . . . . . . . . . . . . . 14                                                                                |
+| 3.2  Special registers and built-in global variables . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                                | 16 18                                                                                                                                   |
+| 3.2.1  Special registers                                                                                                                                            | . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18                                  |
+| 3.2.2  Built-in global variables . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                          | 19                                                                                                                                      |
+| 3.3  VERIFY_GROUP_FOR_USER function. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                                          | 20                                                                                                                                      |
+| 3.4  Establishing and controlling accessibility by using the RCAC rule text. . . . . . . . . . . . .                                                                | 21                                                                                                                                      |
+| 3.5  SELECT, INSERT, and UPDATE behavior with RCAC . . . . . . . . . . . . . . . . . . . . . . . .                                                                  | 22                                                                                                                                      |
+| . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                                                         | 22                                                                                                                                      |
+| 3.6  Human resources example 3.6.1  Assigning the QIBM_DB_SECADM function ID to the consultants. . . . . . . . . . . .                                              | 23                                                                                                                                      |
+| 3.6.2  Creating group profiles for the users and their roles. . . . . . . . . . . . . . . . . . . . . . .                                                           | 23                                                                                                                                      |
+| 3.6.3  Demonstrating data access without RCAC. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                                            | 24                                                                                                                                      |
+| 3.6.4  Defining and creating row permissions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                                      | 25                                                                                                                                      |
+|                                                                                                                                                                     | . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26                                                                  |
+| 3.6.5  Defining and creating column masks                                                                                                                           | 28                                                                                                                                      |
+| 3.6.6  Activating RCAC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .                                          | 3.6.7  Demonstrating data access with RCAC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 29                           |
+| 3.6.8  Demonstrating data access with a view and RCAC . . . . . . . . . . . . . . . . . . . . . . .                                                                 | 32                                                                                                                                      |
+
 DB2 for i Center of Excellence
 
-<!-- image -->
-
-IBM Systems Lab Services and Training Solution Brief
+Solution Brief IBM Systems Lab Services and Training
 
 <!-- image -->
 
@@ -69,33 +103,33 @@ This IBM® Redpaper publication provides information about the IBM i 7.2 feature
 
 This paper is intended for database engineers, data-centric application developers, and security officers who want to design and implement RCAC as a part of their data control and governance policy. A solid background in IBM i object level security, DB2 for i relational database concepts, and SQL is assumed.
 
-## Authors
-
 This paper was produced by the IBM DB2 for i Center of Excellence team in partnership with the International Technical Support Organization (ITSO), Rochester, Minnesota US.
+
+<!-- image -->
 
 <!-- image -->
 
 Jim Bainbridge is a senior DB2 consultant on the DB2 for i Center of Excellence team in the IBM Lab Services and Training organization. His primary role is training and implementation services for IBM DB2 Web Query for i and business analytics. Jim began his career with IBM 30 years ago in the IBM Rochester Development Lab, where he developed cooperative processing products that paired IBM PCs with IBM S/36 and AS/.400 systems. In the years since, Jim has held numerous technical roles, including independent software vendors technical support on a broad range of IBM technologies and products, and supporting customers in the IBM Executive Briefing Center and IBM Project Office.
 
-<!-- image -->
-
 Hernando Bedoya is a Senior IT Specialist at STG Lab Services and Training in Rochester, Minnesota. He writes extensively and teaches IBM classes worldwide in all areas of DB2 for i. Before joining STG Lab Services, he worked in the ITSO for nine years writing multiple IBM Redbooks® publications. He also worked for IBM Colombia as an IBM AS/400® IT Specialist doing presales support for the Andean countries. He has 28 years of experience in the computing field and has taught database classes in Colombian universities. He holds a Master's degree in Computer Science from EAFIT, Colombia. His areas of expertise are database technology, performance, and data warehousing. Hernando can be contacted at hbedoya@us.ibm.com .
 
+## Authors
+
 <!-- image -->
+
+Chapter 1.
 
 ## 1
 
 ## Securing and protecting IBM DB2 data
 
-Chapter 1.
-
-Recent news headlines are filled with reports of data breaches and cyber-attacks impacting 1  reports that almost 5000 global businesses of all sizes. The Identity Theft Resource Center data breaches have occurred since 2005, exposing over 600 million records of data. The 2 financial cost of these data breaches is skyrocketing. Studies from the Ponemon Institute revealed that the average cost of a data breach increased in 2013 by 15% globally and resulted in a brand equity loss of $9.4 million per attack. The average cost that is incurred for each lost record containing sensitive information increased more than 9% to $145 per record.
+Recent news headlines are filled with reports of data breaches and cyber-attacks impacting global businesses of all sizes. The Identity Theft Resource Center 1  reports that almost 5000 data breaches have occurred since 2005, exposing over 600 million records of data. The financial cost of these data breaches is skyrocketing. Studies from the Ponemon Institute 2 revealed that the average cost of a data breach increased in 2013 by 15% globally and resulted in a brand equity loss of $9.4 million per attack. The average cost that is incurred for each lost record containing sensitive information increased more than 9% to $145 per record.
 
 Businesses must make a serious effort to secure their data and recognize that securing information assets is a cost of doing business. In many parts of the world and in many industries, securing the data is required by law and subject to audits. Data security is no longer an option; it is a requirement.
 
 This chapter describes how you can secure and protect data in DB2 for i. The following topics are covered in this chapter:
 
-- Security fundamentals /SM590000
+- /SM590000 Security fundamentals
 - /SM590000 Current state of IBM i security
 - /SM590000 DB2 for i security controls
 
@@ -107,7 +141,7 @@ This chapter describes how you can secure and protect data in DB2 for i. The fol
 
 Before reviewing database security techniques, there are two fundamental steps in securing information assets that must be described:
 
-- First, and most important, is the definition of a company's security policy . Without a /SM590000 security policy, there is no definition of what are acceptable practices for using, accessing, and storing information by who, what, when, where, and how. A security policy should minimally address three things: confidentiality, integrity, and availability.
+- /SM590000 First, and most important, is the definition of a company's security policy . Without a security policy, there is no definition of what are acceptable practices for using, accessing, and storing information by who, what, when, where, and how. A security policy should minimally address three things: confidentiality, integrity, and availability.
 
 The monitoring and assessment of adherence to the security policy determines whether your security strategy is working. Often, IBM security consultants are asked to perform security assessments for companies without regard to the security policy. Although these assessments can be useful for observing how the system is defined and how data is being accessed, they cannot determine the level of security without a security policy. Without a security policy, it really is not an assessment as much as it is a baseline for monitoring the changes in the security settings that are captured.
 
@@ -168,10 +202,9 @@ To discover who has authorization to define and manage RCAC, you can use the que
 
 Example 2-1   Query to determine who has authority to define and manage RCAC
 
-|    | SELECT     function_id, user_name, usage, user_type                                     |
-|----|-----------------------------------------------------------------------------------------|
-|    | FROM       function_usage WHERE      function_id=’QIBM_DB_SECADM’ ORDER BY   user_name; |
-|    |                                                                                         |
+| SELECT     function_id, user_name, usage, user_type                                     |
+|-----------------------------------------------------------------------------------------|
+| FROM       function_usage WHERE      function_id=’QIBM_DB_SECADM’ ORDER BY   user_name; |
 
 ## 2.2  Separation of duties
 
@@ -191,20 +224,20 @@ Table 2-2 shows a comparison of the different function usage IDs and *JOBCTL aut
 
 Table 2-2    Comparison of the different function usage IDs and *JOBCTL authority
 
-| User action                                                                 |    |    |    |    |    |
-|-----------------------------------------------------------------------------|----|----|----|----|----|
-| SET CURRENT DEGREE (SQL statement)                                          | X  |    | X  |    |    |
-| CHGQRYA command targeting a different user's job                            | X  |    | X  |    |    |
-| STRDBMON or ENDDBMON commands targeting a different user's job              | X  |    | X  |    |    |
-| STRDBMON or ENDDBMON commands targeting a job that matches the current user | X  |    | X  | X  | X  |
-| QUSRJOBI() API format 900 or System i Navigator's SQL Details for Job       | X  |    | X  | X  |    |
-| Visual Explain within Run SQL scripts                                       | X  |    | X  | X  | X  |
-| Visual Explain outside of Run SQL scripts                                   | X  |    | X  |    |    |
-| ANALYZE PLAN CACHE procedure                                                | X  |    | X  |    |    |
-| DUMP PLAN CACHE procedure                                                   | X  |    | X  |    |    |
-| MODIFY PLAN CACHE procedure                                                 | X  |    | X  |    |    |
-| MODIFY PLAN CACHE PROPERTIES procedure (currently does not check authority) | X  |    | X  |    |    |
-| CHANGE PLAN CACHE SIZE procedure (currently does not check authority)       | X  |    | X  |    |    |
+| User action                                                                 |    |    |    |    |
+|-----------------------------------------------------------------------------|----|----|----|----|
+| SET CURRENT DEGREE (SQL statement)                                          | X  | X  |    |    |
+| CHGQRYA command targeting a different user's job                            | X  | X  |    |    |
+| STRDBMON or ENDDBMON commands targeting a different user's job              | X  | X  |    |    |
+| STRDBMON or ENDDBMON commands targeting a job that matches the current user | X  | X  | X  | X  |
+| QUSRJOBI() API format 900 or System i Navigator's SQL Details for Job       | X  | X  | X  |    |
+| Visual Explain within Run SQL scripts                                       | X  | X  | X  | X  |
+| Visual Explain outside of Run SQL scripts                                   | X  | X  |    |    |
+| ANALYZE PLAN CACHE procedure                                                | X  | X  |    |    |
+| DUMP PLAN CACHE procedure                                                   | X  | X  |    |    |
+| MODIFY PLAN CACHE procedure                                                 | X  | X  |    |    |
+| MODIFY PLAN CACHE PROPERTIES procedure (currently does not check authority) | X  | X  |    |    |
+| CHANGE PLAN CACHE SIZE procedure (currently does not check authority)       | X  | X  |    |    |
 
 The SQL CREATE PERMISSION statement that is shown in Figure 3-1 is used to define and initially enable or disable the row access rules.
 
@@ -275,8 +308,6 @@ Here is an example of using the VERIFY\_GROUP\_FOR\_USER function:
 VERIFY\_GROUP\_FOR\_USER (CURRENT\_USER, 'MGR') VERIFY\_GROUP\_FOR\_USER (CURRENT\_USER, 'JANE', 'MGR') VERIFY\_GROUP\_FOR\_USER (CURRENT\_USER, 'JANE', 'MGR', 'STEVE')
 
 The following function invocation returns a value of 0:
-
-The following function invocation returns a value of 0: VERIFY\_GROUP\_FOR\_USER (CURRENT\_USER, 'JUDY', 'TONY')
 
 VERIFY\_GROUP\_FOR\_USER (CURRENT\_USER, 'JUDY', 'TONY')
 
@@ -363,21 +394,19 @@ Figure 4-69   Index advice with no RCAC
 WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1 THEN C. CUSTOMER_LOGIN_ID WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1 THEN C. CUSTOMER_LOGIN_ID ELSE '*****' END ENABLE; CREATE MASK BANK_SCHEMA.MASK_SECURITY_QUESTION_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS C WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1 THEN C. CUSTOMER_SECURITY_QUESTION WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1 THEN C. CUSTOMER_SECURITY_QUESTION ELSE '*****' END ENABLE; CREATE MASK BANK_SCHEMA.MASK_SECURITY_QUESTION_ANSWER_ON_CUSTOMERS ON BANK_SCHEMA.CUSTOMERS AS C WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'ADMIN') = 1 THEN C. CUSTOMER_SECURITY_QUESTION_ANSWER WHEN QSYS2. VERIFY_GROUP_FOR_USER( SESSION_USER, 'CUSTOMER') = 1 THEN C. CUSTOMER_SECURITY_QUESTION_ANSWER ELSE '*****' END ENABLE; ALTER TABLE BANK_SCHEMA.CUSTOMERS FOR COLUMN CUSTOMER_SECURITY_QUESTION RETURN CASE FOR COLUMN CUSTOMER_SECURITY_QUESTION_ANSWER RETURN CASE ACTIVATE ROW ACCESS CONTROL ACTIVATE COLUMN ACCESS CONTROL;
 ```
 
-<!-- image -->
-
 Back cover
 
 ## Row and Column Access Control Support in IBM DB2 for i
 
 Implement roles and separation of duties
 
-This IBM Redpaper publication provides information about the IBM i 7.2 feature of IBM DB2 for i Row and Column Access Control (RCAC). It offers a broad description of the function and advantages of controlling access to data in a comprehensive and transparent way. This publication helps you understand the capabilities of RCAC and provides examples of defining, creating, and implementing the row permissions and column masks in a relational database environment.
-
 Leverage row permissions on the database
+
+Protect columns by defining column masks This IBM Redpaper publication provides information about the IBM i 7.2 feature of IBM DB2 for i Row and Column Access Control (RCAC). It offers a broad description of the function and advantages of controlling access to data in a comprehensive and transparent way. This publication helps you understand the capabilities of RCAC and provides examples of defining, creating, and implementing the row permissions and column masks in a relational database environment.
 
 This paper is intended for database engineers, data-centric application developers, and security officers who want to design and implement RCAC as a part of their data control and governance policy. A solid background in IBM i object level security, DB2 for i relational database concepts, and SQL is assumed.
 
-Protect columns by defining column masks
+<!-- image -->
 
 <!-- image -->
 

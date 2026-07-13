@@ -145,6 +145,15 @@ pub enum Node {
         location: [u16; 4],
         inner: Box<Node>,
     },
+    /// A PDF page header or footer (docling's `page_header`/`page_footer`
+    /// furniture): DocLang emits `<page_header>`/`<page_footer>` with a
+    /// `<layer value="furniture"/>` head, the four `<location>` tokens, then the
+    /// text. Markdown and JSON omit it like other furniture.
+    PageFurniture {
+        footer: bool,
+        location: [u16; 4],
+        text: String,
+    },
     /// A page boundary — docling's implicit page break between pages. The PPTX
     /// backend emits one between consecutive slides. DocLang renders it as
     /// `<page_break/>`; Markdown and JSON omit it (matching docling's default

@@ -41,6 +41,11 @@ ensure_docling() {
   uv pip install --quiet --python "$PYBIN" "$DOCLING_PKG" >&2
   # The msword backend imports these unconditionally (image rendering + OMML→LaTeX).
   uv pip install --quiet --python "$PYBIN" pypdfium2 pylatexenc >&2
+  # The OpenDocument backend needs odfdo; the `docling` meta package does not
+  # forward docling-slim's `format-opendocument` extra, so install it directly —
+  # without it the ODF conversions raise ImportError and conformance.sh silently
+  # falls back to the committed groundtruth instead of measuring live docling.
+  uv pip install --quiet --python "$PYBIN" "docling-slim[format-opendocument]" >&2
   if ! "$PYBIN" -c "import docling.backend.html_backend" >/dev/null 2>&1; then
     echo "error: docling still not importable after install" >&2
     return 1

@@ -43,9 +43,33 @@ pub struct Region {
     pub b: f32,
 }
 
-/// Confidence threshold (docling-ibm-models `base_threshold`).
+/// Base confidence threshold (docling-ibm-models `base_threshold`): the raw
+/// RT-DETR floor before docling's `LayoutPostprocessor` applies its stricter
+/// per-label thresholds ([`label_threshold`]).
 const THRESHOLD: f32 = 0.3;
 const SIDE: u32 = 640;
+
+/// Per-label confidence threshold, ported from docling's
+/// `LayoutPostprocessor.CONFIDENCE_THRESHOLDS`. The raw predictor keeps every
+/// detection above the 0.3 base; the postprocessor then drops a cluster whose
+/// score is below its label's threshold. Applying it here (equivalent, since
+/// every per-label threshold is ≥ the 0.3 base) keeps low-confidence pictures /
+/// tables / list-items out of the assembly, matching docling.
+pub fn label_threshold(label: &str) -> f32 {
+    match label {
+        "section_header"
+        | "title"
+        | "code"
+        | "checkbox_selected"
+        | "checkbox_unselected"
+        | "form"
+        | "key_value_region"
+        | "document_index" => 0.45,
+        // caption, footnote, formula, list_item, page_footer, page_header,
+        // picture, table, text — all 0.5 in docling.
+        _ => 0.5,
+    }
+}
 
 pub struct LayoutModel {
     session: Session,
