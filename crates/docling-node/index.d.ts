@@ -37,15 +37,40 @@ export declare class DocumentConverter {
   convertFileStreaming(path: string, callback: StreamCallback, options?: OutputOptions | null): void
 }
 
+/** Output options for {@link Pipeline.streamFileMarkdown} (streamable modes only). */
+export interface PipelineStreamOptions {
+  imageMode?: 'placeholder' | 'embedded'
+  artifactsDir?: string
+}
+
 /**
  * A reusable PDF/image pipeline that keeps the ONNX models loaded across calls.
  * Use instead of the per-call functions when converting many PDFs/images — the
  * one-shot path reloads every model each call. Handles `pdf` and `image` inputs.
+ *
+ * The `*Async` variants run the conversion off the event loop; overlapping
+ * calls on one instance queue (the models are mutable sessions), so batch
+ * throughput comes from keeping the models warm, not from parallel calls.
  */
 export declare class Pipeline {
   constructor(options?: ConverterOptions | null)
   convertFile(path: string, options?: OutputOptions | null): ConvertResult
   convert(input: ConvertInput, options?: OutputOptions | null): ConvertResult
+  /** Async (Promise) file conversion on the warm pipeline, off the event loop. */
+  convertFileAsync(path: string, options?: OutputOptions | null): Promise<ConvertResult>
+  /** Async (Promise) bytes conversion on the warm pipeline, off the event loop. */
+  convertAsync(input: ConvertInput, options?: OutputOptions | null): Promise<ConvertResult>
+  /** Callback-form streaming (prefer {@link Pipeline.streamFileMarkdown}). */
+  convertFileStreaming(path: string, callback: StreamCallback, options?: OutputOptions | null): void
+  /**
+   * Stream a PDF's Markdown in chunks through the warm pipeline, in document
+   * order, as pages finish converting (an image arrives as a single chunk).
+   * Concatenating the chunks reproduces the buffered Markdown byte-for-byte.
+   */
+  streamFileMarkdown(
+    filePath: string,
+    options?: PipelineStreamOptions,
+  ): AsyncGenerator<string, void, unknown>
 }
 
 // --- dependency provisioning (PDF/image ML pipeline) -----------------------

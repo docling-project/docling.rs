@@ -5,7 +5,8 @@
 //   1. dependency guards — converting a PDF/image/METS input throws a clear
 //      error unless the ML models + pdfium are on disk (see
 //      scripts/download_dependencies.sh);
-//   2. a `streamFileMarkdown` async generator over Markdown chunks.
+//   2. `streamFileMarkdown` async generators over Markdown chunks (module-level
+//      and on the warm `Pipeline`).
 //
 // Works in Node.js and Bun (Bun implements N-API).
 
@@ -21,6 +22,48 @@ function mlFormatOf(name, format) {
     return native.formatFromName(`x.${String(format).replace(/^\./, '')}`) || String(format)
   }
   return native.formatFromName(name || '') || ''
+}
+
+// Bridge a native (err, chunk) streaming callback into an async generator.
+// `start` receives the callback and kicks off the native conversion. Chunks
+// are delivered on the event loop (via a threadsafe function); a null chunk
+// ends the stream, a non-null err ends it with a throw.
+async function* chunkStream(start) {
+  const queue = []
+  let done = false
+  let failure = null
+  let notify = null
+  const wake = () => {
+    if (notify) {
+      const n = notify
+      notify = null
+      n()
+    }
+  }
+
+  start((err, chunk) => {
+    if (err) {
+      failure = err
+      done = true
+    } else if (chunk === null || chunk === undefined) {
+      done = true
+    } else {
+      queue.push(chunk)
+    }
+    wake()
+  })
+
+  while (true) {
+    if (queue.length > 0) {
+      yield queue.shift()
+      continue
+    }
+    if (failure) throw failure
+    if (done) return
+    await new Promise((resolve) => {
+      notify = resolve
+    })
+  }
 }
 
 // --- guarded one-shot functions --------------------------------------------
@@ -94,6 +137,41 @@ class Pipeline {
     assertMlReady(mlFormatOf(input && input.name, input && input.format))
     return this._inner.convert(input, options)
   }
+
+  // async so a guard failure surfaces as a rejected promise, not a sync throw.
+  async convertFileAsync(path, options) {
+    assertMlReady(mlFormatOf(path))
+    return this._inner.convertFileAsync(path, options)
+  }
+
+  async convertAsync(input, options) {
+    assertMlReady(mlFormatOf(input && input.name, input && input.format))
+    return this._inner.convertAsync(input, options)
+  }
+
+  convertFileStreaming(path, callback, options) {
+    assertMlReady(mlFormatOf(path))
+    return this._inner.convertFileStreaming(path, callback, options)
+  }
+
+  /**
+   * Stream a PDF's Markdown in chunks through the warm pipeline, in document
+   * order, as pages finish converting (an image arrives as a single chunk).
+   * Same contract as the module-level `streamFileMarkdown`, but reusing this
+   * instance's loaded models — no per-call model reload.
+   *
+   * @param {string} filePath
+   * @param {object} [options] output options (`imageMode`: `placeholder` or
+   *   `embedded`; `referenced` is rejected)
+   * @returns {AsyncGenerator<string, void, unknown>}
+   */
+  async *streamFileMarkdown(filePath, options = {}) {
+    assertMlReady(mlFormatOf(filePath))
+    const { imageMode, artifactsDir } = options
+    yield* chunkStream((callback) =>
+      this._inner.convertFileStreaming(filePath, callback, { imageMode, artifactsDir }),
+    )
+  }
 }
 
 // --- streaming --------------------------------------------------------------
@@ -113,49 +191,9 @@ async function* streamFileMarkdown(filePath, options = {}) {
   assertMlReady(mlFormatOf(filePath))
   const { strict, fetchImages, allowedFormats, imageMode, artifactsDir } = options
   const converter = new native.DocumentConverter({ strict, fetchImages, allowedFormats })
-
-  // Bridge the native (err, chunk) callback into an async generator. Chunks are
-  // delivered on the event loop (via a threadsafe function); a null chunk ends
-  // the stream, a non-null err ends it with a throw.
-  const queue = []
-  let done = false
-  let failure = null
-  let notify = null
-  const wake = () => {
-    if (notify) {
-      const n = notify
-      notify = null
-      n()
-    }
-  }
-
-  converter.convertFileStreaming(
-    filePath,
-    (err, chunk) => {
-      if (err) {
-        failure = err
-        done = true
-      } else if (chunk === null || chunk === undefined) {
-        done = true
-      } else {
-        queue.push(chunk)
-      }
-      wake()
-    },
-    { imageMode, artifactsDir },
+  yield* chunkStream((callback) =>
+    converter.convertFileStreaming(filePath, callback, { imageMode, artifactsDir }),
   )
-
-  while (true) {
-    if (queue.length > 0) {
-      yield queue.shift()
-      continue
-    }
-    if (failure) throw failure
-    if (done) return
-    await new Promise((resolve) => {
-      notify = resolve
-    })
-  }
 }
 
 // --- exports (explicit, so ESM named imports work in Node and Bun) ----------

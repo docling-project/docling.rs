@@ -19,10 +19,17 @@ console.log('deps:', checkDependencies())
 const res = await convertFileAsync(file, { to: 'markdown' })
 console.log(res.content.slice(0, 500))
 
-// For MANY PDFs, reuse a warm Pipeline so the models load once instead of per call:
+// For MANY PDFs, reuse a warm Pipeline so the models load once instead of per
+// call. The *Async variants run off the event loop (calls on one instance
+// queue — the models are mutable sessions):
 const pipeline = new Pipeline({ strict: true })
 for (const path of process.argv.slice(2)) {
-  const r = pipeline.convertFile(path, { to: 'json' })
+  const r = await pipeline.convertFileAsync(path, { to: 'json' })
   const doc = JSON.parse(r.content)
   console.log(`${path}: ${doc.texts.length} text nodes, ${doc.tables.length} tables`)
+}
+
+// Stream a PDF's Markdown through the warm pipeline as pages finish converting:
+for await (const chunk of pipeline.streamFileMarkdown(file)) {
+  process.stdout.write(chunk)
 }

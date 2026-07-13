@@ -159,12 +159,22 @@ import { Pipeline } from 'docling.rs'
 
 const pipeline = new Pipeline({ strict: true })
 for (const path of pdfPaths) {
-  const { content } = pipeline.convertFile(path, { to: 'markdown' }) // warm models
+  const { content } = await pipeline.convertFileAsync(path, { to: 'json' }) // warm models, off the event loop
+}
+
+// Or stream a PDF's Markdown as pages finish converting:
+for await (const chunk of pipeline.streamFileMarkdown('paper.pdf')) {
+  process.stdout.write(chunk)
 }
 ```
 
-`Pipeline` handles `pdf` and `image` inputs (the ML pipeline) and is synchronous
-— reuse one instance behind a job queue.
+`Pipeline` handles `pdf` and `image` inputs (the ML pipeline). The sync
+`convertFile` / `convert` block the event loop; the `*Async` variants run on the
+libuv thread pool, and `streamFileMarkdown` yields Markdown chunks in document
+order as pages finish. Conversions on one instance run one at a time (the
+models are mutable sessions) — overlapping `*Async` calls queue in submission
+order, so batch throughput comes from keeping the models warm, not from
+parallel calls.
 
 ### Images
 
@@ -199,7 +209,8 @@ JSON output always embeds extracted images as data URIs.
 | `checkDependencies(options?)` | `DependencyStatus` | Report which PDF/image deps are present. |
 
 `Pipeline` is the reusable warm PDF/image converter: `new Pipeline(converterOptions)`
-then `convertFile` / `convert`.
+then `convertFile` / `convert` / `convertFileAsync` / `convertAsync` /
+`convertFileStreaming` / `streamFileMarkdown`.
 
 `DocumentConverter` is the reusable form: `new DocumentConverter(converterOptions)`
 then `convert` / `convertFile` / `convertFileAsync` / `convertAsync` /

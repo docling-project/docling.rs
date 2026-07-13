@@ -823,3 +823,17 @@ pub fn convert_pages_with_options(
         .no_ocr(no_ocr)
         .process_pages(pages, name)
 }
+
+#[cfg(test)]
+mod send_check {
+    /// The Node bindings (`docling-node`) run a shared [`super::Pipeline`] on
+    /// libuv worker threads (`Arc<Mutex<Pipeline>>`), which is only sound while
+    /// `Pipeline: Send` holds — this fails to compile if a non-`Send` field
+    /// (e.g. an `Rc` or a raw pdfium handle) ever lands in the pipeline.
+    fn assert_send<T: Send>() {}
+
+    #[test]
+    fn pipeline_is_send() {
+        assert_send::<super::Pipeline>();
+    }
+}

@@ -115,6 +115,16 @@ async function main() {
       const pipe = new Pipeline()
       assert.throws(() => pipe.convertFile('x.pdf'), /download_dependencies\.sh/)
     })
+
+    await check('Pipeline convertFileAsync rejects (not a sync throw)', async () => {
+      const pipe = new Pipeline()
+      await assert.rejects(pipe.convertFileAsync('x.pdf'), /download_dependencies\.sh/)
+    })
+
+    await check('Pipeline streamFileMarkdown rejects on iteration', async () => {
+      const pipe = new Pipeline()
+      await assert.rejects(pipe.streamFileMarkdown('x.pdf').next(), /download_dependencies\.sh/)
+    })
   } else {
     console.log('  --  ML deps installed; skipping guard checks')
   }
@@ -146,6 +156,58 @@ async function main() {
     assert.equal(streamed, convertFile(file).content)
     assert.ok(streamed.length > 0)
   })
+
+  // Warm-pipeline async + streaming, only when the ML deps are on disk (they
+  // are in the repo dev environment; a fresh CI checkout skips these).
+  if (depsInstalled) {
+    const pdf = new URL('../../../tests/data/pdf/sources/code_and_formula.pdf', import.meta.url)
+      .pathname
+    const { existsSync } = await import('node:fs')
+    if (existsSync(pdf)) {
+      const pipe = new Pipeline()
+
+      await check('Pipeline convertFileAsync resolves with the buffered output', async () => {
+        const buffered = pipe.convertFile(pdf)
+        const res = await pipe.convertFileAsync(pdf)
+        assert.equal(res.status, 'success')
+        assert.equal(res.content, buffered.content)
+      })
+
+      await check('Pipeline convertFileAsync to JSON', async () => {
+        const res = await pipe.convertFileAsync(pdf, { to: 'json' })
+        assert.equal(JSON.parse(res.content).schema_name, 'DoclingDocument')
+      })
+
+      await check('Pipeline convertAsync (bytes) matches convertFileAsync', async () => {
+        const { readFileSync } = await import('node:fs')
+        const res = await pipe.convertAsync({ name: 'doc.pdf', data: readFileSync(pdf) })
+        assert.equal(res.content, (await pipe.convertFileAsync(pdf)).content)
+      })
+
+      await check('Pipeline streamFileMarkdown reproduces the buffered Markdown', async () => {
+        let streamed = ''
+        for await (const chunk of pipe.streamFileMarkdown(pdf)) {
+          streamed += chunk
+        }
+        assert.equal(streamed, pipe.convertFile(pdf).content)
+        assert.ok(streamed.length > 0)
+      })
+
+      await check('Pipeline streamFileMarkdown rejects referenced image mode', async () => {
+        await assert.rejects(
+          pipe.streamFileMarkdown(pdf, { imageMode: 'referenced' }).next(),
+          /placeholder.*embedded|referenced/,
+        )
+      })
+
+      await check('overlapping Pipeline async calls both resolve', async () => {
+        const [a, b] = await Promise.all([pipe.convertFileAsync(pdf), pipe.convertFileAsync(pdf)])
+        assert.equal(a.content, b.content)
+      })
+    } else {
+      console.log('  --  PDF fixture not found; skipping warm-pipeline checks')
+    }
+  }
 
   console.log(`\n${passed} checks passed`)
 }

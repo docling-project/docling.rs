@@ -12,7 +12,7 @@
 //! - the [`DocumentConverter`] class, which holds converter config so it can be
 //!   reused across many documents.
 
-use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
 
 use napi::bindgen_prelude::*;
 use napi::threadsafe_function::{ErrorStrategy, ThreadsafeFunction, ThreadsafeFunctionCallMode};
@@ -20,7 +20,7 @@ use napi_derive::napi;
 
 use docling::{
     ConversionStatus, DoclingDocument, DocumentConverter as RsConverter, ImageMode, InputFormat,
-    Pipeline as RsPipeline, SourceDocument,
+    MarkdownStreamer, Pipeline as RsPipeline, SourceDocument,
 };
 
 // ---------------------------------------------------------------------------
@@ -542,10 +542,11 @@ impl DocumentConverter {
 /// for a sequence of documents (e.g. behind a job queue).
 #[napi]
 pub struct Pipeline {
-    // RefCell: the Rust pipeline needs `&mut` to convert (models are mutable
-    // sessions), but napi hands us `&self`. A Pipeline is bound to the JS thread,
-    // so single-threaded interior mutability is sound here.
-    inner: RefCell<RsPipeline>,
+    // Arc<Mutex>: the Rust pipeline needs `&mut` to convert (models are mutable
+    // sessions), and the async / streaming paths run it off the JS thread. The
+    // mutex serializes conversions on one instance — concurrent `*Async` calls
+    // queue rather than reload models.
+    inner: Arc<Mutex<RsPipeline>>,
     strict: bool,
 }
 
@@ -557,7 +558,7 @@ impl Pipeline {
     pub fn new(options: Option<ConverterOptions>) -> Result<Self> {
         let strict = options.and_then(|o| o.strict).unwrap_or(false);
         Ok(Self {
-            inner: RefCell::new(RsPipeline::new().map_err(convert_err)?),
+            inner: Arc::new(Mutex::new(RsPipeline::new().map_err(convert_err)?)),
             strict,
         })
     }
@@ -569,8 +570,9 @@ impl Pipeline {
         path: String,
         options: Option<OutputOptions>,
     ) -> Result<ConvertResult> {
+        let cfg = output_config(options, self.strict)?;
         let source = SourceDocument::from_file(&path).map_err(convert_err)?;
-        self.run(source, options)
+        Ok(run_pipeline(&self.inner, source, &cfg, self.strict)?.into_js())
     }
 
     /// Convert PDF or image bytes, reusing the warm models.
@@ -580,42 +582,240 @@ impl Pipeline {
         input: ConvertInput,
         options: Option<OutputOptions>,
     ) -> Result<ConvertResult> {
+        let cfg = self.output_cfg(options)?;
         let source = source_from_input(input)?;
-        self.run(source, options)
+        Ok(run_pipeline(&self.inner, source, &cfg, self.strict)?.into_js())
+    }
+
+    /// Async (Promise-returning) file conversion on the warm pipeline. The
+    /// CPU-bound work runs on the libuv thread pool, keeping the event loop
+    /// free; calls on the same instance run one at a time (the models are
+    /// mutable sessions), so overlapping Promises queue in submission order.
+    #[napi(ts_return_type = "Promise<ConvertResult>")]
+    pub fn convert_file_async(
+        &self,
+        path: String,
+        options: Option<OutputOptions>,
+    ) -> Result<AsyncTask<PipelineFileTask>> {
+        let cfg = self.output_cfg(options)?;
+        Ok(AsyncTask::new(PipelineFileTask {
+            pipe: Arc::clone(&self.inner),
+            strict: self.strict,
+            path,
+            cfg,
+        }))
+    }
+
+    /// Async (Promise-returning) bytes conversion on the warm pipeline.
+    #[napi(ts_return_type = "Promise<ConvertResult>")]
+    pub fn convert_async(
+        &self,
+        input: ConvertInput,
+        options: Option<OutputOptions>,
+    ) -> Result<AsyncTask<PipelineBytesTask>> {
+        let cfg = self.output_cfg(options)?;
+        let source = source_from_input(input)?;
+        Ok(AsyncTask::new(PipelineBytesTask {
+            pipe: Arc::clone(&self.inner),
+            strict: self.strict,
+            source: Some(source),
+            cfg,
+        }))
+    }
+
+    /// Stream a PDF's Markdown in chunks through the warm pipeline, in document
+    /// order, as pages finish converting (an image converts in one step and
+    /// arrives as a single chunk).
+    ///
+    /// `callback` is invoked as `(err, chunk)`: once per Markdown chunk with
+    /// `chunk` a string, once with `chunk === null` at the end, or once with a
+    /// non-null `err` on failure. Only `placeholder` / `embedded` image modes
+    /// stream; `referenced` is rejected. Prefer the `streamFileMarkdown`
+    /// async-generator wrapper in JS over calling this directly.
+    #[napi]
+    pub fn convert_file_streaming(
+        &self,
+        path: String,
+        callback: ThreadsafeFunction<Option<String>, ErrorStrategy::CalleeHandled>,
+        options: Option<OutputOptions>,
+    ) -> Result<()> {
+        let cfg = self.output_cfg(options)?;
+        if cfg.image_mode == ImageMode::Referenced {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "streaming supports the 'placeholder' and 'embedded' image modes; \
+                 'referenced' needs the buffered convertFile / convertFileAsync",
+            ));
+        }
+        let pipe = Arc::clone(&self.inner);
+        let strict = self.strict;
+        // The background thread owns the conversion and pushes each chunk
+        // through the threadsafe function (which marshals back to the JS loop).
+        std::thread::spawn(move || {
+            stream_pipeline(&pipe, &path, &cfg, strict, &callback);
+        });
+        Ok(())
     }
 }
 
 impl Pipeline {
-    fn run(&self, source: SourceDocument, options: Option<OutputOptions>) -> Result<ConvertResult> {
-        let cfg = output_config(options, self.strict)?;
-        let mut pipe = self.inner.borrow_mut();
-        let mut doc = match source.format {
-            InputFormat::Pdf => pipe
-                .convert(&source.bytes, None, &source.name)
-                .map_err(convert_err)?,
-            InputFormat::Image => pipe
-                .convert_image(&source.bytes, &source.name)
-                .map_err(convert_err)?,
-            other => {
-                return Err(Error::new(
-                    Status::InvalidArg,
-                    format!(
-                        "Pipeline handles pdf and image inputs (the ML pipeline); got '{}'. \
-                         Use convertFile / convert for other formats.",
-                        other.as_str()
-                    ),
-                ))
-            }
-        };
-        doc.strict_markdown = self.strict;
-        Ok(render_doc(
-            doc,
-            &cfg,
-            source.name,
-            source.format.as_str().to_string(),
-            "success".to_string(),
+    fn output_cfg(&self, options: Option<OutputOptions>) -> Result<ConvertConfig> {
+        output_config(options, self.strict)
+    }
+}
+
+/// Lock the pipeline and run one buffered conversion. Free of napi/JS handle
+/// types, so the async tasks call it from the libuv pool.
+fn run_pipeline(
+    pipe: &Mutex<RsPipeline>,
+    source: SourceDocument,
+    cfg: &ConvertConfig,
+    strict: bool,
+) -> Result<RawResult> {
+    let mut pipe = pipe.lock().map_err(|_| {
+        Error::new(
+            Status::GenericFailure,
+            "pipeline poisoned by an earlier panic",
         )
-        .into_js())
+    })?;
+    let mut doc = match source.format {
+        InputFormat::Pdf => pipe
+            .convert(&source.bytes, None, &source.name)
+            .map_err(convert_err)?,
+        InputFormat::Image => pipe
+            .convert_image(&source.bytes, &source.name)
+            .map_err(convert_err)?,
+        other => {
+            return Err(Error::new(
+                Status::InvalidArg,
+                format!(
+                    "Pipeline handles pdf and image inputs (the ML pipeline); got '{}'. \
+                     Use convertFile / convert for other formats.",
+                    other.as_str()
+                ),
+            ))
+        }
+    };
+    doc.strict_markdown = strict;
+    Ok(render_doc(
+        doc,
+        cfg,
+        source.name,
+        source.format.as_str().to_string(),
+        "success".to_string(),
+    ))
+}
+
+/// The streaming producer body: convert through the warm pipeline and push
+/// Markdown chunks through the threadsafe callback. PDF streams page by page
+/// (each page's Markdown emitted in order as it finishes); an image converts in
+/// one step and streams as a single chunk through the same interface.
+fn stream_pipeline(
+    pipe: &Mutex<RsPipeline>,
+    path: &str,
+    cfg: &ConvertConfig,
+    strict: bool,
+    callback: &ThreadsafeFunction<Option<String>, ErrorStrategy::CalleeHandled>,
+) {
+    let fail = |e: Error| {
+        callback.call(Err(e), ThreadsafeFunctionCallMode::NonBlocking);
+    };
+    let source = match SourceDocument::from_file(path).map_err(convert_err) {
+        Ok(s) => s,
+        Err(e) => return fail(e),
+    };
+    let mut pipe = match pipe.lock() {
+        Ok(p) => p,
+        Err(_) => {
+            return fail(Error::new(
+                Status::GenericFailure,
+                "pipeline poisoned by an earlier panic",
+            ))
+        }
+    };
+    // The PDF pipeline builds its document from `DoclingDocument::new` defaults,
+    // so tables use the padded GitHub serializer (compact_tables = false),
+    // matching the buffered path.
+    let mut streamer = MarkdownStreamer::new(strict, cfg.image_mode, false);
+    let emit_chunk = |chunk: String| {
+        if !chunk.is_empty() {
+            callback.call(Ok(Some(chunk)), ThreadsafeFunctionCallMode::NonBlocking);
+        }
+    };
+    match source.format {
+        InputFormat::Pdf => {
+            let result =
+                pipe.convert_streaming(&source.bytes, None, &source.name, |nodes, links| {
+                    emit_chunk(streamer.push(&nodes, &links));
+                    Ok(())
+                });
+            if let Err(e) = result {
+                return fail(convert_err(e));
+            }
+        }
+        InputFormat::Image => match pipe.convert_image(&source.bytes, &source.name) {
+            Ok(doc) => emit_chunk(streamer.push(&doc.nodes, &doc.links)),
+            Err(e) => return fail(convert_err(e)),
+        },
+        other => {
+            return fail(Error::new(
+                Status::InvalidArg,
+                format!(
+                    "Pipeline handles pdf and image inputs (the ML pipeline); got '{}'. \
+                     Use DocumentConverter.convertFileStreaming for other formats.",
+                    other.as_str()
+                ),
+            ))
+        }
+    }
+    emit_chunk(streamer.finish());
+    // End-of-stream sentinel.
+    callback.call(Ok(None), ThreadsafeFunctionCallMode::NonBlocking);
+}
+
+pub struct PipelineFileTask {
+    pipe: Arc<Mutex<RsPipeline>>,
+    strict: bool,
+    path: String,
+    cfg: ConvertConfig,
+}
+
+impl Task for PipelineFileTask {
+    type Output = RawResult;
+    type JsValue = ConvertResult;
+
+    fn compute(&mut self) -> Result<RawResult> {
+        let source = SourceDocument::from_file(&self.path).map_err(convert_err)?;
+        run_pipeline(&self.pipe, source, &self.cfg, self.strict)
+    }
+
+    fn resolve(&mut self, _env: Env, output: RawResult) -> Result<ConvertResult> {
+        Ok(output.into_js())
+    }
+}
+
+pub struct PipelineBytesTask {
+    pipe: Arc<Mutex<RsPipeline>>,
+    strict: bool,
+    // `Option` so `compute` can take ownership of the (non-Copy) source.
+    source: Option<SourceDocument>,
+    cfg: ConvertConfig,
+}
+
+impl Task for PipelineBytesTask {
+    type Output = RawResult;
+    type JsValue = ConvertResult;
+
+    fn compute(&mut self) -> Result<RawResult> {
+        let source = self
+            .source
+            .take()
+            .ok_or_else(|| Error::new(Status::GenericFailure, "conversion task reused"))?;
+        run_pipeline(&self.pipe, source, &self.cfg, self.strict)
+    }
+
+    fn resolve(&mut self, _env: Env, output: RawResult) -> Result<ConvertResult> {
+        Ok(output.into_js())
     }
 }
 
