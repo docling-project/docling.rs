@@ -1,0 +1,163 @@
+<doclang version="0.7">
+  <heading level="2">Test Document</heading>
+  <text></text>
+  <text></text>
+  <text>Paragraph 2.1.1</text>
+  <text></text>
+  <text>Paragraph 2.1.2</text>
+  <text></text>
+  <heading level="4">Test 1:</heading>
+  <list>
+    <ldiv/>
+    List item 1
+    <ldiv/>
+    List item 2
+    <ldiv/>
+    List item 3
+  </list>
+  <text></text>
+  <heading level="4">Test 2:</heading>
+  <list class="ordered">
+    <ldiv>
+      <marker>1.</marker>
+    </ldiv>
+    List item a
+    <ldiv>
+      <marker>2.</marker>
+    </ldiv>
+    List item b
+    <ldiv>
+      <marker>3.</marker>
+    </ldiv>
+    List item c
+  </list>
+  <text></text>
+  <heading level="4">Test 3:</heading>
+  <list>
+    <ldiv/>
+    <text>List item 1</text>
+    <ldiv/>
+    <text>List item 2</text>
+    <list>
+      <ldiv/>
+      List item 1.1
+      <ldiv/>
+      List item 1.2
+      <ldiv/>
+      List item 1.3
+    </list>
+    <ldiv/>
+    List item 3
+  </list>
+  <text></text>
+  <heading level="4">Test 4:</heading>
+  <list>
+    <ldiv/>
+    <text>List item 1</text>
+    <list>
+      <ldiv/>
+      List item 1.1
+    </list>
+    <ldiv/>
+    List item 2
+  </list>
+  <text></text>
+  <heading level="4">Test 5:</heading>
+  <list>
+    <ldiv/>
+    <text>List item 1</text>
+    <list>
+      <ldiv/>
+      <text>List item 1.1</text>
+      <list>
+        <ldiv/>
+        List item 1.1.1
+      </list>
+    </list>
+    <ldiv/>
+    List item 3
+  </list>
+  <text></text>
+  <heading level="4">Test 6:</heading>
+  <list>
+    <ldiv/>
+    <text>List item 1</text>
+    <ldiv/>
+    <text>List item 2</text>
+    <list>
+      <ldiv/>
+      <text>List item 1.1</text>
+      <ldiv/>
+      <text>List item 1.2</text>
+      <list>
+        <ldiv/>
+        List item 1.2.1
+      </list>
+    </list>
+    <ldiv/>
+    List item 3
+  </list>
+  <text></text>
+  <text></text>
+  <heading level="4">Test 7:</heading>
+  <list class="ordered">
+    <ldiv>
+      <marker>1.</marker>
+    </ldiv>
+    First item with numId 2
+    <ldiv>
+      <marker>2.</marker>
+    </ldiv>
+    Second item with numId 2
+    <ldiv>
+      <marker>3.</marker>
+    </ldiv>
+    Third item with numId 2
+    <ldiv>
+      <marker>4.</marker>
+    </ldiv>
+    Fourth item with numId 2
+  </list>
+  <text></text>
+  <list class="ordered">
+    <ldiv>
+      <marker>1.</marker>
+    </ldiv>
+    Single item of a new list
+  </list>
+  <text></text>
+  <list class="ordered">
+    <ldiv>
+      <marker>1.</marker>
+    </ldiv>
+    Single item of a new list
+  </list>
+  <text></text>
+  <heading level="4">Style-based lists:</heading>
+  <text>
+    <italic>Docling should extract the list format when the formatting comes from the styles:</italic>
+  </text>
+  <list>
+    <ldiv/>
+    <text>
+      <italic>First item</italic>
+    </text>
+    <ldiv/>
+    <text>
+      <italic>Second item</italic>
+    </text>
+    <ldiv/>
+    <text>
+      <italic>Third item</italic>
+    </text>
+    <list>
+      <ldiv/>
+      <italic>Sub-item A</italic>
+      <ldiv/>
+      <italic>Sub-item B</italic>
+    </list>
+    <ldiv/>
+    <italic>Fourth item</italic>
+  </list>
+  <text></text>
+</doclang>

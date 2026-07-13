@@ -25,10 +25,10 @@ phased plan is kept at the end as history.)
 |---|---|
 | **What** | A Rust port of docling's converter, backends, and discriminative PDF/ASR pipelines; same `convert → DoclingDocument → export_to_markdown()/json()` shape, single static binary, no Python/torch at runtime |
 | **Conformance** | Declarative formats byte-for-byte vs *live* PyPI docling (most 100%, see §2); `.dclx` DocLang output ≈94% mean vs docling's own `.dclx`, OOXML all byte-exact (§2); PDF ML path 5/14 fixtures byte-exact, rest close; every optimization is gated on this not regressing |
-| **Performance** | PDF ML pipeline **4.3× faster warm / 4.7× end-to-end** than Python docling at 2.3–2.6× less peak RAM (INT8 + SIMD, conformance-validated); declarative formats 20–60× warm, ~60× less RAM; details + methodology in [`PDF_PERFORMANCE.md`](./PDF_PERFORMANCE.md) |
+| **Performance** | PDF ML pipeline **4.3× faster warm / 4.7× end-to-end** than Python docling at 2.3–2.6× less peak RAM (INT8 + SIMD, conformance-validated); declarative formats 20–60× warm, ~60× less RAM; details + methodology in [`PDF_CONFORMANCE.md`](./PDF_CONFORMANCE.md) |
 | **Models** | docling's own checkpoints (layout heron, TableFormer, PP-OCRv3, Whisper tiny), format-converted to ONNX by `scripts/export_*.py` — no retraining; INT8 variants are calibrated post-training quantizations (`scripts/install/quantize_models.py`) |
 | **Tracking upstream** | See [§9](#9-keeping-up-with-upstream-docling): conformance is measured against the *latest published* docling on demand, so an upstream release that changes output surfaces as a concrete per-fixture diff |
-| **Not ported (by design)** | VLM pipelines, enrichment models, DocTags/DocLang *input* backends (§5); inline formatting is baked into text rather than structured fields (§4) |
+| **Not ported (by design)** | VLM pipelines and enrichment models (§5); inline formatting is baked into text rather than structured fields (§4) |
 
 ---
 
@@ -96,6 +96,7 @@ PyPI; run via `scripts/conformance/conformance.sh <fmt>`), not the committed gro
 | USPTO | `uspto.rs` | **1/5 exact (2/5 whitespace-normalized)** on the sources live docling converts — it errors on the other 5 (those are validated byte-exact via `.dclx`), and its APS-text *Markdown* export is empty where ours emits the text dump (the `.dclx` matches exactly — §5) |
 | XBRL | `xbrl.rs` | arelle-free core (dei facts → title, `*TextBlock` → HTML); *vs committed groundtruth* 0/2 (30 / 346 diff lines) — live docling needs arelle, which the conformance venv doesn't ship |
 | JSON-docling | `docling_json.rs` (serde_json) | reads docling's native JSON; ~51/145 round-trip exact |
+| DocLang (`.dclg`/`.dclx`) | `doclang.rs` (roxmltree) | **15/15 exact** vs live docling reading the same archives back (`tests/data/doclang`); the inverse of the `.dclx` output serializer, incl. docling's round-trip losses (list-item formatting, hyperlink targets) |
 | LaTeX | `latex.rs` (scanner) | simple `.tex` ≈ live (0/2 exact, but within 2 / 9 diff lines); multi-file arxiv out of scope |
 | MHTML (.mhtml/.mht) | `mhtml.rs` (mail-parser) → HTML backend | **docling.rs extension — no docling backend to compare against**; embedded images resolved by `Content-Location`/`cid:` |
 
@@ -282,11 +283,17 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
   classification, formula understanding, code understanding). Model-bound; out of
   scope for the discriminative port. (**Audio/ASR is now done** — see §2; the
   only container gap is AVI, which symphonia cannot demux.)
-- **XML DocLang / DocTags *input* backend** — DocLang is supported as an
-  **output** format (§3), but reading `.dclx`/DocTags *back in* is not: no such
-  sources in the corpus to verify against, and not in the requested scope.
 
 **Now migrated (previously listed here):**
+
+- **XML DocLang input backend.** Reading `.dclg`/`.dclg.xml` (bare DocLang XML)
+  and `.dclx` archives back into a `DoclingDocument` — the corpus gap closed
+  itself once `--to dclx` shipped: docling's own `.dclx` groundtruth archives
+  are the sources, and docling 2.112 reads them natively (`InputFormat.DCLX`),
+  so the backend is scored live like every other format — **15/15 exact**,
+  reproducing docling's own round-trip semantics (whitespace collapse vs
+  verbatim CDATA/`<content>`, span text re-expansion, the formatting docling
+  drops on list items and hyperlink targets).
 
 - **DOCX grouped/anchored drawings and floating text frames.** Blip-less
   DrawingML shapes yield docling's one-rendered-picture-per-paragraph as a
@@ -355,12 +362,11 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
 - **Snapshot harness** — `scripts/conformance/pdf_conformance.sh` regenerates and diffs the
   PDF/image/METS baseline (needs pdfium + the ONNX models; **91/91 exact**).
 - **Conformance** — `scripts/conformance/conformance.sh <fmt>` scores a format against the
-  latest published docling (installed from PyPI; see
-  [`COMPARING.md`](./COMPARING.md)).
+  latest published docling (installed from PyPI; how-to in §9).
 - **Differential / perf** — `scripts/conformance/compare.sh`, `scripts/test/performance.sh`.
   The PDF pipeline's profiling data, the INT8/SIMD optimization results
   (4.3× warm vs Python docling on the ML pipeline), and the remaining
-  performance backlog live in [`PDF_PERFORMANCE.md`](./PDF_PERFORMANCE.md).
+  performance backlog live in [`PDF_CONFORMANCE.md`](./PDF_CONFORMANCE.md).
 
 CI (`.github/workflows/ci.yml`) gates every pull request and master push on
 `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings` and
@@ -415,6 +421,175 @@ process instead of a guess:
    changes, so "exact" always means *exact against current docling*.
 4. **New formats/features** follow the same recipe the existing 20 formats
    did: a backend module + fixtures + conformance scoring, tracked in §2.
+
+### Running the comparison yourself
+
+The yardstick is **Markdown output**: both projects expose the same operation —
+`convert(file).document.export_to_markdown()` — so diffing the two Markdown
+strings is a direct, apples-to-apples comparison. Two axes: **correctness**
+(A, B) and **performance** (C). Current numbers live in §2; this section is
+how to reproduce them.
+
+#### Local docling setup
+
+The comparison scripts install the **latest published** `docling` from PyPI into
+an isolated `docling.rs/.venv-compare` (via `uv`) on first run:
+
+```bash
+scripts/conformance/setup-docling.sh      # optional; the other scripts call this automatically
+```
+
+Published docling 2.x bundles every format backend plus the full PDF pipeline
+(torch + models), so the first install pulls a few hundred MB. For the
+declarative formats the Python side still calls the format backend directly (see
+`scripts/conformance/docling_convert.py`) rather than `DocumentConverter`, so it avoids
+paying the `torch` import cost on every run — the same conversion work, kept
+apples-to-apples with what `docling.rs` does.
+
+### A. Scoring against docling across a corpus
+
+This repo ships a regression corpus under `tests/data/<format>/`:
+
+```text
+tests/data/html/sources/example_01.html          # input
+tests/data/html/groundtruth/example_01.html.md    # older committed reference
+```
+
+`conformance.sh` scores the Rust port against the **latest published docling**
+(installed from PyPI on first run — see `_common.sh`), per format:
+
+```bash
+scripts/conformance/conformance.sh html
+scripts/conformance/conformance.sh docx
+```
+
+It prints a per-fixture diff-line count and a summary:
+
+```text
+FIXTURE                                        DIFF-LINES
+example_01.html                                         5
+example_02.html                                      EXACT
+...
+Exact (strict):                10 / 32
+Whitespace-normalized matches: 12 / 32
+```
+
+The second metric ignores spacing-only differences (collapsing runs of
+whitespace, trimming line ends) — useful when our output is the more faithful
+one, e.g. dropping docling's spurious double space in a fraction. A row that
+matches only after normalization is flagged `N (ws-ok)`.
+
+> The reference is always the installed docling. The committed groundtruth `.md`
+> is used only as a fallback for sources docling can't convert — it predates
+> docling-core's current serializer (e.g. its compact `| - |` tables), so it is
+> not the source of truth.
+
+### B. Live, head-to-head on any file
+
+To compare on a file that isn't in the corpus — or to confirm the groundtruth
+hasn't drifted — run both implementations and diff:
+
+```bash
+scripts/conformance/compare.sh tests/data/html/sources/example_03.html
+scripts/conformance/compare.sh /path/to/your/own.html
+```
+
+`compare.sh` runs the local Python docling backend and the Rust CLI on the same
+file, normalizes trailing newlines, and shows a unified diff (or `✅ IDENTICAL`).
+The local docling install is set up automatically on first run (see above).
+
+Do it by hand if you prefer:
+
+```bash
+# Python (using the local install in .venv-compare)
+.venv-compare/bin/python scripts/conformance/docling_convert.py in.html > py.md
+
+# Rust
+cargo run -p docling-cli -- in.html > rs.md
+
+diff -u py.md rs.md
+```
+
+### C. Performance (time, CPU, memory)
+
+`scripts/test/performance.sh` measures the processing cost of each engine on one
+file — wall-clock time, CPU utilization, and peak resident memory — using GNU
+`/usr/bin/time`. The Rust side is built in `--release`; the Python side runs the
+installed docling (declarative backends, no `torch` import).
+
+```bash
+scripts/test/performance.sh tests/data/html/sources/wiki_duck.html 10   # 10 runs
+```
+
+```text
+================ end-to-end (whole process) ================
+ENGINE                     RUNS   TIME-min   TIME-avg      CPU     PEAK-MEM
+docling (python)              6      1.39s      1.41s     363%     125.5 MB
+docling.rs (rust)           6   0.00755s   0.00755s     100%       4.8 MB
+
+  wall-time speedup (avg):  186.8x faster (rust)
+  peak-memory ratio:        26.4x less (rust)
+
+================ conversion only (startup excluded) ========
+  python (warm, in-process): 0.4736s/doc, peak 134.6 MB
+  rust   (whole process incl. startup): 0.00755s/doc — startup is negligible
+  warm-conversion speedup:   62.7x faster (rust)
+```
+
+**Reading the numbers fairly.** The end-to-end Python time includes interpreter
+startup plus importing docling/beautifulsoup4/numpy (~0.3–0.6s), which dominates
+on small inputs — a real cost for one-shot CLI use, but not representative of a
+long-running service. The script therefore also reports a **warm** number:
+Python imports once, then converts in a loop, isolating the actual parse work.
+Rust's process startup is ~1 ms, so its end-to-end figure already *is* its warm
+figure. Use larger inputs (e.g. `wiki_duck.html`) to see steady-state behavior;
+tiny files mostly measure Python's startup.
+
+### Worked example
+
+`tests/data/html/sources/example_01.html` → Python (left) vs Rust (right):
+
+```diff
+  # Introduction
+
+  This is the first paragraph of the introduction.
+
+  ## Background
+
+  Some background information here.
+
+  Example image
+
+  <!-- image -->
+
+  - First item in unordered list
+  - Second item in unordered list
+
+  1. First item in ordered list
+  2. Second item in ordered list
+-
+- 42. First item in ordered list with start
+- 43. Second item in ordered list with start
++ 3. First item in ordered list with start
++ 4. Second item in ordered list with start
+```
+
+Headings, paragraphs, the image placeholder, unordered list, and the first
+ordered list are byte-identical. The only difference is the `<ol start="42">`
+case — see the divergence table below.
+
+### How to read the numbers
+
+`conformance.sh` counts **diff lines** (`diff` `<`/`>` markers): one changed line
+shows as `2`. It reports two summary counts — **Exact (strict)** byte-for-byte and
+**Whitespace-normalized matches** (spacing-only diffs ignored; a fixture that
+matches only after normalization is flagged `N (ws-ok)`). The point isn't the
+absolute score — it's the trend as gaps in the table get closed, and catching
+regressions when a change makes a previously-matching fixture diverge.
+
+For CI, gate on the summary (e.g. fail if the exact-match count drops): it
+compares against the docling version actually installed, so it won't flag
+differences that are really just a stale committed corpus.
 
 What this cannot absorb automatically: upstream features that need new model
 *architectures* (VLM pipeline, enrichment models — out of scope per §5) and

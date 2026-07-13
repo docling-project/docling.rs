@@ -2,7 +2,7 @@
 """Quantize the PDF-pipeline ONNX models to INT8 for faster CPU inference.
 
 Two quantizations, both validated against the PDF corpus (see
-PDF_PERFORMANCE.md for the measured speed/quality numbers):
+PDF_CONFORMANCE.md for the measured speed/quality numbers):
 
 * **layout** — static QDQ INT8 of the RT-DETR layout model, **Conv ops only**
   (the HGNetv2 backbone). Calibrated on real corpus pages rendered exactly the

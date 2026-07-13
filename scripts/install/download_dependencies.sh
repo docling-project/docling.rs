@@ -30,7 +30,7 @@
 #     from Hugging Face; skip with --no-asr)
 #
 # Also fetches the INT8-quantized CPU models when the release hosts them (see
-# PDF_PERFORMANCE.md — ~2.4x faster layout inference at unchanged conformance):
+# PDF_CONFORMANCE.md — ~2.4x faster layout inference at unchanged conformance):
 #   models/layout_heron_int8.onnx
 #   models/tableformer/decoder_int8.onnx
 # The pipeline picks these up automatically when they sit next to the fp32
@@ -132,7 +132,7 @@ if [ "$WITH_INT8" = true ]; then
     echo "int8 models present — used by default (DOCLING_RS_FP32=1 forces full precision)"
   else
     echo "int8 assets not hosted at $BASE_URL — the fp32 models will be used."
-    echo "To build the int8 models locally (see PDF_PERFORMANCE.md):"
+    echo "To build the int8 models locally (see PDF_CONFORMANCE.md):"
     echo "  pip install onnx onnxruntime sympy pypdfium2 pillow numpy"
     echo "  python scripts/install/quantize_models.py"
   fi

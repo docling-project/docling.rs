@@ -37,3 +37,4 @@ __pycache__/
 crates/docling-py/target/
 crates/docling-py/.venv/
 crates/docling-py/python/docling_rs/*.so
+tests/data/doclang/sources/*_artifacts/
