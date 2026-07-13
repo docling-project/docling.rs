@@ -26,13 +26,13 @@ are no longer scored.)
 | right_to_left_02 | **exact** | — (kashida dedup + page-number layout) |
 | amt_handbook_sample | 2 *(ws-ok)* | docling's spurious fraction double space — ours is more faithful |
 | code_and_formula | 5 | code block reflowed to multiple lines + trailing newline |
-| 2305.03393v1 | 30 | title-page reading order + author-ID run spacing |
+| 2305.03393v1 | 28 | title-page reading order + author-ID run spacing |
 | normal_4pages | 56 | reading order (heading numbering, footnote order) |
 | right_to_left_03 | 60 | RTL bidi |
 | table_mislabeled_as_picture | 88 | layout over-detects tables (survey rendered as tables) |
 | 2206.01062 | 92 | TableFormer multi-row headers + title-page reading order |
-| 2203.01017v2 | 161 | TableFormer structure + reading order |
-| redp5110_sampled | 204 | TOC mis-classified as a picture; cover-page ordering |
+| 2203.01017v2 | 150 | TableFormer structure + reading order |
+| redp5110_sampled | 202 | TOC OTSL structure (model-level); cover-page ordering |
 
 `amt` is the 6th under the whitespace-normalized metric: its only diff is
 docling's spurious double space before the `1⁄4` fraction, where our single-spaced
@@ -45,7 +45,9 @@ feeding TableFormer and the #61 layout/reading-order postprocessor
 (2305.03393v1 93→30, 2203.01017v2 209→161, 2206.01062 198→92): the parser's
 per-word cells reproduce docling-parse's `word_cells` byte-for-byte, so
 cell-to-grid matching tracks docling more closely. See "Text reconstruction"
-below.
+below. The #60 matching work (docling's `MatchingPostProcessor` ported to
+`tf_match.rs`, plus docling's exact table-crop rounding chain) took
+2203 157→150 and redp5110 204→202 with every other fixture unchanged.
 
 ## DocLang (`.dclx`) conformance
 
@@ -182,10 +184,23 @@ These yield smaller or uncertain gains than the text-layer work already shipped.
 Each is tracked as its own issue:
 
 1. **TableFormer structure on complex tables**
-   ([#60](https://github.com/docling-project/docling.rs/issues/60)). Multi-row
-   headers / spans on the big papers (2206, 2203) differ from docling's OTSL
-   prediction; one cell-structure diff cascades through the padded columns into
-   many row diffs (2206's ~92 table-row diffs trace to ~4 structure diffs).
+   ([#60](https://github.com/docling-project/docling.rs/issues/60)). The
+   *matching* half is done: docling's `MatchingPostProcessor` (cell-class-aware
+   good/bad IOU split, column-median snapping, adjacent-column de-duplication,
+   best-intersection word assignment, row/column-band orphan pickup) is ported
+   in `tf_match.rs` and is the default word→cell matcher, and the table crop
+   reproduces docling's exact rounding chain (`round(bbox) → ×2 → ×1024/h →
+   round`, banker's rounding) — 2203 157→150, redp5110 204→202, everything else
+   unchanged. The rest is **model-level**: the OTSL tag stream itself differs
+   from live docling on the hard crops (redp5110's TOC predicts `ched` where
+   docling gets `fcel`; multi-row headers / spans on 2206, 2203), so one
+   cell-structure diff still cascades through the padded columns into many row
+   diffs (2206's ~92 table-row diffs trace to ~4 structure diffs). A parity
+   harness (`DOCLING_RS_TF_MATCH_DUMP=dir` + `scripts/test/ref_match.py`-style
+   replay through docling's Python post-processor) confirmed the ported matcher
+   reproduces the reference on identical inputs, isolating the residual to the
+   model predictions. `DOCLING_RS_TF_SIMPLE_MATCH=1` reverts to the pre-port
+   best-overlap matcher.
 2. **Layout classification**
    ([#61](https://github.com/docling-project/docling.rs/issues/61)) — *addressed
    by porting docling's `LayoutPostprocessor`.* The raw RT-DETR detections now go
