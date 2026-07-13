@@ -87,16 +87,16 @@ PyPI; run via `scripts/conformance/conformance.sh <fmt>`), not the committed gro
 | DeepSeek-OCR Markdown | `deepseek.rs` | **3/3 exact** (auto-detected VLM-token variant) |
 | XLSX | `xlsx.rs` (calamine) | **9/9 exact** |
 | PPTX | `pptx.rs` (roxmltree) | **7/7 exact** |
-| DOCX | `docx.rs` (roxmltree) | core (most fixtures); residual in §5 |
+| DOCX | `docx.rs` (roxmltree) | **24/26 exact** (residual: `drawingml` grouped shapes, `textbox` floating-frame layout — §5) |
 | WebVTT | `webvtt.rs` | **4/4 exact** |
 | Email (.eml) | `email.rs` (mail-parser) | **2/2 exact** |
-| EPUB | `epub.rs` → HTML backend | core exact (shares HTML residual) |
-| ODF (odt/ods/odp) | `odf.rs` | core + list continuation + rich table cells + ODS table regions; residual in §5 |
-| JATS | `jats.rs` (roxmltree) | metadata + full `<body>`/`<back>` (tables, figures, references, lists, footnotes, formulas) |
-| USPTO | `uspto.rs` | modern `us-patent-*-v4x` **+ legacy `pap-v15` applications + `PATDOC`/ST.32 grants**, incl. CALS tables; APS-text residual in §5 |
-| XBRL | `xbrl.rs` | arelle-free core (dei facts → title, `*TextBlock` → HTML) |
+| EPUB | `epub.rs` → HTML backend | **0/1** — the single fixture is 39 diff lines (heading-italic nesting + colophon inline-link layout, the HTML inline residual) |
+| ODF (odt/ods/odp) | `odf.rs` | **2/6 exact** on the native files (`.ods` table + `text_document_01`; `text_document_03` within 2 lines); presentations/frames — §5 |
+| JATS | `jats.rs` (roxmltree) | **3/4 exact**; the eLife plain-text route diverges (252 diff lines) |
+| USPTO | `uspto.rs` | **1/5 exact (2/5 whitespace-normalized)** on the sources live docling converts — it errors on the other 5 (those are validated byte-exact via `.dclx`), and its APS-text *Markdown* export is empty where ours emits the text dump (the `.dclx` matches exactly — §5) |
+| XBRL | `xbrl.rs` | arelle-free core (dei facts → title, `*TextBlock` → HTML); *vs committed groundtruth* 0/2 (30 / 346 diff lines) — live docling needs arelle, which the conformance venv doesn't ship |
 | JSON-docling | `docling_json.rs` (serde_json) | reads docling's native JSON; ~51/145 round-trip exact |
-| LaTeX | `latex.rs` (scanner) | simple `.tex` ≈ live; multi-file arxiv out of scope |
+| LaTeX | `latex.rs` (scanner) | simple `.tex` ≈ live (0/2 exact, but within 2 / 9 diff lines); multi-file arxiv out of scope |
 | MHTML (.mhtml/.mht) | `mhtml.rs` (mail-parser) → HTML backend | **docling.rs extension — no docling backend to compare against**; embedded images resolved by `Content-Location`/`cid:` |
 
 Shared OOXML infrastructure (`ooxml.rs`): a `zip` reader, `.rels` parsing, part
@@ -297,7 +297,8 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
   done: mixed-style list continuation, empty-list-item level collapse, ODS
   sheet→table region detection with numeric alignment, and rich table cells.
 - **DOCX grouped/anchored drawings** — position-sorted layout of grouped shapes
-  and `<mc:AlternateContent>` image de-duplication (`drawingml` fixture).
+  and `<mc:AlternateContent>` image de-duplication (`drawingml` fixture, 8 diff
+  lines), and floating text-frame ordering (`textbox` fixture, 40 diff lines).
   Multilevel shared list/heading numbering and advanced OMML/inline-equation
   spacing are done (byte-for-byte against pylatexenc).
 - **`wiki_duck` offline rendering.** The HTML subsystem itself is complete
