@@ -595,12 +595,29 @@ fn emit_table(out: &mut Out, depth: i32, table: &Table) {
 /// A chart — docling's `PictureItem` with a tabular chart-data annotation:
 /// `<picture class="chart">` wrapping a `<label value="{kind}"/>` and the data
 /// grid as a `<tabular>` (same cell tokens as a table).
-fn emit_chart(out: &mut Out, depth: i32, kind: &str, table: &Table) {
+fn emit_chart(
+    out: &mut Out,
+    depth: i32,
+    kind: &str,
+    table: &Table,
+    caption: Option<&str>,
+    location: Option<&[u16; 4]>,
+) {
+    out.pic_index += 1;
     out.push(depth, "<picture class=\"chart\">".to_string());
     out.push(
         depth + 1,
         format!("<label value=\"{}\"/>", attr_escape(kind)),
     );
+    if let Some(loc) = location {
+        push_location(out, depth + 1, loc);
+    }
+    if let Some(cap) = caption {
+        out.push(
+            depth + 1,
+            format!("<caption>{}</caption>", escape_text(cap)),
+        );
+    }
     out.push(depth + 1, "<tabular>".to_string());
     emit_table_rows(out, depth + 1, table);
     out.push(depth + 1, "</tabular>".to_string());
@@ -640,6 +657,17 @@ fn emit_table_rows(out: &mut Out, depth: i32, table: &Table) {
                 Some(s) => s.header_row.get(ri).copied().unwrap_or(false),
                 None => ri == 0,
             };
+            let is_row_header = table
+                .structure
+                .as_ref()
+                .map(|s| {
+                    s.row_header
+                        .get(ri)
+                        .and_then(|r| r.get(ci))
+                        .copied()
+                        .unwrap_or(false)
+                })
+                .unwrap_or(false);
             let tok = if is_lcel && is_ucel {
                 // Continues a span in both axes (a 2-D covered cell) → `<xcel/>`.
                 "<xcel/>"
@@ -651,6 +679,8 @@ fn emit_table_rows(out: &mut Out, depth: i32, table: &Table) {
                 "<ecel/>"
             } else if is_header {
                 "<ched/>"
+            } else if is_row_header {
+                "<rhed/>"
             } else {
                 "<fcel/>"
             };
@@ -768,8 +798,20 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
                 emit_picture(out, depth, caption.as_deref(), image.as_ref(), None);
                 *i += 1;
             }
-            Node::Chart { kind, table } => {
-                emit_chart(out, depth, kind, table);
+            Node::Chart {
+                kind,
+                table,
+                caption,
+                location,
+            } => {
+                emit_chart(
+                    out,
+                    depth,
+                    kind,
+                    table,
+                    caption.as_deref(),
+                    location.as_ref(),
+                );
                 *i += 1;
             }
             Node::DoclangOnly(inner) => {
@@ -1212,6 +1254,14 @@ fn emit_furniture(out: &mut Out, depth: i32, layer: ContentLayer, inner: &Node) 
                 out.push(depth + 1, "</caption>".to_string());
             }
             out.push(depth, "</picture>".to_string());
+        }
+        // An invisible-layer table (a hidden spreadsheet sheet): the layer
+        // token precedes the location/cells inside the `<table>`.
+        Node::Table(table) => {
+            out.push(depth, "<table>".to_string());
+            out.push(depth + 1, token);
+            emit_table_rows(out, depth, table);
+            out.push(depth, "</table>".to_string());
         }
         other => {
             let mut i = 0usize;

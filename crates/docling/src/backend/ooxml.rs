@@ -220,10 +220,3 @@ pub fn content_type(content_types_xml: &str, part: &str) -> Option<String> {
     default
 }
 
-/// Number of embedded raster images in a DrawingML part. Each picture carries
-/// exactly one `<a:blip>` image reference; charts (`graphicFrame`) carry none, so
-/// counting blips matches openpyxl/python-pptx's picture count regardless of the
-/// anchor kind (`oneCellAnchor`, `twoCellAnchor`, …).
-pub fn count_pictures(drawing_xml: &str) -> usize {
-    drawing_xml.matches("<a:blip>").count() + drawing_xml.matches("<a:blip ").count()
-}

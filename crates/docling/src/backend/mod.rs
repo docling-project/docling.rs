@@ -46,6 +46,7 @@ mod uspto_entities;
 mod webvtt;
 pub(crate) mod xbrl;
 mod xlsx;
+mod xlsx_drawings;
 
 pub use asciidoc::AsciiDocBackend;
 pub use csv::CsvBackend;

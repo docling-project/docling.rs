@@ -107,6 +107,10 @@ pub enum Node {
         kind: String,
         /// The chart's data grid (row 0 is the header band).
         table: Table,
+        /// The chart title (docling's caption item on the picture).
+        caption: Option<String>,
+        /// DocLang `<location>` provenance for the picture element.
+        location: Option<[u16; 4]>,
     },
     /// A logical grouping of child nodes (e.g. a list, a section).
     Group { label: String, children: Vec<Node> },
@@ -208,6 +212,8 @@ pub enum ContentLayer {
     Furniture,
     /// Editorial notes (docx reviewer comments).
     Notes,
+    /// Invisible content (hidden spreadsheet sheets).
+    Invisible,
 }
 
 impl ContentLayer {
@@ -216,6 +222,7 @@ impl ContentLayer {
         match self {
             ContentLayer::Furniture => "furniture",
             ContentLayer::Notes => "notes",
+            ContentLayer::Invisible => "invisible",
         }
     }
 }
@@ -342,6 +349,10 @@ pub struct TableStructure {
     /// vertical span from the cell above (emitted as `<ucel/>`). Empty or all
     /// `false` when the backend has no vertical spans (e.g. USPTO CALS).
     pub row_continuation: Vec<Vec<bool>>,
+    /// Same shape as [`Table::rows`]; `true` where a non-empty cell is a row
+    /// header (emitted as `<rhed/>`) — a chart's category column. Empty when
+    /// the table has no row headers.
+    pub row_header: Vec<Vec<bool>>,
 }
 
 impl DoclingDocument {

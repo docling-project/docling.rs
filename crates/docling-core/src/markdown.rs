@@ -379,9 +379,27 @@ fn render_one(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
             }
             blocks.push(picture_marker(image.as_ref(), ctx));
         }
-        // A chart renders like a picture placeholder (its data table is
-        // DocLang-only); no image payload.
-        Node::Chart { .. } => blocks.push(picture_marker(None, ctx)),
+        // A chart renders as docling's picture-with-meta markdown: the caption,
+        // the placeholder, the humanized classification ("line_chart" ->
+        // "Line chart"), then the chart's data grid as a regular table.
+        Node::Chart {
+            kind,
+            table,
+            caption,
+            ..
+        } => {
+            if let Some(cap) = caption {
+                if !cap.is_empty() {
+                    blocks.push(cap.clone());
+                }
+            }
+            blocks.push(picture_marker(None, ctx));
+            blocks.push(humanize_label(kind));
+            let rendered = render_table(table, false);
+            if !rendered.is_empty() {
+                blocks.push(rendered);
+            }
+        }
         // A DocLang-only node is omitted from Markdown.
         Node::DoclangOnly(_) => {}
         Node::Group { children, .. } => render(children, blocks, ctx),
@@ -426,6 +444,17 @@ const MISSING_TEXT: &str = "<!-- missing-text -->";
 
 /// The Markdown for a picture under the active [`ImageMode`]; Referenced mode also
 /// records the bytes in `ctx.artifacts` for the caller to write.
+/// docling-core's `_humanize_text`: underscores to spaces, first letter
+/// capitalized ("line_chart" -> "Line chart").
+fn humanize_label(label: &str) -> String {
+    let text = label.replace('_', " ");
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
+        None => text,
+    }
+}
+
 fn picture_marker(image: Option<&crate::PictureImage>, ctx: &mut Ctx) -> String {
     match (ctx.images, image) {
         (ImageMode::Embedded, Some(img)) => format!("![Image]({})", img.data_uri()),

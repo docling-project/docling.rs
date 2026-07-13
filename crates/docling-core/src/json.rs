@@ -190,7 +190,7 @@ impl Builder {
             }
             // A chart is a picture item in the JSON (its data table is
             // DocLang-only); no image payload.
-            Node::Chart { .. } => Some(self.add_picture(None, None, parent)),
+            Node::Chart { caption, .. } => Some(self.add_picture(caption.as_deref(), None, parent)),
             // A DocLang-only node is omitted from the JSON body.
             Node::DoclangOnly(_) => None,
             Node::Group { label, children } => Some(self.add_group(label, children, parent)),

@@ -85,7 +85,7 @@ PyPI; run via `scripts/conformance/conformance.sh <fmt>`), not the committed gro
 | HTML | `html.rs` (scraper/html5ever) | **31/32 exact** (the last needs the page's external CSS at render time — §5) |
 | AsciiDoc | `asciidoc.rs` (regex) | **4/4 exact** |
 | DeepSeek-OCR Markdown | `deepseek.rs` | **3/3 exact** (auto-detected VLM-token variant) |
-| XLSX | `xlsx.rs` (calamine) | **9/9 exact** |
+| XLSX | `xlsx.rs` (calamine) | **9/9 exact** (incl. chart captions/classification/data grids) |
 | PPTX | `pptx.rs` (roxmltree) | **7/7 exact** |
 | DOCX | `docx.rs` (roxmltree) | **26/26 exact** |
 | WebVTT | `webvtt.rs` | **4/4 exact** |
@@ -121,16 +121,16 @@ close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
 
 The `.dclx` DocLang output (§3) is scored against docling's own `.dclx` archives
 with `scripts/conformance/dclx_conformance.sh` — the extracted `document.xml`
-line-diffed, similarity `= 100·(1 − difflines / max_lines)`. **≈91% mean over the
+line-diffed, similarity `= 100·(1 − difflines / max_lines)`. **≈92% mean over the
 134-fixture non-PDF corpus** (issue #32 target: ≥90%), per source format:
 
 | Format | `.dclx` similarity | Format | `.dclx` similarity |
 |---|---|---|---|
 | CSV / AsciiDoc / Email | **100%** | Markdown | 92% |
-| USPTO | 98% | ODF / LaTeX | 91% |
-| DOCX / PPTX | 96% | XLSX | 85% |
-| JATS | 95% | HTML | 84% |
-| | | WebVTT | 81% |
+| XLSX | **100%** | ODF / LaTeX | 91% |
+| USPTO | 98% | HTML | 84% |
+| DOCX / PPTX | 96% | WebVTT | 81% |
+| JATS | 95% | | |
 
 This effort was tracked as
 [issue #32](https://github.com/docling-project/docling.rs/issues/32) — **closed,
@@ -161,10 +161,10 @@ blockers of `PDF_CONFORMANCE.md`), not serialization.
   `<strikethrough>`/`<sub|superscript>`), lists with enumeration `<marker>`s, OTSL
   tables (`<ched>`/`<fcel>`/`<lcel>`…) with per-cell `<location>`, code, formulas,
   pictures and furniture. Conformance is scored against docling's own `.dclx`
-  archives (`scripts/conformance/dclx_conformance.sh`): **≈91% mean similarity over
-  the 134-fixture non-PDF corpus** (issue #32's ≥90% target) — csv/asciidoc/email
+  archives (`scripts/conformance/dclx_conformance.sh`): **≈92% mean similarity over
+  the 134-fixture non-PDF corpus** (issue #32's ≥90% target) — csv/asciidoc/email/xlsx
   exact, uspto/docx/pptx/jats in the mid-to-high 90s, md/odf/latex low 90s,
-  xlsx/html/webvtt in the 80s (full table in §2). The format-by-format work was
+  html/webvtt in the 80s (full table in §2). The format-by-format work was
   tracked as [issue #32](https://github.com/docling-project/docling.rs/issues/32) and its
   children (#38–#41, #44) — all closed, targets met. This is an **output** format;
   a DocLang *input* backend is still out of scope (§5). For **PDF**, where the

@@ -18,7 +18,8 @@ use docling_core::{DoclingDocument, Node, Table};
 use quick_xml::events::Event;
 use quick_xml::Reader as XmlReader;
 
-use crate::backend::ooxml::{count_pictures, resolve, Package};
+use crate::backend::ooxml::{resolve, Package};
+use crate::backend::xlsx_drawings;
 use crate::backend::DeclarativeBackend;
 use crate::error::ConversionError;
 use crate::source::SourceDocument;
@@ -31,121 +32,369 @@ impl DeclarativeBackend for XlsxBackend {
         let mut workbook: Xlsx<_> =
             Xlsx::new(cursor).map_err(|e| ConversionError::Parse(format!("xlsx: {e}")))?;
         let _ = workbook.load_merged_regions();
-        let image_counts = sheet_image_counts(&source.bytes);
+        let mut pkg = Package::open(&source.bytes)
+            .ok_or_else(|| ConversionError::Parse("xlsx: bad zip".into()))?;
 
-        // docling only emits visible worksheets in the body: chartsheets are
-        // skipped, and hidden sheets land in a non-body content layer that
-        // `export_to_markdown` drops. (calamine would otherwise surface both.)
-        let sheet_names: Vec<String> = workbook
+        // Every sheet is a page, in workbook order — worksheets *and*
+        // chartsheets, visible and hidden alike (docling numbers them all; a
+        // hidden sheet's items land in the invisible content layer).
+        let metas: Vec<(String, calamine::SheetType, calamine::SheetVisible)> = workbook
             .sheets_metadata()
             .iter()
-            .filter(|s| {
-                matches!(s.typ, calamine::SheetType::WorkSheet)
-                    && matches!(s.visible, calamine::SheetVisible::Visible)
-            })
-            .map(|s| s.name.clone())
+            .map(|s| (s.name.clone(), s.typ, s.visible))
+            .collect();
+        // Sheet name -> its part path (via workbook.xml r:id -> workbook rels).
+        let wb_xml = pkg.read("xl/workbook.xml").unwrap_or_default();
+        let wb_rels: HashMap<String, String> = pkg
+            .rels_for("xl/workbook.xml")
+            .iter()
+            .map(|r| (r.id.clone(), resolve("xl", &r.target)))
+            .collect();
+        let sheet_parts: HashMap<String, String> = workbook_sheets(&wb_xml)
+            .into_iter()
+            .filter_map(|(name, rid)| Some((name, wb_rels.get(&rid)?.clone())))
             .collect();
 
-        let mut doc = DoclingDocument::new(&source.name);
-        for name in sheet_names {
-            // Collect merges (absolute coords) before borrowing the range.
-            let abs_merges: Vec<((u32, u32), (u32, u32))> = workbook
-                .merged_regions_by_sheet(&name)
-                .iter()
-                .map(|(_, _, d)| (d.start, d.end))
-                .collect();
-            let Ok(range) = workbook.worksheet_range(&name) else {
-                continue;
+        // Threaded-comment persons (Excel 365).
+        let persons = pkg
+            .read("xl/persons/person.xml")
+            .map(|xml| xlsx_drawings::parse_persons(&xml))
+            .unwrap_or_default();
+
+        // Pre-load every worksheet's cell range once: chart series resolve
+        // by reference into arbitrary sheets.
+        let mut ranges: HashMap<String, Range<Data>> = HashMap::new();
+        for (name, typ, _) in &metas {
+            if matches!(typ, calamine::SheetType::WorkSheet) {
+                if let Ok(range) = workbook.worksheet_range(name) {
+                    ranges.insert(name.clone(), range);
+                }
+            }
+        }
+        let resolve_ref = |reference: &str, own_sheet: &str| -> Vec<String> {
+            let Some((sheet, (min_c, min_r, max_c, max_r))) =
+                xlsx_drawings::parse_range_ref(reference)
+            else {
+                return Vec::new();
+            };
+            let sheet: String = sheet.unwrap_or_else(|| own_sheet.to_string());
+            let Some(range) = ranges.get(&sheet) else {
+                return Vec::new();
             };
             let (rs_r, rs_c) = range.start().unwrap_or((0, 0));
-            // Map every merge-covered cell to the merge's top-left (relative
-            // coords), so the value is duplicated across the span as docling does.
-            let mut merge_of: HashMap<(usize, usize), (usize, usize)> = HashMap::new();
-            for ((sr, sc), (er, ec)) in abs_merges {
-                let tl = ((sr - rs_r) as usize, (sc - rs_c) as usize);
-                for r in sr..=er {
-                    for c in sc..=ec {
-                        merge_of.insert(((r - rs_r) as usize, (c - rs_c) as usize), tl);
+            let mut out = Vec::new();
+            for r in min_r..=max_r {
+                for c in min_c..=max_c {
+                    let rr = (r as u32).wrapping_sub(rs_r) as usize;
+                    let cc = (c as u32).wrapping_sub(rs_c) as usize;
+                    let v = if r as u32 >= rs_r && c as u32 >= rs_c {
+                        range.get((rr, cc)).map(format_cell).unwrap_or_default()
+                    } else {
+                        String::new()
+                    };
+                    out.push(v);
+                }
+            }
+            out
+        };
+
+        let mut doc = DoclingDocument::new(&source.name);
+        let mut comments: Vec<String> = Vec::new();
+        // The page number of the most recent sheet that produced items — the
+        // DocLang page break trails the *following* sheet's content (docling
+        // serializes each sheet group before the page-break node that the
+        // item iterator placed inside it).
+        let mut prev_item_page: Option<usize> = None;
+        for (page_ix, (name, typ, visible)) in metas.iter().enumerate() {
+            let hidden = !matches!(visible, calamine::SheetVisible::Visible);
+            // (bbox in cell units, node) items for this sheet/page.
+            let mut items: Vec<((usize, usize, usize, usize), Node)> = Vec::new();
+
+            if matches!(typ, calamine::SheetType::WorkSheet) {
+                if let Some(range) = ranges.get(name) {
+                    let abs_merges: Vec<((u32, u32), (u32, u32))> = workbook
+                        .merged_regions_by_sheet(name)
+                        .iter()
+                        .map(|(_, _, d)| (d.start, d.end))
+                        .collect();
+                    let (rs_r, rs_c) = range.start().unwrap_or((0, 0));
+                    let mut merge_of: HashMap<(usize, usize), (usize, usize)> = HashMap::new();
+                    for ((sr, sc), (er, ec)) in abs_merges {
+                        let tl = ((sr - rs_r) as usize, (sc - rs_c) as usize);
+                        for r in sr..=er {
+                            for c in sc..=ec {
+                                merge_of.insert(((r - rs_r) as usize, (c - rs_c) as usize), tl);
+                            }
+                        }
+                    }
+                    let (rh, rw) = range.get_size();
+                    let height = rh.max(merge_of.keys().map(|(r, _)| r + 1).max().unwrap_or(0));
+                    let width = rw.max(merge_of.keys().map(|(_, c)| c + 1).max().unwrap_or(0));
+                    // docling's bboxes are in *absolute* cell indices; calamine's
+                    // range is clipped to its first non-empty row/column.
+                    let (or, oc) = (rs_r as usize, rs_c as usize);
+                    for t in find_tables(range, &merge_of, height, width) {
+                        items.push((
+                            (
+                                oc + t.min_c,
+                                or + t.min_r,
+                                oc + t.max_c + 1,
+                                or + t.max_r + 1,
+                            ),
+                            Node::Table(t.table),
+                        ));
                     }
                 }
             }
-            // Merged regions can extend past calamine's value-based range (an
-            // all-empty merged row has no values), so widen the scan to cover
-            // them — docling expands the data bounds to merged cells too.
-            let (rh, rw) = range.get_size();
-            let height = rh.max(merge_of.keys().map(|(r, _)| r + 1).max().unwrap_or(0));
-            let width = rw.max(merge_of.keys().map(|(_, c)| c + 1).max().unwrap_or(0));
-            let mut found = find_tables(&range, &merge_of, height, width);
-            let has_images = image_counts.get(&name).copied().unwrap_or(0) > 0;
-            // DocLang `<location>` provenance: docling gives each table a bbox in
-            // cell-index units and normalizes it against the sheet's extent (the
-            // max right/bottom over all items). We compute that extent from the
-            // tables — correct only when the sheet has no images/charts, whose
-            // geometry we don't parse, so we set locations for image-free sheets
-            // and leave them off otherwise (unchanged from before).
-            if !has_images && !found.is_empty() {
-                let page_w = found.iter().map(|t| t.max_c + 1).max().unwrap_or(1);
-                let page_h = found.iter().map(|t| t.max_r + 1).max().unwrap_or(1);
-                for t in &mut found {
-                    t.table.location = Some([
-                        location_value(t.min_c, page_w),
-                        location_value(t.min_r, page_h),
-                        location_value(t.max_c + 1, page_w),
-                        location_value(t.max_r + 1, page_h),
-                    ]);
+
+            // Drawings: anchored images and chart frames.
+            if let Some(part) = sheet_parts.get(name) {
+                let drawing_targets: Vec<String> = pkg
+                    .rels_for(part)
+                    .iter()
+                    .filter(|r| r.rel_type.ends_with("/drawing"))
+                    .map(|r| resolve(part_dir(part), &r.target))
+                    .collect();
+                for dpath in drawing_targets {
+                    let Some(dxml) = pkg.read(&dpath) else {
+                        continue;
+                    };
+                    let dimages = pkg.image_rels(&dpath, part_dir(&dpath));
+                    let drels: HashMap<String, String> = pkg
+                        .rels_for(&dpath)
+                        .iter()
+                        .map(|r| (r.id.clone(), resolve(part_dir(&dpath), &r.target)))
+                        .collect();
+                    for item in xlsx_drawings::parse_drawing(&dxml) {
+                        match item.kind {
+                            xlsx_drawings::DrawingKind::Image(rid) => {
+                                items.push((
+                                    item.bbox,
+                                    Node::Picture {
+                                        caption: None,
+                                        image: dimages.get(&rid).cloned(),
+                                    },
+                                ));
+                            }
+                            xlsx_drawings::DrawingKind::Chart(rid) => {
+                                let Some(cpath) = drels.get(&rid) else {
+                                    continue;
+                                };
+                                let Some(cxml) = pkg.read(cpath) else {
+                                    continue;
+                                };
+                                let Some(spec) = xlsx_drawings::parse_chart(&cxml) else {
+                                    continue;
+                                };
+                                let table = chart_table(&spec, name, &resolve_ref);
+                                let Some(table) = table else { continue };
+                                items.push((
+                                    item.bbox,
+                                    Node::Chart {
+                                        kind: spec.kind.to_string(),
+                                        table,
+                                        caption: spec.title.clone(),
+                                        location: None,
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                }
+
+                // Cell comments: legacy part order gives the cells; threaded
+                // XML (matched by worksheet index) overrides author/time.
+                let legacy: Vec<(String, String, String)> = pkg
+                    .rels_for(part)
+                    .iter()
+                    .filter(|r| r.rel_type.ends_with("/comments"))
+                    .filter_map(|r| pkg.read(&resolve(part_dir(part), &r.target)))
+                    .flat_map(|xml| xlsx_drawings::parse_legacy_comments(&xml))
+                    .collect();
+                if !legacy.is_empty() {
+                    let ws_index = metas
+                        .iter()
+                        .filter(|(_, t, _)| matches!(t, calamine::SheetType::WorkSheet))
+                        .position(|(n, _, _)| n == name)
+                        .map(|i| i + 1)
+                        .unwrap_or(page_ix + 1);
+                    let threaded = pkg
+                        .read(&format!(
+                            "xl/threadedComments/threadedComment{ws_index}.xml"
+                        ))
+                        .map(|xml| xlsx_drawings::parse_threaded_comments(&xml, &persons))
+                        .unwrap_or_default();
+                    // Row-major over commented cells (docling scans the grid).
+                    let mut cells: Vec<(usize, usize, String)> = legacy
+                        .iter()
+                        .filter_map(|(cell, author, text)| {
+                            let (c, r) = cell_ref_pub(cell)?;
+                            let line = match threaded.get(cell) {
+                                Some((a, t, time)) => match time {
+                                    Some(ts) => format!("[author: {a}, time: {ts}]: {t}"),
+                                    None => format!("[author: {a}]: {t}"),
+                                },
+                                None => format!("[author: {author}]: {text}"),
+                            };
+                            Some((r, c, line))
+                        })
+                        .collect();
+                    cells.sort_by_key(|(r, c, _)| (*r, *c));
+                    comments.extend(cells.into_iter().map(|(_, _, line)| line));
                 }
             }
-            for t in found {
-                doc.push(Node::Table(t.table));
+
+            if items.is_empty() {
+                continue;
             }
-            // docling appends one picture per embedded image, after the tables.
-            for _ in 0..image_counts.get(&name).copied().unwrap_or(0) {
-                doc.push(Node::Picture {
-                    caption: None,
-                    image: None,
-                });
+            // docling sorts a sheet's children by top coordinate (stable).
+            items.sort_by_key(|((_, t, _, _), _)| *t);
+            // Location provenance against the sheet's extent.
+            let page_w = items.iter().map(|((_, _, r, _), _)| *r).max().unwrap_or(1);
+            let page_h = items.iter().map(|((_, _, _, b), _)| *b).max().unwrap_or(1);
+            for ((l, t, r, b), node) in &mut items {
+                let loc = [
+                    location_value(*l, page_w),
+                    location_value(*t, page_h),
+                    location_value(*r, page_w),
+                    location_value(*b, page_h),
+                ];
+                match node {
+                    Node::Table(table) => table.location = Some(loc),
+                    Node::Chart { location, .. } => *location = Some(loc),
+                    Node::Picture { .. } => {}
+                    _ => {}
+                }
             }
+            for ((l, t, r, b), node) in items {
+                let node = if let Node::Picture { .. } = &node {
+                    Node::Located {
+                        location: [
+                            location_value(l, page_w),
+                            location_value(t, page_h),
+                            location_value(r, page_w),
+                            location_value(b, page_h),
+                        ],
+                        inner: Box::new(node),
+                    }
+                } else {
+                    node
+                };
+                let node = if hidden {
+                    Node::Furniture {
+                        layer: docling_core::ContentLayer::Invisible,
+                        inner: Box::new(node),
+                    }
+                } else {
+                    node
+                };
+                doc.push(node);
+            }
+            // DocLang page break: trails this sheet's content when an earlier
+            // sheet already produced items (see module docs).
+            if prev_item_page.is_some() {
+                doc.push(Node::PageBreak);
+            }
+            prev_item_page = Some(page_ix + 1);
+        }
+        for line in comments {
+            doc.nodes.push(Node::Furniture {
+                layer: docling_core::ContentLayer::Notes,
+                inner: Box::new(Node::Paragraph { text: line }),
+            });
         }
         Ok(doc)
     }
 }
 
-/// Map each sheet name to its number of embedded images, by walking
-/// `workbook.xml` → workbook rels → per-sheet rels → drawing parts.
-fn sheet_image_counts(bytes: &[u8]) -> HashMap<String, usize> {
-    let mut counts = HashMap::new();
-    let Some(mut pkg) = Package::open(bytes) else {
-        return counts;
-    };
-    let Some(workbook) = pkg.read("xl/workbook.xml") else {
-        return counts;
-    };
-    // r:id -> sheet part path
-    let rid_to_part: HashMap<String, String> = pkg
-        .rels_for("xl/workbook.xml")
-        .iter()
-        .map(|r| (r.id.clone(), resolve("xl", &r.target)))
-        .collect();
+/// The directory of an OPC part path (`xl/worksheets/sheet1.xml` → `xl/worksheets`).
+fn part_dir(part: &str) -> &str {
+    part.rsplit_once('/').map(|(d, _)| d).unwrap_or("")
+}
 
-    for (name, rid) in workbook_sheets(&workbook) {
-        let Some(part) = rid_to_part.get(&rid) else {
-            continue;
-        };
-        let dir = part.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
-        let mut n = 0;
-        for rel in pkg.rels_for(part) {
-            if rel.rel_type.ends_with("/drawing") {
-                let drawing = resolve(dir, &rel.target);
-                if let Some(xml) = pkg.read(&drawing) {
-                    n += count_pictures(&xml);
-                }
+/// Public wrapper for `xlsx_drawings`' cell-ref parser (`B7` → `(col, row)`).
+fn cell_ref_pub(cell: &str) -> Option<(usize, usize)> {
+    let (sheet, (c, r, _, _)) = xlsx_drawings::parse_range_ref(cell)?;
+    if sheet.is_some() {
+        return None;
+    }
+    Some((c, r))
+}
+
+/// docling's `_chart_to_table_data`: categories down the first column (row
+/// headers), one column per series (column headers), the top-left cell empty.
+fn chart_table(
+    spec: &xlsx_drawings::ChartSpec,
+    own_sheet: &str,
+    resolve_ref: &dyn Fn(&str, &str) -> Vec<String>,
+) -> Option<Table> {
+    if spec.series.is_empty() {
+        return None;
+    }
+    let mut categories: Vec<String> = Vec::new();
+    for s in &spec.series {
+        if let Some(cat) = &s.cat_ref {
+            categories = resolve_ref(cat, own_sheet);
+            if !categories.is_empty() {
+                break;
             }
         }
-        if n > 0 {
-            counts.insert(name, n);
-        }
     }
-    counts
+    let mut columns: Vec<(String, Vec<String>)> = Vec::new();
+    for s in &spec.series {
+        let values = s
+            .val_ref
+            .as_deref()
+            .map(|r| resolve_ref(r, own_sheet))
+            .unwrap_or_default();
+        let name = match &s.name_ref {
+            Some(r) => resolve_ref(r, own_sheet)
+                .into_iter()
+                .next()
+                .unwrap_or_default(),
+            None => s.name_lit.clone().unwrap_or_default(),
+        };
+        columns.push((name, values));
+    }
+    let num_data_rows = columns
+        .iter()
+        .map(|(_, v)| v.len())
+        .chain([categories.len()])
+        .max()
+        .unwrap_or(0);
+    if num_data_rows == 0 {
+        return None;
+    }
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    let mut header = vec![String::new()];
+    header.extend(columns.iter().map(|(n, _)| n.clone()));
+    rows.push(header);
+    for i in 0..num_data_rows {
+        let mut row = vec![categories.get(i).cloned().unwrap_or_default()];
+        for (_, values) in &columns {
+            row.push(values.get(i).cloned().unwrap_or_default());
+        }
+        rows.push(row);
+    }
+    let nrows = rows.len();
+    let ncols = rows[0].len();
+    let mut header_row = vec![false; nrows];
+    header_row[0] = true;
+    let mut row_header = vec![vec![false; ncols]; nrows];
+    for r in row_header.iter_mut().skip(1) {
+        r[0] = true;
+    }
+    Some(Table {
+        rows,
+        location: None,
+        structure: Some(docling_core::TableStructure {
+            header_row,
+            col_continuation: Vec::new(),
+            row_continuation: Vec::new(),
+            row_header,
+        }),
+        cell_blocks: None,
+    })
 }
 
 /// Parse `<sheet name="…" r:id="…">` entries from `workbook.xml`, in order.
@@ -257,11 +506,52 @@ fn find_tables(
             let rows: Vec<Vec<String>> = (min_r..=max_r)
                 .map(|gr| (min_c..=max_c).map(|gc| cell_text(gr, gc)).collect())
                 .collect();
+            // Merge spans as OTSL continuations (docling's table cells carry
+            // row/col spans from the merged regions): a covered cell continues
+            // the span horizontally (`<lcel/>`), vertically (`<ucel/>`), or
+            // both (`<xcel/>`) relative to the merge's top-left.
+            let nrows = max_r - min_r + 1;
+            let ncols = max_c - min_c + 1;
+            let mut col_cont = vec![vec![false; ncols]; nrows];
+            let mut row_cont = vec![vec![false; ncols]; nrows];
+            let mut any_span = false;
+            for gr in min_r..=max_r {
+                for gc in min_c..=max_c {
+                    if let Some(&(tr, tc)) = merge_of.get(&(gr, gc)) {
+                        if (gr, gc) == (tr, tc) {
+                            continue;
+                        }
+                        any_span = true;
+                        if gc > tc {
+                            col_cont[gr - min_r][gc - min_c] = true;
+                        }
+                        if gr > tr && gc == tc {
+                            row_cont[gr - min_r][gc - min_c] = true;
+                        }
+                        if gr > tr && gc > tc {
+                            // A 2-D covered cell is both (`<xcel/>`).
+                            row_cont[gr - min_r][gc - min_c] = true;
+                        }
+                    }
+                }
+            }
+            let structure = any_span.then(|| {
+                let mut header_row = vec![false; nrows];
+                if let Some(h) = header_row.first_mut() {
+                    *h = true;
+                }
+                docling_core::TableStructure {
+                    header_row,
+                    col_continuation: col_cont,
+                    row_continuation: row_cont,
+                    row_header: Vec::new(),
+                }
+            });
             tables.push(FoundTable {
                 table: Table {
                     rows,
                     location: None,
-                    structure: None,
+                    structure,
                     cell_blocks: None,
                 },
                 min_r,

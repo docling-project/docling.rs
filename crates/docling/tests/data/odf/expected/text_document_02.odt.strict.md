@@ -14,4 +14,13 @@ Contrary to popular belief, Lorem Ipsum is not simply random text. It has roots 
 
 <!-- image -->
 
+Chart
+
+|       |   Column 1 |   Column 2 |   Column 3 |
+|-------|------------|------------|------------|
+| Row 1 |        9.1 |        3.2 |       4.54 |
+| Row 2 |        2.4 |        8.8 |       9.65 |
+| Row 3 |        3.1 |        1.5 |        3.7 |
+| Row 4 |        4.3 |       9.02 |        6.2 |
+
 <!-- image -->

@@ -19,6 +19,9 @@
     "children": [
       {
         "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/pictures/0"
       }
     ],
     "content_layer": "body",
@@ -26,8 +29,40 @@
     "label": "unspecified"
   },
   "groups": [],
-  "texts": [],
-  "pictures": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [],
+      "orig": "Wild Duck Observations by Year",
+      "text": "Wild Duck Observations by Year"
+    }
+  ],
+  "pictures": [
+    {
+      "self_ref": "#/pictures/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [],
+      "captions": [
+        {
+          "$ref": "#/texts/0"
+        }
+      ],
+      "references": [],
+      "footnotes": [],
+      "annotations": []
+    }
+  ],
   "tables": [
     {
       "self_ref": "#/tables/0",

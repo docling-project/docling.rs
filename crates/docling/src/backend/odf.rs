@@ -531,6 +531,8 @@ fn emit_frame_graphic(frame: XmlNode, styles: &Styles, doc: &mut DoclingDocument
             doc.push(Node::Chart {
                 kind: info.kind.clone(),
                 table: info.table.clone(),
+                caption: None,
+                location: None,
             });
             return true;
         }
@@ -893,6 +895,7 @@ fn parse_table(table: XmlNode, styles: &Styles) -> Option<Table> {
             header_row,
             col_continuation: slice(col_cont),
             row_continuation: slice(row_cont),
+            row_header: Vec::new(),
         }),
         cell_blocks,
     })
@@ -1210,6 +1213,8 @@ fn walk_presentation(pres: XmlNode, styles: &Styles, doc: &mut DoclingDocument) 
                     doc.push(Node::DoclangOnly(Box::new(Node::Chart {
                         kind: info.kind.clone(),
                         table: info.table.clone(),
+                        caption: None,
+                        location: None,
                     })));
                 }
             }
