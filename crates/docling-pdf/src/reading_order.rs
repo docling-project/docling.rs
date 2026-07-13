@@ -198,20 +198,12 @@ fn predict(orig: &[Bl], page_w: f32) -> Vec<usize> {
     let dil = dilate(orig, &up0, &dn0, page_w);
     let (up, mut dn) = init_ud(&dil);
 
-    let by_geom = |a: &usize, b: &usize| {
-        if orig[*a].before(&orig[*b]) {
-            std::cmp::Ordering::Less
-        } else if orig[*b].before(&orig[*a]) {
-            std::cmp::Ordering::Greater
-        } else {
-            std::cmp::Ordering::Equal
-        }
-    };
+    let by_geom = |a: usize, b: usize| orig[a].before(&orig[b]);
 
     let mut heads: Vec<usize> = (0..n).filter(|&i| up[i].is_empty()).collect();
-    heads.sort_by(by_geom);
+    py_sort(&mut heads, by_geom);
     for children in dn.iter_mut() {
-        children.sort_by(by_geom);
+        py_sort(children, by_geom);
     }
 
     let mut order = Vec::with_capacity(n);
@@ -227,10 +219,55 @@ fn predict(orig: &[Bl], page_w: f32) -> Vec<usize> {
     // order so nothing is dropped (docling logs an error and returns short).
     if order.len() != n {
         let mut rest: Vec<usize> = (0..n).filter(|&i| !visited[i]).collect();
-        rest.sort_by(by_geom);
+        py_sort(&mut rest, by_geom);
         order.extend(rest);
     }
     order
+}
+
+/// CPython's list sort for the sizes a page produces, driven by a `<`
+/// comparator: detect the leading natural run (reversing a strictly descending
+/// prefix), then stable binary-insert the rest — exactly Timsort for fewer
+/// than 64 elements (`minrun == n`). docling sorts with
+/// `functools.cmp_to_key(PageElement.__lt__)`, whose fuzzy geometric relation
+/// (`before`) is **not** a strict total order on mixed overlap groups: Python
+/// quietly produces the Timsort order, while `slice::sort_by` panics on the
+/// Ord violation (the Korean OCR pages trip it). For a consistent comparator
+/// this is just another stable sort, so already-conformant fixtures are
+/// unaffected.
+fn py_sort(v: &mut [usize], mut lt: impl FnMut(usize, usize) -> bool) {
+    let n = v.len();
+    if n < 2 {
+        return;
+    }
+    // count_run: extend an ascending (`!lt(next, prev)`) or strictly
+    // descending run from the start; a descending run is reversed in place.
+    let mut run = 1;
+    if lt(v[1], v[0]) {
+        while run + 1 < n && lt(v[run + 1], v[run]) {
+            run += 1;
+        }
+        v[..=run].reverse();
+    } else {
+        while run + 1 < n && !lt(v[run + 1], v[run]) {
+            run += 1;
+        }
+    }
+    // binarysort: stable binary insertion of the remainder.
+    for i in run + 1..n {
+        let pivot = v[i];
+        let (mut lo, mut hi) = (0, i);
+        while lo < hi {
+            let mid = (lo + hi) / 2;
+            if lt(pivot, v[mid]) {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        v.copy_within(lo..i, lo + 1);
+        v[lo] = pivot;
+    }
 }
 
 /// `predict_merges` (docling `ReadingOrderPredictor`): given elements already in
