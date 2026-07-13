@@ -36,7 +36,8 @@ pub const RHED: i64 = 11; // row header
 pub const SROW: i64 = 12; // section row
 
 /// A predicted table cell: an OTSL grid position (with spans) + its box in the
-/// 448 image normalized cxcywh, and the OTSL tag.
+/// 448 image normalized cxcywh, the OTSL tag, and the bbox decoder's cell
+/// class (docling's `cell_class`; 2 = full, ≤1 = predicted empty).
 #[derive(Debug, Clone)]
 pub struct TableCell {
     pub row: usize,
@@ -44,6 +45,7 @@ pub struct TableCell {
     pub colspan: usize,
     pub rowspan: usize,
     pub tag: i64,
+    pub class: i64,
     pub cx: f32,
     pub cy: f32,
     pub w: f32,
@@ -385,34 +387,46 @@ impl TableFormer {
             .chunks_exact(4)
             .map(|c| [c[0], c[1], c[2], c[3]])
             .collect();
-        let merged = merge_spans(&boxes, &merge);
-        Ok(build_table_cells(&otsl, &merged))
+        // Per-cell class logits [n, 3] → argmax (docling's `outputs_class`).
+        let (_, craw) = bout["classes"]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| format!("tableformer: classes: {e}"))?;
+        let classes: Vec<i64> = craw.chunks_exact(3).map(|c| argmax(c) as i64).collect();
+        let (merged, merged_classes) = merge_spans(&boxes, &classes, &merge);
+        Ok(build_table_cells(&otsl, &merged, &merged_classes))
     }
 
     /// Predict a table region's Markdown grid: crop the region (docling's
-    /// page→1024px box-average then bbox crop), run the structure model, map each
-    /// cell box back to page points, match the page's word cells into cells by
-    /// intersection-over-word-area, and expand spans into a dense `rows × cols`
-    /// grid. `region` is `(l, t, r, b)` in page points (top-left). Returns `None`
-    /// if no structure is predicted.
+    /// page→1024px box-average then bbox crop), run the structure model, then
+    /// match the page's word cells into the predicted cells with docling's
+    /// matching post-processor ([`crate::tf_match`]) and expand spans into a
+    /// dense `rows × cols` grid. `region` is `(l, t, r, b)` in page points
+    /// (top-left). Returns `None` if no structure is predicted.
     pub fn predict_table_rows(
         &mut self,
         page_image: &RgbImage,
-        page_h: f32,
         region: [f32; 4],
         words: &[TextCell],
     ) -> Option<Vec<Vec<String>>> {
         // page → 1024px height (cv2.INTER_AREA), then crop the table bbox.
+        // docling's coordinate chain, rounding included: the cluster bbox is
+        // rounded to integer page points *first* (`round(cluster.bbox.l) *
+        // scale`, banker's rounding), scaled by 2 (its table-structure page
+        // scale), then by `1024 / <2x page-image height>`, and the crop indices
+        // round again. Rounding after scaling instead shifts some crops by a
+        // pixel — enough to change TableFormer's cell boxes on tall tables
+        // (redp5110's TOC).
         let sf = 1024.0 / page_image.height() as f32;
         let pw = (page_image.width() as f32 * sf) as u32;
         let page1024 = crate::timing::timed("tableformer.inter_area", || {
             crate::resample::inter_area(page_image, pw, 1024)
         });
-        let k = 1024.0 / page_h;
-        let x = (region[0] * k).round().max(0.0) as u32;
-        let y = (region[1] * k).round().max(0.0) as u32;
-        let x2 = ((region[2] * k).round() as u32).min(page1024.width());
-        let y2 = ((region[3] * k).round() as u32).min(page1024.height());
+        let k = 2.0 * 1024.0 / page_image.height() as f64;
+        let px = |v: f32| (v as f64).round_ties_even() * k;
+        let x = (px(region[0]).round_ties_even()).max(0.0) as u32;
+        let y = (px(region[1]).round_ties_even()).max(0.0) as u32;
+        let x2 = (px(region[2]).round_ties_even() as u32).min(page1024.width());
+        let y2 = (px(region[3]).round_ties_even() as u32).min(page1024.height());
         if x2 <= x || y2 <= y {
             return None;
         }
@@ -424,6 +438,34 @@ impl TableFormer {
         if cells.is_empty() {
             return None;
         }
+        // Words that belong to the table: non-empty text, ≥80 % of the word's
+        // area inside the table region (docling's `get_cells_in_bbox` ios test).
+        // Ids stay the page-level word indices so text joins in stream order.
+        let table_words: Vec<crate::tf_match::PdfWord> = words
+            .iter()
+            .enumerate()
+            .filter(|(_, w)| !w.text.trim().is_empty())
+            .filter_map(|(wi, w)| {
+                let (l, t, r, b) = (w.l as f64, w.t as f64, w.r as f64, w.b as f64);
+                let area = (r - l) * (b - t);
+                let iw = (r.min(region[2] as f64) - l.max(region[0] as f64)).max(0.0);
+                let ih = (b.min(region[3] as f64) - t.max(region[1] as f64)).max(0.0);
+                if area > 0.0 && iw * ih / area > 0.8 {
+                    Some(crate::tf_match::PdfWord {
+                        id: wi,
+                        bbox: [l, t, r, b],
+                        text: w.text.trim().to_string(),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !table_words.is_empty() && !simple_match() {
+            return docling_match_rows(&cells, region, &table_words, words);
+        }
+
         let (rw, rh) = (region[2] - region[0], region[3] - region[1]);
 
         // Cell boxes in page points (top-left), aligned with `cells`.
@@ -473,12 +515,7 @@ impl TableFormer {
                 .map(|&i| words[i].text.trim())
                 .collect::<Vec<_>>()
                 .join(" ");
-            // docling glues `@` to whatever follows it (`mAP @0.5`, an email):
-            // the PDF's word cells split `@` from the next token, and joining them
-            // with a space would widen the cell and — via the column pad — shift
-            // every row of the table. The groundtruth never contains "@ ", so this
-            // is always the right normalization.
-            let text = text.replace("@ ", "@");
+            let text = normalize_cell_text(text);
             // Spanned cells repeat their text across the covered grid positions.
             for row in grid.iter_mut().skip(c.row).take(c.rowspan) {
                 for cell in row.iter_mut().skip(c.col).take(c.colspan) {
@@ -488,6 +525,230 @@ impl TableFormer {
         }
         Some(grid)
     }
+}
+
+/// Append one JSON line per table into `<dir>/tf_match_dump.jsonl` with the
+/// exact matcher inputs (hand-rolled JSON to avoid a serde dependency).
+fn dump_match_inputs(
+    dir: &str,
+    tf_cells: &[crate::tf_match::TfCell],
+    words: &[crate::tf_match::PdfWord],
+) {
+    use std::io::Write;
+    let cells: Vec<String> = tf_cells
+        .iter()
+        .map(|c| {
+            format!(
+                r#"{{"bbox":[{},{},{},{}],"cell_id":{},"row_id":{},"column_id":{},"cell_class":{},"colspan_val":{},"rowspan_val":{}}}"#,
+                c.bbox[0], c.bbox[1], c.bbox[2], c.bbox[3],
+                c.cell_id, c.row_id, c.column_id, c.cell_class,
+                c.colspan_val, c.rowspan_val
+            )
+        })
+        .collect();
+    let ws: Vec<String> = words
+        .iter()
+        .map(|w| {
+            format!(
+                r#"{{"id":{},"bbox":[{},{},{},{}],"text":{}}}"#,
+                w.id,
+                w.bbox[0],
+                w.bbox[1],
+                w.bbox[2],
+                w.bbox[3],
+                serde_json_escape(&w.text)
+            )
+        })
+        .collect();
+    let line = format!(
+        r#"{{"table_cells":[{}],"pdf_cells":[{}]}}"#,
+        cells.join(","),
+        ws.join(",")
+    );
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(format!("{dir}/tf_match_dump.jsonl"))
+    {
+        let _ = writeln!(f, "{line}");
+    }
+}
+
+/// Minimal JSON string escaping for the parity dump.
+fn serde_json_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for ch in s.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// `DOCLING_RS_TF_SIMPLE_MATCH=1` reverts to the pre-#60 best-overlap word
+/// assignment (A/B escape hatch for the docling matching post-processor).
+fn simple_match() -> bool {
+    std::env::var("DOCLING_RS_TF_SIMPLE_MATCH").is_ok_and(|v| !v.is_empty() && v != "0")
+}
+
+/// docling glues `@` to whatever follows it (`mAP @0.5`, an email):
+/// the PDF's word cells split `@` from the next token, and joining them
+/// with a space would widen the cell and — via the column pad — shift
+/// every row of the table. The groundtruth never contains "@ ", so this
+/// is always the right normalization.
+fn normalize_cell_text(text: String) -> String {
+    text.replace("@ ", "@")
+}
+
+/// docling's matched-cell grid assembly (`tf_predictor.predict` with
+/// `do_cell_matching=True`): run the ported matching post-processor, group the
+/// word→cell assignments per grid position, compress the surviving row/column
+/// ids to sequential indexes, and expand spans into a dense `rows × cols` text
+/// grid. Matching runs in docling's coordinate space — the table bbox rounded
+/// to integers, everything ×2 (its page scale) — so the post-processor's
+/// absolute rounding agrees.
+fn docling_match_rows(
+    cells: &[TableCell],
+    region: [f32; 4],
+    table_words: &[crate::tf_match::PdfWord],
+    words: &[TextCell],
+) -> Option<Vec<Vec<String>>> {
+    const SCALE: f64 = 2.0; // docling's table-structure page scale
+    let sl = (region[0] as f64).round_ties_even() * SCALE;
+    let st = (region[1] as f64).round_ties_even() * SCALE;
+    let sr = (region[2] as f64).round_ties_even() * SCALE;
+    let sb = (region[3] as f64).round_ties_even() * SCALE;
+    let (w2, h2) = (sr - sl, sb - st);
+
+    let tf_cells: Vec<crate::tf_match::TfCell> = cells
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            let (cx, cy) = (c.cx as f64, c.cy as f64);
+            let (w, h) = (c.w as f64, c.h as f64);
+            crate::tf_match::TfCell {
+                bbox: [
+                    sl + (cx - w / 2.0) * w2,
+                    st + (cy - h / 2.0) * h2,
+                    sl + (cx + w / 2.0) * w2,
+                    st + (cy + h / 2.0) * h2,
+                ],
+                cell_id: i,
+                row_id: c.row,
+                column_id: c.col,
+                cell_class: c.class,
+                colspan_val: if c.colspan > 1 { c.colspan } else { 0 },
+                rowspan_val: if c.rowspan > 1 { c.rowspan } else { 0 },
+            }
+        })
+        .collect();
+
+    let scaled_words: Vec<crate::tf_match::PdfWord> = table_words
+        .iter()
+        .map(|w| crate::tf_match::PdfWord {
+            id: w.id,
+            bbox: [
+                w.bbox[0] * SCALE,
+                w.bbox[1] * SCALE,
+                w.bbox[2] * SCALE,
+                w.bbox[3] * SCALE,
+            ],
+            text: w.text.clone(),
+        })
+        .collect();
+
+    // Debug: dump the matcher inputs as JSON lines for a side-by-side run
+    // against docling's Python post-processor (parity harness, not a feature).
+    if let Ok(dir) = std::env::var("DOCLING_RS_TF_MATCH_DUMP") {
+        if !dir.is_empty() {
+            dump_match_inputs(&dir, &tf_cells, &scaled_words);
+        }
+    }
+
+    let (cells_wo, final_matches) =
+        crate::tf_match::match_and_post_process(tf_cells, &scaled_words);
+
+    // `_merge_tf_output`: group per (column, row) in ascending-pdf-id order;
+    // the first word's table cell fixes the group's offsets and spans.
+    struct Merged {
+        start_row: usize,
+        start_col: usize,
+        row_span: usize,
+        col_span: usize,
+        word_ids: Vec<usize>,
+    }
+    let mut merged: Vec<Merged> = Vec::new();
+    let mut key_ix: std::collections::HashMap<(usize, usize), usize> =
+        std::collections::HashMap::new();
+    for (&pdf_id, list) in &final_matches {
+        let tm = list[0].table_cell_id;
+        let Some(cell) = cells_wo.iter().find(|c| c.cell_id == tm) else {
+            continue;
+        };
+        match key_ix.entry((cell.column_id, cell.row_id)) {
+            std::collections::hash_map::Entry::Occupied(e) => {
+                merged[*e.get()].word_ids.push(pdf_id);
+            }
+            std::collections::hash_map::Entry::Vacant(e) => {
+                e.insert(merged.len());
+                merged.push(Merged {
+                    start_row: cell.row_id,
+                    start_col: cell.column_id,
+                    row_span: cell.rowspan_val.max(1),
+                    col_span: cell.colspan_val.max(1),
+                    word_ids: vec![pdf_id],
+                });
+            }
+        }
+    }
+    if merged.is_empty() {
+        return None;
+    }
+
+    // `multi_table_predict`'s sort_row_col_indexes: compress the surviving
+    // row/column ids to gap-free indexes.
+    let mut start_cols: Vec<usize> = merged.iter().map(|m| m.start_col).collect();
+    start_cols.sort_unstable();
+    start_cols.dedup();
+    let mut start_rows: Vec<usize> = merged.iter().map(|m| m.start_row).collect();
+    start_rows.sort_unstable();
+    start_rows.dedup();
+    let mut num_rows = 0;
+    let mut num_cols = 0;
+    for m in &mut merged {
+        m.start_col = start_cols.binary_search(&m.start_col).expect("own value");
+        m.start_row = start_rows.binary_search(&m.start_row).expect("own value");
+        num_cols = num_cols.max(m.start_col + m.col_span);
+        num_rows = num_rows.max(m.start_row + m.row_span);
+    }
+    if num_rows == 0 || num_cols == 0 {
+        return None;
+    }
+
+    let mut grid = vec![vec![String::new(); num_cols]; num_rows];
+    for m in &merged {
+        let text = m
+            .word_ids
+            .iter()
+            .map(|&i| words[i].text.trim())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let text = normalize_cell_text(text);
+        for row in grid.iter_mut().skip(m.start_row).take(m.row_span) {
+            for cell in row.iter_mut().skip(m.start_col).take(m.col_span) {
+                *cell = text.clone();
+            }
+        }
+    }
+    Some(grid)
 }
 
 /// Note once per process that TableFormer's ONNX graphs weren't found, so tables
@@ -557,23 +818,32 @@ fn mergebboxes(b1: [f32; 4], b2: [f32; 4]) -> [f32; 4] {
 }
 
 /// Apply docling's span merges: each merge key combines its box with the partner
-/// (`-1` → the last box); partners are dropped.
-fn merge_spans(boxes: &[[f32; 4]], merge: &std::collections::HashMap<usize, i64>) -> Vec<[f32; 4]> {
+/// (`-1` → the last box); partners are dropped. The merged cell keeps the
+/// *first* box's class, matching docling's `outputs_class1.append(cls1)`.
+fn merge_spans(
+    boxes: &[[f32; 4]],
+    classes: &[i64],
+    merge: &std::collections::HashMap<usize, i64>,
+) -> (Vec<[f32; 4]>, Vec<i64>) {
     let skip: std::collections::HashSet<usize> = merge
         .values()
         .filter(|&&v| v >= 0)
         .map(|&v| v as usize)
         .collect();
     let mut out = Vec::new();
+    let mut out_classes = Vec::new();
     for (i, &b) in boxes.iter().enumerate() {
+        let class = classes.get(i).copied().unwrap_or(2);
         if let Some(&j) = merge.get(&i) {
             let partner = if j < 0 { boxes.len() - 1 } else { j as usize };
             out.push(mergebboxes(b, boxes[partner.min(boxes.len() - 1)]));
+            out_classes.push(class);
         } else if !skip.contains(&i) {
             out.push(b);
+            out_classes.push(class);
         }
     }
-    out
+    (out, out_classes)
 }
 
 const CELL_TAGS: [i64; 6] = [FCEL, ECEL, XCEL, CHED, RHED, SROW];
@@ -583,7 +853,7 @@ const CELL_TAGS: [i64; 6] = [FCEL, ECEL, XCEL, CHED, RHED, SROW];
 /// (counted toward the column index but not cells). Colspan/rowspan are read off
 /// the grid (consecutive `lcel`/`ucel` to the right/below). `boxes` are indexed
 /// by cell order and aligned with the cells.
-fn build_table_cells(otsl: &[i64], boxes: &[[f32; 4]]) -> Vec<TableCell> {
+fn build_table_cells(otsl: &[i64], boxes: &[[f32; 4]], classes: &[i64]) -> Vec<TableCell> {
     // 2D grid of tags (rows split on NL) for span lookups.
     let mut grid: Vec<Vec<i64>> = vec![Vec::new()];
     for &t in otsl {
@@ -613,12 +883,15 @@ fn build_table_cells(otsl: &[i64], boxes: &[[f32; 4]]) -> Vec<TableCell> {
                 rowspan += 1;
             }
             let b = boxes.get(cell_id).copied().unwrap_or([0.0; 4]);
+            // docling defaults a class-less cell to 2 (full).
+            let class = classes.get(cell_id).copied().unwrap_or(2);
             cells.push(TableCell {
                 row: r,
                 col: c,
                 colspan,
                 rowspan,
                 tag,
+                class,
                 cx: b[0],
                 cy: b[1],
                 w: b[2],

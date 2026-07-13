@@ -19,6 +19,7 @@ mod reading_order;
 pub mod resample;
 pub mod tableformer;
 pub mod textparse;
+mod tf_match;
 pub mod timing;
 
 use std::collections::BTreeMap;
@@ -256,7 +257,6 @@ impl Worker {
                             if assemble::is_table_like(r.label) {
                                 table_rows[i] = tf.predict_table_rows(
                                     &page.image,
-                                    page.height,
                                     [r.l, r.t, r.r, r.b],
                                     &page.word_cells,
                                 );
