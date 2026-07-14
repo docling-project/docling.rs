@@ -114,7 +114,16 @@ docling 2.112's output on the enrichment fixtures
 
 The CodeFormulaV2 export (`scripts/install/export_code_formula.py`) verifies
 its three ONNX graphs' greedy decode **token-identical** to
-`transformers.generate` before writing them. The residual confidence drift on
+`transformers.generate` before writing them. Its decoder also ships as a
+dynamic INT8 quantization (`scripts/install/quantize_models.py
+code-formula-decoder`, ~655 → ~165 MB, 4× less decoder RAM) that is preferred
+automatically when present (`DOCLING_RS_FP32=1` opts out). Unlike the layout /
+TableFormer INT8 models it is *near*-exact rather than byte-exact: greedy VLM
+decoding has near-tie tokens that weight rounding can flip — on the fixture
+the only drift is one extra blank line in the code block, and per-channel /
+fp32-lm_head variants flip it identically, so the smaller per-tensor file is
+kept. The conformance script gates fp32 byte-exact and allows the int8 leg
+whitespace-only drift. The residual confidence drift on
 the classifier comes from the crops: docling re-renders each region through
 pdfium at the enrichment scale, while docling.rs resizes from the existing
 scale-2 page render — sub-pixel differences the classifier's softmax sees in

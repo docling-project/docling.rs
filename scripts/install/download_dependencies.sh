@@ -36,7 +36,8 @@
 #     the release doesn't host it)
 #   models/code_formula/{vision,embed,decoder_kv}.onnx + tokenizer.json
 #     (CodeFormulaV2, the --enrich-code/--enrich-formula VLM, ~1.3 GB fp32 —
-#     opt-in with --enrich; release-hosted only)
+#     opt-in with --enrich; release-hosted only. With int8 enabled the ~165 MB
+#     decoder_kv_int8.onnx replaces the ~655 MB fp32 decoder)
 #
 # Also fetches the INT8-quantized CPU models when the release hosts them (see
 # PDF_CONFORMANCE.md — ~2.4x faster layout inference at unchanged conformance):
@@ -169,8 +170,19 @@ if [ "$WITH_ENRICH" = true ]; then
   mkdir -p models/code_formula
   fetch "$BASE_URL/cf_vision.onnx" models/code_formula/vision.onnx
   fetch "$BASE_URL/cf_embed.onnx" models/code_formula/embed.onnx
-  fetch "$BASE_URL/cf_decoder_kv.onnx" models/code_formula/decoder_kv.onnx
   fetch "$BASE_URL/cf_tokenizer.json" models/code_formula/tokenizer.json
+  if [ "$WITH_INT8" = true ]; then
+    # INT8 decoder (~165 MB vs ~655 MB fp32) — preferred automatically when
+    # present. Near-exact, not byte-exact: greedy near-tie tokens can flip
+    # (whitespace-only drift on the conformance fixture); fetch with --no-int8
+    # or set DOCLING_RS_FP32=1 at runtime for the byte-exact fp32 graph.
+    fetch_optional "$BASE_URL/cf_decoder_kv_int8.onnx" models/code_formula/decoder_kv_int8.onnx
+  fi
+  if [ "$WITH_INT8" = true ] && [ -f models/code_formula/decoder_kv_int8.onnx ]; then
+    echo "code_formula: int8 decoder present — fp32 decoder_kv.onnx not needed (skipped)"
+  else
+    fetch "$BASE_URL/cf_decoder_kv.onnx" models/code_formula/decoder_kv.onnx
+  fi
 fi
 
 if [ "$WITH_INT8" = true ]; then

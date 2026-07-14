@@ -400,7 +400,7 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
 | PP-OCRv3 rec + dictionary | `models/ocr_rec.onnx`, `models/ppocr_keys_v1.txt` |
 | TableFormer (optional) | `models/tableformer/{encoder,decoder,bbox}.onnx` (+ `.data` sidecars where the export needs them) |
 | Whisper tiny (audio/ASR; skip with `--no-asr`) | `models/asr/{encoder_model,decoder_model}.onnx`, `models/asr/vocab.json` (+ `added_tokens.json` for language selection) |
-| INT8 CPU models (optional; fetch with `--int8`) | `models/layout_heron_int8.onnx`, `models/tableformer/decoder_int8.onnx` |
+| INT8 CPU models (optional; fetch with `--int8`) | `models/layout_heron_int8.onnx`, `models/tableformer/decoder_int8.onnx` (+ `models/code_formula/decoder_kv_int8.onnx` with `--enrich`) |
 | DocumentFigureClassifier (picture classification) | `models/picture_classifier.onnx` |
 | CodeFormulaV2 (code/formula enrichment, ~1.3 GB; fetch with `--enrich`) | `models/code_formula/{vision,embed,decoder_kv}.onnx`, `models/code_formula/tokenizer.json` |
 
@@ -446,7 +446,14 @@ Both models load lazily on the first matching region (a missing model warns
 once and skips that pass), and are shared pipeline-wide like TableFormer. The
 Python bindings take the same three `do_*` kwargs. Mind that CodeFormula is an
 autoregressive 256M-parameter VLM — expect seconds per code/formula region on
-CPU. `scripts/conformance/enrich_conformance.sh` checks the enriched output
+CPU. Its decoder also ships as dynamic INT8 (`decoder_kv_int8.onnx`, ~165 MB
+vs ~655 MB fp32 — 4× less decoder RAM) — fetched with `--enrich` and preferred
+automatically when present, like the other INT8 models. Unlike those, it is
+*near*-exact rather than byte-exact: greedy decoding has occasional near-tie
+tokens the weight rounding can flip (on the conformance fixture, one extra
+blank line inside the code block). `DOCLING_RS_FP32=1` opts back into the
+byte-exact fp32 decoder.
+`scripts/conformance/enrich_conformance.sh` checks the enriched output
 against Python docling's on the enrichment test PDFs.
 
 ### INT8 models (faster PDF conversion on CPU — the default)

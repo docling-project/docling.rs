@@ -103,6 +103,11 @@ jobs:
         id: cf-export
         run: python scripts/install/export_code_formula.py models/code_formula
 
+      - name: Quantize CodeFormula decoder (dynamic INT8)
+        if: steps.cf-export.outcome == 'success' && steps.quant-deps.outcome == 'success'
+        continue-on-error: true
+        run: python scripts/install/quantize_models.py code-formula-decoder
+
       # --- pdfium + OCR + chunk tokenizer (re-hosted third-party assets) ---
       # The tokenizer is all-MiniLM-L6-v2's tokenizer.json (Apache-2.0), the
       # default docling's HybridChunker counts tokens with; re-hosted so the
@@ -158,6 +163,7 @@ jobs:
           stage models/code_formula/vision.onnx cf_vision.onnx
           stage models/code_formula/embed.onnx cf_embed.onnx
           stage models/code_formula/decoder_kv.onnx cf_decoder_kv.onnx
+          stage models/code_formula/decoder_kv_int8.onnx cf_decoder_kv_int8.onnx
           stage models/code_formula/tokenizer.json cf_tokenizer.json
           echo "staged:"
           ls -la release-assets/

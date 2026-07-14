@@ -6,8 +6,13 @@
 # do_picture_classification/do_code_enrichment/do_formula_enrichment on,
 # do_ocr off — the sources have embedded text, so OCR contributes nothing).
 #
-# * code_and_formula.pdf — Markdown must match byte-for-byte: the CodeFormula
-#   VLM's code rewrite and formula LaTeX are compared against docling's.
+# * code_and_formula.pdf — Markdown must match byte-for-byte with the fp32
+#   decoder (DOCLING_RS_FP32=1): the CodeFormula VLM's code rewrite and formula
+#   LaTeX are compared against docling's. When the INT8 decoder is present it
+#   gets a second leg: whitespace-only drift is reported but allowed (greedy
+#   decoding has near-tie tokens the weight rounding can flip — on this
+#   fixture, one extra blank line in the code block), any content difference
+#   fails.
 # * picture_classification.pdf — the JSON picture items must carry docling's
 #   classification annotation + meta with the same class ranking. Confidences
 #   are compared to 2 decimal places: the crops are resized from the page
@@ -34,8 +39,8 @@ trap 'rm -rf "$TMP"' EXIT
 
 fail=0
 
-echo "== code_and_formula.pdf (--enrich-code --enrich-formula, markdown)"
-"$BIN" --no-stream --enrich-code --enrich-formula \
+echo "== code_and_formula.pdf (--enrich-code --enrich-formula, markdown, fp32)"
+DOCLING_RS_FP32=1 "$BIN" --no-stream --enrich-code --enrich-formula \
   tests/data/pdf/sources/code_and_formula.pdf > "$TMP/cf.md"
 if diff -u "$GT/code_and_formula.md" "$TMP/cf.md" > "$TMP/cf.diff"; then
   echo "   EXACT"
@@ -43,6 +48,24 @@ else
   echo "   DIFFERS:"
   sed 's/^/   /' "$TMP/cf.diff"
   fail=1
+fi
+
+# INT8 decoder leg (runs only when the quantized decoder sits on disk, i.e.
+# what a default `download_dependencies.sh --enrich` install executes).
+if [ -f models/code_formula/decoder_kv_int8.onnx ]; then
+  echo "== code_and_formula.pdf (int8 decoder)"
+  "$BIN" --no-stream --enrich-code --enrich-formula \
+    tests/data/pdf/sources/code_and_formula.pdf > "$TMP/cf8.md"
+  if diff -u "$GT/code_and_formula.md" "$TMP/cf8.md" > "$TMP/cf8.diff"; then
+    echo "   EXACT"
+  elif diff -Bu "$GT/code_and_formula.md" "$TMP/cf8.md" > "$TMP/cf8b.diff"; then
+    echo "   whitespace-only drift (allowed for int8):"
+    sed 's/^/   /' "$TMP/cf8.diff"
+  else
+    echo "   CONTENT DIFFERS (not a whitespace-only int8 drift):"
+    sed 's/^/   /' "$TMP/cf8b.diff"
+    fail=1
+  fi
 fi
 
 echo "== picture_classification.pdf (--enrich-picture-classes, JSON)"

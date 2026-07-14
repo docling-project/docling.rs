@@ -10,7 +10,7 @@ code (see [`LICENSE`](./LICENSE)) under their upstream terms:
 | RT-DETR layout model (`layout_heron.onnx`) | [`docling-project/docling-layout-heron`](https://huggingface.co/docling-project/docling-layout-heron) | Apache-2.0 |
 | TableFormer (`tableformer/{encoder,decoder,bbox}.onnx`) | [`docling-project/docling-models`](https://huggingface.co/docling-project/docling-models) (`model_artifacts/tableformer/accurate`) | CDLA-Permissive-2.0 / Apache-2.0 |
 | DocumentFigureClassifier (`picture_classifier.onnx`) | [`docling-project/DocumentFigureClassifier-v2.5`](https://huggingface.co/docling-project/DocumentFigureClassifier-v2.5) (upstream's own ONNX, re-hosted unmodified) | Apache-2.0 |
-| CodeFormulaV2 (`cf_{vision,embed,decoder_kv}.onnx` + `cf_tokenizer.json`) | [`docling-project/CodeFormulaV2`](https://huggingface.co/docling-project/CodeFormulaV2) | Apache-2.0 |
+| CodeFormulaV2 (`cf_{vision,embed,decoder_kv}.onnx` + `cf_tokenizer.json`; `cf_decoder_kv_int8.onnx` is a post-training quantization of the same export) | [`docling-project/CodeFormulaV2`](https://huggingface.co/docling-project/CodeFormulaV2) | Apache-2.0 |
 
 `scripts/install/export_layout.py`, `scripts/install/export_tableformer.py` and
 `scripts/install/export_code_formula.py` do the conversion (PyTorch → ONNX via
