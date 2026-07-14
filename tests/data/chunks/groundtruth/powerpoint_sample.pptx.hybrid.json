@@ -1,0 +1,63 @@
+[
+ {
+  "text": "With footnote",
+  "headings": [
+   "Test Table Slide"
+  ],
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Test Table Slide\nWith footnote"
+ },
+ {
+  "text": "\n, Class1 = A merged with B. , Class1 = A merged with B. , Class1 = C. , Class2 = A. , Class2 = B. , Class2 = C. R1, Class1 = True. R1, Class1 = False. R1, Class1 = . R1, Class2 = False. R1, Class2 = True. R1, Class2 = True. R2, Class1 = . R2, Class1 = . R2, Class1 = True. R2, Class2 = False. R2, Class2 = . R2, Class2 = . R3, Class1 = False. R3, Class1 = . R3, Class1 = . R3, Class2 = . R3, Class2 = False. R3, Class2 = . R3, Class1 = . R3, Class1 = True. R3, Class1 = . R3, Class2 = True. R3, Class2 = . R3, Class2 = . R4, Class1 = . R4, Class1 = . R4, Class1 = False. R4, Class2 = . R4, Class2 =",
+  "headings": [
+   "Test Table Slide"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Test Table Slide\n\n, Class1 = A merged with B. , Class1 = A merged with B. , Class1 = C. , Class2 = A. , Class2 = B. , Class2 = C. R1, Class1 = True. R1, Class1 = False. R1, Class1 = . R1, Class2 = False. R1, Class2 = True. R1, Class2 = True. R2, Class1 = . R2, Class1 = . R2, Class1 = True. R2, Class2 = False. R2, Class2 = . R2, Class2 = . R3, Class1 = False. R3, Class1 = . R3, Class1 = . R3, Class2 = . R3, Class2 = False. R3, Class2 = . R3, Class1 = . R3, Class1 = True. R3, Class1 = . R3, Class2 = True. R3, Class2 = . R3, Class2 = . R4, Class1 = . R4, Class1 = . R4, Class1 = False. R4, Class2 = . R4, Class2 ="
+ },
+ {
+  "text": " False. R4, Class2 = . R4, Class1 = . R4, Class1 = True. R4, Class1 = . R4, Class2 = True. R4, Class2 = False. R4, Class2 = False. R4, Class1 = True. R4, Class1 = False. R4, Class1 = True. R4, Class2 = False. R4, Class2 = True. R4, Class2 = False",
+  "headings": [
+   "Test Table Slide"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Test Table Slide\n False. R4, Class2 = . R4, Class1 = . R4, Class1 = True. R4, Class1 = . R4, Class2 = True. R4, Class2 = False. R4, Class2 = False. R4, Class1 = True. R4, Class1 = False. R4, Class1 = True. R4, Class2 = False. R4, Class2 = True. R4, Class2 = False"
+ },
+ {
+  "text": "Let’s introduce a list\n- With foo\n- Bar\n- And baz things\nA rectangle shape with this text inside.\n1. List item4\n2. List item5\n3. List item6\n- I1\n- I2\n- I3\n- I4\nSome info:\n- Item A\n- Item B\nMaybe a list?\n1. List1\n2. List2\n3. List3\n- l1 \n- l2\n- l3",
+  "headings": [
+   "Second slide title"
+  ],
+  "doc_items": [
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7",
+   "#/texts/9",
+   "#/texts/10",
+   "#/texts/11",
+   "#/texts/12",
+   "#/texts/13",
+   "#/texts/14",
+   "#/texts/15",
+   "#/texts/16",
+   "#/texts/17",
+   "#/texts/18",
+   "#/texts/19",
+   "#/texts/20",
+   "#/texts/21",
+   "#/texts/22",
+   "#/texts/23",
+   "#/texts/24",
+   "#/texts/25"
+  ],
+  "contextualize": "Second slide title\nLet’s introduce a list\n- With foo\n- Bar\n- And baz things\nA rectangle shape with this text inside.\n1. List item4\n2. List item5\n3. List item6\n- I1\n- I2\n- I3\n- I4\nSome info:\n- Item A\n- Item B\nMaybe a list?\n1. List1\n2. List2\n3. List3\n- l1 \n- l2\n- l3"
+ }
+]

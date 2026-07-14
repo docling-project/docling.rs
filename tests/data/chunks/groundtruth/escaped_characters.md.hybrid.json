@@ -1,0 +1,78 @@
+[
+ {
+  "text": "Text: 00:16.000 ----> 00:18.000 & < > \" '",
+  "headings": [
+   "Headers:",
+   "& < > \" '"
+  ],
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "Headers:\n& < > \" '\nText: 00:16.000 ----> 00:18.000 & < > \" '"
+ },
+ {
+  "text": "1. & < > \" '\n- & < > \" '",
+  "headings": [
+   "Lists"
+  ],
+  "doc_items": [
+   "#/texts/4",
+   "#/texts/5"
+  ],
+  "contextualize": "Lists\n1. & < > \" '\n- & < > \" '"
+ },
+ {
+  "text": "```\n& < > \" '\n```",
+  "headings": [
+   "Inline code"
+  ],
+  "doc_items": [
+   "#/texts/7"
+  ],
+  "contextualize": "Inline code\n```\n& < > \" '\n```"
+ },
+ {
+  "text": "```\n& < > \" '\n```",
+  "headings": [
+   "Code block"
+  ],
+  "doc_items": [
+   "#/texts/9"
+  ],
+  "contextualize": "Code block\n```\n& < > \" '\n```"
+ },
+ {
+  "text": "Ampersand, Example = &. Less-than, Example = <. Greater-than, Example = >. Quotes, Example = \". Apostrophes, Example = '. Pipe, Example = | | |\nThe pipe symbol (| or\n```\n|\n```\n) only needs to be escaped in tables.",
+  "headings": [
+   "Table"
+  ],
+  "doc_items": [
+   "#/tables/0",
+   "#/texts/11",
+   "#/texts/12",
+   "#/texts/13"
+  ],
+  "contextualize": "Table\nAmpersand, Example = &. Less-than, Example = <. Greater-than, Example = >. Quotes, Example = \". Apostrophes, Example = '. Pipe, Example = | | |\nThe pipe symbol (| or\n```\n|\n```\n) only needs to be escaped in tables."
+ },
+ {
+  "text": "& < > \" '/div>",
+  "headings": [
+   "Raw HTML"
+  ],
+  "doc_items": [
+   "#/texts/15"
+  ],
+  "contextualize": "Raw HTML\n& < > \" '/div>"
+ },
+ {
+  "text": "[& < > \" '](https://en.wikipedia.org/wiki/Albert_Einstein)",
+  "headings": [
+   "Raw HTML",
+   "Link"
+  ],
+  "doc_items": [
+   "#/texts/17"
+  ],
+  "contextualize": "Raw HTML\nLink\n[& < > \" '](https://en.wikipedia.org/wiki/Albert_Einstein)"
+ }
+]

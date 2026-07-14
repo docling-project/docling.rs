@@ -1,0 +1,52 @@
+[
+ {
+  "text": "Breakfast options = Choose as many as you like:\n\n- [x] Orange juice\n\n- [ ] Tea\n\n- [x] Coffee\n\n- [ ] Milk\n\n- [x] Water. Breakfast options = Choose as many as you like:\n\n- [x] Scramble eggs\n\n- [ ] Porridge\n\n- [x] Bread\n\n- [x] Croissant",
+  "headings": [
+   "Table with options"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Table with options\nBreakfast options = Choose as many as you like:\n\n- [x] Orange juice\n\n- [ ] Tea\n\n- [x] Coffee\n\n- [ ] Milk\n\n- [x] Water. Breakfast options = Choose as many as you like:\n\n- [x] Scramble eggs\n\n- [ ] Porridge\n\n- [x] Bread\n\n- [x] Croissant"
+ },
+ {
+  "text": "Tasks before release:",
+  "headings": [
+   "Paragraph with options"
+  ],
+  "doc_items": [
+   "#/texts/17"
+  ],
+  "contextualize": "Paragraph with options\nTasks before release:"
+ },
+ {
+  "text": "- [x] Design",
+  "headings": [
+   "Paragraph with options"
+  ],
+  "doc_items": [
+   "#/texts/18"
+  ],
+  "contextualize": "Paragraph with options\n- [x] Design"
+ },
+ {
+  "text": "- [x] Implementation",
+  "headings": [
+   "Paragraph with options"
+  ],
+  "doc_items": [
+   "#/texts/19"
+  ],
+  "contextualize": "Paragraph with options\n- [x] Implementation"
+ },
+ {
+  "text": "- [ ] Documentation of the task with a very long text that goes beyond the maximum length of a single line.",
+  "headings": [
+   "Paragraph with options"
+  ],
+  "doc_items": [
+   "#/texts/20"
+  ],
+  "contextualize": "Paragraph with options\n- [ ] Documentation of the task with a very long text that goes beyond the maximum length of a single line."
+ }
+]

@@ -11,6 +11,7 @@
 //! docling-core's JSON wire format lands in Phase 1 (see `MIGRATION.md`).
 
 pub mod base64;
+pub mod chunker;
 mod doclang;
 mod document;
 mod json;

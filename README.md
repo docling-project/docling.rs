@@ -126,6 +126,33 @@ DocLang also reads back **in**: `.dclg`/`.dclg.xml` (bare DocLang XML) and
 against live docling reading the same archives (15/15 exact,
 `tests/data/doclang`).
 
+### Chunking (docling's Hierarchical & Hybrid chunkers)
+
+`docling_core.transforms.chunker` ported to Rust — the chunkers RAG pipelines
+feed to embedding models, scored against live docling's output on the same
+corpus:
+
+```rust
+use docling::chunker::{contextualize, HierarchicalChunker, HybridChunker, HuggingFaceTokenizer};
+
+let chunks = HierarchicalChunker.chunk(&result.document);          // structure-driven
+let tok = HuggingFaceTokenizer::from_file("tokenizer.json", 256)?; // feature "chunking"
+for chunk in HybridChunker::new(tok).chunk(&result.document) {
+    let embed_me = contextualize(&chunk); // heading path + chunk text
+}
+```
+
+`HierarchicalChunker` yields one chunk per document item (whole lists, triplet-
+serialized tables — `row, column = value` — picture captions), each carrying its
+heading path. `HybridChunker` refines them with a tokenizer: splits oversized
+chunks (at item boundaries, then with docling's `semchunk` algorithm inside
+text; tables line-by-line), and merges undersized same-heading neighbours. The
+HuggingFace tokenizer (MiniLM etc.) sits behind the `chunking` cargo feature;
+`--to chunks` dumps both chunkers' records from the CLI. Conformance vs
+docling's chunkers over the 83-doc corpus (`scripts/conformance/
+chunks_conformance.sh`): **hierarchical 91% / hybrid 87% identical chunk
+records** (text + headings), 77 and 74 of 83 documents fully exact.
+
 ### Image extraction
 
 Backends that have the image populate `Node::Picture { image }`: the PDF/image

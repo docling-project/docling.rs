@@ -392,6 +392,7 @@ fn chart_table(
             col_continuation: Vec::new(),
             row_continuation: Vec::new(),
             row_header,
+            col_header: Vec::new(),
         }),
         cell_blocks: None,
     })
@@ -545,6 +546,7 @@ fn find_tables(
                     col_continuation: col_cont,
                     row_continuation: row_cont,
                     row_header: Vec::new(),
+                    col_header: Vec::new(),
                 }
             });
             tables.push(FoundTable {

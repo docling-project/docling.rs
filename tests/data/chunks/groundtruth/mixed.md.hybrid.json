@@ -1,0 +1,30 @@
+[
+ {
+  "text": "Some text",
+  "headings": [
+   "Title"
+  ],
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Title\nSome text"
+ },
+ {
+  "text": "Here is a table:\nScrooge McDuck, Name in German = Dagobert Duck. Scrooge McDuck, Name in French = Balthazar Picsou. Scrooge McDuck, Name in Italian = Paperone. Huey, Name in German = Tick. Huey, Name in French = Riri. Huey, Name in Italian = Qui. Dewey, Name in German = Trick. Dewey, Name in French = Fifi. Dewey, Name in Italian = Quo. Louie, Name in German = Track. Louie, Name in French = Loulou. Louie, Name in Italian = Qua\nAnd here is more HTML:\nSome paragraph.\nNow a div - almost there...\n- foo\n- bar\nThe end!",
+  "headings": [
+   "Title",
+   "Famous ducks"
+  ],
+  "doc_items": [
+   "#/texts/3",
+   "#/tables/0",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7",
+   "#/texts/8",
+   "#/texts/9"
+  ],
+  "contextualize": "Title\nFamous ducks\nHere is a table:\nScrooge McDuck, Name in German = Dagobert Duck. Scrooge McDuck, Name in French = Balthazar Picsou. Scrooge McDuck, Name in Italian = Paperone. Huey, Name in German = Tick. Huey, Name in French = Riri. Huey, Name in Italian = Qui. Dewey, Name in German = Trick. Dewey, Name in French = Fifi. Dewey, Name in Italian = Quo. Louie, Name in German = Track. Louie, Name in French = Loulou. Louie, Name in Italian = Qua\nAnd here is more HTML:\nSome paragraph.\nNow a div - almost there...\n- foo\n- bar\nThe end!"
+ }
+]

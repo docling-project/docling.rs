@@ -1,0 +1,13 @@
+[
+ {
+  "text": "Image test\nImage linked to file",
+  "headings": [
+   "Docling"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2"
+  ],
+  "contextualize": "Docling\nImage test\nImage linked to file"
+ }
+]

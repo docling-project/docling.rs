@@ -1,0 +1,18 @@
+[
+ {
+  "text": "This is a div with text.\nThis is another div with text.\nThis is a regular paragraph.\nThis is a third div\nwith a new line.\nHeading for the details element\nDescription of the details element.\nThis is a fourth div with a\n**bold**\nparagraph.",
+  "headings": null,
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7",
+   "#/texts/8",
+   "#/texts/9"
+  ],
+  "contextualize": "This is a div with text.\nThis is another div with text.\nThis is a regular paragraph.\nThis is a third div\nwith a new line.\nHeading for the details element\nDescription of the details element.\nThis is a fourth div with a\n**bold**\nparagraph."
+ }
+]

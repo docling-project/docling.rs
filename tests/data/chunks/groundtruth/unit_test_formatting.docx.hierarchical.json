@@ -1,0 +1,84 @@
+[
+ {
+  "text": "*italic*",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0"
+  ],
+  "contextualize": "*italic*"
+ },
+ {
+  "text": "**bold**",
+  "headings": null,
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "**bold**"
+ },
+ {
+  "text": "underline",
+  "headings": null,
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "underline"
+ },
+ {
+  "text": "[hyperlink](https://github.com/DS4SD/docling)",
+  "headings": null,
+  "doc_items": [
+   "#/texts/3"
+  ],
+  "contextualize": "[hyperlink](https://github.com/DS4SD/docling)"
+ },
+ {
+  "text": "[***italic and bold hyperlink***](https://github.com/DS4SD/docling)",
+  "headings": null,
+  "doc_items": [
+   "#/texts/4"
+  ],
+  "contextualize": "[***italic and bold hyperlink***](https://github.com/DS4SD/docling)"
+ },
+ {
+  "text": "Normal *italic* **bold** underline and [hyperlink](https://github.com/DS4SD/docling) on the same line",
+  "headings": null,
+  "doc_items": [
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7",
+   "#/texts/8",
+   "#/texts/9",
+   "#/texts/10",
+   "#/texts/11"
+  ],
+  "contextualize": "Normal *italic* **bold** underline and [hyperlink](https://github.com/DS4SD/docling) on the same line"
+ },
+ {
+  "text": "- *Italic bullet 1*\n- **Bold bullet 2**\n- Underline bullet 3\n- Some *italic* **bold** underline\n    - Nested *italic* **bold**",
+  "headings": null,
+  "doc_items": [
+   "#/texts/13",
+   "#/texts/14",
+   "#/texts/15",
+   "#/texts/16",
+   "#/texts/21"
+  ],
+  "contextualize": "- *Italic bullet 1*\n- **Bold bullet 2**\n- Underline bullet 3\n- Some *italic* **bold** underline\n    - Nested *italic* **bold**"
+ },
+ {
+  "text": "The second page of the document with same header and footer",
+  "headings": null,
+  "doc_items": [
+   "#/texts/26"
+  ],
+  "contextualize": "The second page of the document with same header and footer"
+ },
+ {
+  "text": "The third page of the document with different header and footer",
+  "headings": null,
+  "doc_items": [
+   "#/texts/28"
+  ],
+  "contextualize": "The third page of the document with different header and footer"
+ }
+]

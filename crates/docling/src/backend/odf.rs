@@ -953,6 +953,7 @@ fn parse_table(table: XmlNode, styles: &Styles) -> Option<Table> {
             col_continuation: slice(col_cont),
             row_continuation: slice(row_cont),
             row_header: Vec::new(),
+            col_header: Vec::new(),
         }),
         cell_blocks,
     })

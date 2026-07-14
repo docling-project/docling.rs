@@ -1,0 +1,92 @@
+[
+ {
+  "text": "Paragraph 1.1\nParagraph 1.2",
+  "headings": [
+   "Test Document",
+   "Section 1"
+  ],
+  "doc_items": [
+   "#/texts/4",
+   "#/texts/6"
+  ],
+  "contextualize": "Test Document\nSection 1\nParagraph 1.1\nParagraph 1.2"
+ },
+ {
+  "text": "Paragraph 1.1.1\nParagraph 1.1.2",
+  "headings": [
+   "Test Document",
+   "Section 1",
+   "Section 1.1"
+  ],
+  "doc_items": [
+   "#/texts/10",
+   "#/texts/12"
+  ],
+  "contextualize": "Test Document\nSection 1\nSection 1.1\nParagraph 1.1.1\nParagraph 1.1.2"
+ },
+ {
+  "text": "Paragraph 1.1.1\nParagraph 1.1.2",
+  "headings": [
+   "Test Document",
+   "Section 1",
+   "Section 1.2"
+  ],
+  "doc_items": [
+   "#/texts/16",
+   "#/texts/18"
+  ],
+  "contextualize": "Test Document\nSection 1\nSection 1.2\nParagraph 1.1.1\nParagraph 1.1.2"
+ },
+ {
+  "text": "Paragraph 1.2.3.1\nParagraph 1.2.3.1",
+  "headings": [
+   "Test Document",
+   "Section 1",
+   "Section 1.2",
+   "Section 1.2.3"
+  ],
+  "doc_items": [
+   "#/texts/22",
+   "#/texts/24"
+  ],
+  "contextualize": "Test Document\nSection 1\nSection 1.2\nSection 1.2.3\nParagraph 1.2.3.1\nParagraph 1.2.3.1"
+ },
+ {
+  "text": "Paragraph 2.1\nParagraph 2.2",
+  "headings": [
+   "Test Document",
+   "Section 2"
+  ],
+  "doc_items": [
+   "#/texts/29",
+   "#/texts/31"
+  ],
+  "contextualize": "Test Document\nSection 2\nParagraph 2.1\nParagraph 2.2"
+ },
+ {
+  "text": "Paragraph 2.1.1.1\nParagraph 2.1.1.1",
+  "headings": [
+   "Test Document",
+   "Section 2",
+   "Section 2.1.1"
+  ],
+  "doc_items": [
+   "#/texts/35",
+   "#/texts/37"
+  ],
+  "contextualize": "Test Document\nSection 2\nSection 2.1.1\nParagraph 2.1.1.1\nParagraph 2.1.1.1"
+ },
+ {
+  "text": "Paragraph 2.1.1\nParagraph 2.1.2",
+  "headings": [
+   "Test Document",
+   "Section 2",
+   "Section 2.1"
+  ],
+  "doc_items": [
+   "#/texts/41",
+   "#/texts/43"
+  ],
+  "contextualize": "Test Document\nSection 2\nSection 2.1\nParagraph 2.1.1\nParagraph 2.1.2"
+ }
+]

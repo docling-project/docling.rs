@@ -1,0 +1,52 @@
+[
+ {
+  "text": "This document contains VML images with v:imagedata elements for testing VML image extraction.",
+  "headings": [
+   "VML Image Test Document"
+  ],
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "VML Image Test Document\nThis document contains VML images with v:imagedata elements for testing VML image extraction."
+ },
+ {
+  "text": "Below is a VML image with v:imagedata:",
+  "headings": [
+   "VML Image Test Document"
+  ],
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "VML Image Test Document\nBelow is a VML image with v:imagedata:"
+ },
+ {
+  "text": "Above is a VML image with v:imagedata element.",
+  "headings": [
+   "VML Image Test Document"
+  ],
+  "doc_items": [
+   "#/texts/3"
+  ],
+  "contextualize": "VML Image Test Document\nAbove is a VML image with v:imagedata element."
+ },
+ {
+  "text": "Below is another VML image:",
+  "headings": [
+   "VML Image Test Document"
+  ],
+  "doc_items": [
+   "#/texts/4"
+  ],
+  "contextualize": "VML Image Test Document\nBelow is another VML image:"
+ },
+ {
+  "text": "Above is the second VML image.",
+  "headings": [
+   "VML Image Test Document"
+  ],
+  "doc_items": [
+   "#/texts/5"
+  ],
+  "contextualize": "VML Image Test Document\nAbove is the second VML image."
+ }
+]

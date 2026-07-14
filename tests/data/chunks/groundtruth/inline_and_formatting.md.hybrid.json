@@ -1,0 +1,65 @@
+[
+ {
+  "text": "This is simple.\nFoo\n*emphasis*\n**strong emphasis**\n***both***\n.\nCreate your feature branch:\n```\ngit checkout -b feature/AmazingFeature\n```\n.\n1. Pull the [**repository**](https://github.com/docling-project/docling) .\n2. Create your feature branch ( `git checkout -b feature/AmazingFeature` )\n3. Commit your changes ( `git commit -m 'Add some AmazingFeature'` )\n4. Push to the branch ( `git push origin feature/AmazingFeature` )\n5. Open a Pull Request\n6. **Whole list item has same formatting**\n7. List item has *mixed or partial* formatting",
+  "headings": [
+   "Contribution guideline example"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7",
+   "#/texts/8",
+   "#/texts/9",
+   "#/texts/10",
+   "#/texts/14",
+   "#/texts/18",
+   "#/texts/22",
+   "#/texts/26",
+   "#/texts/27",
+   "#/texts/28"
+  ],
+  "contextualize": "Contribution guideline example\nThis is simple.\nFoo\n*emphasis*\n**strong emphasis**\n***both***\n.\nCreate your feature branch:\n```\ngit checkout -b feature/AmazingFeature\n```\n.\n1. Pull the [**repository**](https://github.com/docling-project/docling) .\n2. Create your feature branch ( `git checkout -b feature/AmazingFeature` )\n3. Commit your changes ( `git commit -m 'Add some AmazingFeature'` )\n4. Push to the branch ( `git push origin feature/AmazingFeature` )\n5. Open a Pull Request\n6. **Whole list item has same formatting**\n7. List item has *mixed or partial* formatting"
+ },
+ {
+  "text": "- **First** : Lorem ipsum.\n- **Second** : Dolor `sit` amet.\nSome\n*```\nformatted_code\n```*",
+  "headings": [
+   "Whole heading is italic"
+  ],
+  "doc_items": [
+   "#/texts/33",
+   "#/texts/36",
+   "#/texts/41",
+   "#/texts/42"
+  ],
+  "contextualize": "Whole heading is italic\n- **First** : Lorem ipsum.\n- **Second** : Dolor `sit` amet.\nSome\n*```\nformatted_code\n```*"
+ },
+ {
+  "text": "*Partially formatted*\nheading to_escape\n```\nnot_to_escape\n```\n[$$E=mc^2$$](https://en.wikipedia.org/wiki/Albert_Einstein)",
+  "headings": [
+   "Whole heading is italic",
+   ""
+  ],
+  "doc_items": [
+   "#/texts/44",
+   "#/texts/45",
+   "#/texts/46",
+   "#/texts/47"
+  ],
+  "contextualize": "Whole heading is italic\n\n*Partially formatted*\nheading to_escape\n```\nnot_to_escape\n```\n[$$E=mc^2$$](https://en.wikipedia.org/wiki/Albert_Einstein)"
+ },
+ {
+  "text": "data a, Italic Heading = data b",
+  "headings": [
+   "Whole heading is italic",
+   "Table Heading"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Whole heading is italic\nTable Heading\ndata a, Italic Heading = data b"
+ }
+]

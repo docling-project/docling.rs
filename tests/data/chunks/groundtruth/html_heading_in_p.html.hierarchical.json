@@ -1,0 +1,32 @@
+[
+ {
+  "text": "1st paragraph",
+  "headings": [
+   "1"
+  ],
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "1\n1st paragraph"
+ },
+ {
+  "text": "**2**, 1 = **3**. **2**, 2 = **4**. 5, 1 = 6. 5, 2 = 7. 8, 1 = 9. 8, 2 = 10. 11, 1 = 12. 11, 2 = 13. 14, 1 = 15. 14, 2 = 16. 17, 1 = 18. 17, 2 = 19\n\n20",
+  "headings": [
+   "1"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "1\n**2**, 1 = **3**. **2**, 2 = **4**. 5, 1 = 6. 5, 2 = 7. 8, 1 = 9. 8, 2 = 10. 11, 1 = 12. 11, 2 = 13. 14, 1 = 15. 14, 2 = 16. 17, 1 = 18. 17, 2 = 19\n\n20"
+ },
+ {
+  "text": "2nd paragraph",
+  "headings": [
+   "21"
+  ],
+  "doc_items": [
+   "#/texts/9"
+  ],
+  "contextualize": "21\n2nd paragraph"
+ }
+]

@@ -1,0 +1,42 @@
+[
+ {
+  "text": "Wood Duck, Habitat = . Wood Duck, Comment = Often seen near ponds.. Mallard, Habitat = Ponds, lakes, rivers. Mallard, Comment = Quack. Goose (not a duck!), Habitat = Water & wetlands. Goose (not a duck!), Comment = **Large** , *loud* , noisy , ~~small~~. Teal, Habitat = - Pond\n- Marsh\n- Riverbank. Teal, Comment = 1. Fly south in winter\n2. Build nest on ground",
+  "headings": [
+   "Rich Table Cells in HTML"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Rich Table Cells in HTML\nWood Duck, Habitat = . Wood Duck, Comment = Often seen near ponds.. Mallard, Habitat = Ponds, lakes, rivers. Mallard, Comment = Quack. Goose (not a duck!), Habitat = Water & wetlands. Goose (not a duck!), Comment = **Large** , *loud* , noisy , ~~small~~. Teal, Habitat = - Pond\n- Marsh\n- Riverbank. Teal, Comment = 1. Fly south in winter\n2. Build nest on ground"
+ },
+ {
+  "text": "Aythya\n(Diving ducks), Species = Hawser, Common Pochard. Lophonetta\n(Pintail group), Species = Fulvous Whistling Duck. Oxyura\n(Benthic ducks), Species = Wigee, Banded Water-screw",
+  "headings": [
+   "Rich Table Cells in HTML"
+  ],
+  "doc_items": [
+   "#/tables/1"
+  ],
+  "contextualize": "Rich Table Cells in HTML\nAythya\n(Diving ducks), Species = Hawser, Common Pochard. Lophonetta\n(Pintail group), Species = Fulvous Whistling Duck. Oxyura\n(Benthic ducks), Species = Wigee, Banded Water-screw"
+ },
+ {
+  "text": "**Swim**, Action = Gracefully glide on H 2 O surfaces.. *Fly*, Action = . Quack, Action = Short, Sound = \"quak\". Long, Sound = \"quaaaaaack\"",
+  "headings": [
+   "Rich Table Cells in HTML"
+  ],
+  "doc_items": [
+   "#/tables/2"
+  ],
+  "contextualize": "Rich Table Cells in HTML\n**Swim**, Action = Gracefully glide on H 2 O surfaces.. *Fly*, Action = . Quack, Action = Short, Sound = \"quak\". Long, Sound = \"quaaaaaack\""
+ },
+ {
+  "text": "Donald Duck, Description = Cartoon character.. Donald Duck, Image = [View PNG](https://en.wikipedia.org/wiki/Donald_Duck#/media/File:Donald_Duck_angry_transparent_background.png). White-headed duck, Description = A small diving duck some 45 cm (18 in) long.. White-headed duck, Image = White-headed duck thumbnail. Mandarin Duck, Description = Known for its striking plumage.. Mandarin Duck, Image = [View Full-Size Image](https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Mandarin_duck_%28Aix_galericulata%29.jpg/250px-Mandarin_duck_%28Aix_galericulata%29.jpg). Unknown Duck, Description = No photo available.. Unknown Duck, Image = ",
+  "headings": [
+   "Rich Table Cells in HTML"
+  ],
+  "doc_items": [
+   "#/tables/4"
+  ],
+  "contextualize": "Rich Table Cells in HTML\nDonald Duck, Description = Cartoon character.. Donald Duck, Image = [View PNG](https://en.wikipedia.org/wiki/Donald_Duck#/media/File:Donald_Duck_angry_transparent_background.png). White-headed duck, Description = A small diving duck some 45 cm (18 in) long.. White-headed duck, Image = White-headed duck thumbnail. Mandarin Duck, Description = Known for its striking plumage.. Mandarin Duck, Image = [View Full-Size Image](https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Mandarin_duck_%28Aix_galericulata%29.jpg/250px-Mandarin_duck_%28Aix_galericulata%29.jpg). Unknown Duck, Description = No photo available.. Unknown Duck, Image = "
+ }
+]

@@ -1,0 +1,22 @@
+[
+ {
+  "text": "The equation below uses U+2013 EN DASH as minus and U+005E as caret.\nExpected LaTeX: x - y^2\nDocling produces: x \\text{ \\textendash } y\\text{ \\textasciicircum }2\n\nBoth characters appear inside <m:r><m:t> math runs but are escaped as text-mode LaTeX macros instead of kept as math operators.",
+  "headings": [
+   "Issue 2: Text-mode escapes in math context"
+  ],
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Issue 2: Text-mode escapes in math context\nThe equation below uses U+2013 EN DASH as minus and U+005E as caret.\nExpected LaTeX: x - y^2\nDocling produces: x \\text{ \\textendash } y\\text{ \\textasciicircum }2\n\nBoth characters appear inside <m:r><m:t> math runs but are escaped as text-mode LaTeX macros instead of kept as math operators."
+ },
+ {
+  "text": "$$x - y^2$$",
+  "headings": [
+   "Issue 2: Text-mode escapes in math context"
+  ],
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "Issue 2: Text-mode escapes in math context\n$$x - y^2$$"
+ }
+]

@@ -1,0 +1,302 @@
+[
+ {
+  "text": "Order Receipt Details",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "HEADER\nOrder Receipt Details"
+ },
+ {
+  "text": "Receipt documentation for table service:",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/3"
+  ],
+  "contextualize": "HEADER\nReceipt documentation for table service:"
+ },
+ {
+  "text": "1",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/4"
+  ],
+  "contextualize": "HEADER\n1"
+ },
+ {
+  "text": "Restaurant",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/5"
+  ],
+  "contextualize": "HEADER\nRestaurant"
+ },
+ {
+  "text": "Docling",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/6"
+  ],
+  "contextualize": "HEADER\nDocling"
+ },
+ {
+  "text": "2",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/7"
+  ],
+  "contextualize": "HEADER\n2"
+ },
+ {
+  "text": "Telephone",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/8"
+  ],
+  "contextualize": "HEADER\nTelephone"
+ },
+ {
+  "text": "(123) 456-7890",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/9"
+  ],
+  "contextualize": "HEADER\n(123) 456-7890"
+ },
+ {
+  "text": "3",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/10"
+  ],
+  "contextualize": "HEADER\n3"
+ },
+ {
+  "text": "Server",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/11"
+  ],
+  "contextualize": "HEADER\nServer"
+ },
+ {
+  "text": "Quack Quackling",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/12"
+  ],
+  "contextualize": "HEADER\nQuack Quackling"
+ },
+ {
+  "text": "4",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/13"
+  ],
+  "contextualize": "HEADER\n4"
+ },
+ {
+  "text": "Order Number",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/14"
+  ],
+  "contextualize": "HEADER\nOrder Number"
+ },
+ {
+  "text": "12345",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/15"
+  ],
+  "contextualize": "HEADER\n12345"
+ },
+ {
+  "text": "5",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/16"
+  ],
+  "contextualize": "HEADER\n5"
+ },
+ {
+  "text": "Seating",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/17"
+  ],
+  "contextualize": "HEADER\nSeating"
+ },
+ {
+  "text": "13",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/18"
+  ],
+  "contextualize": "HEADER\n13"
+ },
+ {
+  "text": "6",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/19"
+  ],
+  "contextualize": "HEADER\n6"
+ },
+ {
+  "text": "Dining Type",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/20"
+  ],
+  "contextualize": "HEADER\nDining Type"
+ },
+ {
+  "text": "Celebration",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/21"
+  ],
+  "contextualize": "HEADER\nCelebration"
+ },
+ {
+  "text": "7",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/22"
+  ],
+  "contextualize": "HEADER\n7"
+ },
+ {
+  "text": "Number of guests",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/23"
+  ],
+  "contextualize": "HEADER\nNumber of guests"
+ },
+ {
+  "text": "5",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/24"
+  ],
+  "contextualize": "HEADER\n5"
+ },
+ {
+  "text": "8",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/25"
+  ],
+  "contextualize": "HEADER\n8"
+ },
+ {
+  "text": "Receipt date",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/26"
+  ],
+  "contextualize": "HEADER\nReceipt date"
+ },
+ {
+  "text": "16/03/2026",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/27"
+  ],
+  "contextualize": "HEADER\n16/03/2026"
+ },
+ {
+  "text": "Order items:",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/28"
+  ],
+  "contextualize": "HEADER\nOrder items:"
+ },
+ {
+  "text": "Itemized list of products ordered with quantities.",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/29"
+  ],
+  "contextualize": "HEADER\nItemized list of products ordered with quantities."
+ },
+ {
+  "text": "I, Item Description = Coffee. I, Quantity = 1. II, Item Description = Lunch. II, Quantity = 2. III, Item Description = Cake. III, Quantity = 1",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "HEADER\nI, Item Description = Coffee. I, Quantity = 1. II, Item Description = Lunch. II, Quantity = 2. III, Item Description = Cake. III, Quantity = 1"
+ },
+ {
+  "text": "Docling Restaurant 2026",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/30"
+  ],
+  "contextualize": "HEADER\nDocling Restaurant 2026"
+ }
+]

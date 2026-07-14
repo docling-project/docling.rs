@@ -1,0 +1,88 @@
+[
+ {
+  "text": "This is a word document and this is an inline equation: \n$$A= \\pi r^{2}$$\n.\n- First item with inline equation:  $A= \\pi r^{2}$ is the area formula.\n- Second item with equations:  $E=mc^{2}$  and  $F=ma$ are physics formulas.\n- The formula  $a^{2}+b^{2}=c^{2}$ is the Pythagorean theorem.\nIf instead, I want an equation by line, I can do this:\n$$a^{2}+b^{2}=c^{2} \\times 23$$\nAnd that is an equation by itself. Cheers!\nThis is another equation:\n$$f\\left(x\\right)=a_{0}+\\sum_{n=1}^{ \\infty }\\left(a_{n}\\cos(\\frac{n \\pi x}{L})+b_{n}\\sin(\\frac{n \\pi x}{L})\\right)$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/7",
+   "#/texts/13",
+   "#/texts/17",
+   "#/texts/19",
+   "#/texts/20",
+   "#/texts/22",
+   "#/texts/23"
+  ],
+  "contextualize": "This is a word document and this is an inline equation: \n$$A= \\pi r^{2}$$\n.\n- First item with inline equation:  $A= \\pi r^{2}$ is the area formula.\n- Second item with equations:  $E=mc^{2}$  and  $F=ma$ are physics formulas.\n- The formula  $a^{2}+b^{2}=c^{2}$ is the Pythagorean theorem.\nIf instead, I want an equation by line, I can do this:\n$$a^{2}+b^{2}=c^{2} \\times 23$$\nAnd that is an equation by itself. Cheers!\nThis is another equation:\n$$f\\left(x\\right)=a_{0}+\\sum_{n=1}^{ \\infty }\\left(a_{n}\\cos(\\frac{n \\pi x}{L})+b_{n}\\sin(\\frac{n \\pi x}{L})\\right)$$"
+ },
+ {
+  "text": "This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text.\nThis is a word document and this is an inline equation: \n$$A= \\pi r^{2}$$\n. If instead, I want an equation by line, I can do this:\n$$\\left(x+a\\right)^{n}=\\sum_{k=0}^{n}\\left(\\genfrac{}{}{0pt}{}{n}{k}\\right)x^{k}a^{n-k}$$\nAnd that is an equation by itself. Cheers!\nThis is another equation:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/25",
+   "#/texts/28",
+   "#/texts/29",
+   "#/texts/30",
+   "#/texts/32",
+   "#/texts/34",
+   "#/texts/36"
+  ],
+  "contextualize": "This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text.\nThis is a word document and this is an inline equation: \n$$A= \\pi r^{2}$$\n. If instead, I want an equation by line, I can do this:\n$$\\left(x+a\\right)^{n}=\\sum_{k=0}^{n}\\left(\\genfrac{}{}{0pt}{}{n}{k}\\right)x^{k}a^{n-k}$$\nAnd that is an equation by itself. Cheers!\nThis is another equation:"
+ },
+ {
+  "text": "$$\\left(1+x\\right)^{n}=1+\\frac{nx}{1!}+\\frac{n\\left(n-1\\right)x^{2}}{2!}+ \\text{ \\textellipsis }$$\nThis is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text.\nThis is a word document and these are inline equations: \n$$N_{s}^{H}$$\n/\n$$N_{s}^{P}$$\n​. If instead, I want an equation by line, I can do this:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/38",
+   "#/texts/40",
+   "#/texts/43",
+   "#/texts/44",
+   "#/texts/45",
+   "#/texts/46",
+   "#/texts/47"
+  ],
+  "contextualize": "$$\\left(1+x\\right)^{n}=1+\\frac{nx}{1!}+\\frac{n\\left(n-1\\right)x^{2}}{2!}+ \\text{ \\textellipsis }$$\nThis is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text.\nThis is a word document and these are inline equations: \n$$N_{s}^{H}$$\n/\n$$N_{s}^{P}$$\n​. If instead, I want an equation by line, I can do this:"
+ },
+ {
+  "text": "$$e^{x}=1+\\frac{x}{1!}+\\frac{x^{2}}{2!}+\\frac{x^{3}}{3!}+ \\text{ \\textellipsis } , - \\infty  < x <  \\infty$$\nAnd that is an equation by itself. Cheers!\nLarge operators and integrals are represented with n-ary objects in OMML XML:\n$$\\sum_{0}^{2}x$$\n$$\\bigcup_{n=1}^{m}\\left(X_{n} \\cap Y_{n}\\right)$$\n$$\\prod_{k=1}^{n}A_{k}$$\n$$\\bigwedge_{}^{}x$$\n$$\\int_{}^{}(2x+1)dx$$\n$$\\iint_{0}^{1}xdx$$\n$$\\iiint_{}^{}ydy$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/49",
+   "#/texts/51",
+   "#/texts/53",
+   "#/texts/55",
+   "#/texts/56",
+   "#/texts/57",
+   "#/texts/58",
+   "#/texts/59",
+   "#/texts/60",
+   "#/texts/61"
+  ],
+  "contextualize": "$$e^{x}=1+\\frac{x}{1!}+\\frac{x^{2}}{2!}+\\frac{x^{3}}{3!}+ \\text{ \\textellipsis } , - \\infty  < x <  \\infty$$\nAnd that is an equation by itself. Cheers!\nLarge operators and integrals are represented with n-ary objects in OMML XML:\n$$\\sum_{0}^{2}x$$\n$$\\bigcup_{n=1}^{m}\\left(X_{n} \\cap Y_{n}\\right)$$\n$$\\prod_{k=1}^{n}A_{k}$$\n$$\\bigwedge_{}^{}x$$\n$$\\int_{}^{}(2x+1)dx$$\n$$\\iint_{0}^{1}xdx$$\n$$\\iiint_{}^{}ydy$$"
+ },
+ {
+  "text": "$$\\oint_{}^{}\\frac{dy}{dx}$$\n$$\\oiint_{0}^{2 \\pi }idt$$\n$$\\oiiint_{C}^{}\\frac{1}{z}dz$$\nOperators used with limits:\n$$\\operatorname{argmax}_{ \\epsilon}f(x),   \\lim_{n}{\\left(1+\\frac{1}{n}\\right)}^{n} ,  \\max_{0 \\leq x \\leq 1}xe^{-x^{2}},  unsupported_{n}{\\left(1+\\frac{1}{n}\\right)}^{n}$$\nEquations with the OMML group character object:\n$$P_{ x}=\\underbrace{S \\cdot T \\cdot G \\cdot (x+y+z)}_{group\\ with\\ underbraces}+e^{x}$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/62",
+   "#/texts/63",
+   "#/texts/64",
+   "#/texts/67",
+   "#/texts/69",
+   "#/texts/72",
+   "#/texts/74"
+  ],
+  "contextualize": "$$\\oint_{}^{}\\frac{dy}{dx}$$\n$$\\oiint_{0}^{2 \\pi }idt$$\n$$\\oiiint_{C}^{}\\frac{1}{z}dz$$\nOperators used with limits:\n$$\\operatorname{argmax}_{ \\epsilon}f(x),   \\lim_{n}{\\left(1+\\frac{1}{n}\\right)}^{n} ,  \\max_{0 \\leq x \\leq 1}xe^{-x^{2}},  unsupported_{n}{\\left(1+\\frac{1}{n}\\right)}^{n}$$\nEquations with the OMML group character object:\n$$P_{ x}=\\underbrace{S \\cdot T \\cdot G \\cdot (x+y+z)}_{group\\ with\\ underbraces}+e^{x}$$"
+ },
+ {
+  "text": "$$Q_{ y}=\\overset{group\\ with\\ overbraces}{\\overbrace{G \\cdot T \\cdot S \\cdot (x+y+z)}}+e^{y}$$\n$$s\\left\\{max\\right\\}= A \\times B$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/75",
+   "#/texts/80"
+  ],
+  "contextualize": "$$Q_{ y}=\\overset{group\\ with\\ overbraces}{\\overbrace{G \\cdot T \\cdot S \\cdot (x+y+z)}}+e^{y}$$\n$$s\\left\\{max\\right\\}= A \\times B$$"
+ }
+]

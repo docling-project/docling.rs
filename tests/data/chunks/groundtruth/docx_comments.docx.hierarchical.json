@@ -1,0 +1,42 @@
+[
+ {
+  "text": "This is the first paragraph that has a comment attached to it.",
+  "headings": [
+   "Document with Comments"
+  ],
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Document with Comments\nThis is the first paragraph that has a comment attached to it."
+ },
+ {
+  "text": "This second paragraph also has a reviewer annotation.",
+  "headings": [
+   "Document with Comments"
+  ],
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "Document with Comments\nThis second paragraph also has a reviewer annotation."
+ },
+ {
+  "text": "This third paragraph has no comments attached to it.",
+  "headings": [
+   "Document with Comments"
+  ],
+  "doc_items": [
+   "#/texts/3"
+  ],
+  "contextualize": "Document with Comments\nThis third paragraph has no comments attached to it."
+ },
+ {
+  "text": "This paragraph has an anonymous comment.",
+  "headings": [
+   "Document with Comments"
+  ],
+  "doc_items": [
+   "#/texts/4"
+  ],
+  "contextualize": "Document with Comments\nThis paragraph has an anonymous comment."
+ }
+]

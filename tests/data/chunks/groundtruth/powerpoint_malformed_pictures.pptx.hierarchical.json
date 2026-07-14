@@ -1,0 +1,26 @@
+[
+ {
+  "text": "Slide With Missing BlipFill",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0"
+  ],
+  "contextualize": "Slide With Missing BlipFill"
+ },
+ {
+  "text": "Slide With Dangling Rel",
+  "headings": null,
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Slide With Dangling Rel"
+ },
+ {
+  "text": "Slide With Wrong Content Type",
+  "headings": null,
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "Slide With Wrong Content Type"
+ }
+]

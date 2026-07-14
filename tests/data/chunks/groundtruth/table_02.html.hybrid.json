@@ -1,0 +1,14 @@
+[
+ {
+  "text": "This is the first paragraph.\nA, 1 = B. First Line\nSecond Line\nThird Line, 1 = 2...\nAfter table",
+  "headings": [
+   "Header"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/tables/0",
+   "#/texts/3"
+  ],
+  "contextualize": "Header\nThis is the first paragraph.\nA, 1 = B. First Line\nSecond Line\nThird Line, 1 = 2...\nAfter table"
+ }
+]

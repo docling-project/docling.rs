@@ -1,0 +1,15 @@
+[
+ {
+  "text": "This is the first paragraph that has a comment attached to it.\nThis second paragraph also has a reviewer annotation.\nThis third paragraph has no comments attached to it.\nThis paragraph has an anonymous comment.",
+  "headings": [
+   "Document with Comments"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4"
+  ],
+  "contextualize": "Document with Comments\nThis is the first paragraph that has a comment attached to it.\nThis second paragraph also has a reviewer annotation.\nThis third paragraph has no comments attached to it.\nThis paragraph has an anonymous comment."
+ }
+]

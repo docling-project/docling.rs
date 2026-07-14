@@ -1,0 +1,154 @@
+[
+ {
+  "text": "Unordered list:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0"
+  ],
+  "contextualize": "Unordered list:"
+ },
+ {
+  "text": "- foo",
+  "headings": null,
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "- foo"
+ },
+ {
+  "text": "Empty unordered list:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "Empty unordered list:"
+ },
+ {
+  "text": "Ordered list:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/3"
+  ],
+  "contextualize": "Ordered list:"
+ },
+ {
+  "text": "1. bar",
+  "headings": null,
+  "doc_items": [
+   "#/texts/4"
+  ],
+  "contextualize": "1. bar"
+ },
+ {
+  "text": "Empty ordered list:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/5"
+  ],
+  "contextualize": "Empty ordered list:"
+ },
+ {
+  "text": "Heading:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/6"
+  ],
+  "contextualize": "Heading:"
+ },
+ {
+  "text": "Empty heading:",
+  "headings": [
+   "my heading"
+  ],
+  "doc_items": [
+   "#/texts/8"
+  ],
+  "contextualize": "my heading\nEmpty heading:"
+ },
+ {
+  "text": "Setext heading level 1:",
+  "headings": [
+   "my heading"
+  ],
+  "doc_items": [
+   "#/texts/9"
+  ],
+  "contextualize": "my heading\nSetext heading level 1:"
+ },
+ {
+  "text": "Setext heading level 2:",
+  "headings": [
+   "my setext heading level 1"
+  ],
+  "doc_items": [
+   "#/texts/11"
+  ],
+  "contextualize": "my setext heading level 1\nSetext heading level 2:"
+ },
+ {
+  "text": "Indented code block:",
+  "headings": [
+   "my setext heading level 1",
+   "my setext heading level 2"
+  ],
+  "doc_items": [
+   "#/texts/13"
+  ],
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\nIndented code block:"
+ },
+ {
+  "text": "```\nprint(\"Hi!\")\n```",
+  "headings": [
+   "my setext heading level 1",
+   "my setext heading level 2"
+  ],
+  "doc_items": [
+   "#/texts/14"
+  ],
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\n```\nprint(\"Hi!\")\n```"
+ },
+ {
+  "text": "Empty indented code block:",
+  "headings": [
+   "my setext heading level 1",
+   "my setext heading level 2"
+  ],
+  "doc_items": [
+   "#/texts/15"
+  ],
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\nEmpty indented code block:"
+ },
+ {
+  "text": "Fenced code block:",
+  "headings": [
+   "my setext heading level 1",
+   "my setext heading level 2"
+  ],
+  "doc_items": [
+   "#/texts/16"
+  ],
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\nFenced code block:"
+ },
+ {
+  "text": "```\nprint(\"Hello world!\")\n```",
+  "headings": [
+   "my setext heading level 1",
+   "my setext heading level 2"
+  ],
+  "doc_items": [
+   "#/texts/17"
+  ],
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\n```\nprint(\"Hello world!\")\n```"
+ },
+ {
+  "text": "Empty fenced code block:",
+  "headings": [
+   "my setext heading level 1",
+   "my setext heading level 2"
+  ],
+  "doc_items": [
+   "#/texts/18"
+  ],
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\nEmpty fenced code block:"
+ }
+]

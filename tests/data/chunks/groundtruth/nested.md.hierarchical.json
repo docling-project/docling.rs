@@ -1,0 +1,72 @@
+[
+ {
+  "text": "A list featuring nesting:",
+  "headings": [
+   "Nesting"
+  ],
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Nesting\nA list featuring nesting:"
+ },
+ {
+  "text": "- abc\n    - abc123\n        - abc1234\n            - abc12345\n                - a.\n                - b.\n        - abcd1234：\n            - abcd12345：\n                - a.\n                - b.\n- def：\n    - def1234：\n        - def12345。\n- after one empty line\n    - foo\n- afer two empty lines\n    - bar",
+  "headings": [
+   "Nesting"
+  ],
+  "doc_items": [
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7",
+   "#/texts/8",
+   "#/texts/9",
+   "#/texts/10",
+   "#/texts/11",
+   "#/texts/12",
+   "#/texts/13",
+   "#/texts/14",
+   "#/texts/15",
+   "#/texts/16",
+   "#/texts/17",
+   "#/texts/18"
+  ],
+  "contextualize": "Nesting\n- abc\n    - abc123\n        - abc1234\n            - abc12345\n                - a.\n                - b.\n        - abcd1234：\n            - abcd12345：\n                - a.\n                - b.\n- def：\n    - def1234：\n        - def12345。\n- after one empty line\n    - foo\n- afer two empty lines\n    - bar"
+ },
+ {
+  "text": "- changing symbol",
+  "headings": [
+   "Nesting"
+  ],
+  "doc_items": [
+   "#/texts/19"
+  ],
+  "contextualize": "Nesting\n- changing symbol"
+ },
+ {
+  "text": "A nested HTML list:",
+  "headings": [
+   "Nesting"
+  ],
+  "doc_items": [
+   "#/texts/20"
+  ],
+  "contextualize": "Nesting\nA nested HTML list:"
+ },
+ {
+  "text": "- First item\n- Second item with subitems:\n    - Subitem 1\n    - Subitem 2\n- Last list item",
+  "headings": [
+   "Nesting"
+  ],
+  "doc_items": [
+   "#/texts/21",
+   "#/texts/22",
+   "#/texts/23",
+   "#/texts/24",
+   "#/texts/25"
+  ],
+  "contextualize": "Nesting\n- First item\n- Second item with subitems:\n    - Subitem 1\n    - Subitem 2\n- Last list item"
+ }
+]

@@ -1,0 +1,28 @@
+[
+ {
+  "text": "*italic*\n**bold**\nunderline\n[hyperlink](https://github.com/DS4SD/docling)\n[***italic and bold hyperlink***](https://github.com/DS4SD/docling)\nNormal\n*italic*\n**bold**\nunderline\nand\n[hyperlink](https://github.com/DS4SD/docling)\non the same line\n- *Italic bullet 1*\n- **Bold bullet 2**\n- Underline bullet 3\n- Some *italic* **bold** underline\n- Nested *italic* **bold**\nThe second page of the document with same header and footer\nThe third page of the document with different header and footer",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7",
+   "#/texts/8",
+   "#/texts/9",
+   "#/texts/10",
+   "#/texts/11",
+   "#/texts/13",
+   "#/texts/14",
+   "#/texts/15",
+   "#/texts/16",
+   "#/texts/21",
+   "#/texts/26",
+   "#/texts/28"
+  ],
+  "contextualize": "*italic*\n**bold**\nunderline\n[hyperlink](https://github.com/DS4SD/docling)\n[***italic and bold hyperlink***](https://github.com/DS4SD/docling)\nNormal\n*italic*\n**bold**\nunderline\nand\n[hyperlink](https://github.com/DS4SD/docling)\non the same line\n- *Italic bullet 1*\n- **Bold bullet 2**\n- Underline bullet 3\n- Some *italic* **bold** underline\n- Nested *italic* **bold**\nThe second page of the document with same header and footer\nThe third page of the document with different header and footer"
+ }
+]

@@ -1,0 +1,29 @@
+[
+ {
+  "text": "Jump to\n[Section 2](#section-2)\nor visit\n[Example](https://example.com/)\n.",
+  "headings": [
+   "Anchor Links Test"
+  ],
+  "doc_items": [
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6"
+  ],
+  "contextualize": "Anchor Links Test\nJump to\n[Section 2](#section-2)\nor visit\n[Example](https://example.com/)\n."
+ },
+ {
+  "text": "Content for section 2 with a\n[top link](#)\n.",
+  "headings": [
+   "Anchor Links Test",
+   "Section 2"
+  ],
+  "doc_items": [
+   "#/texts/8",
+   "#/texts/9",
+   "#/texts/10"
+  ],
+  "contextualize": "Anchor Links Test\nSection 2\nContent for section 2 with a\n[top link](#)\n."
+ }
+]

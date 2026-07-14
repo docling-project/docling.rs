@@ -1,0 +1,131 @@
+[
+ {
+  "text": "Paragraph 2.1.1\nParagraph 2.1.2",
+  "headings": [
+   "Test Document"
+  ],
+  "doc_items": [
+   "#/texts/3",
+   "#/texts/5"
+  ],
+  "contextualize": "Test Document\nParagraph 2.1.1\nParagraph 2.1.2"
+ },
+ {
+  "text": "- List item 1\n- List item 2\n- List item 3",
+  "headings": [
+   "Test Document",
+   "Test 1:"
+  ],
+  "doc_items": [
+   "#/texts/8",
+   "#/texts/9",
+   "#/texts/10"
+  ],
+  "contextualize": "Test Document\nTest 1:\n- List item 1\n- List item 2\n- List item 3"
+ },
+ {
+  "text": "1. List item a\n2. List item b\n3. List item c",
+  "headings": [
+   "Test Document",
+   "Test 2:"
+  ],
+  "doc_items": [
+   "#/texts/13",
+   "#/texts/14",
+   "#/texts/15"
+  ],
+  "contextualize": "Test Document\nTest 2:\n1. List item a\n2. List item b\n3. List item c"
+ },
+ {
+  "text": "- List item 1\n- List item 2\n- List item 1.1\n- List item 1.2\n- List item 1.3\n- List item 3",
+  "headings": [
+   "Test Document",
+   "Test 3:"
+  ],
+  "doc_items": [
+   "#/texts/18",
+   "#/texts/19",
+   "#/texts/20",
+   "#/texts/21",
+   "#/texts/22",
+   "#/texts/23"
+  ],
+  "contextualize": "Test Document\nTest 3:\n- List item 1\n- List item 2\n- List item 1.1\n- List item 1.2\n- List item 1.3\n- List item 3"
+ },
+ {
+  "text": "- List item 1\n- List item 1.1\n- List item 2",
+  "headings": [
+   "Test Document",
+   "Test 4:"
+  ],
+  "doc_items": [
+   "#/texts/26",
+   "#/texts/27",
+   "#/texts/28"
+  ],
+  "contextualize": "Test Document\nTest 4:\n- List item 1\n- List item 1.1\n- List item 2"
+ },
+ {
+  "text": "- List item 1\n- List item 1.1\n- List item 1.1.1\n- List item 3",
+  "headings": [
+   "Test Document",
+   "Test 5:"
+  ],
+  "doc_items": [
+   "#/texts/31",
+   "#/texts/32",
+   "#/texts/33",
+   "#/texts/34"
+  ],
+  "contextualize": "Test Document\nTest 5:\n- List item 1\n- List item 1.1\n- List item 1.1.1\n- List item 3"
+ },
+ {
+  "text": "- List item 1\n- List item 2\n- List item 1.1\n- List item 1.2\n- List item 1.2.1\n- List item 3",
+  "headings": [
+   "Test Document",
+   "Test 6:"
+  ],
+  "doc_items": [
+   "#/texts/37",
+   "#/texts/38",
+   "#/texts/39",
+   "#/texts/40",
+   "#/texts/41",
+   "#/texts/42"
+  ],
+  "contextualize": "Test Document\nTest 6:\n- List item 1\n- List item 2\n- List item 1.1\n- List item 1.2\n- List item 1.2.1\n- List item 3"
+ },
+ {
+  "text": "1. First item with numId 2\n2. Second item with numId 2\n3. Third item with numId 2\n4. Fourth item with numId 2\n1. Single item of a new list\n1. Single item of a new list",
+  "headings": [
+   "Test Document",
+   "Test 7:"
+  ],
+  "doc_items": [
+   "#/texts/46",
+   "#/texts/47",
+   "#/texts/48",
+   "#/texts/49",
+   "#/texts/51",
+   "#/texts/53"
+  ],
+  "contextualize": "Test Document\nTest 7:\n1. First item with numId 2\n2. Second item with numId 2\n3. Third item with numId 2\n4. Fourth item with numId 2\n1. Single item of a new list\n1. Single item of a new list"
+ },
+ {
+  "text": "*Docling should extract the list format when the formatting comes from the styles:*\n- *First item*\n- *Second item*\n- *Third item*\n- *Sub-item A*\n- *Sub-item B*\n- *Fourth item*",
+  "headings": [
+   "Test Document",
+   "Style-based lists:"
+  ],
+  "doc_items": [
+   "#/texts/56",
+   "#/texts/57",
+   "#/texts/58",
+   "#/texts/59",
+   "#/texts/60",
+   "#/texts/61",
+   "#/texts/62"
+  ],
+  "contextualize": "Test Document\nStyle-based lists:\n*Docling should extract the list format when the formatting comes from the styles:*\n- *First item*\n- *Second item*\n- *Third item*\n- *Sub-item A*\n- *Sub-item B*\n- *Fourth item*"
+ }
+]

@@ -22,6 +22,8 @@ exclude = ["tests", "benches"]
 # `--features web-browser`. Drives the system Chromium over the DevTools
 # protocol purely from Rust (no Node/Playwright) via `headless_chrome`.
 web-browser = ["dep:headless_chrome"]
+# Tokenization-aware chunking (docling-core's HybridChunker + HF tokenizer).
+chunking = ["docling-core/chunking"]
 
 [dependencies]
 calamine = { version = "0.26", features = ["dates"] }

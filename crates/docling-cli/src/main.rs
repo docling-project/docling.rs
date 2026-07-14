@@ -79,8 +79,8 @@ fn main() -> ExitCode {
         }
     }
 
-    if !matches!(to.as_str(), "md" | "markdown" | "json" | "dclx") {
-        eprintln!("error: unknown --to '{to}' (expected: md, json)");
+    if !matches!(to.as_str(), "md" | "markdown" | "json" | "dclx" | "chunks") {
+        eprintln!("error: unknown --to '{to}' (expected: md, json, dclx, chunks)");
         return ExitCode::from(2);
     }
     let image_mode = match images.as_str() {
@@ -183,6 +183,15 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
+    if to == "chunks" {
+        // Chunking conformance/debug dump: a JSON object with the hierarchical
+        // chunk records and, when a tokenizer is configured, the hybrid ones.
+        // `DOCLING_CHUNK_TOKENIZER` points at a HuggingFace tokenizer.json
+        // (`DOCLING_CHUNK_MAX_TOKENS` overrides the default budget of 256).
+        print!("{}", chunks_json(&document));
+        return ExitCode::SUCCESS;
+    }
+
     if to == "dclx" {
         // Binary OPC archive: written next to the CWD as `<input-stem>.dclx`
         // (stdout stays clean for terminals); the path is printed for scripts.
@@ -263,4 +272,50 @@ fn bench_warm_conversion(
         total += t.elapsed().as_secs_f64();
     }
     Ok(total / runs as f64)
+}
+
+/// Serialize the chunk records `--to chunks` prints: the hierarchical chunker's
+/// output always, plus the hybrid chunker's when a tokenizer is configured via
+/// `DOCLING_CHUNK_TOKENIZER` (requires the `chunking` build feature).
+fn chunks_json(document: &docling::DoclingDocument) -> String {
+    use docling::chunker::{contextualize, DocChunk, HierarchicalChunker};
+
+    fn records(chunks: &[DocChunk]) -> serde_json::Value {
+        serde_json::Value::Array(
+            chunks
+                .iter()
+                .map(|c| {
+                    serde_json::json!({
+                        "text": c.text,
+                        "headings": c.headings,
+                        "doc_items": c.doc_items.iter().map(|i| i.self_ref.clone()).collect::<Vec<_>>(),
+                        "contextualize": contextualize(c),
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    let hierarchical = HierarchicalChunker.chunk(document);
+    #[cfg_attr(not(feature = "chunking"), allow(unused_mut))]
+    let mut out = serde_json::json!({ "hierarchical": records(&hierarchical) });
+
+    #[cfg(feature = "chunking")]
+    if let Ok(tok_path) = std::env::var("DOCLING_CHUNK_TOKENIZER") {
+        let max_tokens = std::env::var("DOCLING_CHUNK_MAX_TOKENS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(256);
+        match docling::chunker::HuggingFaceTokenizer::from_file(&tok_path, max_tokens) {
+            Ok(tok) => {
+                let hybrid = docling::chunker::HybridChunker::new(tok).chunk(document);
+                out["hybrid"] = records(&hybrid);
+            }
+            Err(e) => eprintln!("warning: {e}"),
+        }
+    }
+    format!(
+        "{}\n",
+        serde_json::to_string_pretty(&out).expect("chunks are serializable")
+    )
 }

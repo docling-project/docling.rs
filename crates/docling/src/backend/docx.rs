@@ -1238,6 +1238,7 @@ fn parse_table_with(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
             col_continuation: col_cont,
             row_continuation: row_cont,
             row_header: Vec::new(),
+            col_header: Vec::new(),
         }
     });
     Some(Table {

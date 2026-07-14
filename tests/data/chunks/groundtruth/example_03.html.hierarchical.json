@@ -1,0 +1,63 @@
+[
+ {
+  "text": "This is the first paragraph of the introduction.",
+  "headings": [
+   "Example Document",
+   "Introduction"
+  ],
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "Example Document\nIntroduction\nThis is the first paragraph of the introduction."
+ },
+ {
+  "text": "Some background information here.",
+  "headings": [
+   "Example Document",
+   "Background"
+  ],
+  "doc_items": [
+   "#/texts/4"
+  ],
+  "contextualize": "Example Document\nBackground\nSome background information here."
+ },
+ {
+  "text": "- First item in unordered list\n    - Nested item 1\n    - Nested item 2\n- Second item in unordered list",
+  "headings": [
+   "Example Document",
+   "Background"
+  ],
+  "doc_items": [
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7",
+   "#/texts/8"
+  ],
+  "contextualize": "Example Document\nBackground\n- First item in unordered list\n    - Nested item 1\n    - Nested item 2\n- Second item in unordered list"
+ },
+ {
+  "text": "1. First item in ordered list\n    1. Nested ordered item 1\n    2. Nested ordered item 2\n2. Second item in ordered list",
+  "headings": [
+   "Example Document",
+   "Background"
+  ],
+  "doc_items": [
+   "#/texts/9",
+   "#/texts/10",
+   "#/texts/11",
+   "#/texts/12"
+  ],
+  "contextualize": "Example Document\nBackground\n1. First item in ordered list\n    1. Nested ordered item 1\n    2. Nested ordered item 2\n2. Second item in ordered list"
+ },
+ {
+  "text": "Row 1, Col 1, Header 2 = Row 1, Col 2. Row 1, Col 1, Header 3 = Row 1, Col 3. Row 2, Col 1, Header 2 = Row 2, Col 2. Row 2, Col 1, Header 3 = Row 2, Col 3. Row 3, Col 1, Header 2 = Row 3, Col 2. Row 3, Col 1, Header 3 = Row 3, Col 3",
+  "headings": [
+   "Example Document",
+   "Data Table"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Example Document\nData Table\nRow 1, Col 1, Header 2 = Row 1, Col 2. Row 1, Col 1, Header 3 = Row 1, Col 3. Row 2, Col 1, Header 2 = Row 2, Col 2. Row 2, Col 1, Header 3 = Row 2, Col 3. Row 3, Col 1, Header 2 = Row 3, Col 2. Row 3, Col 1, Header 3 = Row 3, Col 3"
+ }
+]

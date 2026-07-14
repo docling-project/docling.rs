@@ -1,0 +1,14 @@
+[
+ {
+  "text": "Some text here\nSignature\nMore text here\nStamp\nFinal text here",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/pictures/0",
+   "#/texts/2",
+   "#/pictures/1",
+   "#/texts/4"
+  ],
+  "contextualize": "Some text here\nSignature\nMore text here\nStamp\nFinal text here"
+ }
+]

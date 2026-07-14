@@ -1,0 +1,71 @@
+[
+ {
+  "text": "- **Coffee**\n    - Black hot drink\n- **Milk**\n    - White cold drink\n- **Soda**\n- **Water**",
+  "headings": [
+   "Beverages"
+  ],
+  "doc_items": [
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7"
+  ],
+  "contextualize": "Beverages\n- **Coffee**\n    - Black hot drink\n- **Milk**\n    - White cold drink\n- **Soda**\n- **Water**"
+ },
+ {
+  "text": "- **Python**\n    - A high-level programming language\n    - Known for its simplicity and readability\n- **JavaScript**\n    - A scripting language for web browsers",
+  "headings": [
+   "Beverages",
+   "Programming Languages"
+  ],
+  "doc_items": [
+   "#/texts/9",
+   "#/texts/10",
+   "#/texts/11",
+   "#/texts/12",
+   "#/texts/13"
+  ],
+  "contextualize": "Beverages\nProgramming Languages\n- **Python**\n    - A high-level programming language\n    - Known for its simplicity and readability\n- **JavaScript**\n    - A scripting language for web browsers"
+ },
+ {
+  "text": "- **HTML**\n    - HyperText Markup Language - used for *structuring* web content\n- **CSS**\n    - Cascading Style Sheets\n    - Used for styling and layout",
+  "headings": [
+   "Beverages",
+   "Complex Example"
+  ],
+  "doc_items": [
+   "#/texts/15",
+   "#/texts/16",
+   "#/texts/20",
+   "#/texts/21",
+   "#/texts/22"
+  ],
+  "contextualize": "Beverages\nComplex Example\n- **HTML**\n    - HyperText Markup Language - used for *structuring* web content\n- **CSS**\n    - Cascading Style Sheets\n    - Used for styling and layout"
+ },
+ {
+  "text": "- **Main Term 1**\n    - Description for the first main term.\n- **Main Term 2 (Sub-categories)**\n    - **Sub-term A**\n        - Detail for sub-term A.\n    - **Sub-term B**\n        - Detail for sub-term B.\n- **Main Term 3 (Mixed)**\n    - This is a regular text description.\n    - **Sub-term C**\n        - Detail for sub-term C.\n    - **Sub-term D**\n        - Detail for sub-term D.\n    - Final regular text description.",
+  "headings": [
+   "Beverages",
+   "Nested Lists"
+  ],
+  "doc_items": [
+   "#/texts/24",
+   "#/texts/25",
+   "#/texts/26",
+   "#/texts/27",
+   "#/texts/28",
+   "#/texts/29",
+   "#/texts/30",
+   "#/texts/31",
+   "#/texts/32",
+   "#/texts/33",
+   "#/texts/34",
+   "#/texts/35",
+   "#/texts/36",
+   "#/texts/37"
+  ],
+  "contextualize": "Beverages\nNested Lists\n- **Main Term 1**\n    - Description for the first main term.\n- **Main Term 2 (Sub-categories)**\n    - **Sub-term A**\n        - Detail for sub-term A.\n    - **Sub-term B**\n        - Detail for sub-term B.\n- **Main Term 3 (Mixed)**\n    - This is a regular text description.\n    - **Sub-term C**\n        - Detail for sub-term C.\n    - **Sub-term D**\n        - Detail for sub-term D.\n    - Final regular text description."
+ }
+]

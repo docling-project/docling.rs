@@ -1,0 +1,90 @@
+[
+ {
+  "text": "Some text",
+  "headings": [
+   "Title"
+  ],
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Title\nSome text"
+ },
+ {
+  "text": "Here is a table:",
+  "headings": [
+   "Title",
+   "Famous ducks"
+  ],
+  "doc_items": [
+   "#/texts/3"
+  ],
+  "contextualize": "Title\nFamous ducks\nHere is a table:"
+ },
+ {
+  "text": "Scrooge McDuck, Name in German = Dagobert Duck. Scrooge McDuck, Name in French = Balthazar Picsou. Scrooge McDuck, Name in Italian = Paperone. Huey, Name in German = Tick. Huey, Name in French = Riri. Huey, Name in Italian = Qui. Dewey, Name in German = Trick. Dewey, Name in French = Fifi. Dewey, Name in Italian = Quo. Louie, Name in German = Track. Louie, Name in French = Loulou. Louie, Name in Italian = Qua",
+  "headings": [
+   "Title",
+   "Famous ducks"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Title\nFamous ducks\nScrooge McDuck, Name in German = Dagobert Duck. Scrooge McDuck, Name in French = Balthazar Picsou. Scrooge McDuck, Name in Italian = Paperone. Huey, Name in German = Tick. Huey, Name in French = Riri. Huey, Name in Italian = Qui. Dewey, Name in German = Trick. Dewey, Name in French = Fifi. Dewey, Name in Italian = Quo. Louie, Name in German = Track. Louie, Name in French = Loulou. Louie, Name in Italian = Qua"
+ },
+ {
+  "text": "And here is more HTML:",
+  "headings": [
+   "Title",
+   "Famous ducks"
+  ],
+  "doc_items": [
+   "#/texts/4"
+  ],
+  "contextualize": "Title\nFamous ducks\nAnd here is more HTML:"
+ },
+ {
+  "text": "Some paragraph.",
+  "headings": [
+   "Title",
+   "Famous ducks"
+  ],
+  "doc_items": [
+   "#/texts/5"
+  ],
+  "contextualize": "Title\nFamous ducks\nSome paragraph."
+ },
+ {
+  "text": "Now a div - almost there...",
+  "headings": [
+   "Title",
+   "Famous ducks"
+  ],
+  "doc_items": [
+   "#/texts/6"
+  ],
+  "contextualize": "Title\nFamous ducks\nNow a div - almost there..."
+ },
+ {
+  "text": "- foo\n- bar",
+  "headings": [
+   "Title",
+   "Famous ducks"
+  ],
+  "doc_items": [
+   "#/texts/7",
+   "#/texts/8"
+  ],
+  "contextualize": "Title\nFamous ducks\n- foo\n- bar"
+ },
+ {
+  "text": "The end!",
+  "headings": [
+   "Title",
+   "Famous ducks"
+  ],
+  "doc_items": [
+   "#/texts/9"
+  ],
+  "contextualize": "Title\nFamous ducks\nThe end!"
+ }
+]

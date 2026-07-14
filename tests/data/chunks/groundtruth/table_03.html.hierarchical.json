@@ -1,0 +1,32 @@
+[
+ {
+  "text": "This is the first paragraph.",
+  "headings": [
+   "Header"
+  ],
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Header\nThis is the first paragraph."
+ },
+ {
+  "text": "A, 1 = B. - First item\n- Second item\n- Third item, 1 = 2...",
+  "headings": [
+   "Header"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Header\nA, 1 = B. - First item\n- Second item\n- Third item, 1 = 2..."
+ },
+ {
+  "text": "After table",
+  "headings": [
+   "Header"
+  ],
+  "doc_items": [
+   "#/texts/5"
+  ],
+  "contextualize": "Header\nAfter table"
+ }
+]

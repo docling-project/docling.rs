@@ -1,0 +1,32 @@
+[
+ {
+  "text": "Year.2025.2025.2025.2025.2025. Month.January.February.March.April.May. Revenue.$134.$150.$160.$210.$280. Cost.$162.$155.$143.$150.$120",
+  "headings": [
+   "Pivot table with with 1 row header"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Pivot table with with 1 row header\nYear.2025.2025.2025.2025.2025. Month.January.February.March.April.May. Revenue.$134.$150.$160.$210.$280. Cost.$162.$155.$143.$150.$120"
+ },
+ {
+  "text": "Year.2025.2025.2025.2025.2025. Quarter.Q1.Q1.Q1.Q2.Q2. Month.January.February.March.April.May. Revenue.$134.$150.$160.$210.$280. Cost.$162.$155.$143.$150.$120",
+  "headings": [
+   "Pivot table with 2 row headers"
+  ],
+  "doc_items": [
+   "#/tables/1"
+  ],
+  "contextualize": "Pivot table with 2 row headers\nYear.2025.2025.2025.2025.2025. Quarter.Q1.Q1.Q1.Q2.Q2. Month.January.February.March.April.May. Revenue.$134.$150.$160.$210.$280. Cost.$162.$155.$143.$150.$120"
+ },
+ {
+  "text": "Year.2025.2025.2025.2025.2025. Quarter.Q1.Q1.Q1.Q2.Q2. Month.January.February.March.April.May. Revenue.$134.$150.$160.$210.$280. Cost.$162.$155.$143.$150.$120",
+  "headings": [
+   "Equivalent pivot table"
+  ],
+  "doc_items": [
+   "#/tables/2"
+  ],
+  "contextualize": "Equivalent pivot table\nYear.2025.2025.2025.2025.2025. Quarter.Q1.Q1.Q1.Q2.Q2. Month.January.February.March.April.May. Revenue.$134.$150.$160.$210.$280. Cost.$162.$155.$143.$150.$120"
+ }
+]

@@ -1,0 +1,34 @@
+[
+ {
+  "text": "Overview, Sub-category = Purpose and Use Cases. Overview, ID = AI 1. Overview, Question = What is the main objective?. Overview, Answer = The main objective is.... Overview, Extra = Additional interviewers insights, or information. Overview, Sub-category = Purpose and Use Cases. Overview, ID = AI 2. Overview, Question = What are the specific use cases?. Overview, Answer = The AI is applied for.... Overview, Extra = More information. Overview, Sub-category = Purpose and Use Cases. Overview, ID = AI 3. Overview, Question = What types of data will the AI process?. Overview, Answer = The AI processes code data. Overview, Extra = With Privacy Mode disabled, no code data is stored",
+  "headings": null,
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Overview, Sub-category = Purpose and Use Cases. Overview, ID = AI 1. Overview, Question = What is the main objective?. Overview, Answer = The main objective is.... Overview, Extra = Additional interviewers insights, or information. Overview, Sub-category = Purpose and Use Cases. Overview, ID = AI 2. Overview, Question = What are the specific use cases?. Overview, Answer = The AI is applied for.... Overview, Extra = More information. Overview, Sub-category = Purpose and Use Cases. Overview, ID = AI 3. Overview, Question = What types of data will the AI process?. Overview, Answer = The AI processes code data. Overview, Extra = With Privacy Mode disabled, no code data is stored"
+ },
+ {
+  "text": ", Product/Integration = Overview. , Sub-category = Purpose and Use Cases. , ID = AI 1. , Question = What is the main objective?. , Answer = The main objective is.... , Extra = Additional interviewers insights, or information. Attached left, Product/Integration = Overview. Attached left, Sub-category = Purpose and Use Cases. Attached left, ID = AI 2. Attached left, Question = What are the specific use cases?. Attached left, Answer = The AI is applied for.... Attached left, Extra = More information. , Product/Integration = Overview. , Sub-category = Purpose and Use Cases. , ID = AI 3. , Question = What types of data will the AI process?. , Answer = The AI processes code data. , Extra = With Privacy Mode disabled, no code data is stored",
+  "headings": null,
+  "doc_items": [
+   "#/tables/1"
+  ],
+  "contextualize": ", Product/Integration = Overview. , Sub-category = Purpose and Use Cases. , ID = AI 1. , Question = What is the main objective?. , Answer = The main objective is.... , Extra = Additional interviewers insights, or information. Attached left, Product/Integration = Overview. Attached left, Sub-category = Purpose and Use Cases. Attached left, ID = AI 2. Attached left, Question = What are the specific use cases?. Attached left, Answer = The AI is applied for.... Attached left, Extra = More information. , Product/Integration = Overview. , Sub-category = Purpose and Use Cases. , ID = AI 3. , Question = What types of data will the AI process?. , Answer = The AI processes code data. , Extra = With Privacy Mode disabled, no code data is stored"
+ },
+ {
+  "text": "Overview, Sub-category = Purpose and Use Cases. Overview, ID = AI 1. Overview, Question = What is the main objective?. Overview, Answer = The main objective is.... Overview, Extra = Additional interviewers insights, or information. Overview, Sub-category = Purpose and Use Cases. Overview, ID = AI 2. Overview, Question = What are the specific use cases?. Overview, Answer = The AI is applied for.... Overview, Extra = More information. Overview, Sub-category = Purpose and Use Cases. Overview, ID = AI 3. Overview, Question = What types of data will the AI process?. Overview, Answer = The AI processes code data. Overview, Extra = With Privacy Mode disabled, no code data is stored",
+  "headings": null,
+  "doc_items": [
+   "#/tables/2"
+  ],
+  "contextualize": "Overview, Sub-category = Purpose and Use Cases. Overview, ID = AI 1. Overview, Question = What is the main objective?. Overview, Answer = The main objective is.... Overview, Extra = Additional interviewers insights, or information. Overview, Sub-category = Purpose and Use Cases. Overview, ID = AI 2. Overview, Question = What are the specific use cases?. Overview, Answer = The AI is applied for.... Overview, Extra = More information. Overview, Sub-category = Purpose and Use Cases. Overview, ID = AI 3. Overview, Question = What types of data will the AI process?. Overview, Answer = The AI processes code data. Overview, Extra = With Privacy Mode disabled, no code data is stored"
+ },
+ {
+  "text": "Overview 1, H1 = Purpose 1. Overview 1, I3 = Extra 1. Overview 2, H1 = Purpose 2. Overview 2, I3 = Extra 2",
+  "headings": null,
+  "doc_items": [
+   "#/tables/3"
+  ],
+  "contextualize": "Overview 1, H1 = Purpose 1. Overview 1, I3 = Extra 1. Overview 2, H1 = Purpose 2. Overview 2, I3 = Extra 2"
+ }
+]

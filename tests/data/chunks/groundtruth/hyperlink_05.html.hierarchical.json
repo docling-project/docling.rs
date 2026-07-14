@@ -1,0 +1,26 @@
+[
+ {
+  "text": "Clickable Example",
+  "headings": null,
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Clickable Example"
+ },
+ {
+  "text": "This is an example caption for the image.",
+  "headings": null,
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "This is an example caption for the image."
+ },
+ {
+  "text": "This is an example caption for the image.",
+  "headings": null,
+  "doc_items": [
+   "#/texts/3"
+  ],
+  "contextualize": "This is an example caption for the image."
+ }
+]

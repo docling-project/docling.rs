@@ -1,0 +1,26 @@
+[
+ {
+  "text": "Text 2",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0"
+  ],
+  "contextualize": "Text 2"
+ },
+ {
+  "text": "Text 1",
+  "headings": null,
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Text 1"
+ },
+ {
+  "text": "Fig – Torque v/s Speed characteristics",
+  "headings": null,
+  "doc_items": [
+   "#/texts/11"
+  ],
+  "contextualize": "Fig – Torque v/s Speed characteristics"
+ }
+]

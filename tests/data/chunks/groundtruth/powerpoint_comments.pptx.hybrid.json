@@ -1,0 +1,34 @@
+[
+ {
+  "text": "Docling converts messy documents into structured data and simplifies downstream document and AI processing by detecting tables, formulas, reading order, OCR, and much more.",
+  "headings": [
+   "Test Slide With Comments"
+  ],
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Test Slide With Comments\nDocling converts messy documents into structured data and simplifies downstream document and AI processing by detecting tables, formulas, reading order, OCR, and much more."
+ },
+ {
+  "text": "Install Docling as a Python library with your favorite package manager",
+  "headings": [
+   "Start"
+  ],
+  "doc_items": [
+   "#/texts/5"
+  ],
+  "contextualize": "Start\nInstall Docling as a Python library with your favorite package manager"
+ },
+ {
+  "text": "- Import many document formats into a unified and structured Docling Document , including scanned pages via an OCR engine of your choice.\n- Export a parsed document to formats that simplify processing and ingestion into AI, RAG, and agentic systems. \n- Extract document components and their properties from the Docling Document.",
+  "headings": [
+   "Features"
+  ],
+  "doc_items": [
+   "#/texts/7",
+   "#/texts/8",
+   "#/texts/9"
+  ],
+  "contextualize": "Features\n- Import many document formats into a unified and structured Docling Document , including scanned pages via an OCR engine of your choice.\n- Export a parsed document to formats that simplify processing and ingestion into AI, RAG, and agentic systems. \n- Extract document components and their properties from the Docling Document."
+ }
+]

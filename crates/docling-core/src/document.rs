@@ -353,6 +353,12 @@ pub struct TableStructure {
     /// header (emitted as `<rhed/>`) — a chart's category column. Empty when
     /// the table has no row headers.
     pub row_header: Vec<Vec<bool>>,
+    /// Same shape as [`Table::rows`]; `true` where a cell is a *column header*
+    /// cell (an HTML `<th>`). When non-empty this per-cell grid supersedes the
+    /// per-row [`Self::header_row`] for `<ched/>` emission, matching docling's
+    /// cell-level `column_header` flag; the chunker derives its header-row
+    /// count from it.
+    pub col_header: Vec<Vec<bool>>,
 }
 
 impl DoclingDocument {

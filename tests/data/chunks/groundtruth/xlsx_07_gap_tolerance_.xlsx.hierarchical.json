@@ -1,0 +1,122 @@
+[
+ {
+  "text": "DATA SHEET",
+  "headings": null,
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "DATA SHEET"
+ },
+ {
+  "text": "2016 = Page 1 of 10",
+  "headings": null,
+  "doc_items": [
+   "#/tables/1"
+  ],
+  "contextualize": "2016 = Page 1 of 10"
+ },
+ {
+  "text": "E-123",
+  "headings": null,
+  "doc_items": [
+   "#/tables/2"
+  ],
+  "contextualize": "E-123"
+ },
+ {
+  "text": "13156456,  = 13156456. 13156456,  = 13156456. 13156456, Doc. no.: = 144564. 13156456,  = 144564. 13156456,  = 144564. 13156456,  = 144564. 13156456, Rev. = A",
+  "headings": null,
+  "doc_items": [
+   "#/tables/3"
+  ],
+  "contextualize": "13156456,  = 13156456. 13156456,  = 13156456. 13156456, Doc. no.: = 144564. 13156456,  = 144564. 13156456,  = 144564. 13156456,  = 144564. 13156456, Rev. = A"
+ },
+ {
+  "text": "Functional requirements",
+  "headings": null,
+  "doc_items": [
+   "#/tables/4"
+  ],
+  "contextualize": "Functional requirements"
+ },
+ {
+  "text": "1 = 2. 1 = 3. 1 = 4. 1 = 5. 1 = 6. 1 = Construction. 1 = 7. 1 = 8. 1 = 9. 1 = Environmental conditions. 1 = 10. 1 = 11. 1 = 12. 1 = 13. 1 = Arc test. 1 = 14. 1 = Notes. 1 = 1. 1 = 2",
+  "headings": null,
+  "doc_items": [
+   "#/tables/5"
+  ],
+  "contextualize": "1 = 2. 1 = 3. 1 = 4. 1 = 5. 1 = 6. 1 = Construction. 1 = 7. 1 = 8. 1 = 9. 1 = Environmental conditions. 1 = 10. 1 = 11. 1 = 12. 1 = 13. 1 = Arc test. 1 = 14. 1 = Notes. 1 = 1. 1 = 2"
+ },
+ {
+  "text": "Rated system frequency = No. of phases. Rated system frequency = System earthing. Rated system frequency = Earth fault current. Rated system frequency = Control voltage supply",
+  "headings": null,
+  "doc_items": [
+   "#/tables/6"
+  ],
+  "contextualize": "Rated system frequency = No. of phases. Rated system frequency = System earthing. Rated system frequency = Earth fault current. Rated system frequency = Control voltage supply"
+ },
+ {
+  "text": "Hz, : = :. Hz, 130 (131 Um, 132 AC, 133 BIL) = 134. Hz,  = . , : = :. , 130 (131 Um, 132 AC, 133 BIL) = 3. ,  = . , : = :. , 130 (131 Um, 132 AC, 133 BIL) = Solidly Earthed. ,  = . A, : = :. A, 130 (131 Um, 132 AC, 133 BIL) = 135 kA. A,  = . , : = :. , 130 (131 Um, 132 AC, 133 BIL) = 2 x 136V AC UPS\n1 x 137V AC normal. ,  = Note 1",
+  "headings": null,
+  "doc_items": [
+   "#/tables/7"
+  ],
+  "contextualize": "Hz, : = :. Hz, 130 (131 Um, 132 AC, 133 BIL) = 134. Hz,  = . , : = :. , 130 (131 Um, 132 AC, 133 BIL) = 3. ,  = . , : = :. , 130 (131 Um, 132 AC, 133 BIL) = Solidly Earthed. ,  = . A, : = :. A, 130 (131 Um, 132 AC, 133 BIL) = 135 kA. A,  = . , : = :. , 130 (131 Um, 132 AC, 133 BIL) = 2 x 136V AC UPS\n1 x 137V AC normal. ,  = Note 1"
+ },
+ {
+  "text": "VT for cable discharging = Voltage and Current measurement",
+  "headings": null,
+  "doc_items": [
+   "#/tables/8"
+  ],
+  "contextualize": "VT for cable discharging = Voltage and Current measurement"
+ },
+ {
+  "text": ", Gas Insulated Switchgear (GIS) = No. , Non Sticky = . , Gas Insulated Switchgear (GIS) = Low Power Instrument Transformers. , Non Sticky = ",
+  "headings": null,
+  "doc_items": [
+   "#/tables/9"
+  ],
+  "contextualize": ", Gas Insulated Switchgear (GIS) = No. , Non Sticky = . , Gas Insulated Switchgear (GIS) = Low Power Instrument Transformers. , Non Sticky = "
+ },
+ {
+  "text": "Ambient temp. = Location. Ambient temp. = Humidity",
+  "headings": null,
+  "doc_items": [
+   "#/tables/10"
+  ],
+  "contextualize": "Ambient temp. = Location. Ambient temp. = Humidity"
+ },
+ {
+  "text": "ºC, : = :. ºC, Non hazardous = Min. -5, max. +40. , : = :. , Non hazardous = Indoor. %, : = :. %, Non hazardous = 100",
+  "headings": null,
+  "doc_items": [
+   "#/tables/11"
+  ],
+  "contextualize": "ºC, : = :. ºC, Non hazardous = Min. -5, max. +40. , : = :. , Non hazardous = Indoor. %, : = :. %, Non hazardous = 100"
+ },
+ {
+  "text": "Arc testing",
+  "headings": null,
+  "doc_items": [
+   "#/tables/12"
+  ],
+  "contextualize": "Arc testing"
+ },
+ {
+  "text": "Yes/no. :. Yes. Note 2",
+  "headings": null,
+  "doc_items": [
+   "#/tables/13"
+  ],
+  "contextualize": "Yes/no. :. Yes. Note 2"
+ },
+ {
+  "text": "Arc test (type test), Converted to 110VDC = Arc test (type test). Arc test (type test), Converted to 110VDC = Arc test (type test). Arc test (type test), Converted to 110VDC = Arc test (type test). Arc test (type test), Converted to 110VDC = Arc test (type test). , Converted to 110VDC = . , Converted to 110VDC = . , Converted to 110VDC = . , Converted to 110VDC = ",
+  "headings": null,
+  "doc_items": [
+   "#/tables/14"
+  ],
+  "contextualize": "Arc test (type test), Converted to 110VDC = Arc test (type test). Arc test (type test), Converted to 110VDC = Arc test (type test). Arc test (type test), Converted to 110VDC = Arc test (type test). Arc test (type test), Converted to 110VDC = Arc test (type test). , Converted to 110VDC = . , Converted to 110VDC = . , Converted to 110VDC = . , Converted to 110VDC = "
+ }
+]

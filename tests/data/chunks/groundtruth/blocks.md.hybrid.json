@@ -1,0 +1,53 @@
+[
+ {
+  "text": "Unordered list:\n- foo\nEmpty unordered list:\nOrdered list:\n1. bar\nEmpty ordered list:\nHeading:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6"
+  ],
+  "contextualize": "Unordered list:\n- foo\nEmpty unordered list:\nOrdered list:\n1. bar\nEmpty ordered list:\nHeading:"
+ },
+ {
+  "text": "Empty heading:\nSetext heading level 1:",
+  "headings": [
+   "my heading"
+  ],
+  "doc_items": [
+   "#/texts/8",
+   "#/texts/9"
+  ],
+  "contextualize": "my heading\nEmpty heading:\nSetext heading level 1:"
+ },
+ {
+  "text": "Setext heading level 2:",
+  "headings": [
+   "my setext heading level 1"
+  ],
+  "doc_items": [
+   "#/texts/11"
+  ],
+  "contextualize": "my setext heading level 1\nSetext heading level 2:"
+ },
+ {
+  "text": "Indented code block:\n```\nprint(\"Hi!\")\n```\nEmpty indented code block:\nFenced code block:\n```\nprint(\"Hello world!\")\n```\nEmpty fenced code block:",
+  "headings": [
+   "my setext heading level 1",
+   "my setext heading level 2"
+  ],
+  "doc_items": [
+   "#/texts/13",
+   "#/texts/14",
+   "#/texts/15",
+   "#/texts/16",
+   "#/texts/17",
+   "#/texts/18"
+  ],
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\nIndented code block:\n```\nprint(\"Hi!\")\n```\nEmpty indented code block:\nFenced code block:\n```\nprint(\"Hello world!\")\n```\nEmpty fenced code block:"
+ }
+]

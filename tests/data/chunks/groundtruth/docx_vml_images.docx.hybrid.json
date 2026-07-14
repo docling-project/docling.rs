@@ -1,0 +1,16 @@
+[
+ {
+  "text": "This document contains VML images with v:imagedata elements for testing VML image extraction.\nBelow is a VML image with v:imagedata:\nAbove is a VML image with v:imagedata element.\nBelow is another VML image:\nAbove is the second VML image.",
+  "headings": [
+   "VML Image Test Document"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5"
+  ],
+  "contextualize": "VML Image Test Document\nThis document contains VML images with v:imagedata elements for testing VML image extraction.\nBelow is a VML image with v:imagedata:\nAbove is a VML image with v:imagedata element.\nBelow is another VML image:\nAbove is the second VML image."
+ }
+]

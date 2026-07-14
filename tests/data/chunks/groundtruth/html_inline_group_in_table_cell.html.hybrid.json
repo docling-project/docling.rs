@@ -1,0 +1,12 @@
+[
+ {
+  "text": "Intro paragraph.\nMulti-link cell, Links = See [Page A](https://example.com/a) and [Page B](https://example.com/b) for details.. Plain cell, Links = Just text. Formatted cell, Links = **Bold** and *italic* text. Inline code cell, Links = `inline_fn()`. Block code cell, Links = ```\ndo_thing()\n```. Pre with link, Links = `See` [`the docs`](https://example.com/docs) `first`\nOutro paragraph.",
+  "headings": null,
+  "doc_items": [
+   "#/texts/1",
+   "#/tables/0",
+   "#/texts/16"
+  ],
+  "contextualize": "Intro paragraph.\nMulti-link cell, Links = See [Page A](https://example.com/a) and [Page B](https://example.com/b) for details.. Plain cell, Links = Just text. Formatted cell, Links = **Bold** and *italic* text. Inline code cell, Links = `inline_fn()`. Block code cell, Links = ```\ndo_thing()\n```. Pre with link, Links = `See` [`the docs`](https://example.com/docs) `first`\nOutro paragraph."
+ }
+]

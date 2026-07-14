@@ -1,0 +1,41 @@
+[
+ {
+  "text": "Order Receipt Details\nReceipt documentation for table service:\n1\nRestaurant\nDocling\n2\nTelephone\n(123) 456-7890\n3\nServer\nQuack Quackling\n4\nOrder Number\n12345\n5\nSeating\n13\n6\nDining Type\nCelebration\n7\nNumber of guests\n5\n8\nReceipt date\n16/03/2026\nOrder items:\nItemized list of products ordered with quantities.\nI, Item Description = Coffee. I, Quantity = 1. II, Item Description = Lunch. II, Quantity = 2. III, Item Description = Cake. III, Quantity = 1\nDocling Restaurant 2026",
+  "headings": [
+   "HEADER"
+  ],
+  "doc_items": [
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7",
+   "#/texts/8",
+   "#/texts/9",
+   "#/texts/10",
+   "#/texts/11",
+   "#/texts/12",
+   "#/texts/13",
+   "#/texts/14",
+   "#/texts/15",
+   "#/texts/16",
+   "#/texts/17",
+   "#/texts/18",
+   "#/texts/19",
+   "#/texts/20",
+   "#/texts/21",
+   "#/texts/22",
+   "#/texts/23",
+   "#/texts/24",
+   "#/texts/25",
+   "#/texts/26",
+   "#/texts/27",
+   "#/texts/28",
+   "#/texts/29",
+   "#/tables/0",
+   "#/texts/30"
+  ],
+  "contextualize": "HEADER\nOrder Receipt Details\nReceipt documentation for table service:\n1\nRestaurant\nDocling\n2\nTelephone\n(123) 456-7890\n3\nServer\nQuack Quackling\n4\nOrder Number\n12345\n5\nSeating\n13\n6\nDining Type\nCelebration\n7\nNumber of guests\n5\n8\nReceipt date\n16/03/2026\nOrder items:\nItemized list of products ordered with quantities.\nI, Item Description = Coffee. I, Quantity = 1. II, Item Description = Lunch. II, Quantity = 2. III, Item Description = Cake. III, Quantity = 1\nDocling Restaurant 2026"
+ }
+]

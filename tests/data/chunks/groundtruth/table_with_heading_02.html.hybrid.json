@@ -1,0 +1,24 @@
+[
+ {
+  "text": "Before the table\n## A\n\ntext, 1 = B. 1..., 1 = 2...",
+  "headings": [
+   "Main Title"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/tables/0"
+  ],
+  "contextualize": "Main Title\nBefore the table\n## A\n\ntext, 1 = B. 1..., 1 = 2..."
+ },
+ {
+  "text": "After the table",
+  "headings": [
+   "Main Title",
+   "Section After"
+  ],
+  "doc_items": [
+   "#/texts/5"
+  ],
+  "contextualize": "Main Title\nSection After\nAfter the table"
+ }
+]

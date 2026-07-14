@@ -655,6 +655,12 @@ fn emit_table_rows(out: &mut Out, depth: i32, table: &Table) {
                 .map(|s| cont(&s.row_continuation))
                 .unwrap_or(false);
             let is_header = match &table.structure {
+                Some(s) if !s.col_header.is_empty() => s
+                    .col_header
+                    .get(ri)
+                    .and_then(|r| r.get(ci))
+                    .copied()
+                    .unwrap_or(false),
                 Some(s) => s.header_row.get(ri).copied().unwrap_or(false),
                 None => ri == 0,
             };

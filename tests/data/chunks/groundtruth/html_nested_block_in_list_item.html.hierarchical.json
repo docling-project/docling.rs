@@ -1,0 +1,41 @@
+[
+ {
+  "text": "1. Step 1 text\n    - Note text\n2. Step 2 text\n    - Note text\n3. Step 3 text\n4. Step 4 text",
+  "headings": [
+   "Ordered list with inline elements"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6"
+  ],
+  "contextualize": "Ordered list with inline elements\n1. Step 1 text\n    - Note text\n2. Step 2 text\n    - Note text\n3. Step 3 text\n4. Step 4 text"
+ },
+ {
+  "text": "1. Item with **bold** text First paragraph block Second paragraph block\n2. Another item in `python` language\n3. Final item",
+  "headings": [
+   "Ordered list with paragraph blocks"
+  ],
+  "doc_items": [
+   "#/texts/8",
+   "#/texts/12",
+   "#/texts/16"
+  ],
+  "contextualize": "Ordered list with paragraph blocks\n1. Item with **bold** text First paragraph block Second paragraph block\n2. Another item in `python` language\n3. Final item"
+ },
+ {
+  "text": "- Step instruction text\n    - Nested detail 1\n    - Nested detail 2",
+  "headings": [
+   "Nested list in divs"
+  ],
+  "doc_items": [
+   "#/texts/18",
+   "#/texts/19",
+   "#/texts/20"
+  ],
+  "contextualize": "Nested list in divs\n- Step instruction text\n    - Nested detail 1\n    - Nested detail 2"
+ }
+]

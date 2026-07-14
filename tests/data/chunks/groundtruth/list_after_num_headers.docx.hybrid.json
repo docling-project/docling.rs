@@ -1,0 +1,28 @@
+[
+ {
+  "text": "- Chính sách bảo hành và các điều k\n- Pin điện áp cao (sau đây gọi tắt là “",
+  "headings": [
+   "Chính sách bảo hành",
+   "1 ĐỐI TƯỢNG ÁP DỤNG"
+  ],
+  "doc_items": [
+   "#/texts/3",
+   "#/texts/4"
+  ],
+  "contextualize": "Chính sách bảo hành\n1 ĐỐI TƯỢNG ÁP DỤNG\n- Chính sách bảo hành và các điều k\n- Pin điện áp cao (sau đây gọi tắt là “"
+ },
+ {
+  "text": "- **Term 1** : Definition 1\n- **Term 2** : Definition 2\n- **Term 3** : Definition 3\n- **Term 4** : Definition 4\n- **Term 5** : Definition 5",
+  "headings": [
+   "1 Glosario"
+  ],
+  "doc_items": [
+   "#/texts/7",
+   "#/texts/10",
+   "#/texts/13",
+   "#/texts/16",
+   "#/texts/19"
+  ],
+  "contextualize": "1 Glosario\n- **Term 1** : Definition 1\n- **Term 2** : Definition 2\n- **Term 3** : Definition 3\n- **Term 4** : Definition 4\n- **Term 5** : Definition 5"
+ }
+]

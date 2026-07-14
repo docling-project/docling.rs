@@ -1,0 +1,30 @@
+[
+ {
+  "text": "This is the first paragraph of the introduction.",
+  "headings": [
+   "Introduction"
+  ],
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Introduction\nThis is the first paragraph of the introduction."
+ },
+ {
+  "text": "Some background information here.\nExample image\n- First item in unordered list\n- Second item in unordered list\n1. First item in ordered list\n2. Second item in ordered list\n42. First item in ordered list with start\n43. Second item in ordered list with start",
+  "headings": [
+   "Introduction",
+   "Background"
+  ],
+  "doc_items": [
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7",
+   "#/texts/8",
+   "#/texts/9",
+   "#/texts/10"
+  ],
+  "contextualize": "Introduction\nBackground\nSome background information here.\nExample image\n- First item in unordered list\n- Second item in unordered list\n1. First item in ordered list\n2. Second item in ordered list\n42. First item in ordered list with start\n43. Second item in ordered list with start"
+ }
+]

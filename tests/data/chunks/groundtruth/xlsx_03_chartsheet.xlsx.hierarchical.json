@@ -1,0 +1,19 @@
+[
+ {
+  "text": "2019, Freshwater Ducks = 120. 2019, Saltwater Ducks = 80. 2019, Ducks = 200. 2020, Freshwater Ducks = 135. 2020, Saltwater Ducks = 95. 2020, Ducks = 230. 2021, Freshwater Ducks = 150. 2021, Saltwater Ducks = 100. 2021, Ducks = 250. 2022, Freshwater Ducks = 170. 2022, Saltwater Ducks = 110. 2022, Ducks = 280. 2023, Freshwater Ducks = 160. 2023, Saltwater Ducks = 120. 2023, Ducks = 280. 2024, Freshwater Ducks = 180. 2024, Saltwater Ducks = 130. 2024, Ducks = 310",
+  "headings": null,
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "2019, Freshwater Ducks = 120. 2019, Saltwater Ducks = 80. 2019, Ducks = 200. 2020, Freshwater Ducks = 135. 2020, Saltwater Ducks = 95. 2020, Ducks = 230. 2021, Freshwater Ducks = 150. 2021, Saltwater Ducks = 100. 2021, Ducks = 250. 2022, Freshwater Ducks = 170. 2022, Saltwater Ducks = 110. 2022, Ducks = 280. 2023, Freshwater Ducks = 160. 2023, Saltwater Ducks = 120. 2023, Ducks = 280. 2024, Freshwater Ducks = 180. 2024, Saltwater Ducks = 130. 2024, Ducks = 310"
+ },
+ {
+  "text": "Wild Duck Observations by Year\n\nBar chart\n\n|      |   Freshwater Ducks |   Saltwater Ducks |\n|------|--------------------|-------------------|\n| 2019 |                120 |                80 |\n| 2020 |                135 |                95 |\n| 2021 |                150 |               100 |\n| 2022 |                170 |               110 |\n| 2023 |                160 |               120 |\n| 2024 |                180 |               130 |",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/pictures/0"
+  ],
+  "contextualize": "Wild Duck Observations by Year\n\nBar chart\n\n|      |   Freshwater Ducks |   Saltwater Ducks |\n|------|--------------------|-------------------|\n| 2019 |                120 |                80 |\n| 2020 |                135 |                95 |\n| 2021 |                150 |               100 |\n| 2022 |                170 |               110 |\n| 2023 |                160 |               120 |\n| 2024 |                180 |               130 |"
+ }
+]

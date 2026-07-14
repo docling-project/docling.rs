@@ -1,0 +1,106 @@
+[
+ {
+  "text": "Paragraph 1.1\nParagraph 1.2",
+  "headings": [
+   "Test Document",
+   "1 Section 1"
+  ],
+  "doc_items": [
+   "#/texts/4",
+   "#/texts/6"
+  ],
+  "contextualize": "Test Document\n1 Section 1\nParagraph 1.1\nParagraph 1.2"
+ },
+ {
+  "text": "Paragraph 1.1.1\nParagraph 1.1.2",
+  "headings": [
+   "Test Document",
+   "1 Section 1",
+   "1.1 Section 1.1"
+  ],
+  "doc_items": [
+   "#/texts/10",
+   "#/texts/12"
+  ],
+  "contextualize": "Test Document\n1 Section 1\n1.1 Section 1.1\nParagraph 1.1.1\nParagraph 1.1.2"
+ },
+ {
+  "text": "Paragraph 1.1.1\nParagraph 1.1.2",
+  "headings": [
+   "Test Document",
+   "1 Section 1",
+   "1.2 Section 1.2"
+  ],
+  "doc_items": [
+   "#/texts/16",
+   "#/texts/18"
+  ],
+  "contextualize": "Test Document\n1 Section 1\n1.2 Section 1.2\nParagraph 1.1.1\nParagraph 1.1.2"
+ },
+ {
+  "text": "Paragraph 1.2.3.1\nParagraph 1.2.3.1",
+  "headings": [
+   "Test Document",
+   "1 Section 1",
+   "1.2 Section 1.2",
+   "1.2.1 Section 1.2.3"
+  ],
+  "doc_items": [
+   "#/texts/22",
+   "#/texts/24"
+  ],
+  "contextualize": "Test Document\n1 Section 1\n1.2 Section 1.2\n1.2.1 Section 1.2.3\nParagraph 1.2.3.1\nParagraph 1.2.3.1"
+ },
+ {
+  "text": "Paragraph 2.1\nParagraph 2.2",
+  "headings": [
+   "Test Document",
+   "2 Section 2"
+  ],
+  "doc_items": [
+   "#/texts/29",
+   "#/texts/31"
+  ],
+  "contextualize": "Test Document\n2 Section 2\nParagraph 2.1\nParagraph 2.2"
+ },
+ {
+  "text": "Paragraph 2.1.1.1\nParagraph 2.1.1.1",
+  "headings": [
+   "Test Document",
+   "2 Section 2",
+   "2.1.1 Section 2.1.1"
+  ],
+  "doc_items": [
+   "#/texts/35",
+   "#/texts/37"
+  ],
+  "contextualize": "Test Document\n2 Section 2\n2.1.1 Section 2.1.1\nParagraph 2.1.1.1\nParagraph 2.1.1.1"
+ },
+ {
+  "text": "Paragraph 2.1.1\nParagraph 2.1.2\n1. Appendix A: Glossary\n- 1.1. Section A.1\n- 1.1.1. Detail A.1.1\n- 2.3.1. Hardware Constraints – Egde Case\n- 2.3.2. Software Constraints\n- 2.3.3. Network Constraints\n- 2.3.4. Environmental Constraints\n- 2.3.5. Regulatory Constraints\n- 2.3.6. Budget Constraints\n- 2.3.7. Timeline Constraints\n- 2.3.8. Resource Constraints\n- 2.3.8.1. First sub-item at this level\n- 2.3.8.2. Second sub-item at this level\n- 2.3.8.3. Third sub-item at this level",
+  "headings": [
+   "Test Document",
+   "2 Section 2",
+   "2.2 Section 2.1"
+  ],
+  "doc_items": [
+   "#/texts/41",
+   "#/texts/43",
+   "#/texts/47",
+   "#/texts/48",
+   "#/texts/49",
+   "#/texts/50",
+   "#/texts/51",
+   "#/texts/52",
+   "#/texts/53",
+   "#/texts/54",
+   "#/texts/55",
+   "#/texts/56",
+   "#/texts/57",
+   "#/texts/58",
+   "#/texts/59",
+   "#/texts/60"
+  ],
+  "contextualize": "Test Document\n2 Section 2\n2.2 Section 2.1\nParagraph 2.1.1\nParagraph 2.1.2\n1. Appendix A: Glossary\n- 1.1. Section A.1\n- 1.1.1. Detail A.1.1\n- 2.3.1. Hardware Constraints – Egde Case\n- 2.3.2. Software Constraints\n- 2.3.3. Network Constraints\n- 2.3.4. Environmental Constraints\n- 2.3.5. Regulatory Constraints\n- 2.3.6. Budget Constraints\n- 2.3.7. Timeline Constraints\n- 2.3.8. Resource Constraints\n- 2.3.8.1. First sub-item at this level\n- 2.3.8.2. Second sub-item at this level\n- 2.3.8.3. Third sub-item at this level"
+ }
+]

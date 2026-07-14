@@ -1,0 +1,163 @@
+[
+ {
+  "text": "Summer activities",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0"
+  ],
+  "contextualize": "Summer activities"
+ },
+ {
+  "text": "Duck",
+  "headings": [
+   "Swimming in the lake"
+  ],
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "Swimming in the lake\nDuck"
+ },
+ {
+  "text": "Figure 1: This is a cute duckling",
+  "headings": [
+   "Swimming in the lake"
+  ],
+  "doc_items": [
+   "#/texts/3"
+  ],
+  "contextualize": "Swimming in the lake\nFigure 1: This is a cute duckling"
+ },
+ {
+  "text": "To get started with swimming, first lay down in a water and try not to drown:",
+  "headings": [
+   "Swimming in the lake",
+   "Let’s swim!"
+  ],
+  "doc_items": [
+   "#/texts/5"
+  ],
+  "contextualize": "Swimming in the lake\nLet’s swim!\nTo get started with swimming, first lay down in a water and try not to drown:"
+ },
+ {
+  "text": "- You can relax and look around\n- Paddle about\n- Enjoy summer warmth",
+  "headings": [
+   "Swimming in the lake",
+   "Let’s swim!"
+  ],
+  "doc_items": [
+   "#/texts/6",
+   "#/texts/7",
+   "#/texts/8"
+  ],
+  "contextualize": "Swimming in the lake\nLet’s swim!\n- You can relax and look around\n- Paddle about\n- Enjoy summer warmth"
+ },
+ {
+  "text": "Also, don’t forget:",
+  "headings": [
+   "Swimming in the lake",
+   "Let’s swim!"
+  ],
+  "doc_items": [
+   "#/texts/9"
+  ],
+  "contextualize": "Swimming in the lake\nLet’s swim!\nAlso, don’t forget:"
+ },
+ {
+  "text": "1. Wear sunglasses\n2. Don’t forget to drink water\n3. Use sun cream",
+  "headings": [
+   "Swimming in the lake",
+   "Let’s swim!"
+  ],
+  "doc_items": [
+   "#/texts/10",
+   "#/texts/11",
+   "#/texts/12"
+  ],
+  "contextualize": "Swimming in the lake\nLet’s swim!\n1. Wear sunglasses\n2. Don’t forget to drink water\n3. Use sun cream"
+ },
+ {
+  "text": "Hmm, what else…",
+  "headings": [
+   "Swimming in the lake",
+   "Let’s swim!"
+  ],
+  "doc_items": [
+   "#/texts/13"
+  ],
+  "contextualize": "Swimming in the lake\nLet’s swim!\nHmm, what else…"
+ },
+ {
+  "text": "After we had a good day of swimming in the lake, it’s important to eat something nice",
+  "headings": [
+   "Swimming in the lake",
+   "Let’s swim!",
+   "Let’s eat"
+  ],
+  "doc_items": [
+   "#/texts/15"
+  ],
+  "contextualize": "Swimming in the lake\nLet’s swim!\nLet’s eat\nAfter we had a good day of swimming in the lake, it’s important to eat something nice"
+ },
+ {
+  "text": "I like to eat leaves",
+  "headings": [
+   "Swimming in the lake",
+   "Let’s swim!",
+   "Let’s eat"
+  ],
+  "doc_items": [
+   "#/texts/16"
+  ],
+  "contextualize": "Swimming in the lake\nLet’s swim!\nLet’s eat\nI like to eat leaves"
+ },
+ {
+  "text": "Here are some interesting things a respectful duck could eat:",
+  "headings": [
+   "Swimming in the lake",
+   "Let’s swim!",
+   "Let’s eat"
+  ],
+  "doc_items": [
+   "#/texts/17"
+  ],
+  "contextualize": "Swimming in the lake\nLet’s swim!\nLet’s eat\nHere are some interesting things a respectful duck could eat:"
+ },
+ {
+  "text": "Leaves, Food = Ash, Elm, Maple. Leaves, Calories per portion = 50. Berries, Food = Blueberry, Strawberry, Cranberry. Berries, Calories per portion = 150. Grain, Food = Corn, Buckwheat, Barley. Grain, Calories per portion = 200",
+  "headings": [
+   "Swimming in the lake",
+   "Let’s swim!",
+   "Let’s eat"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Swimming in the lake\nLet’s swim!\nLet’s eat\nLeaves, Food = Ash, Elm, Maple. Leaves, Calories per portion = 50. Berries, Food = Blueberry, Strawberry, Cranberry. Berries, Calories per portion = 150. Grain, Food = Corn, Buckwheat, Barley. Grain, Calories per portion = 200"
+ },
+ {
+  "text": "And let’s add another list in the end:",
+  "headings": [
+   "Swimming in the lake",
+   "Let’s swim!",
+   "Let’s eat"
+  ],
+  "doc_items": [
+   "#/texts/19"
+  ],
+  "contextualize": "Swimming in the lake\nLet’s swim!\nLet’s eat\nAnd let’s add another list in the end:"
+ },
+ {
+  "text": "1. Leaves\n2. Berries\n3. Grain",
+  "headings": [
+   "Swimming in the lake",
+   "Let’s swim!",
+   "Let’s eat"
+  ],
+  "doc_items": [
+   "#/texts/20",
+   "#/texts/21",
+   "#/texts/22"
+  ],
+  "contextualize": "Swimming in the lake\nLet’s swim!\nLet’s eat\n1. Leaves\n2. Berries\n3. Grain"
+ }
+]

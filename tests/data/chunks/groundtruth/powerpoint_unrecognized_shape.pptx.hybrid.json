@@ -1,0 +1,30 @@
+[
+ {
+  "text": "- Total revenue grew 18% year-over-year.\n- Enterprise segment led growth at 24%.\n- APAC region exceeded targets by 12%.\nKey Metrics\nMonthly active users: 4.2M\nNet retention rate: 112%\nText in an unrecognized shape",
+  "headings": [
+   "Q3 Revenue Summary"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7"
+  ],
+  "contextualize": "Q3 Revenue Summary\n- Total revenue grew 18% year-over-year.\n- Enterprise segment led growth at 24%.\n- APAC region exceeded targets by 12%.\nKey Metrics\nMonthly active users: 4.2M\nNet retention rate: 112%\nText in an unrecognized shape"
+ },
+ {
+  "text": "- 1. Finalize pricing model\n- 2. Launch APAC campaign\n- 3. Hire 3 additional SEs",
+  "headings": [
+   "Next Steps"
+  ],
+  "doc_items": [
+   "#/texts/9",
+   "#/texts/10",
+   "#/texts/11"
+  ],
+  "contextualize": "Next Steps\n- 1. Finalize pricing model\n- 2. Launch APAC campaign\n- 3. Hire 3 additional SEs"
+ }
+]

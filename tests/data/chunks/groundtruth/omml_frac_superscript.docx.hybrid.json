@@ -1,0 +1,13 @@
+[
+ {
+  "text": "The equation below raises a fraction to the power 2.\nExpected LaTeX: {\\frac{(x-c)}{v}}^2\nDocling produces: \\frac{(x-c)}{v}^2\n\nWhen <m:sSup> has an <m:f> (fraction) as its base <m:e>, docling emits\n\\frac{num}{den}^2 without grouping braces. In LaTeX this is ambiguous:\nsome renderers apply ^2 only to the last token, not the whole fraction.\nThe output should be {\\frac{(x-c)}{v}}^2 or \\left(\\frac{(x-c)}{v}\\right)^2.\n$${\\frac{(x-c)}{v}}^{2}$$",
+  "headings": [
+   "Issue 1: Fraction as superscript base not grouped"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2"
+  ],
+  "contextualize": "Issue 1: Fraction as superscript base not grouped\nThe equation below raises a fraction to the power 2.\nExpected LaTeX: {\\frac{(x-c)}{v}}^2\nDocling produces: \\frac{(x-c)}{v}^2\n\nWhen <m:sSup> has an <m:f> (fraction) as its base <m:e>, docling emits\n\\frac{num}{den}^2 without grouping braces. In LaTeX this is ambiguous:\nsome renderers apply ^2 only to the last token, not the whole fraction.\nThe output should be {\\frac{(x-c)}{v}}^2 or \\left(\\frac{(x-c)}{v}\\right)^2.\n$${\\frac{(x-c)}{v}}^{2}$$"
+ }
+]

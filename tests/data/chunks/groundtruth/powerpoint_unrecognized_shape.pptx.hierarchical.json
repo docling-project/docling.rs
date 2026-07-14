@@ -1,0 +1,66 @@
+[
+ {
+  "text": "- Total revenue grew 18% year-over-year.\n- Enterprise segment led growth at 24%.\n- APAC region exceeded targets by 12%.",
+  "headings": [
+   "Q3 Revenue Summary"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3"
+  ],
+  "contextualize": "Q3 Revenue Summary\n- Total revenue grew 18% year-over-year.\n- Enterprise segment led growth at 24%.\n- APAC region exceeded targets by 12%."
+ },
+ {
+  "text": "Key Metrics",
+  "headings": [
+   "Q3 Revenue Summary"
+  ],
+  "doc_items": [
+   "#/texts/4"
+  ],
+  "contextualize": "Q3 Revenue Summary\nKey Metrics"
+ },
+ {
+  "text": "Monthly active users: 4.2M",
+  "headings": [
+   "Q3 Revenue Summary"
+  ],
+  "doc_items": [
+   "#/texts/5"
+  ],
+  "contextualize": "Q3 Revenue Summary\nMonthly active users: 4.2M"
+ },
+ {
+  "text": "Net retention rate: 112%",
+  "headings": [
+   "Q3 Revenue Summary"
+  ],
+  "doc_items": [
+   "#/texts/6"
+  ],
+  "contextualize": "Q3 Revenue Summary\nNet retention rate: 112%"
+ },
+ {
+  "text": "Text in an unrecognized shape",
+  "headings": [
+   "Q3 Revenue Summary"
+  ],
+  "doc_items": [
+   "#/texts/7"
+  ],
+  "contextualize": "Q3 Revenue Summary\nText in an unrecognized shape"
+ },
+ {
+  "text": "- 1. Finalize pricing model\n- 2. Launch APAC campaign\n- 3. Hire 3 additional SEs",
+  "headings": [
+   "Next Steps"
+  ],
+  "doc_items": [
+   "#/texts/9",
+   "#/texts/10",
+   "#/texts/11"
+  ],
+  "contextualize": "Next Steps\n- 1. Finalize pricing model\n- 2. Launch APAC campaign\n- 3. Hire 3 additional SEs"
+ }
+]

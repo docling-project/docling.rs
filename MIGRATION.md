@@ -147,6 +147,41 @@ blockers of `PDF_CONFORMANCE.md`), not serialization.
 
 ---
 
+### Chunking conformance
+
+docling-core's **HierarchicalChunker** and **HybridChunker** (the RAG chunk
+generators) are ported as `docling::chunker` and scored against live docling
+running the same chunkers on the same 83-document corpus
+(`scripts/conformance/gen_chunks.py` generates the groundtruth,
+`scripts/conformance/chunks_conformance.sh` compares the records' text +
+headings + contextualization — the payload an embedding model sees):
+
+| Chunker | Identical chunk records | Fully-exact documents |
+|---|---|---|
+| Hierarchical | **511 / 562 (91%)** | 77 / 83 |
+| Hybrid (MiniLM tokenizer, 256 tokens) | **270 / 312 (87%)** | 74 / 83 |
+
+The port reproduces docling's semantics end-to-end: heading-path metadata with
+level shadowing, triplet table serialization over `export_to_dataframe`
+semantics (multi-row headers joined with `.`, span-aware header detection,
+single-column/flatten fallbacks), rich-cell re-serialization, `semchunk`'s
+recursive splitter-hierarchy algorithm, the line-based table splitter (down to
+the `\n` it prepends to carried-over segments and the `max_tokens` argument
+docling's pydantic model silently drops), and peer merging. Token counts are
+byte-compatible with `transformers` (HF `tokenizers` with MiniLM's fixed-length
+padding disabled).
+
+On the large-document benchmark (`wiki_duck.html`, 89 hierarchical / 115 hybrid
+groundtruth chunks) **84% / 77% of docling's chunk records are reproduced
+identically** (order-aligned). The residual — here and in the corpus-wide
+numbers — is not chunker logic but known HTML-backend model gaps vs docling
+2.112 (rich table cells serialized with inline markup and span de-duplication,
+figure-caption run spacing, `<br>`-split text items); the same documents also
+account for the one non-exact HTML file in the Markdown table above. Chasing
+docling 2.112's checkbox inputs, fragmented-anchor folding and `<button>`
+blocks for the chunker also lifted the HTML `.dclx` similarity: 87% mean
+(was 84%).
+
 ## 3. Output formats
 
 | Output | API / CLI | Notes |

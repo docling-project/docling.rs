@@ -645,6 +645,7 @@ fn parse_table(table: XmlNode) -> Option<Table> {
             // CALS spans are horizontal-only; no vertical-span continuations.
             row_continuation: Vec::new(),
             row_header: Vec::new(),
+            col_header: Vec::new(),
         }),
         cell_blocks: None,
     })

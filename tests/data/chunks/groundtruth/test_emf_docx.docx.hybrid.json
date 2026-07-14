@@ -1,0 +1,13 @@
+[
+ {
+  "text": "Test with three images in unusual formats\nRaster in emf:\nVector in emf:\nRaster in webp:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3"
+  ],
+  "contextualize": "Test with three images in unusual formats\nRaster in emf:\nVector in emf:\nRaster in webp:"
+ }
+]

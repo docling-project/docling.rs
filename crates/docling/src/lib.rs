@@ -42,6 +42,7 @@ pub use stream::MarkdownStream;
 
 // Re-export the core model so callers only need the one crate, and so
 // `result.document.export_to_markdown()` works without an extra import.
+pub use docling_core::chunker;
 pub use docling_core::{
     DocItemLabel, DoclingDocument, ImageMode, MarkdownStreamer, Node, PictureImage, Table,
 };

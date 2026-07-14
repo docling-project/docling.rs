@@ -1,0 +1,22 @@
+[
+ {
+  "text": "The equation below uses <m:func> with fName='log'.\nExpected LaTeX: y = \\log(x)\nDocling produces: y = l o g(x)  (letters rendered as italic variables)\nand emits a warning about an unrecognized function name.\n\nThe <m:fName> element contains a plain-text run with style 'p' (upright).",
+  "headings": [
+   "Issue 4: Missing \\log command"
+  ],
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Issue 4: Missing \\log command\nThe equation below uses <m:func> with fName='log'.\nExpected LaTeX: y = \\log(x)\nDocling produces: y = l o g(x)  (letters rendered as italic variables)\nand emits a warning about an unrecognized function name.\n\nThe <m:fName> element contains a plain-text run with style 'p' (upright)."
+ },
+ {
+  "text": "$$y = \\log(\\left(x\\right))$$",
+  "headings": [
+   "Issue 4: Missing \\log command"
+  ],
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "Issue 4: Missing \\log command\n$$y = \\log(\\left(x\\right))$$"
+ }
+]

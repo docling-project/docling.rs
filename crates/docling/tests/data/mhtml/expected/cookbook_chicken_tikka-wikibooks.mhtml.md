@@ -1,6 +1,6 @@
 # Cookbook:Chicken Tikka
 
-2 languages
+- [ ] 2 languages
 
 - [Español](https://es.wikibooks.org/wiki/Artes_culinarias/Recetas/Pollo_tikka)
 - [हिन्दी](https://hi.wikibooks.org/wiki/%E0%A4%B0%E0%A4%B8%E0%A5%8B%E0%A4%88:%E0%A4%9A%E0%A4%BF%E0%A4%95%E0%A4%A8_%E0%A4%9F%E0%A4%BF%E0%A4%95%E0%A5%8D%E0%A4%95%E0%A4%BE)
@@ -10,18 +10,20 @@
 - [Recipe](https://en.wikibooks.org/wiki/Cookbook:Chicken_Tikka)
 - [Discussion](https://en.wikibooks.org/wiki/Cookbook_talk:Chicken_Tikka)
 
-English
+- [ ] English
 
 - [Read](https://en.wikibooks.org/wiki/Cookbook:Chicken_Tikka)
 - [Edit](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&veaction=edit)
 - [Edit source](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&action=edit)
 - [View history](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&action=history)
 
-Tools
+- [ ] Tools
 
 Tools
 
-move to sidebar hide
+move to sidebar
+
+hide
 
 Actions
 
@@ -69,7 +71,9 @@ In other projects
 
 Appearance
 
-move to sidebar hide
+move to sidebar
+
+hide
 
 Text
 
@@ -191,4 +195,6 @@ Search
 
 Cookbook:Chicken Tikka
 
-2 languages [Add topic](https://en.wikibooks.org/wiki/Cookbook:Chicken_Tikka#)
+2 languages
+
+[Add topic](https://en.wikibooks.org/wiki/Cookbook:Chicken_Tikka#)

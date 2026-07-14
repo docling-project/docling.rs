@@ -1,33 +1,35 @@
 ## Contents
 
-move to sidebar hide
+move to sidebar
+
+hide
 
 - [(Top)](#)
-- [1](#Etymology) [Etymology](#Etymology)
-- [2](#Taxonomy) [Taxonomy](#Taxonomy)
-- [3](#Morphology) [Morphology](#Morphology)
-- [4](#Distribution_and_habitat) [Distribution and habitat](#Distribution_and_habitat)
-- [5](#Behaviour) [Behaviour](#Behaviour) Toggle Behaviour subsection
-    - [5.1](#Feeding) [Feeding](#Feeding)
-    - [5.2](#Breeding) [Breeding](#Breeding)
-    - [5.3](#Communication) [Communication](#Communication)
-    - [5.4](#Predators) [Predators](#Predators)
-- [6](#Relationship_with_humans) [Relationship with humans](#Relationship_with_humans) Toggle Relationship with humans subsection
-    - [6.1](#Hunting) [Hunting](#Hunting)
-    - [6.2](#Domestication) [Domestication](#Domestication)
-    - [6.3](#Heraldry) [Heraldry](#Heraldry)
-    - [6.4](#Cultural_references) [Cultural references](#Cultural_references)
-- [7](#See_also) [See also](#See_also)
-- [8](#Notes) [Notes](#Notes) Toggle Notes subsection
-    - [8.1](#Citations) [Citations](#Citations)
-    - [8.2](#Sources) [Sources](#Sources)
-- [9](#External_links) [External links](#External_links)
+- [1 Etymology](#Etymology)
+- [2 Taxonomy](#Taxonomy)
+- [3 Morphology](#Morphology)
+- [4 Distribution and habitat](#Distribution_and_habitat)
+- [5 Behaviour](#Behaviour) Toggle Behaviour subsection
+    - [5.1 Feeding](#Feeding)
+    - [5.2 Breeding](#Breeding)
+    - [5.3 Communication](#Communication)
+    - [5.4 Predators](#Predators)
+- [6 Relationship with humans](#Relationship_with_humans) Toggle Relationship with humans subsection
+    - [6.1 Hunting](#Hunting)
+    - [6.2 Domestication](#Domestication)
+    - [6.3 Heraldry](#Heraldry)
+    - [6.4 Cultural references](#Cultural_references)
+- [7 See also](#See_also)
+- [8 Notes](#Notes) Toggle Notes subsection
+    - [8.1 Citations](#Citations)
+    - [8.2 Sources](#Sources)
+- [9 External links](#External_links)
 
-Toggle the table of contents
+- [] Toggle the table of contents
 
 # Duck
 
-136 languages
+- [] 136 languages
 
 - [Acèh](https://ace.wikipedia.org/wiki/It%C3%A9k)
 - [Afrikaans](https://af.wikipedia.org/wiki/Eend)
@@ -171,17 +173,19 @@ Toggle the table of contents
 - [Article](/wiki/Duck)
 - [Talk](/wiki/Talk:Duck)
 
-English
+- [] English
 
 - [Read](/wiki/Duck)
 - [View source](/w/index.php?title=Duck&action=edit)
 - [View history](/w/index.php?title=Duck&action=history)
 
-Tools
+- [] Tools
 
 Tools
 
-move to sidebar hide
+move to sidebar
+
+hide
 
 Actions
 
@@ -214,7 +218,9 @@ In other projects
 
 Appearance
 
-move to sidebar hide
+move to sidebar
+
+hide
 
 From Wikipedia, the free encyclopedia
 
@@ -253,9 +259,9 @@ Pacific black duck displaying the characteristic upending "duck"
 
 This word replaced Old English *ened* / *ænid* 'duck', possibly to avoid confusion with other words, such as *ende* 'end' with similar forms. Other Germanic languages still have similar words for *duck*, for example, Dutch *eend*, German *Ente* and [Norwegian](/wiki/Norwegian_language) *and*. The word *ened* / *ænid* was inherited from [Proto-Indo-European](/wiki/Proto-Indo-European_language); [cf.](/wiki/Cf.) [Latin](/wiki/Latin) *anas* "duck", [Lithuanian](/wiki/Lithuanian_language) *ántis* 'duck', [Ancient Greek](/wiki/Ancient_Greek_language) νῆσσα / νῆττα (*nēssa* / *nētta*) 'duck', and [Sanskrit](/wiki/Sanskrit) *ātí* 'water bird', among others.
 
-A duckling is a young duck in downy plumage [[](#cite_note-1) [1](#cite_note-1) []](#cite_note-1) or baby duck, [[](#cite_note-2) [2](#cite_note-2) []](#cite_note-2) but in the food trade a young domestic duck which has just reached adult size and bulk and its meat is still fully tender, is sometimes labelled as a duckling.
+A duckling is a young duck in downy plumage [[1]](#cite_note-1) or baby duck, [[2]](#cite_note-2) but in the food trade a young domestic duck which has just reached adult size and bulk and its meat is still fully tender, is sometimes labelled as a duckling.
 
-A male is called a [drake](https://en.wiktionary.org/wiki/drake) and the female is called a duck, or in [ornithology](/wiki/Ornithology) a hen. [[](#cite_note-3) [3](#cite_note-3) []](#cite_note-3) [[](#cite_note-4) [4](#cite_note-4) []](#cite_note-4)
+A male is called a [drake](https://en.wiktionary.org/wiki/drake) and the female is called a duck, or in [ornithology](/wiki/Ornithology) a hen. [[3]](#cite_note-3) [[4]](#cite_note-4)
 
 Male mallard.
 
@@ -267,15 +273,15 @@ Wood ducks.
 
 ## Taxonomy
 
-All ducks belong to the [biological order](/wiki/Order_(biology)) [Anseriformes](/wiki/Anseriformes), a group that contains the ducks, geese and swans, as well as the [screamers](/wiki/Screamer), and the [magpie goose](/wiki/Magpie_goose). [[](#cite_note-FOOTNOTECarboneras1992536-5) [5](#cite_note-FOOTNOTECarboneras1992536-5) []](#cite_note-FOOTNOTECarboneras1992536-5) All except the screamers belong to the [biological family](/wiki/Family_(biology)) [Anatidae](/wiki/Anatidae). [[](#cite_note-FOOTNOTECarboneras1992536-5) [5](#cite_note-FOOTNOTECarboneras1992536-5) []](#cite_note-FOOTNOTECarboneras1992536-5) Within the family, ducks are split into a variety of subfamilies and 'tribes'. The number and composition of these subfamilies and tribes is the cause of considerable disagreement among taxonomists. [[](#cite_note-FOOTNOTECarboneras1992536-5) [5](#cite_note-FOOTNOTECarboneras1992536-5) []](#cite_note-FOOTNOTECarboneras1992536-5) Some base their decisions on [morphological characteristics](/wiki/Morphology_(biology)), others on shared behaviours or genetic studies. [[](#cite_note-FOOTNOTELivezey1986737–738-6) [6](#cite_note-FOOTNOTELivezey1986737–738-6) []](#cite_note-FOOTNOTELivezey1986737–738-6) [[](#cite_note-FOOTNOTEMadsenMcHughde_Kloet1988452-7) [7](#cite_note-FOOTNOTEMadsenMcHughde_Kloet1988452-7) []](#cite_note-FOOTNOTEMadsenMcHughde_Kloet1988452-7) The number of suggested subfamilies containing ducks ranges from two to five. [[](#cite_note-FOOTNOTEDonne-GousséLaudetHänni2002353–354-8) [8](#cite_note-FOOTNOTEDonne-GousséLaudetHänni2002353–354-8) []](#cite_note-FOOTNOTEDonne-GousséLaudetHänni2002353–354-8) [[](#cite_note-FOOTNOTECarboneras1992540-9) [9](#cite_note-FOOTNOTECarboneras1992540-9) []](#cite_note-FOOTNOTECarboneras1992540-9) The significant level of [hybridisation](/wiki/Hybrid_(biology)) that occurs among wild ducks complicates efforts to tease apart the relationships between various species. [[](#cite_note-FOOTNOTECarboneras1992540-9) [9](#cite_note-FOOTNOTECarboneras1992540-9) []](#cite_note-FOOTNOTECarboneras1992540-9)
+All ducks belong to the [biological order](/wiki/Order_(biology)) [Anseriformes](/wiki/Anseriformes), a group that contains the ducks, geese and swans, as well as the [screamers](/wiki/Screamer), and the [magpie goose](/wiki/Magpie_goose). [[5]](#cite_note-FOOTNOTECarboneras1992536-5) All except the screamers belong to the [biological family](/wiki/Family_(biology)) [Anatidae](/wiki/Anatidae). [[5]](#cite_note-FOOTNOTECarboneras1992536-5) Within the family, ducks are split into a variety of subfamilies and 'tribes'. The number and composition of these subfamilies and tribes is the cause of considerable disagreement among taxonomists. [[5]](#cite_note-FOOTNOTECarboneras1992536-5) Some base their decisions on [morphological characteristics](/wiki/Morphology_(biology)), others on shared behaviours or genetic studies. [[6]](#cite_note-FOOTNOTELivezey1986737–738-6) [[7]](#cite_note-FOOTNOTEMadsenMcHughde_Kloet1988452-7) The number of suggested subfamilies containing ducks ranges from two to five. [[8]](#cite_note-FOOTNOTEDonne-GousséLaudetHänni2002353–354-8) [[9]](#cite_note-FOOTNOTECarboneras1992540-9) The significant level of [hybridisation](/wiki/Hybrid_(biology)) that occurs among wild ducks complicates efforts to tease apart the relationships between various species. [[9]](#cite_note-FOOTNOTECarboneras1992540-9)
 
 Mallard landing in approach
 
 <!-- image -->
 
-In most modern classifications, the so-called 'true ducks' belong to the subfamily Anatinae, which is further split into a varying number of tribes. [[](#cite_note-FOOTNOTEElphickDunningSibley2001191-10) [10](#cite_note-FOOTNOTEElphickDunningSibley2001191-10) []](#cite_note-FOOTNOTEElphickDunningSibley2001191-10) The largest of these, the Anatini, contains the 'dabbling' or 'river' ducks - named for their method of feeding primarily at the surface of fresh water. [[](#cite_note-FOOTNOTEKear2005448-11) [11](#cite_note-FOOTNOTEKear2005448-11) []](#cite_note-FOOTNOTEKear2005448-11) The 'diving ducks', also named for their primary feeding method, make up the tribe Aythyini. [[](#cite_note-FOOTNOTEKear2005622–623-12) [12](#cite_note-FOOTNOTEKear2005622–623-12) []](#cite_note-FOOTNOTEKear2005622–623-12) The 'sea ducks' of the tribe Mergini are diving ducks which specialise on fish and shellfish and spend a majority of their lives in saltwater. [[](#cite_note-FOOTNOTEKear2005686-13) [13](#cite_note-FOOTNOTEKear2005686-13) []](#cite_note-FOOTNOTEKear2005686-13) The tribe Oxyurini contains the 'stifftails', diving ducks notable for their small size and stiff, upright tails. [[](#cite_note-FOOTNOTEElphickDunningSibley2001193-14) [14](#cite_note-FOOTNOTEElphickDunningSibley2001193-14) []](#cite_note-FOOTNOTEElphickDunningSibley2001193-14)
+In most modern classifications, the so-called 'true ducks' belong to the subfamily Anatinae, which is further split into a varying number of tribes. [[10]](#cite_note-FOOTNOTEElphickDunningSibley2001191-10) The largest of these, the Anatini, contains the 'dabbling' or 'river' ducks - named for their method of feeding primarily at the surface of fresh water. [[11]](#cite_note-FOOTNOTEKear2005448-11) The 'diving ducks', also named for their primary feeding method, make up the tribe Aythyini. [[12]](#cite_note-FOOTNOTEKear2005622–623-12) The 'sea ducks' of the tribe Mergini are diving ducks which specialise on fish and shellfish and spend a majority of their lives in saltwater. [[13]](#cite_note-FOOTNOTEKear2005686-13) The tribe Oxyurini contains the 'stifftails', diving ducks notable for their small size and stiff, upright tails. [[14]](#cite_note-FOOTNOTEElphickDunningSibley2001193-14)
 
-A number of other species called ducks are not considered to be 'true ducks', and are typically placed in other subfamilies or tribes. The [whistling ducks](/wiki/Whistling_duck) are assigned either to a tribe (Dendrocygnini) in the subfamily Anatinae or the subfamily Anserinae, [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15) or to their own subfamily (Dendrocygninae) or family (Dendrocyganidae). [[](#cite_note-FOOTNOTECarboneras1992540-9) [9](#cite_note-FOOTNOTECarboneras1992540-9) []](#cite_note-FOOTNOTECarboneras1992540-9) [[](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998xix-16) [16](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998xix-16) []](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998xix-16) The [freckled duck](/wiki/Freckled_duck) of Australia is either the sole member of the tribe Stictonettini in the subfamily Anserinae, [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15) or in its own family, the Stictonettinae. [[](#cite_note-FOOTNOTECarboneras1992540-9) [9](#cite_note-FOOTNOTECarboneras1992540-9) []](#cite_note-FOOTNOTECarboneras1992540-9) The [shelducks](/wiki/Shelduck) make up the tribe Tadornini in the family Anserinae in some classifications, [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15) and their own subfamily, Tadorninae, in others, [[](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998-17) [17](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998-17) []](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998-17) while the [steamer ducks](/wiki/Steamer_duck) are either placed in the family Anserinae in the tribe Tachyerini [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15) or lumped with the shelducks in the tribe Tadorini. [[](#cite_note-FOOTNOTECarboneras1992540-9) [9](#cite_note-FOOTNOTECarboneras1992540-9) []](#cite_note-FOOTNOTECarboneras1992540-9) The [perching ducks](/wiki/Perching_duck) make up in the tribe Cairinini in the subfamily Anserinae in some classifications, while that tribe is eliminated in other classifications and its members assigned to the tribe Anatini. [[](#cite_note-FOOTNOTECarboneras1992540-9) [9](#cite_note-FOOTNOTECarboneras1992540-9) []](#cite_note-FOOTNOTECarboneras1992540-9) The [torrent duck](/wiki/Torrent_duck) is generally included in the subfamily Anserinae in the monotypic tribe Merganettini, [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15) but is sometimes included in the tribe Tadornini. [[](#cite_note-FOOTNOTECarboneras1992538-18) [18](#cite_note-FOOTNOTECarboneras1992538-18) []](#cite_note-FOOTNOTECarboneras1992538-18) The [pink-eared duck](/wiki/Pink-eared_duck) is sometimes included as a true duck either in the tribe Anatini [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15) or the tribe Malacorhynchini, [[](#cite_note-FOOTNOTEChristidisBoles200862-19) [19](#cite_note-FOOTNOTEChristidisBoles200862-19) []](#cite_note-FOOTNOTEChristidisBoles200862-19) and other times is included with the shelducks in the tribe Tadornini. [[](#cite_note-FOOTNOTECarboneras1992537-15) [15](#cite_note-FOOTNOTECarboneras1992537-15) []](#cite_note-FOOTNOTECarboneras1992537-15)
+A number of other species called ducks are not considered to be 'true ducks', and are typically placed in other subfamilies or tribes. The [whistling ducks](/wiki/Whistling_duck) are assigned either to a tribe (Dendrocygnini) in the subfamily Anatinae or the subfamily Anserinae, [[15]](#cite_note-FOOTNOTECarboneras1992537-15) or to their own subfamily (Dendrocygninae) or family (Dendrocyganidae). [[9]](#cite_note-FOOTNOTECarboneras1992540-9) [[16]](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998xix-16) The [freckled duck](/wiki/Freckled_duck) of Australia is either the sole member of the tribe Stictonettini in the subfamily Anserinae, [[15]](#cite_note-FOOTNOTECarboneras1992537-15) or in its own family, the Stictonettinae. [[9]](#cite_note-FOOTNOTECarboneras1992540-9) The [shelducks](/wiki/Shelduck) make up the tribe Tadornini in the family Anserinae in some classifications, [[15]](#cite_note-FOOTNOTECarboneras1992537-15) and their own subfamily, Tadorninae, in others, [[17]](#cite_note-FOOTNOTEAmerican_Ornithologists'_Union1998-17) while the [steamer ducks](/wiki/Steamer_duck) are either placed in the family Anserinae in the tribe Tachyerini [[15]](#cite_note-FOOTNOTECarboneras1992537-15) or lumped with the shelducks in the tribe Tadorini. [[9]](#cite_note-FOOTNOTECarboneras1992540-9) The [perching ducks](/wiki/Perching_duck) make up in the tribe Cairinini in the subfamily Anserinae in some classifications, while that tribe is eliminated in other classifications and its members assigned to the tribe Anatini. [[9]](#cite_note-FOOTNOTECarboneras1992540-9) The [torrent duck](/wiki/Torrent_duck) is generally included in the subfamily Anserinae in the monotypic tribe Merganettini, [[15]](#cite_note-FOOTNOTECarboneras1992537-15) but is sometimes included in the tribe Tadornini. [[18]](#cite_note-FOOTNOTECarboneras1992538-18) The [pink-eared duck](/wiki/Pink-eared_duck) is sometimes included as a true duck either in the tribe Anatini [[15]](#cite_note-FOOTNOTECarboneras1992537-15) or the tribe Malacorhynchini, [[19]](#cite_note-FOOTNOTEChristidisBoles200862-19) and other times is included with the shelducks in the tribe Tadornini. [[15]](#cite_note-FOOTNOTECarboneras1992537-15)
 
 ## Morphology
 
@@ -295,13 +301,13 @@ Flying steamer ducks in Ushuaia, Argentina
 
 <!-- image -->
 
-Ducks have a [cosmopolitan distribution](/wiki/Cosmopolitan_distribution), and are found on every continent except Antarctica. [[](#cite_note-FOOTNOTECarboneras1992536-5) [5](#cite_note-FOOTNOTECarboneras1992536-5) []](#cite_note-FOOTNOTECarboneras1992536-5) Several species manage to live on subantarctic islands, including [South Georgia](/wiki/South_Georgia_and_the_South_Sandwich_Islands) and the [Auckland Islands](/wiki/Auckland_Islands). [[](#cite_note-FOOTNOTEShirihai2008239,_245-20) [20](#cite_note-FOOTNOTEShirihai2008239,_245-20) []](#cite_note-FOOTNOTEShirihai2008239,_245-20) Ducks have reached a number of isolated oceanic islands, including the [Hawaiian Islands](/wiki/Hawaiian_Islands), [Micronesia](/wiki/Micronesia) and the [Galápagos Islands](/wiki/Gal%C3%A1pagos_Islands), where they are often [vagrants](/wiki/Glossary_of_bird_terms#vagrants) and less often [residents](/wiki/Glossary_of_bird_terms#residents). [[](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21) [21](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21) []](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21) [[](#cite_note-FOOTNOTEFitterFitterHosking200052–3-22) [22](#cite_note-FOOTNOTEFitterFitterHosking200052–3-22) []](#cite_note-FOOTNOTEFitterFitterHosking200052–3-22) A handful are [endemic](/wiki/Endemic) to such far-flung islands. [[](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21) [21](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21) []](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21)
+Ducks have a [cosmopolitan distribution](/wiki/Cosmopolitan_distribution), and are found on every continent except Antarctica. [[5]](#cite_note-FOOTNOTECarboneras1992536-5) Several species manage to live on subantarctic islands, including [South Georgia](/wiki/South_Georgia_and_the_South_Sandwich_Islands) and the [Auckland Islands](/wiki/Auckland_Islands). [[20]](#cite_note-FOOTNOTEShirihai2008239,_245-20) Ducks have reached a number of isolated oceanic islands, including the [Hawaiian Islands](/wiki/Hawaiian_Islands), [Micronesia](/wiki/Micronesia) and the [Galápagos Islands](/wiki/Gal%C3%A1pagos_Islands), where they are often [vagrants](/wiki/Glossary_of_bird_terms#vagrants) and less often [residents](/wiki/Glossary_of_bird_terms#residents). [[21]](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21) [[22]](#cite_note-FOOTNOTEFitterFitterHosking200052–3-22) A handful are [endemic](/wiki/Endemic) to such far-flung islands. [[21]](#cite_note-FOOTNOTEPrattBrunerBerrett198798–107-21)
 
 Female mallard in Cornwall, England
 
 <!-- image -->
 
-Some duck species, mainly those breeding in the temperate and Arctic Northern Hemisphere, are migratory; those in the tropics are generally not. Some ducks, particularly in Australia where rainfall is erratic, are nomadic, seeking out the temporary lakes and pools that form after localised heavy rain. [[](#cite_note-23) [23](#cite_note-23) []](#cite_note-23)
+Some duck species, mainly those breeding in the temperate and Arctic Northern Hemisphere, are migratory; those in the tropics are generally not. Some ducks, particularly in Australia where rainfall is erratic, are nomadic, seeking out the temporary lakes and pools that form after localised heavy rain. [[23]](#cite_note-23)
 
 ## Behaviour
 
@@ -317,7 +323,7 @@ Mallard duckling preening
 
 Ducks eat food sources such as [grasses](/wiki/Poaceae), aquatic plants, fish, insects, small amphibians, worms, and small [molluscs](/wiki/Mollusc).
 
-[Dabbling ducks](/wiki/Dabbling_duck) feed on the surface of water or on land, or as deep as they can reach by up-ending without completely submerging. [[](#cite_note-24) [24](#cite_note-24) []](#cite_note-24) Along the edge of the bill, there is a comb-like structure called a [pecten](/wiki/Pecten_(biology)). This strains the water squirting from the side of the bill and traps any food. The pecten is also used to preen feathers and to hold slippery food items.
+[Dabbling ducks](/wiki/Dabbling_duck) feed on the surface of water or on land, or as deep as they can reach by up-ending without completely submerging. [[24]](#cite_note-24) Along the edge of the bill, there is a comb-like structure called a [pecten](/wiki/Pecten_(biology)). This strains the water squirting from the side of the bill and traps any food. The pecten is also used to preen feathers and to hold slippery food items.
 
 [Diving ducks](/wiki/Diving_duck) and [sea ducks](/wiki/Sea_duck) forage deep underwater. To be able to submerge more easily, the diving ducks are heavier than dabbling ducks, and therefore have more difficulty taking off to fly.
 
@@ -325,7 +331,7 @@ A few specialized species such as the [mergansers](/wiki/Merganser) are adapted 
 
 The others have the characteristic wide flat bill adapted to [dredging](/wiki/Dredging) -type jobs such as pulling up waterweed, pulling worms and small molluscs out of mud, searching for insect larvae, and bulk jobs such as dredging out, holding, turning head first, and swallowing a squirming frog. To avoid injury when digging into sediment it has no [cere](/wiki/Cere), but the nostrils come out through hard horn.
 
-[*The Guardian*](/wiki/The_Guardian) published an article advising that ducks should not be fed with bread because it [damages the health of the ducks](/wiki/Angel_wing) and pollutes waterways. [[](#cite_note-25) [25](#cite_note-25) []](#cite_note-25)
+[*The Guardian*](/wiki/The_Guardian) published an article advising that ducks should not be fed with bread because it [damages the health of the ducks](/wiki/Angel_wing) and pollutes waterways. [[25]](#cite_note-25)
 
 ### Breeding
 
@@ -333,13 +339,13 @@ A Muscovy duckling
 
 <!-- image -->
 
-Ducks generally [only have one partner at a time](/wiki/Monogamy_in_animals), although the partnership usually only lasts one year. [[](#cite_note-26) [26](#cite_note-26) []](#cite_note-26) Larger species and the more sedentary species (like fast-river specialists) tend to have pair-bonds that last numerous years. [[](#cite_note-27) [27](#cite_note-27) []](#cite_note-27) Most duck species breed once a year, choosing to do so in favourable conditions ([spring](/wiki/Spring_(season)) /summer or wet seasons). Ducks also tend to make a [nest](/wiki/Bird_nest) before breeding, and, after hatching, lead their ducklings to water. Mother ducks are very caring and protective of their young, but may abandon some of their ducklings if they are physically stuck in an area they cannot get out of (such as nesting in an enclosed [courtyard](/wiki/Courtyard)) or are not prospering due to genetic defects or sickness brought about by hypothermia, starvation, or disease. Ducklings can also be orphaned by inconsistent late hatching where a few eggs hatch after the mother has abandoned the nest and led her ducklings to water. [[](#cite_note-28) [28](#cite_note-28) []](#cite_note-28)
+Ducks generally [only have one partner at a time](/wiki/Monogamy_in_animals), although the partnership usually only lasts one year. [[26]](#cite_note-26) Larger species and the more sedentary species (like fast-river specialists) tend to have pair-bonds that last numerous years. [[27]](#cite_note-27) Most duck species breed once a year, choosing to do so in favourable conditions ([spring](/wiki/Spring_(season)) /summer or wet seasons). Ducks also tend to make a [nest](/wiki/Bird_nest) before breeding, and, after hatching, lead their ducklings to water. Mother ducks are very caring and protective of their young, but may abandon some of their ducklings if they are physically stuck in an area they cannot get out of (such as nesting in an enclosed [courtyard](/wiki/Courtyard)) or are not prospering due to genetic defects or sickness brought about by hypothermia, starvation, or disease. Ducklings can also be orphaned by inconsistent late hatching where a few eggs hatch after the mother has abandoned the nest and led her ducklings to water. [[28]](#cite_note-28)
 
 ### Communication
 
-Female [mallard](/wiki/Mallard) ducks (as well as several other species in the genus *Anas*, such as the [American](/wiki/American_black_duck) and [Pacific black ducks](/wiki/Pacific_black_duck), [spot-billed duck](/wiki/Spot-billed_duck), [northern pintail](/wiki/Northern_pintail) and [common teal](/wiki/Common_teal)) make the classic "quack" sound while males make a similar but raspier sound that is sometimes written as "breeeeze", [[](#cite_note-29) [29](#cite_note-29) []](#cite_note-29) [[*self-published source?*](/wiki/Wikipedia:Verifiability#Self-published_sources)] but, despite widespread misconceptions, most species of duck do not "quack". [[](#cite_note-30) [30](#cite_note-30) []](#cite_note-30) In general, ducks make a range of [calls](/wiki/Bird_vocalisation), including whistles, cooing, yodels and grunts. For example, the [scaup](/wiki/Scaup) - which are [diving ducks](/wiki/Diving_duck) - make a noise like "scaup" (hence their name). Calls may be loud displaying calls or quieter contact calls.
+Female [mallard](/wiki/Mallard) ducks (as well as several other species in the genus *Anas*, such as the [American](/wiki/American_black_duck) and [Pacific black ducks](/wiki/Pacific_black_duck), [spot-billed duck](/wiki/Spot-billed_duck), [northern pintail](/wiki/Northern_pintail) and [common teal](/wiki/Common_teal)) make the classic "quack" sound while males make a similar but raspier sound that is sometimes written as "breeeeze", [[29]](#cite_note-29) [[*self-published source?*](/wiki/Wikipedia:Verifiability#Self-published_sources)] but, despite widespread misconceptions, most species of duck do not "quack". [[30]](#cite_note-30) In general, ducks make a range of [calls](/wiki/Bird_vocalisation), including whistles, cooing, yodels and grunts. For example, the [scaup](/wiki/Scaup) - which are [diving ducks](/wiki/Diving_duck) - make a noise like "scaup" (hence their name). Calls may be loud displaying calls or quieter contact calls.
 
-A common [urban legend](/wiki/Urban_legend) claims that duck quacks do not echo; however, this has been proven to be false. This myth was first debunked by the Acoustics Research Centre at the [University of Salford](/wiki/University_of_Salford) in 2003 as part of the [British Association](/wiki/British_Association) 's Festival of Science. [[](#cite_note-31) [31](#cite_note-31) []](#cite_note-31) It was also debunked in [one of the earlier episodes](/wiki/MythBusters_(2003_season)#Does_a_Duck's_Quack_Echo?) of the popular Discovery Channel television show [*MythBusters*](/wiki/MythBusters). [[](#cite_note-32) [32](#cite_note-32) []](#cite_note-32)
+A common [urban legend](/wiki/Urban_legend) claims that duck quacks do not echo; however, this has been proven to be false. This myth was first debunked by the Acoustics Research Centre at the [University of Salford](/wiki/University_of_Salford) in 2003 as part of the [British Association](/wiki/British_Association) 's Festival of Science. [[31]](#cite_note-31) It was also debunked in [one of the earlier episodes](/wiki/MythBusters_(2003_season)#Does_a_Duck's_Quack_Echo?) of the popular Discovery Channel television show [*MythBusters*](/wiki/MythBusters). [[32]](#cite_note-32)
 
 ### Predators
 
@@ -357,9 +363,9 @@ Adult ducks are fast fliers, but may be caught on the water by large aquatic pre
 
 Main article: [Waterfowl hunting](/wiki/Waterfowl_hunting)
 
-Humans have hunted ducks since prehistoric times. Excavations of [middens](/wiki/Midden) in California dating to 7800 - 6400 [BP](/wiki/Before_present) have turned up bones of ducks, including at least one now-extinct flightless species. [[](#cite_note-FOOTNOTEErlandson1994171-33) [33](#cite_note-FOOTNOTEErlandson1994171-33) []](#cite_note-FOOTNOTEErlandson1994171-33) Ducks were captured in "significant numbers" by [Holocene](/wiki/Holocene) inhabitants of the lower [Ohio River](/wiki/Ohio_River) valley, suggesting they took advantage of the seasonal bounty provided by migrating waterfowl. [[](#cite_note-FOOTNOTEJeffries2008168,_243-34) [34](#cite_note-FOOTNOTEJeffries2008168,_243-34) []](#cite_note-FOOTNOTEJeffries2008168,_243-34) Neolithic hunters in locations as far apart as the Caribbean, [[](#cite_note-FOOTNOTESued-Badillo200365-35) [35](#cite_note-FOOTNOTESued-Badillo200365-35) []](#cite_note-FOOTNOTESued-Badillo200365-35) Scandinavia, [[](#cite_note-FOOTNOTEThorpe199668-36) [36](#cite_note-FOOTNOTEThorpe199668-36) []](#cite_note-FOOTNOTEThorpe199668-36) Egypt, [[](#cite_note-FOOTNOTEMaisels199942-37) [37](#cite_note-FOOTNOTEMaisels199942-37) []](#cite_note-FOOTNOTEMaisels199942-37) Switzerland, [[](#cite_note-FOOTNOTERau1876133-38) [38](#cite_note-FOOTNOTERau1876133-38) []](#cite_note-FOOTNOTERau1876133-38) and China relied on ducks as a source of protein for some or all of the year. [[](#cite_note-FOOTNOTEHigman201223-39) [39](#cite_note-FOOTNOTEHigman201223-39) []](#cite_note-FOOTNOTEHigman201223-39) Archeological evidence shows that [Māori people](/wiki/M%C4%81ori_people) in New Zealand hunted the flightless [Finsch's duck](/wiki/Finsch%27s_duck), possibly to extinction, though rat predation may also have contributed to its fate. [[](#cite_note-FOOTNOTEHume201253-40) [40](#cite_note-FOOTNOTEHume201253-40) []](#cite_note-FOOTNOTEHume201253-40) A similar end awaited the [Chatham duck](/wiki/Chatham_duck), a species with reduced flying capabilities which went extinct shortly after its island was colonised by Polynesian settlers. [[](#cite_note-FOOTNOTEHume201252-41) [41](#cite_note-FOOTNOTEHume201252-41) []](#cite_note-FOOTNOTEHume201252-41) It is probable that duck eggs were gathered by Neolithic hunter-gathers as well, though hard evidence of this is uncommon. [[](#cite_note-FOOTNOTESued-Badillo200365-35) [35](#cite_note-FOOTNOTESued-Badillo200365-35) []](#cite_note-FOOTNOTESued-Badillo200365-35) [[](#cite_note-FOOTNOTEFieldhouse2002167-42) [42](#cite_note-FOOTNOTEFieldhouse2002167-42) []](#cite_note-FOOTNOTEFieldhouse2002167-42)
+Humans have hunted ducks since prehistoric times. Excavations of [middens](/wiki/Midden) in California dating to 7800 - 6400 [BP](/wiki/Before_present) have turned up bones of ducks, including at least one now-extinct flightless species. [[33]](#cite_note-FOOTNOTEErlandson1994171-33) Ducks were captured in "significant numbers" by [Holocene](/wiki/Holocene) inhabitants of the lower [Ohio River](/wiki/Ohio_River) valley, suggesting they took advantage of the seasonal bounty provided by migrating waterfowl. [[34]](#cite_note-FOOTNOTEJeffries2008168,_243-34) Neolithic hunters in locations as far apart as the Caribbean, [[35]](#cite_note-FOOTNOTESued-Badillo200365-35) Scandinavia, [[36]](#cite_note-FOOTNOTEThorpe199668-36) Egypt, [[37]](#cite_note-FOOTNOTEMaisels199942-37) Switzerland, [[38]](#cite_note-FOOTNOTERau1876133-38) and China relied on ducks as a source of protein for some or all of the year. [[39]](#cite_note-FOOTNOTEHigman201223-39) Archeological evidence shows that [Māori people](/wiki/M%C4%81ori_people) in New Zealand hunted the flightless [Finsch's duck](/wiki/Finsch%27s_duck), possibly to extinction, though rat predation may also have contributed to its fate. [[40]](#cite_note-FOOTNOTEHume201253-40) A similar end awaited the [Chatham duck](/wiki/Chatham_duck), a species with reduced flying capabilities which went extinct shortly after its island was colonised by Polynesian settlers. [[41]](#cite_note-FOOTNOTEHume201252-41) It is probable that duck eggs were gathered by Neolithic hunter-gathers as well, though hard evidence of this is uncommon. [[35]](#cite_note-FOOTNOTESued-Badillo200365-35) [[42]](#cite_note-FOOTNOTEFieldhouse2002167-42)
 
-In many areas, wild ducks (including ducks farmed and released into the wild) are hunted for food or sport, [[](#cite_note-43) [43](#cite_note-43) []](#cite_note-43) by shooting, or by being trapped using [duck decoys](/wiki/Duck_decoy_(structure)). Because an idle floating duck or a duck squatting on land cannot react to fly or move quickly, "a sitting duck" has come to mean "an easy target". These ducks may be [contaminated by pollutants](/wiki/Duck_(food)#Pollution) such as [PCBs](/wiki/Polychlorinated_biphenyl). [[](#cite_note-44) [44](#cite_note-44) []](#cite_note-44)
+In many areas, wild ducks (including ducks farmed and released into the wild) are hunted for food or sport, [[43]](#cite_note-43) by shooting, or by being trapped using [duck decoys](/wiki/Duck_decoy_(structure)). Because an idle floating duck or a duck squatting on land cannot react to fly or move quickly, "a sitting duck" has come to mean "an easy target". These ducks may be [contaminated by pollutants](/wiki/Duck_(food)#Pollution) such as [PCBs](/wiki/Polychlorinated_biphenyl). [[44]](#cite_note-44)
 
 ### Domestication
 
@@ -369,7 +375,7 @@ Indian Runner ducks, a common breed of domestic ducks
 
 <!-- image -->
 
-Ducks have many economic uses, being farmed for their meat, eggs, and feathers (particularly their [down](/wiki/Down_feather)). Approximately 3 billion ducks are slaughtered each year for meat worldwide. [[](#cite_note-45) [45](#cite_note-45) []](#cite_note-45) They are also kept and bred by aviculturists and often displayed in zoos. Almost all the varieties of domestic ducks are descended from the [mallard](/wiki/Mallard) (*Anas platyrhynchos*), apart from the [Muscovy duck](/wiki/Muscovy_duck) (*Cairina moschata*). [[](#cite_note-46) [46](#cite_note-46) []](#cite_note-46) [[](#cite_note-47) [47](#cite_note-47) []](#cite_note-47) The [Call duck](/wiki/Call_duck) is another example of a domestic duck breed. Its name comes from its original use established by hunters, as a decoy to attract wild mallards from the sky, into traps set for them on the ground. The call duck is the world's smallest domestic duck breed, as it weighs less than 1 kg (2.2 lb). [[](#cite_note-48) [48](#cite_note-48) []](#cite_note-48)
+Ducks have many economic uses, being farmed for their meat, eggs, and feathers (particularly their [down](/wiki/Down_feather)). Approximately 3 billion ducks are slaughtered each year for meat worldwide. [[45]](#cite_note-45) They are also kept and bred by aviculturists and often displayed in zoos. Almost all the varieties of domestic ducks are descended from the [mallard](/wiki/Mallard) (*Anas platyrhynchos*), apart from the [Muscovy duck](/wiki/Muscovy_duck) (*Cairina moschata*). [[46]](#cite_note-46) [[47]](#cite_note-47) The [Call duck](/wiki/Call_duck) is another example of a domestic duck breed. Its name comes from its original use established by hunters, as a decoy to attract wild mallards from the sky, into traps set for them on the ground. The call duck is the world's smallest domestic duck breed, as it weighs less than 1 kg (2.2 lb). [[48]](#cite_note-48)
 
 ### Heraldry
 
@@ -377,13 +383,13 @@ Three black-colored ducks in the coat of arms of Maaninka[49]
 
 <!-- image -->
 
-Ducks appear on several [coats of arms](/wiki/Coats_of_arms), including the coat of arms of [Lubāna](/wiki/Lub%C4%81na) ([Latvia](/wiki/Latvia)) [[](#cite_note-50) [50](#cite_note-50) []](#cite_note-50) and the coat of arms of [Föglö](/wiki/F%C3%B6gl%C3%B6) ([Åland](/wiki/%C3%85land)). [[](#cite_note-51) [51](#cite_note-51) []](#cite_note-51)
+Ducks appear on several [coats of arms](/wiki/Coats_of_arms), including the coat of arms of [Lubāna](/wiki/Lub%C4%81na) ([Latvia](/wiki/Latvia)) [[50]](#cite_note-50) and the coat of arms of [Föglö](/wiki/F%C3%B6gl%C3%B6) ([Åland](/wiki/%C3%85land)). [[51]](#cite_note-51)
 
 ### Cultural references
 
-In 2002, psychologist [Richard Wiseman](/wiki/Richard_Wiseman) and colleagues at the [University of Hertfordshire](/wiki/University_of_Hertfordshire), [UK](/wiki/UK), finished a year-long [LaughLab](/wiki/LaughLab) experiment, concluding that of all animals, ducks attract the most humor and silliness; he said, "If you're going to tell a joke involving an animal, make it a duck." [[](#cite_note-52) [52](#cite_note-52) []](#cite_note-52) The word "duck" may have become an [inherently funny word](/wiki/Inherently_funny_word) in many languages, possibly because ducks are seen as silly in their looks or behavior. Of the many [ducks in fiction](/wiki/List_of_fictional_ducks), many are cartoon characters, such as [Walt Disney](/wiki/The_Walt_Disney_Company) 's [Donald Duck](/wiki/Donald_Duck), and [Warner Bros.](/wiki/Warner_Bros.) ' [Daffy Duck](/wiki/Daffy_Duck). [Howard the Duck](/wiki/Howard_the_Duck) started as a comic book character in 1973 [[](#cite_note-53) [53](#cite_note-53) []](#cite_note-53) [[](#cite_note-54) [54](#cite_note-54) []](#cite_note-54) and was made into a [movie](/wiki/Howard_the_Duck_(film)) in 1986.
+In 2002, psychologist [Richard Wiseman](/wiki/Richard_Wiseman) and colleagues at the [University of Hertfordshire](/wiki/University_of_Hertfordshire), [UK](/wiki/UK), finished a year-long [LaughLab](/wiki/LaughLab) experiment, concluding that of all animals, ducks attract the most humor and silliness; he said, "If you're going to tell a joke involving an animal, make it a duck." [[52]](#cite_note-52) The word "duck" may have become an [inherently funny word](/wiki/Inherently_funny_word) in many languages, possibly because ducks are seen as silly in their looks or behavior. Of the many [ducks in fiction](/wiki/List_of_fictional_ducks), many are cartoon characters, such as [Walt Disney](/wiki/The_Walt_Disney_Company) 's [Donald Duck](/wiki/Donald_Duck), and [Warner Bros.](/wiki/Warner_Bros.) ' [Daffy Duck](/wiki/Daffy_Duck). [Howard the Duck](/wiki/Howard_the_Duck) started as a comic book character in 1973 [[53]](#cite_note-53) [[54]](#cite_note-54) and was made into a [movie](/wiki/Howard_the_Duck_(film)) in 1986.
 
-The 1992 Disney film [*The Mighty Ducks*](/wiki/The_Mighty_Ducks_(film)), starring [Emilio Estevez](/wiki/Emilio_Estevez), chose the duck as the mascot for the fictional youth hockey team who are protagonists of the movie, based on the duck being described as a fierce fighter. This led to the duck becoming the nickname and mascot for the eventual [National Hockey League](/wiki/National_Hockey_League) professional team of the [Anaheim Ducks](/wiki/Anaheim_Ducks), who were founded with the name the Mighty Ducks of Anaheim. [[*citation needed*](/wiki/Wikipedia:Citation_needed)] The duck is also the nickname of the [University of Oregon](/wiki/University_of_Oregon) sports teams as well as the [Long Island Ducks](/wiki/Long_Island_Ducks) minor league [baseball](/wiki/Baseball) team. [[](#cite_note-55) [55](#cite_note-55) []](#cite_note-55)
+The 1992 Disney film [*The Mighty Ducks*](/wiki/The_Mighty_Ducks_(film)), starring [Emilio Estevez](/wiki/Emilio_Estevez), chose the duck as the mascot for the fictional youth hockey team who are protagonists of the movie, based on the duck being described as a fierce fighter. This led to the duck becoming the nickname and mascot for the eventual [National Hockey League](/wiki/National_Hockey_League) professional team of the [Anaheim Ducks](/wiki/Anaheim_Ducks), who were founded with the name the Mighty Ducks of Anaheim. [[*citation needed*](/wiki/Wikipedia:Citation_needed)] The duck is also the nickname of the [University of Oregon](/wiki/University_of_Oregon) sports teams as well as the [Long Island Ducks](/wiki/Long_Island_Ducks) minor league [baseball](/wiki/Baseball) team. [[55]](#cite_note-55)
 
 ## See also
 

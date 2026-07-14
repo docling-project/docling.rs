@@ -1,0 +1,36 @@
+[
+ {
+  "text": "**Transcript**",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0"
+  ],
+  "contextualize": "**Transcript**"
+ },
+ {
+  "text": "February 20, 2025, 8:32PM",
+  "headings": null,
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "February 20, 2025, 8:32PM"
+ },
+ {
+  "text": "**This is test 1** 0:08\nCorrect, he is not.",
+  "headings": null,
+  "doc_items": [
+   "#/texts/2",
+   "#/texts/3"
+  ],
+  "contextualize": "**This is test 1** 0:08\nCorrect, he is not."
+ },
+ {
+  "text": "**This is test 2** 0:16\nYeah, exactly.",
+  "headings": null,
+  "doc_items": [
+   "#/texts/5",
+   "#/texts/6"
+  ],
+  "contextualize": "**This is test 2** 0:16\nYeah, exactly."
+ }
+]

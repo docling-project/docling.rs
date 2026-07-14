@@ -1,0 +1,26 @@
+[
+ {
+  "text": "Python is great",
+  "headings": null,
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Python is great"
+ },
+ {
+  "text": "Machine learning libraries",
+  "headings": null,
+  "doc_items": [
+   "#/tables/1"
+  ],
+  "contextualize": "Machine learning libraries"
+ },
+ {
+  "text": "2019, Freshwater Ducks = 120. 2019, Saltwater Ducks = 80. 2019, Ducks = 200. 2020, Freshwater Ducks = 135. 2020, Saltwater Ducks = 95. 2020, Ducks = 230. 2021, Freshwater Ducks = 150. 2021, Saltwater Ducks = 100. 2021, Ducks = 250. 2022, Freshwater Ducks = 170. 2022, Saltwater Ducks = 110. 2022, Ducks = 280. 2023, Freshwater Ducks = 160. 2023, Saltwater Ducks = 120. 2023, Ducks = 280. 2024, Freshwater Ducks = 180. 2024, Saltwater Ducks = 130. 2024, Ducks = 310",
+  "headings": null,
+  "doc_items": [
+   "#/tables/2"
+  ],
+  "contextualize": "2019, Freshwater Ducks = 120. 2019, Saltwater Ducks = 80. 2019, Ducks = 200. 2020, Freshwater Ducks = 135. 2020, Saltwater Ducks = 95. 2020, Ducks = 230. 2021, Freshwater Ducks = 150. 2021, Saltwater Ducks = 100. 2021, Ducks = 250. 2022, Freshwater Ducks = 170. 2022, Saltwater Ducks = 110. 2022, Ducks = 280. 2023, Freshwater Ducks = 160. 2023, Saltwater Ducks = 120. 2023, Ducks = 280. 2024, Freshwater Ducks = 180. 2024, Saltwater Ducks = 130. 2024, Ducks = 310"
+ }
+]

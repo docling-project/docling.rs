@@ -19,3 +19,10 @@ serde_json = { version = "1", features = ["preserve_order"] }
 # Content hash for exported image asset names (assets/image_NNNNNN_<sha256>.png),
 # matching docling's referenced-image naming scheme.
 sha2 = "0.10"
+# HuggingFace tokenizer for the HybridChunker (behind the `chunking` feature);
+# same flags as docling-rag's optional embedder to keep one build of the crate.
+tokenizers = { version = "0.20", default-features = false, features = ["onig"], optional = true }
+
+[features]
+# Tokenization-aware chunking (HybridChunker's HuggingFaceTokenizer).
+chunking = ["dep:tokenizers"]

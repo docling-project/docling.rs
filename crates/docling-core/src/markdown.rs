@@ -557,7 +557,7 @@ fn is_thousands_number(t: &str) -> bool {
     i == b.len()
 }
 
-fn render_table(table: &Table, compact: bool) -> String {
+pub(crate) fn render_table(table: &Table, compact: bool) -> String {
     if table.rows.is_empty() {
         return String::new();
     }

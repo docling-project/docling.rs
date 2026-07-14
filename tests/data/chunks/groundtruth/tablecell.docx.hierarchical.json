@@ -1,0 +1,35 @@
+[
+ {
+  "text": "- Hello world1\n- Hello2",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/texts/1"
+  ],
+  "contextualize": "- Hello world1\n- Hello2"
+ },
+ {
+  "text": "Some text before",
+  "headings": null,
+  "doc_items": [
+   "#/texts/3"
+  ],
+  "contextualize": "Some text before"
+ },
+ {
+  "text": "A, Tab2 = B. A, Tab3 = C. D, Tab2 = E. D, Tab3 = F",
+  "headings": null,
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "A, Tab2 = B. A, Tab3 = C. D, Tab2 = E. D, Tab3 = F"
+ },
+ {
+  "text": "Some text after",
+  "headings": null,
+  "doc_items": [
+   "#/texts/6"
+  ],
+  "contextualize": "Some text after"
+ }
+]

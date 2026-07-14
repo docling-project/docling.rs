@@ -1,0 +1,13 @@
+[
+ {
+  "text": "This paragraph has text before the image.\nThis paragraph comes after the external image.",
+  "headings": [
+   "Test Document with External Image"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2"
+  ],
+  "contextualize": "Test Document with External Image\nThis paragraph has text before the image.\nThis paragraph comes after the external image."
+ }
+]

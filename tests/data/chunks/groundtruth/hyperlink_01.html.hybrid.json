@@ -1,0 +1,14 @@
+[
+ {
+  "text": "Please follow the link to:\n[This page](#)\n.",
+  "headings": [
+   "Something"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3"
+  ],
+  "contextualize": "Something\nPlease follow the link to:\n[This page](#)\n."
+ }
+]

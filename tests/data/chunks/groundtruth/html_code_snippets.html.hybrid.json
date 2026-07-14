@@ -1,0 +1,41 @@
+[
+ {
+  "text": "The Pythagorean theorem can be written as an equation relating the lengths of the sides\n*a*\n,\n*b*\nand the hypotenuse\n*c*\n.\nTo use Docling, simply install\n```\ndocling\n```\nfrom your package manager, e.g. pip:\n```\npip install docling\n```\nTo convert individual documents with python, use\n```\nconvert()\n```\n, for example:\n```\nfrom docling.document_converter import DocumentConverter\n\nsource = \"https://arxiv.org/pdf/2408.09869\"\nconverter = DocumentConverter()\nresult = converter.convert(source)\nprint(result.document.export_to_markdown())\n```\nThe program will output:\n```\n## Docling Technical Report[...]\n```\nPrefetch the models:",
+  "headings": [
+   "Code snippets"
+  ],
+  "doc_items": [
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7",
+   "#/texts/8",
+   "#/texts/9",
+   "#/texts/10",
+   "#/texts/11",
+   "#/texts/12",
+   "#/texts/13",
+   "#/texts/14",
+   "#/texts/15",
+   "#/texts/16",
+   "#/texts/17",
+   "#/texts/18",
+   "#/texts/19"
+  ],
+  "contextualize": "Code snippets\nThe Pythagorean theorem can be written as an equation relating the lengths of the sides\n*a*\n,\n*b*\nand the hypotenuse\n*c*\n.\nTo use Docling, simply install\n```\ndocling\n```\nfrom your package manager, e.g. pip:\n```\npip install docling\n```\nTo convert individual documents with python, use\n```\nconvert()\n```\n, for example:\n```\nfrom docling.document_converter import DocumentConverter\n\nsource = \"https://arxiv.org/pdf/2408.09869\"\nconverter = DocumentConverter()\nresult = converter.convert(source)\nprint(result.document.export_to_markdown())\n```\nThe program will output:\n```\n## Docling Technical Report[...]\n```\nPrefetch the models:"
+ },
+ {
+  "text": "- Use the `docling-tools models download` utility:\n- Alternatively, models can be programmatically downloaded using `docling.utils.model_downloader.download_models()` .\n- Also, you can use download-hf-repo parameter to download arbitrary models from HuggingFace by specifying repo id: `$ docling-tools models download-hf-repo ds4sd/SmolDocling-256M-preview Downloading ds4sd/SmolDocling-256M-preview model from HuggingFace...`",
+  "headings": [
+   "Code snippets"
+  ],
+  "doc_items": [
+   "#/texts/20",
+   "#/texts/24",
+   "#/texts/28"
+  ],
+  "contextualize": "Code snippets\n- Use the `docling-tools models download` utility:\n- Alternatively, models can be programmatically downloaded using `docling.utils.model_downloader.download_models()` .\n- Also, you can use download-hf-repo parameter to download arbitrary models from HuggingFace by specifying repo id: `$ docling-tools models download-hf-repo ds4sd/SmolDocling-256M-preview Downloading ds4sd/SmolDocling-256M-preview model from HuggingFace...`"
+ }
+]

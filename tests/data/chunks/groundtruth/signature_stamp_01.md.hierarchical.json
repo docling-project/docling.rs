@@ -1,0 +1,42 @@
+[
+ {
+  "text": "Some text here",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0"
+  ],
+  "contextualize": "Some text here"
+ },
+ {
+  "text": "Signature",
+  "headings": null,
+  "doc_items": [
+   "#/pictures/0"
+  ],
+  "contextualize": "Signature"
+ },
+ {
+  "text": "More text here",
+  "headings": null,
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "More text here"
+ },
+ {
+  "text": "Stamp",
+  "headings": null,
+  "doc_items": [
+   "#/pictures/1"
+  ],
+  "contextualize": "Stamp"
+ },
+ {
+  "text": "Final text here",
+  "headings": null,
+  "doc_items": [
+   "#/texts/4"
+  ],
+  "contextualize": "Final text here"
+ }
+]

@@ -1,0 +1,59 @@
+[
+ {
+  "text": "Summer activities",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0"
+  ],
+  "contextualize": "Summer activities"
+ },
+ {
+  "text": "Duck\nFigure 1: This is a cute duckling",
+  "headings": [
+   "Swimming in the lake"
+  ],
+  "doc_items": [
+   "#/texts/2",
+   "#/texts/3"
+  ],
+  "contextualize": "Swimming in the lake\nDuck\nFigure 1: This is a cute duckling"
+ },
+ {
+  "text": "To get started with swimming, first lay down in a water and try not to drown:\n- You can relax and look around\n- Paddle about\n- Enjoy summer warmth\nAlso, don’t forget:\n1. Wear sunglasses\n2. Don’t forget to drink water\n3. Use sun cream\nHmm, what else…",
+  "headings": [
+   "Swimming in the lake",
+   "Let’s swim!"
+  ],
+  "doc_items": [
+   "#/texts/5",
+   "#/texts/6",
+   "#/texts/7",
+   "#/texts/8",
+   "#/texts/9",
+   "#/texts/10",
+   "#/texts/11",
+   "#/texts/12",
+   "#/texts/13"
+  ],
+  "contextualize": "Swimming in the lake\nLet’s swim!\nTo get started with swimming, first lay down in a water and try not to drown:\n- You can relax and look around\n- Paddle about\n- Enjoy summer warmth\nAlso, don’t forget:\n1. Wear sunglasses\n2. Don’t forget to drink water\n3. Use sun cream\nHmm, what else…"
+ },
+ {
+  "text": "After we had a good day of swimming in the lake, it’s important to eat something nice\nI like to eat leaves\nHere are some interesting things a respectful duck could eat:\nLeaves, Food = Ash, Elm, Maple. Leaves, Calories per portion = 50. Berries, Food = Blueberry, Strawberry, Cranberry. Berries, Calories per portion = 150. Grain, Food = Corn, Buckwheat, Barley. Grain, Calories per portion = 200\nAnd let’s add another list in the end:\n1. Leaves\n2. Berries\n3. Grain",
+  "headings": [
+   "Swimming in the lake",
+   "Let’s swim!",
+   "Let’s eat"
+  ],
+  "doc_items": [
+   "#/texts/15",
+   "#/texts/16",
+   "#/texts/17",
+   "#/tables/0",
+   "#/texts/19",
+   "#/texts/20",
+   "#/texts/21",
+   "#/texts/22"
+  ],
+  "contextualize": "Swimming in the lake\nLet’s swim!\nLet’s eat\nAfter we had a good day of swimming in the lake, it’s important to eat something nice\nI like to eat leaves\nHere are some interesting things a respectful duck could eat:\nLeaves, Food = Ash, Elm, Maple. Leaves, Calories per portion = 50. Berries, Food = Blueberry, Strawberry, Cranberry. Berries, Calories per portion = 150. Grain, Food = Corn, Buckwheat, Barley. Grain, Calories per portion = 200\nAnd let’s add another list in the end:\n1. Leaves\n2. Berries\n3. Grain"
+ }
+]

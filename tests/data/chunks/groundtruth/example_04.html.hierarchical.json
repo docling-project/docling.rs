@@ -1,0 +1,12 @@
+[
+ {
+  "text": "Row 1 & 2, Col 1 (rowspan), Header 2 & 3 (colspan) = Row 1, Col 2. Row 1 & 2, Col 1 (rowspan), Header 2 & 3 (colspan) = Row 1, Col 3. Row 1 & 2, Col 1 (rowspan), Header 2 & 3 (colspan) = Row 2, Col 2 & 3 (colspan). Row 1 & 2, Col 1 (rowspan), Header 2 & 3 (colspan) = Row 2, Col 2 & 3 (colspan). Row 3, Col 1, Header 2 & 3 (colspan) = Row 3, Col 2. Row 3, Col 1, Header 2 & 3 (colspan) = Row 3, Col 3",
+  "headings": [
+   "Data Table with Rowspan and Colspan"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Data Table with Rowspan and Colspan\nRow 1 & 2, Col 1 (rowspan), Header 2 & 3 (colspan) = Row 1, Col 2. Row 1 & 2, Col 1 (rowspan), Header 2 & 3 (colspan) = Row 1, Col 3. Row 1 & 2, Col 1 (rowspan), Header 2 & 3 (colspan) = Row 2, Col 2 & 3 (colspan). Row 1 & 2, Col 1 (rowspan), Header 2 & 3 (colspan) = Row 2, Col 2 & 3 (colspan). Row 3, Col 1, Header 2 & 3 (colspan) = Row 3, Col 2. Row 3, Col 1, Header 2 & 3 (colspan) = Row 3, Col 3"
+ }
+]

@@ -1,0 +1,284 @@
+[
+ {
+  "text": "This is a word document and this is an inline equation:  $A= \\pi r^{2}$ .",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/texts/1",
+   "#/texts/2"
+  ],
+  "contextualize": "This is a word document and this is an inline equation:  $A= \\pi r^{2}$ ."
+ },
+ {
+  "text": "- First item with inline equation:  $A= \\pi r^{2}$ is the area formula.\n- Second item with equations:  $E=mc^{2}$  and  $F=ma$ are physics formulas.\n- The formula  $a^{2}+b^{2}=c^{2}$ is the Pythagorean theorem.",
+  "headings": null,
+  "doc_items": [
+   "#/texts/3",
+   "#/texts/7",
+   "#/texts/13"
+  ],
+  "contextualize": "- First item with inline equation:  $A= \\pi r^{2}$ is the area formula.\n- Second item with equations:  $E=mc^{2}$  and  $F=ma$ are physics formulas.\n- The formula  $a^{2}+b^{2}=c^{2}$ is the Pythagorean theorem."
+ },
+ {
+  "text": "If instead, I want an equation by line, I can do this:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/17"
+  ],
+  "contextualize": "If instead, I want an equation by line, I can do this:"
+ },
+ {
+  "text": "$$a^{2}+b^{2}=c^{2} \\times 23$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/19"
+  ],
+  "contextualize": "$$a^{2}+b^{2}=c^{2} \\times 23$$"
+ },
+ {
+  "text": "And that is an equation by itself. Cheers!",
+  "headings": null,
+  "doc_items": [
+   "#/texts/20"
+  ],
+  "contextualize": "And that is an equation by itself. Cheers!"
+ },
+ {
+  "text": "This is another equation:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/22"
+  ],
+  "contextualize": "This is another equation:"
+ },
+ {
+  "text": "$$f\\left(x\\right)=a_{0}+\\sum_{n=1}^{ \\infty }\\left(a_{n}\\cos(\\frac{n \\pi x}{L})+b_{n}\\sin(\\frac{n \\pi x}{L})\\right)$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/23"
+  ],
+  "contextualize": "$$f\\left(x\\right)=a_{0}+\\sum_{n=1}^{ \\infty }\\left(a_{n}\\cos(\\frac{n \\pi x}{L})+b_{n}\\sin(\\frac{n \\pi x}{L})\\right)$$"
+ },
+ {
+  "text": "This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text.",
+  "headings": null,
+  "doc_items": [
+   "#/texts/25"
+  ],
+  "contextualize": "This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text."
+ },
+ {
+  "text": "This is a word document and this is an inline equation:  $A= \\pi r^{2}$ . If instead, I want an equation by line, I can do this:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/28",
+   "#/texts/29",
+   "#/texts/30"
+  ],
+  "contextualize": "This is a word document and this is an inline equation:  $A= \\pi r^{2}$ . If instead, I want an equation by line, I can do this:"
+ },
+ {
+  "text": "$$\\left(x+a\\right)^{n}=\\sum_{k=0}^{n}\\left(\\genfrac{}{}{0pt}{}{n}{k}\\right)x^{k}a^{n-k}$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/32"
+  ],
+  "contextualize": "$$\\left(x+a\\right)^{n}=\\sum_{k=0}^{n}\\left(\\genfrac{}{}{0pt}{}{n}{k}\\right)x^{k}a^{n-k}$$"
+ },
+ {
+  "text": "And that is an equation by itself. Cheers!",
+  "headings": null,
+  "doc_items": [
+   "#/texts/34"
+  ],
+  "contextualize": "And that is an equation by itself. Cheers!"
+ },
+ {
+  "text": "This is another equation:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/36"
+  ],
+  "contextualize": "This is another equation:"
+ },
+ {
+  "text": "$$\\left(1+x\\right)^{n}=1+\\frac{nx}{1!}+\\frac{n\\left(n-1\\right)x^{2}}{2!}+ \\text{ \\textellipsis }$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/38"
+  ],
+  "contextualize": "$$\\left(1+x\\right)^{n}=1+\\frac{nx}{1!}+\\frac{n\\left(n-1\\right)x^{2}}{2!}+ \\text{ \\textellipsis }$$"
+ },
+ {
+  "text": "This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text.",
+  "headings": null,
+  "doc_items": [
+   "#/texts/40"
+  ],
+  "contextualize": "This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text."
+ },
+ {
+  "text": "This is a word document and these are inline equations:  $N_{s}^{H}$ / $N_{s}^{P}$ ​. If instead, I want an equation by line, I can do this:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/43",
+   "#/texts/44",
+   "#/texts/45",
+   "#/texts/46",
+   "#/texts/47"
+  ],
+  "contextualize": "This is a word document and these are inline equations:  $N_{s}^{H}$ / $N_{s}^{P}$ ​. If instead, I want an equation by line, I can do this:"
+ },
+ {
+  "text": "$$e^{x}=1+\\frac{x}{1!}+\\frac{x^{2}}{2!}+\\frac{x^{3}}{3!}+ \\text{ \\textellipsis } , - \\infty  < x <  \\infty$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/49"
+  ],
+  "contextualize": "$$e^{x}=1+\\frac{x}{1!}+\\frac{x^{2}}{2!}+\\frac{x^{3}}{3!}+ \\text{ \\textellipsis } , - \\infty  < x <  \\infty$$"
+ },
+ {
+  "text": "And that is an equation by itself. Cheers!",
+  "headings": null,
+  "doc_items": [
+   "#/texts/51"
+  ],
+  "contextualize": "And that is an equation by itself. Cheers!"
+ },
+ {
+  "text": "Large operators and integrals are represented with n-ary objects in OMML XML:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/53"
+  ],
+  "contextualize": "Large operators and integrals are represented with n-ary objects in OMML XML:"
+ },
+ {
+  "text": "$$\\sum_{0}^{2}x$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/55"
+  ],
+  "contextualize": "$$\\sum_{0}^{2}x$$"
+ },
+ {
+  "text": "$$\\bigcup_{n=1}^{m}\\left(X_{n} \\cap Y_{n}\\right)$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/56"
+  ],
+  "contextualize": "$$\\bigcup_{n=1}^{m}\\left(X_{n} \\cap Y_{n}\\right)$$"
+ },
+ {
+  "text": "$$\\prod_{k=1}^{n}A_{k}$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/57"
+  ],
+  "contextualize": "$$\\prod_{k=1}^{n}A_{k}$$"
+ },
+ {
+  "text": "$$\\bigwedge_{}^{}x$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/58"
+  ],
+  "contextualize": "$$\\bigwedge_{}^{}x$$"
+ },
+ {
+  "text": "$$\\int_{}^{}(2x+1)dx$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/59"
+  ],
+  "contextualize": "$$\\int_{}^{}(2x+1)dx$$"
+ },
+ {
+  "text": "$$\\iint_{0}^{1}xdx$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/60"
+  ],
+  "contextualize": "$$\\iint_{0}^{1}xdx$$"
+ },
+ {
+  "text": "$$\\iiint_{}^{}ydy$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/61"
+  ],
+  "contextualize": "$$\\iiint_{}^{}ydy$$"
+ },
+ {
+  "text": "$$\\oint_{}^{}\\frac{dy}{dx}$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/62"
+  ],
+  "contextualize": "$$\\oint_{}^{}\\frac{dy}{dx}$$"
+ },
+ {
+  "text": "$$\\oiint_{0}^{2 \\pi }idt$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/63"
+  ],
+  "contextualize": "$$\\oiint_{0}^{2 \\pi }idt$$"
+ },
+ {
+  "text": "$$\\oiiint_{C}^{}\\frac{1}{z}dz$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/64"
+  ],
+  "contextualize": "$$\\oiiint_{C}^{}\\frac{1}{z}dz$$"
+ },
+ {
+  "text": "Operators used with limits:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/67"
+  ],
+  "contextualize": "Operators used with limits:"
+ },
+ {
+  "text": "$$\\operatorname{argmax}_{ \\epsilon}f(x),   \\lim_{n}{\\left(1+\\frac{1}{n}\\right)}^{n} ,  \\max_{0 \\leq x \\leq 1}xe^{-x^{2}},  unsupported_{n}{\\left(1+\\frac{1}{n}\\right)}^{n}$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/69"
+  ],
+  "contextualize": "$$\\operatorname{argmax}_{ \\epsilon}f(x),   \\lim_{n}{\\left(1+\\frac{1}{n}\\right)}^{n} ,  \\max_{0 \\leq x \\leq 1}xe^{-x^{2}},  unsupported_{n}{\\left(1+\\frac{1}{n}\\right)}^{n}$$"
+ },
+ {
+  "text": "Equations with the OMML group character object:",
+  "headings": null,
+  "doc_items": [
+   "#/texts/72"
+  ],
+  "contextualize": "Equations with the OMML group character object:"
+ },
+ {
+  "text": "$$P_{ x}=\\underbrace{S \\cdot T \\cdot G \\cdot (x+y+z)}_{group\\ with\\ underbraces}+e^{x}$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/74"
+  ],
+  "contextualize": "$$P_{ x}=\\underbrace{S \\cdot T \\cdot G \\cdot (x+y+z)}_{group\\ with\\ underbraces}+e^{x}$$"
+ },
+ {
+  "text": "$$Q_{ y}=\\overset{group\\ with\\ overbraces}{\\overbrace{G \\cdot T \\cdot S \\cdot (x+y+z)}}+e^{y}$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/75"
+  ],
+  "contextualize": "$$Q_{ y}=\\overset{group\\ with\\ overbraces}{\\overbrace{G \\cdot T \\cdot S \\cdot (x+y+z)}}+e^{y}$$"
+ },
+ {
+  "text": "$$s\\left\\{max\\right\\}= A \\times B$$",
+  "headings": null,
+  "doc_items": [
+   "#/texts/80"
+  ],
+  "contextualize": "$$s\\left\\{max\\right\\}= A \\times B$$"
+ }
+]

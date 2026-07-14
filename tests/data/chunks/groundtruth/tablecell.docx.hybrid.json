@@ -1,0 +1,14 @@
+[
+ {
+  "text": "- Hello world1\n- Hello2\nSome text before\nA, Tab2 = B. A, Tab3 = C. D, Tab2 = E. D, Tab3 = F\nSome text after",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/texts/1",
+   "#/texts/3",
+   "#/tables/0",
+   "#/texts/6"
+  ],
+  "contextualize": "- Hello world1\n- Hello2\nSome text before\nA, Tab2 = B. A, Tab3 = C. D, Tab2 = E. D, Tab3 = F\nSome text after"
+ }
+]

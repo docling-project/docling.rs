@@ -1,0 +1,100 @@
+[
+ {
+  "text": "This is a list:\n\n- A First\n- A Second\n- A Third, Column B = This is a formatted list:\n\n- B **First**\n- B *Second*\n- B Third. First Paragraph\n\nSecond Paragraph\n\nThird paragraph before a numbered list\n\n1. Number one\n2. Number two\n3. Number three, Column B = This is simple text with\n\n**bold**\n\n,\n\n~~strikethrough~~\n\nand\n\n*italic*\n\nformatting with x\n\n2\n\nand H\n\n2\n\nO. This is a paragraph\n\nThis is another paragraph, Column B = ",
+  "headings": [
+   "Table with rich cells"
+  ],
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Table with rich cells\nThis is a list:\n\n- A First\n- A Second\n- A Third, Column B = This is a formatted list:\n\n- B **First**\n- B *Second*\n- B Third. First Paragraph\n\nSecond Paragraph\n\nThird paragraph before a numbered list\n\n1. Number one\n2. Number two\n3. Number three, Column B = This is simple text with\n\n**bold**\n\n,\n\n~~strikethrough~~\n\nand\n\n*italic*\n\nformatting with x\n\n2\n\nand H\n\n2\n\nO. This is a paragraph\n\nThis is another paragraph, Column B = "
+ },
+ {
+  "text": "Before table",
+  "headings": [
+   "Table with nested table"
+  ],
+  "doc_items": [
+   "#/texts/35"
+  ],
+  "contextualize": "Table with nested table\nBefore table"
+ },
+ {
+  "text": "Simple cell upper left, Column B = Simple cell with\n\n**bold**\n\nand\n\n*italic*\n\ntext. *Cell 1*, B = Cell 2. *Cell 1*, C = **Cell 3**, Column B = Rich cell\nA nested table\n\n~~Cell 1~~, B = ***Cell 2***. ~~Cell 1~~, C = Cell 3",
+  "headings": [
+   "Table with nested table"
+  ],
+  "doc_items": [
+   "#/tables/1"
+  ],
+  "contextualize": "Table with nested table\nSimple cell upper left, Column B = Simple cell with\n\n**bold**\n\nand\n\n*italic*\n\ntext. *Cell 1*, B = Cell 2. *Cell 1*, C = **Cell 3**, Column B = Rich cell\nA nested table\n\n~~Cell 1~~, B = ***Cell 2***. ~~Cell 1~~, C = Cell 3"
+ },
+ {
+  "text": "After table with **bold** , underline , ~~strikethrough~~ , and *italic* formatting",
+  "headings": [
+   "Table with nested table"
+  ],
+  "doc_items": [
+   "#/texts/50",
+   "#/texts/51",
+   "#/texts/52",
+   "#/texts/53",
+   "#/texts/54",
+   "#/texts/55",
+   "#/texts/56",
+   "#/texts/57",
+   "#/texts/58"
+  ],
+  "contextualize": "Table with nested table\nAfter table with **bold** , underline , ~~strikethrough~~ , and *italic* formatting"
+ },
+ {
+  "text": "Only text, Column B = . Text and picture, Column B = ",
+  "headings": [
+   "Table with pictures"
+  ],
+  "doc_items": [
+   "#/tables/4"
+  ],
+  "contextualize": "Table with pictures\nOnly text, Column B = . Text and picture, Column B = "
+ },
+ {
+  "text": "- Cell 2 item 1\n- Cell 2 item 2",
+  "headings": [
+   "Lists with same numId in different cells"
+  ],
+  "doc_items": [
+   "#/tables/5"
+  ],
+  "contextualize": "Lists with same numId in different cells\n- Cell 2 item 1\n- Cell 2 item 2"
+ },
+ {
+  "text": "- Cell 2 item 1\n- Cell 2 item 2",
+  "headings": [
+   "Lists with different numIds in different cells"
+  ],
+  "doc_items": [
+   "#/tables/6"
+  ],
+  "contextualize": "Lists with different numIds in different cells\n- Cell 2 item 1\n- Cell 2 item 2"
+ },
+ {
+  "text": "- R2C1 item 1\n- R2C1 item 2, - R1C2 item 1\n- R1C2 item 2 = - R2C2 item 1\n- R2C2 item 2",
+  "headings": [
+   "Multiple columns with lists"
+  ],
+  "doc_items": [
+   "#/tables/7"
+  ],
+  "contextualize": "Multiple columns with lists\n- R2C1 item 1\n- R2C1 item 2, - R1C2 item 1\n- R1C2 item 2 = - R2C2 item 1\n- R2C2 item 2"
+ },
+ {
+  "text": "Regular text in second cell",
+  "headings": [
+   "Mixed content - list and regular text in different cells"
+  ],
+  "doc_items": [
+   "#/tables/8"
+  ],
+  "contextualize": "Mixed content - list and regular text in different cells\nRegular text in second cell"
+ }
+]

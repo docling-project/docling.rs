@@ -178,6 +178,9 @@ fn is_block(name: &str) -> bool {
             | "details"
             | "hr"
             | "dl"
+            | "button"
+            | "input"
+            | "label"
             | "body"
             | "html"
     )
@@ -349,6 +352,50 @@ fn handle_block(
             image: figure_img_src(elem).and_then(|s| images.resolve(&s)),
         }),
         "hr" => {}
+        // An `<input type="checkbox|radio">` is a checkbox item; its text comes
+        // from the `<label for=…>` (or wrapping label), falling back to the
+        // `aria-label` — docling's `_emit_input`. Other inputs emit their
+        // value/placeholder/name as a text item; hidden inputs nothing.
+        "input" => {
+            let ty = elem.value().attr("type").unwrap_or("").to_ascii_lowercase();
+            if ty == "hidden" {
+                return;
+            }
+            if ty == "checkbox" || ty == "radio" {
+                let text = checkbox_label_text(elem);
+                if !text.is_empty() {
+                    nodes.push(Node::CheckboxItem {
+                        checked: elem.value().attr("checked").is_some(),
+                        text,
+                    });
+                }
+            } else {
+                let text = ["value", "placeholder", "name"]
+                    .iter()
+                    .find_map(|a| {
+                        elem.value()
+                            .attr(a)
+                            .map(str::trim)
+                            .filter(|t| !t.is_empty())
+                    })
+                    .unwrap_or("");
+                if !text.is_empty() {
+                    nodes.push(Node::Paragraph {
+                        text: super::markdown::escape_html(&super::markdown::escape_underscores(
+                            &normalize_ws(text),
+                        )),
+                    });
+                }
+            }
+        }
+        // A `<label>` bound to a checkbox input was consumed as that checkbox's
+        // text; any other label renders as ordinary inline content.
+        "label" => {
+            if !label_feeds_checkbox(elem) {
+                let (text, runs) = render_inline(elem, base);
+                push_inline_paragraph(nodes, text, runs);
+            }
+        }
         // A `form_region`-classed container holding `keyN`-convention fields is a
         // docling key-value region; emit it as one instead of recursing (so the
         // field divs aren't also flattened into paragraphs).
@@ -840,7 +887,41 @@ fn collect_element(elem: ElementRef, fmt: Fmt, hyperlink: Option<&str>, runs: &m
         }
         "a" => {
             let href = e.attr("href").map(normalize_url);
-            collect_runs(elem, fmt, href.as_deref().or(hyperlink), runs);
+            let link = href.as_deref().or(hyperlink);
+            // An anchor whose content is fragmented across elements (spans,
+            // divs — e.g. a TOC entry `<a><span>1</span><span>Etymology</span></a>`
+            // or a citation `<span>[</span>1<span>]</span>`) folds into a single
+            // hyperlink run, its fragments joined with single spaces — docling
+            // emits one text item per anchor, not one per fragment.
+            let mut inner = RunBuf::default();
+            collect_runs(elem, fmt, None, &mut inner);
+            if inner.rich.len() > 1 {
+                let joined = inner
+                    .rich
+                    .iter()
+                    .map(|r| r.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let uniform = inner.rich.windows(2).all(|w| same_style(&w[0], &w[1]));
+                let run_fmt = if uniform {
+                    let r = &inner.rich[0];
+                    Fmt {
+                        bold: r.bold,
+                        italic: r.italic,
+                        strike: r.strike,
+                        code: r.code,
+                        underline: r.underline,
+                        script: r.script,
+                        ..fmt
+                    }
+                } else {
+                    fmt
+                };
+                runs.md.push(serialize_run(&joined, run_fmt, link));
+                runs.push_rich(run_fmt.to_inline_run(&joined));
+            } else {
+                collect_runs(elem, fmt, link, runs);
+            }
         }
         // An inline image (inside text / a `<span>`) produces no output: docling
         // never emits inline image markers — only block-level, `<a>`-wrapped, and
@@ -1035,6 +1116,10 @@ fn parse_table_cells(
     }
 
     let mut grid: Vec<Vec<Option<String>>> = vec![vec![None; num_cols]; num_rows];
+    // Per-cell `<th>` flags, span-replicated alongside the text grid — docling's
+    // cell-level `column_header` (drives `<ched/>` and the chunker's dataframe
+    // header detection).
+    let mut th_grid: Vec<Vec<bool>> = vec![vec![false; num_cols]; num_rows];
     let mut row_idx: isize = -1;
     let mut start_row_span: usize = 0;
     for tr in &trs {
@@ -1059,12 +1144,14 @@ fn parse_table_cells(
                 col += 1;
             }
             let text = render_cell(cell);
+            let is_th = cell.value().name() == "th";
             for r in start_row_span..start_row_span + rowspan {
                 let gr = (row_idx + r as isize).max(0) as usize;
                 for dc in 0..colspan {
                     let gc = col + dc;
                     if gr < num_rows && gc < num_cols {
                         grid[gr][gc] = Some(text.clone());
+                        th_grid[gr][gc] = is_th;
                     }
                 }
             }
@@ -1079,7 +1166,10 @@ fn parse_table_cells(
     (!rows.is_empty()).then_some(Table {
         rows,
         location: None,
-        structure: None,
+        structure: Some(docling_core::TableStructure {
+            col_header: th_grid,
+            ..Default::default()
+        }),
         cell_blocks: None,
     })
 }
@@ -1306,6 +1396,84 @@ fn normalize_ws(s: &str) -> String {
         }
     }
     out
+}
+
+/// The text for a checkbox `<input>`: the joined text of every `<label>` bound
+/// to it (`for=` its id, or a wrapping label), else its `aria-label`.
+fn checkbox_label_text(input: ElementRef) -> String {
+    let mut texts: Vec<String> = Vec::new();
+    if let Some(id) = input.value().attr("id").filter(|i| !i.is_empty()) {
+        let root = root_of(input);
+        for label in root.select(cached_selector!("label")) {
+            if label.value().attr("for") == Some(id) {
+                let t = normalize_ws(&label.text().collect::<String>());
+                if !t.is_empty() {
+                    texts.push(t);
+                }
+            }
+        }
+    }
+    if texts.is_empty() {
+        // input wrapped in a <label>…</label>
+        let mut cur = input.parent();
+        while let Some(node) = cur {
+            if let Some(el) = ElementRef::wrap(node) {
+                if el.value().name() == "label" {
+                    let t = normalize_ws(&el.text().collect::<String>());
+                    if !t.is_empty() {
+                        texts.push(t);
+                    }
+                    break;
+                }
+            }
+            cur = node.parent();
+        }
+    }
+    if texts.is_empty() {
+        if let Some(aria) = input.value().attr("aria-label") {
+            let t = normalize_ws(aria);
+            if !t.is_empty() {
+                texts.push(t);
+            }
+        }
+    }
+    texts.join(" ")
+}
+
+/// Whether this `<label>`'s text is consumed by a checkbox/radio input (bound
+/// via `for=` or wrapping it), so it should not render again.
+fn label_feeds_checkbox(label: ElementRef) -> bool {
+    let is_checkbox = |el: ElementRef| {
+        el.value().name() == "input"
+            && matches!(
+                el.value()
+                    .attr("type")
+                    .unwrap_or("")
+                    .to_ascii_lowercase()
+                    .as_str(),
+                "checkbox" | "radio"
+            )
+    };
+    if let Some(target) = label.value().attr("for").filter(|f| !f.is_empty()) {
+        let root = root_of(label);
+        for input in root.select(cached_selector!("input")) {
+            if input.value().attr("id") == Some(target) {
+                return is_checkbox(input);
+            }
+        }
+        return false;
+    }
+    // A wrapping label: consumed if it contains a checkbox input.
+    label.select(cached_selector!("input")).any(is_checkbox)
+}
+
+/// The document root element containing `el` (for whole-document selects).
+fn root_of(el: ElementRef) -> ElementRef {
+    let mut cur = el;
+    while let Some(parent) = cur.parent().and_then(ElementRef::wrap) {
+        cur = parent;
+    }
+    cur
 }
 
 #[cfg(test)]
