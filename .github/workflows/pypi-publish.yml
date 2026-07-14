@@ -11,10 +11,11 @@
 # repair itself) and uploaded with `pypa/gh-action-pypi-publish`.
 #
 # Trigger: manual only (workflow_dispatch), mirroring npm-publish.yml. By default
-# it builds the checked-out ref at the version already declared in
-# crates/docling-py/pyproject.toml; pass `version` (or a release `tag`) to
-# override. Run it from the Actions tab (or `gh workflow run pypi-publish.yml`,
-# optionally `-f version=0.16.0`).
+# it builds the checked-out ref at the current workspace version (the root
+# Cargo.toml — same source npm-publish.yml uses), so the PyPI version tracks the
+# crates automatically; pass `version` (or a release `tag`) to override. Run it
+# from the Actions tab (or `gh workflow run pypi-publish.yml`, optionally
+# `-f version=0.16.0`).
 #
 # No secrets: publishing uses PyPI Trusted Publishing (OIDC), like
 # docling-core's pypi.yml. This requires a one-time setup on PyPI — add a trusted
@@ -37,7 +38,7 @@ on:
         required: false
         default: ""
       version:
-        description: "Override the PyPI version (e.g. 0.16.0). Blank = tag, or the version in pyproject.toml."
+        description: "Override the PyPI version (e.g. 0.16.0). Blank = tag, or workspace version from the root Cargo.toml."
         required: false
         default: ""
 

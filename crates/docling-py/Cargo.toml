@@ -10,7 +10,10 @@
 # Build/test locally per this crate's README.md.
 [package]
 name = "docling-py"
-version = "0.15.1"
+# Fallback for local builds only — pyproject.toml's [project].version is what
+# maturin ships, and CI (pypi-publish.yml) patches that from the workspace
+# version at publish time.
+version = "0.34.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/docling-project/docling.rs"

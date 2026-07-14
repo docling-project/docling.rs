@@ -8,7 +8,9 @@ build-backend = "maturin"
 
 [project]
 name = "docling-rs"
-version = "0.15.1"
+# Fallback for local maturin builds — pypi-publish.yml overwrites this with the
+# workspace version (root Cargo.toml) on every release.
+version = "0.34.0"
 description = "Rust port of docling (docling.rs): convert PDF/DOCX/HTML/... to Markdown or docling JSON. Python bindings."
 readme = "README.md"
 license = { text = "MIT" }
