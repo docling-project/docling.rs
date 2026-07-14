@@ -38,7 +38,7 @@ OpenAI's timestamp rules — docling's ASR defaults), and each segment becomes a
 
 Output is checked against upstream Python docling — declarative formats
 byte-for-byte against live docling, the ML pipeline against a deterministic
-snapshot baseline. See [`COMPARING.md`](./COMPARING.md) and
+snapshot baseline. See [`MIGRATION.md`](./MIGRATION.md) and
 `scripts/conformance/conformance.sh`.
 
 ## RAG subsystem
@@ -119,6 +119,12 @@ Conformance against docling's own `.dclx` output is tracked by
 `scripts/conformance/gen_dclx.py` (generates the groundtruth) and
 `scripts/conformance/dclx_conformance.sh` (line-diffs the extracted
 `document.xml`).
+
+DocLang also reads back **in**: `.dclg`/`.dclg.xml` (bare DocLang XML) and
+`.dclx` archives are input formats like any other —
+`convert(SourceDocument::from_file("doc.dclx")?)` — scored byte-for-byte
+against live docling reading the same archives (15/15 exact,
+`tests/data/doclang`).
 
 ### Image extraction
 
@@ -359,7 +365,7 @@ corpus) and dynamic INT8 of the TableFormer decoder. On CPUs with AVX-512
 VNNI they make layout inference — the dominant PDF cost — **~2.4× faster**
 (~1.4–1.8× end-to-end) at conformance validated as unchanged against the
 corpus groundtruth; the TableFormer output is byte-identical. See
-[`PDF_PERFORMANCE.md`](./PDF_PERFORMANCE.md) for the measurements.
+[`PDF_CONFORMANCE.md`](./PDF_CONFORMANCE.md) for the measurements.
 
 **The pipeline uses them automatically** whenever they sit next to the fp32
 files at the default paths (`download_dependencies.sh` fetches them by
@@ -494,7 +500,7 @@ scripts/test/performance.sh tests/data/html/sources/wiki_duck.html 10
 
 The comparison scripts install the latest published Python `docling` from PyPI
 into `.venv-compare` automatically on first run. See
-[`COMPARING.md`](./COMPARING.md).
+[`MIGRATION.md`](./MIGRATION.md) (§9, “Comparing against docling”).
 
 ## Install locally / in CI (one-liner)
 
@@ -550,7 +556,7 @@ reports peak RSS, CPU utilization, and conversion time. Ratios below are
 docling ÷ docling.rs — bigger means Rust wins by more. The PDF row is the
 **fp32** stack; the optional [INT8 models](#int8-models-faster-pdf-conversion-on-cpu)
 roughly double layout-inference speed on top of it (measured 1.83× end-to-end
-on a 1913-page document — see [`PDF_PERFORMANCE.md`](./PDF_PERFORMANCE.md)).
+on a 1913-page document — see [`PDF_CONFORMANCE.md`](./PDF_CONFORMANCE.md)).
 
 | File | Size | Peak-memory ratio | CPU ratio | Warm-conversion speedup |
 |---|---:|---:|---:|---:|

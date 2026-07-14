@@ -246,3 +246,280 @@ model-level (or by-design) residual each issue closed with:
    `MIGRATION.md` §4. **Resolved as by-design:** our single space is the correct
    rendering, so #63 is closed without matching docling's spurious extra space —
    forcing a byte-match would degrade output and risk the RTL geometry.
+
+---
+
+## Performance — review & profiling notes
+
+Post-migration review of the PDF processing path: where the time actually goes,
+what was measured, which optimizations are validated, and a ranked backlog of
+further ideas that do **not** trade away output quality.
+
+### Results at a glance
+
+Everything below was landed across two optimization rounds (PR #26, #27),
+each change gated on corpus conformance — groundtruth distance unchanged or
+better, byte-identical where the change is structural:
+
+| Optimization | Measured effect |
+|---|---|
+| INT8 layout model (Conv-only static QDQ, calibrated; **default**) | layout inference **2.4×** faster; **1.83× end-to-end** on a 1913-page PDF (0.74 → 0.40 s/page) |
+| INT8 TableFormer decoder (dynamic, **default**) | ~10% faster table decode, byte-identical |
+| SIMD page downscale (`fast_image_resize`, same kernel; **default**) | `image.resize` stage **17×** faster (2607 → 152 ms / 16 pages) |
+| TableFormer KV cache fed back as `ort` values (no per-step copy) | ~9% faster table-structure decode, byte-identical |
+| One shared lazy TableFormer across the worker pool | peak RSS **3.8 → 1.9 GB** (4 workers); table-free docs 682 → 331 MB |
+| Single shared line/word contraction pass | `--no-ocr` conversion ~1.25× faster, identical output |
+| Per-document font + form caches in the text parser | 3–10% off `textparse` here; far more on CJK/form-heavy PDFs |
+| True-KV-cache decoder export (`decoder_kv.onnx`, optional) | parity at corpus table sizes; O(past)/step for very large tables |
+
+Cumulative head-to-head vs Python docling (measured on an 8-thread desktop,
+`scripts/test/performance.sh`): **4.3× faster warm conversion, 4.7× end-to-end,
+2.3–2.6× less peak memory** on the PDF ML pipeline — up from ~1.2× warm
+before this work. Model sizes: layout 172 → 68 MB, TF decoder 78 → 50 MB.
+Also fixed along the way: the `"` show-text operator dropped its word/char
+spacing operands (real spec violation), and OCR/TableFormer sub-stages are
+now visible in `DOCLING_RS_TIMING` profiles.
+
+Measured on a 4-core AVX-512(+VNNI/AMX) Xeon, release build (`lto = "thin"`),
+models from `scripts/install/download_dependencies.sh`, `DOCLING_RS_TIMING=1`.
+
+### Where the time goes
+
+Per-stage wall-clock share (summed across workers):
+
+| Stage | 1913-page text-heavy PDF¹ | 16-page table-heavy paper² | scanned page³ |
+|---|---:|---:|---:|
+| `layout.predict` (RT-DETR ONNX) | **80.3%** | 55.4% | 64.9% |
+| `image.resize` (3×→2× CatmullRom) | 14.9% | 7.9% | 18.5% |
+| `tableformer` | 2.8% | 32.1% | — |
+| `pdfium.render` | 1.8% | 3.7% | 16.5% |
+| `textparse` + assembly | ~0.2% | ~0.3% | ~0.1% |
+
+¹ `tests/data/pdf/large/dotnet-csharp-language-reference.pdf` — 936 s wall, ~0.49 s/page.
+² `tests/data/pdf/sources/2203.01017v2.pdf`.
+³ `tests/data/scanned/sources/ocr_test.pdf`.
+
+Two conclusions drive everything below:
+
+1. **ONNX inference is ~85–95% of PDF conversion time.** All the Rust-side text
+   extraction, parsing, and assembly work combined is under 1%. Rust-code
+   micro-optimizations are irrelevant to PDF throughput until the models get
+   faster; model-level and preprocessing-level changes are the only levers that
+   matter.
+2. Within TableFormer, the **autoregressive decode loop** dominates
+   (`tableformer.structure` ≈ 96% of the stage; the per-table page resample
+   `tableformer.inter_area` is ~1% of a conversion).
+
+The worker-pool topology heuristic in `lib.rs` (`workers × intra ≈ cores`,
+default 2×2 on 4 cores) was re-validated: 2×2 beat both 4×1 and 1×4 on the
+16-page document (11.6 s vs 12.2 s vs 15.6 s).
+
+### Validated win: INT8 quantization (quality-checked)
+
+`scripts/install/quantize_models.py` produces two quantized models. Point
+`DOCLING_LAYOUT_ONNX` / `DOCLING_TABLEFORMER_DECODER` at them to opt in.
+
+**These are now the default:** when the `*_int8` files sit next to the fp32
+models at the default paths, the pipeline loads them automatically.
+`DOCLING_RS_FP32=1` forces full precision, and an explicit
+`DOCLING_LAYOUT_ONNX` / `DOCLING_TABLEFORMER_DECODER` always wins (the
+conformance/groundtruth scripts pin fp32 explicitly, so snapshots stay
+deterministic).
+
+#### Layout: static QDQ INT8, **Conv ops only** (~2.4× faster layout)
+
+Calibrated on 42 real corpus pages preprocessed exactly like
+`layout.rs::predict`. Only the HGNetv2 backbone convolutions are quantized;
+the transformer decoder and detection-head MatMuls stay fp32.
+
+| Configuration | layout.predict (16-page doc) | end-to-end wall | model size |
+|---|---:|---:|---:|
+| fp32 baseline | 17.2 s | 16.6 s | 172 MB |
+| **INT8 conv-only** | **7.2 s (2.4×)** | 11.5 s (1.45×) | 68 MB |
+| + INT8 TableFormer decoder | — | **12.3 s → see note** | — |
+
+On text-dominated documents (layout = 80% of time) the end-to-end gain
+approaches ~1.7–2×; on table-heavy ones it is ~1.4×.
+
+Full-scale run — the 1913-page `dotnet-csharp-language-reference.pdf`,
+INT8 layout + INT8 TableFormer decoder vs fp32, same machine and binary,
+back-to-back:
+
+| | fp32 | INT8 | ratio |
+|---|---:|---:|---:|
+| wall clock | 1406 s (0.74 s/page) | **770 s (0.40 s/page)** | **1.83×** |
+| `layout.predict` (summed) | 2667 s | 1350 s | 1.98× |
+| output difference | — | 1199 of 52,615 Markdown lines (2.3%) | |
+
+The 2.3% of differing lines are the same near-threshold classification flips
+seen on the corpus (where groundtruth conformance measured *equal or slightly
+better* under INT8 — 812 vs 833 summed diff-lines), not a systematic
+degradation. With layout halved, `image.resize` becomes the next stage
+(24.8% of the INT8 run), which is why backlog item 4 matters more after
+quantization.
+
+**Quality gate.** Markdown diffed across the full PDF+scanned corpus (23 files):
+
+- Conv-only INT8: 12/23 byte-identical to fp32; remaining diffs are small
+  region-classification flips. Against the committed groundtruth the summed
+  diff-line distance is **812 (INT8) vs 833 (fp32)** — i.e. conformance-neutral
+  (INT8 is marginally better on 3 fixtures, marginally worse on 2).
+- Full INT8 (convs + MatMuls) was **rejected**: 3/23 exact, with clear quality
+  loss (section headers demoted to plain text, page-footer text leaking into
+  the output) — the RT-DETR head's class scores sit near the 0.3 threshold and
+  cannot tolerate activation quantization.
+- Dynamic (weights-only) INT8 of the whole layout model was also rejected: it
+  is *slower* than fp32 (3.2 s vs 2.1 s per page-with-table) because inserted
+  per-activation quantize ops outweigh the MatMul savings while the conv
+  backbone stays fp32.
+
+#### TableFormer decoder: dynamic INT8 (~10% faster tables, byte-identical)
+
+The autoregressive tag decoder is MatMul-only; weights-only dynamic INT8
+produced **byte-identical corpus output** and ~10% faster table decode
+(784 → 695 ms/table), 78 → 50 MB. Small but free.
+
+The decoder speed is *not* weight-bound — it is per-step overhead (see backlog
+item 2), which is why quantization helps so little there.
+
+### Ranked backlog of further ideas
+
+Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.
+
+1. ~~**Ship/document the INT8 layout model as the default CPU
+   configuration**~~ **Done on this branch:** the pipeline prefers the int8
+   models when present (`DOCLING_RS_FP32=1` opts out),
+   `download_dependencies.sh` fetches them by default, and
+   `publish-models.yml` builds them. Biggest single validated win: ~1.4–2×
+   end-to-end.
+2. **TableFormer decode-loop overhead** (~800 ms/table, ~60–500 steps):
+   - ~~`decode_step` copies the whole KV cache out (`ocache.to_vec()`) and back
+     in every step — O(steps²·6·512) float traffic.~~ **Done on this branch:**
+     the cache and the encoder's cross-K/V + `enc_out` stay owned `ort` values
+     fed straight back into the next run (~9% faster structure decode,
+     byte-identical output).
+   - ~~The exported graph still re-embeds the **full tag sequence** every
+     step.~~ **Built and measured:** `scripts/install/export_tableformer.py` now also
+     exports `decoder_kv.onnx`, a true-KV-cache step (one tag in, projected
+     K/V cached per layer), verified argmax-identical over a 64-step rollout
+     and byte-identical on corpus output. Measured result: **parity** with
+     the legacy graph on corpus-sized tables (~100–300 tokens) — ONNX Runtime
+     executes the legacy graph's full-prefix re-projection as one efficient
+     batched GEMM, so the O(n²) FLOPs don't become O(n²) wall time until
+     tables get much larger. The Rust loop auto-detects either graph (input
+     names) and prefers the smaller legacy file by default; point
+     `DOCLING_TABLEFORMER_DECODER` at `decoder_kv(_int8).onnx` for
+     very-large-table workloads.
+3. **Layout batching for the parallel path**: the pool currently runs batch-1
+   inference per page. RT-DETR's 640×640 input is fixed-shape, so pages can be
+   batched (e.g. batch-4) per worker with one session — better core utilization
+   and less framework overhead on wide machines. Output is per-image, so
+   quality is unaffected. (Needs a re-export with a dynamic batch dim.)
+4. **The 3×→2× page downscale** (~15% of a text-heavy conversion, ~25% after
+   INT8): ~~replace the scalar `image`-crate CatmullRom with a SIMD
+   convolution.~~ **Done on this branch:** `fast_image_resize` with the same
+   a=-0.5 Catmull-Rom kernel — `image.resize` drops **2607 → 152 ms (17×)**
+   on the 16-page doc. The SIMD fixed-point path differs from the scalar one
+   by ±1/255 on some pixels, which can flip borderline table cells, so it was
+   gated like INT8: groundtruth distance over the corpus is **817 (SIMD) vs
+   818 (scalar)** — conformance-neutral. `DOCLING_RS_SLOW_RESIZE=1` restores
+   the scalar path, and `pdf_conformance.sh`/`pdf_groundtruth.sh` pin it so
+   the committed snapshot baselines stay valid. (The render-side `as_image()`
+   copy turned out to be a non-issue: pdfium already renders with reversed
+   byte order, so it is one memcpy + one 4→3-channel pass, ~1% of total.)
+5. **textparse font caching** (marginal for PDFs — textparse is ≤1% — but
+   real for `no_ocr` mode where it becomes the bottleneck):
+   - ~~fonts are fully re-parsed for **every page** and every Form-XObject
+     invocation; decoded form content re-inflated per `Do`.~~ **Done on this
+     branch:** per-document caches keyed by object id (fonts also by resource
+     name, which feeds the docling-parse font hash). Identical output across
+     the corpus; 3–10% off the `textparse` stage on the test fixtures (their
+     ToUnicode CMaps are small — CJK/form-heavy documents benefit far more).
+   - ~~`line_cells` + `word_cells` run the identical build+contract twice per
+     page; one pass can emit both.~~ **Done on this branch**
+     (`dp_lines::line_and_word_cells`): ~1.25× faster `--no-ocr` conversion,
+     identical output.
+   - `decode_code`/`decompose_ligatures` allocate a `String` per glyph
+     (`textparse.rs:94-145`); decompose once at font-parse time and return
+     borrowed `&str`.
+   - RTL merge is O(n²) (string prepend + `Vec::remove(0)`,
+     `dp_lines.rs:87-155`); accumulate reversed and flip once per line.
+6. **OCR line batching** (`ocr.rs::recognize`): lines are recognized one at a
+   time on one thread (deliberately, for CTC determinism). Batching same-width
+   buckets keeps determinism per line and would speed scanned documents
+   several-fold; alternatively run multiple single-thread recognitions across
+   the existing worker pool.
+7. **ort session options**: checked — ONNX Runtime's C-API default is already
+   `ORT_ENABLE_ALL`, so an explicit optimization level gains nothing.
+   `with_optimized_model_path` (caching the optimized graph on disk) could
+   still shave per-worker model-load latency; only worth it if pool spin-up
+   shows up in a real deployment.
+
+### Memory
+
+Each pool worker used to own a full model set, so peak RSS scaled with the
+pool: on a 4-worker machine ~0.4 GB of TableFormer weights+arenas were
+duplicated four times even though tables appear on a minority of pages. The
+pool now shares **one lazily-loaded TableFormer** behind a mutex (loaded with
+the full intra-op budget, since tables serialise on it anyway; prediction is
+independent of which worker runs it). Measured on the 16-page table-heavy
+paper, INT8 stack:
+
+| pool | per-worker TF (before) | shared TF (after) |
+|---|---:|---:|
+| 4 workers | 3816 MB | **1880 MB** |
+| 2 workers | 2183 MB | **1517 MB** |
+| 4 workers, table-free doc | 682 MB | **331 MB** (TableFormer never loads) |
+
+`DOCLING_RS_PDF_WORKERS` remains the coarse memory knob on top.
+
+### Determinism note (pre-existing, worth knowing)
+
+Multi-threaded ONNX Runtime float reductions are **not deterministic
+run-to-run**: on `2203.01017v2.pdf` two identical invocations of the same
+binary can differ in a handful of borderline table cells (measured 0–20
+Markdown diff-lines between repeat runs, before any of this branch's
+changes). `ocr.rs` already pins its session to one thread for exactly this
+reason. Regression checks for structural changes should therefore compare
+outputs under `DOCLING_RS_PDF_THREADS=1` (single-thread inference is
+deterministic and byte-stable); multi-threaded corpus diffs of a few lines on
+table-dense fixtures are thread-scheduling jitter, not necessarily a real
+change.
+
+### Correctness notes found during review (quality, not speed)
+
+- `textparse.rs` `"` operator: the `aw ac string "` form must set word/char
+  spacing (`tw`/`tc`) from its first two operands before showing the string;
+  they are currently ignored (`Tj | ' | "` share one arm), so documents using
+  `"` get wrong inter-word advances. **Fixed in this branch.**
+- `textparse.rs::page_size` ignores a non-zero MediaBox origin; a page with
+  e.g. `[9 9 621 801]` offsets all parser cells relative to pdfium's raster.
+  Rare, but cheap to guard: subtract the box origin when emitting glyph boxes.
+- OCR recognition ran un-instrumented; `ocr.page` is now a timed stage (this
+  branch), so scanned-corpus profiles attribute it correctly.
+
+### Reproducing
+
+```bash
+scripts/install/download_dependencies.sh
+cargo build --release
+
+# stage timing
+DOCLING_RS_TIMING=1 ./target/release/docling-rs input.pdf > /dev/null
+
+# build the int8 models (used automatically once present)
+uv venv .venv-quant && uv pip install --python .venv-quant/bin/python \
+    onnx onnxruntime sympy pypdfium2 pillow numpy
+.venv-quant/bin/python scripts/install/quantize_models.py
+
+# force full precision for a run
+DOCLING_RS_FP32=1 ./target/release/docling-rs input.pdf > /dev/null
+```
+
+Integration points: `scripts/install/download_dependencies.sh` fetches the
+pre-quantized assets by default (`--no-int8` skips; published by
+`.github/workflows/publish-models.yml`, which quantizes after export);
+`scripts/install/pdf_setup.sh` quantizes locally unless `DOCLING_RS_FP32=1`;
+`scripts/test/performance.sh` benchmarks whatever the pipeline default resolves to
+(int8 when present, `DOCLING_RS_FP32=1` for fp32); `examples/Dockerfile`
+bakes both precisions and defaults to int8 (`--build-arg INT8=0` for fp32).

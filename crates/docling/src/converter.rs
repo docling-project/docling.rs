@@ -39,6 +39,10 @@ fn sniff_xml(text: &str) -> InputFormat {
         || head.contains("<pap-v1")
     {
         InputFormat::XmlUspto
+    } else if head.contains("<doclang") {
+        // A bare DocLang document saved as `.xml` (docling names them
+        // `*.dclg.xml`, whose final extension is plain `xml`).
+        InputFormat::XmlDoclang
     } else if crate::backend::xbrl::looks_like_xbrl(head) {
         InputFormat::XmlXbrl
     } else {
@@ -306,6 +310,11 @@ impl DocumentConverter {
             InputFormat::Odt | InputFormat::Ods | InputFormat::Odp => {
                 OdfBackend.convert(&source)?
             }
+            // DocLang back in: bare XML (`.dclg`/`.dclg.xml`) or the OPC
+            // archive `--to dclx` writes.
+            InputFormat::XmlDoclang | InputFormat::Dclx => {
+                crate::backend::DoclangBackend.convert(&source)?
+            }
             InputFormat::Pdf => docling_pdf::convert_with_options(
                 &source.bytes,
                 None,
@@ -332,7 +341,6 @@ impl DocumentConverter {
             // transcribed segment becomes a `[time: start-end] text` paragraph.
             InputFormat::Audio => docling_asr::convert_audio(&source.bytes, &source.name)
                 .map_err(|e| ConversionError::Parse(e.to_string()))?,
-            other => return Err(ConversionError::UnsupportedFormat(other)),
         };
         // Carry the mode so `result.document.export_to_markdown()` reflects it.
         document.strict_markdown = self.strict;
@@ -360,14 +368,16 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unimplemented_format() {
-        // XML DocLang is the one remaining format without a backend (audio now
-        // routes to the ASR pipeline).
-        let src = SourceDocument::from_bytes("doc", InputFormat::XmlDoclang, b"<doc>".to_vec());
-        let err = DocumentConverter::new().convert(src).unwrap_err();
-        assert!(matches!(
-            err,
-            ConversionError::UnsupportedFormat(InputFormat::XmlDoclang)
-        ));
+    fn doclang_xml_round_trips() {
+        // Every input format now has a backend; DocLang XML reads back in and
+        // re-exports as Markdown.
+        let xml = b"<doclang version=\"0.7\">\n  <heading>Title</heading>\n  \
+                    <text>Hello <bold>world</bold></text>\n</doclang>"
+            .to_vec();
+        let src = SourceDocument::from_bytes("doc.dclg", InputFormat::XmlDoclang, xml);
+        let result = DocumentConverter::new().convert(src).unwrap();
+        let md = result.document.export_to_markdown();
+        assert!(md.contains("# Title"), "{md}");
+        assert!(md.contains("**world**"), "{md}");
     }
 }

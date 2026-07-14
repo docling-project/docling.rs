@@ -72,6 +72,8 @@ EXT_TO_FORMAT = {
     "bmp": InputFormat.IMAGE,
     "gif": InputFormat.IMAGE,
     "webp": InputFormat.IMAGE,
+    "dclg": InputFormat.XML_DOCLANG,
+    "dclx": InputFormat.DCLX,
 }
 
 # PDF and images have no lightweight backend-only path: they go through docling's
@@ -158,6 +160,14 @@ def backend_for(fmt: InputFormat):
         from docling.backend.xml.uspto_backend import PatentUsptoDocumentBackend
 
         return PatentUsptoDocumentBackend
+    if fmt == InputFormat.XML_DOCLANG:
+        from docling.backend.xml.doclang_backend import DocLangDocumentBackend
+
+        return DocLangDocumentBackend
+    if fmt == InputFormat.DCLX:
+        from docling.backend.xml.doclang_archive_backend import DocLangArchiveBackend
+
+        return DocLangArchiveBackend
     raise SystemExit(f"no declarative backend wired for format: {fmt}")
 
 

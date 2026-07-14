@@ -1,0 +1,29 @@
+<doclang version="0.7">
+  <text>Unordered list:</text>
+  <list>
+    <ldiv/>
+    foo
+  </list>
+  <text>Empty unordered list:</text>
+  <text>Ordered list:</text>
+  <list class="ordered">
+    <ldiv/>
+    bar
+  </list>
+  <text>Empty ordered list:</text>
+  <text>Heading:</text>
+  <heading>my heading</heading>
+  <text>Empty heading:</text>
+  <text>Setext heading level 1:</text>
+  <heading>my setext heading level 1</heading>
+  <text>Setext heading level 2:</text>
+  <heading level="2">my setext heading level 2</heading>
+  <text>Indented code block:</text>
+  <code><![CDATA[print("Hi!")]]></code>
+  <text>Empty indented code block:</text>
+  <text>Fenced code block:</text>
+  <code>
+    <label value="Python"/>
+<![CDATA[print("Hello world!")]]>  </code>
+  <text>Empty fenced code block:</text>
+</doclang>

@@ -43,7 +43,7 @@ RUST_BIN="$(build_rust_release)"
 # using absolute paths, so it runs the full pipeline no matter the caller's CWD.
 # Harmless for non-PDF inputs (the binary only reads these for PDFs/images).
 # Mirrors the pipeline's own default: the INT8 layout model + TableFormer
-# decoder when present (scripts/install/quantize_models.py; see PDF_PERFORMANCE.md),
+# decoder when present (scripts/install/quantize_models.py; see PDF_CONFORMANCE.md),
 # fp32 with DOCLING_RS_FP32=1.
 [[ -e "$WORKSPACE_DIR/.pdfium/lib/libpdfium.so" ]] && export PDFIUM_DYNAMIC_LIB_PATH="${PDFIUM_DYNAMIC_LIB_PATH:-$WORKSPACE_DIR/.pdfium/lib}"
 if [[ "${DOCLING_RS_FP32:-0}" != "1" && -e "$WORKSPACE_DIR/models/layout_heron_int8.onnx" ]]; then
