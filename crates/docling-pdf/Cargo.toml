@@ -22,6 +22,10 @@ tar = "0.4"
 regex = "1.11"
 lopdf = "0.34"
 fast_image_resize = "5.1.4"
+# CodeFormula enrichment decodes its VLM output with the HF tokenizer
+# (models/code_formula/tokenizer.json) — same crate/features as docling-core's
+# chunking tokenizer.
+tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
 
 [lib]
 name = "docling_pdf"

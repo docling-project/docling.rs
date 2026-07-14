@@ -87,7 +87,9 @@ class TableStructureOptions:
 class PdfPipelineOptions:
     """docling's ``PdfPipelineOptions``.
 
-    Acted on by the Rust engine: ``do_ocr``, ``do_table_structure`` and
+    Acted on by the Rust engine: ``do_ocr``, ``do_table_structure``,
+    ``do_picture_classification`` / ``do_code_enrichment`` /
+    ``do_formula_enrichment`` (the opt-in enrichment models) and
     ``accelerator_options.num_threads``. The remaining fields are accepted so
     docling code constructs unchanged, but do not alter the pipeline (images are
     always extracted; the export image mode is chosen by docling-core at
@@ -95,6 +97,9 @@ class PdfPipelineOptions:
 
     do_ocr: bool = True
     do_table_structure: bool = True
+    do_picture_classification: bool = False
+    do_code_enrichment: bool = False
+    do_formula_enrichment: bool = False
     table_structure_options: TableStructureOptions = field(
         default_factory=TableStructureOptions
     )

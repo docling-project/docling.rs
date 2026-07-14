@@ -458,6 +458,20 @@ impl Walker {
                     }],
                 );
             }
+            // An enriched display formula chunks like docling's formula item:
+            // the LaTeX is the chunk text.
+            Node::Formula { latex, .. } => {
+                let self_ref = self.alloc.text();
+                let body = format!("$${}$$", latex);
+                self.emit(
+                    body.clone(),
+                    vec![ChunkItem {
+                        self_ref,
+                        kind: ChunkItemKind::Text,
+                        text: body,
+                    }],
+                );
+            }
             Node::Code { text, .. } => {
                 let self_ref = self.alloc.text();
                 let body = format!("```\n{}\n```", unescape_text(text));

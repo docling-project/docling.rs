@@ -49,4 +49,4 @@ pub use docling_core::{
 
 // The reusable PDF/image pipeline (models loaded once, reused across documents),
 // for callers that convert many files or want a warm, startup-excluded measurement.
-pub use docling_pdf::Pipeline;
+pub use docling_pdf::{EnrichmentOptions, Pipeline};

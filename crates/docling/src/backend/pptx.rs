@@ -291,6 +291,7 @@ fn handle_shape(
                     Node::Picture {
                         caption: None,
                         image: images.get(&rid).cloned(),
+                        classification: None,
                     },
                 );
             }

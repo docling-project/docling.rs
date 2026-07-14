@@ -113,6 +113,7 @@ fn walk_body(parent: XmlNode, out: &mut Vec<Node>) {
                 out.push(Node::Code {
                     language,
                     text: code_text(el),
+                    orig: None,
                 });
             }
             "list" => parse_list(el, 0, out),
@@ -888,6 +889,7 @@ fn parse_picture(el: XmlNode) -> Node {
     let picture = Node::Picture {
         caption,
         image: None,
+        classification: None,
     };
     match layer {
         Some(layer) => Node::Furniture {

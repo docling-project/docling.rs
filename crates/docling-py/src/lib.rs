@@ -82,6 +82,7 @@ struct PyDocumentConverter {
     pdf_pipeline: std::sync::Arc<std::sync::Mutex<Option<docling::Pipeline>>>,
     no_ocr: bool,
     no_table_former: bool,
+    enrich: docling::EnrichmentOptions,
 }
 
 #[pymethods]
@@ -92,6 +93,12 @@ impl PyDocumentConverter {
     /// * `do_ocr` — run OCR on scanned PDF/image pages (docling's `do_ocr`).
     /// * `do_table_structure` — recover table structure with TableFormer
     ///   (docling's `do_table_structure`).
+    /// * `do_picture_classification` — classify pictures with the
+    ///   DocumentFigureClassifier enrichment model (docling's flag of the same
+    ///   name; needs models/picture_classifier.onnx).
+    /// * `do_code_enrichment` / `do_formula_enrichment` — rewrite code blocks /
+    ///   decode formula LaTeX with the CodeFormulaV2 VLM (docling's flags of
+    ///   the same names; need models/code_formula/).
     /// * `use_web_browser` — render HTML via headless Chrome before parsing.
     ///
     /// Markdown flavour is chosen at export time by docling-core, so there is no
@@ -102,13 +109,20 @@ impl PyDocumentConverter {
         do_ocr = true,
         do_table_structure = true,
         use_web_browser = false,
+        do_picture_classification = false,
+        do_code_enrichment = false,
+        do_formula_enrichment = false,
         allowed_formats = None,
     ))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         fetch_images: bool,
         do_ocr: bool,
         do_table_structure: bool,
         use_web_browser: bool,
+        do_picture_classification: bool,
+        do_code_enrichment: bool,
+        do_formula_enrichment: bool,
         allowed_formats: Option<Vec<String>>,
     ) -> PyResult<Self> {
         // `allowed_formats` (docling's converter arg) restricts which input
@@ -125,15 +139,24 @@ impl PyDocumentConverter {
             }
             None => docling::DocumentConverter::new(),
         };
+        let enrich = docling::EnrichmentOptions {
+            picture_classification: do_picture_classification,
+            code: do_code_enrichment,
+            formula: do_formula_enrichment,
+        };
         Ok(Self {
             inner: base
                 .fetch_images(fetch_images)
                 .no_ocr(!do_ocr)
                 .no_table_former(!do_table_structure)
-                .use_web_browser(use_web_browser),
+                .use_web_browser(use_web_browser)
+                .do_picture_classification(do_picture_classification)
+                .do_code_enrichment(do_code_enrichment)
+                .do_formula_enrichment(do_formula_enrichment),
             pdf_pipeline: std::sync::Arc::new(std::sync::Mutex::new(None)),
             no_ocr: !do_ocr,
             no_table_former: !do_table_structure,
+            enrich,
         })
     }
 
@@ -154,13 +177,15 @@ impl PyDocumentConverter {
         let slot = std::sync::Arc::clone(&self.pdf_pipeline);
         let no_table_former = self.no_table_former;
         let no_ocr = self.no_ocr;
+        let enrich = self.enrich;
         run_interruptible(py, move || {
             let mut slot = slot.lock().unwrap();
             if slot.is_none() {
                 let mut pipeline = docling::Pipeline::new()
                     .map_err(|e| ConversionError::new_err(e.to_string()))?
                     .no_table_former(no_table_former)
-                    .no_ocr(no_ocr);
+                    .no_ocr(no_ocr)
+                    .enrichments(enrich);
                 pipeline
                     .warm_up()
                     .map_err(|e| ConversionError::new_err(e.to_string()))?;

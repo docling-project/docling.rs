@@ -375,6 +375,7 @@ fn handle_paragraph_inner(
                     doc.push(Node::Picture {
                         caption: None,
                         image,
+                        classification: None,
                     });
                 }
             }
@@ -393,6 +394,7 @@ fn handle_paragraph_inner(
         doc.push(Node::Picture {
             caption: None,
             image,
+            classification: None,
         });
     }
 

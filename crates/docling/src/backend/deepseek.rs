@@ -152,6 +152,7 @@ fn emit(label: &str, content: &str, caption: Option<String>, doc: &mut DoclingDo
         "figure" | "image" => doc.push(Node::Picture {
             caption,
             image: None,
+            classification: None,
         }),
         "table" => {
             if let Some(cap) = caption {

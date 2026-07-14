@@ -173,6 +173,7 @@ impl DeclarativeBackend for XlsxBackend {
                                     Node::Picture {
                                         caption: None,
                                         image: dimages.get(&rid).cloned(),
+                                        classification: None,
                                     },
                                 ));
                             }

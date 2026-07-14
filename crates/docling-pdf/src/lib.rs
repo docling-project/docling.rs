@@ -11,6 +11,7 @@
 
 mod assemble;
 mod dp_lines;
+pub mod enrich;
 pub mod layout;
 mod mets;
 mod ocr;
@@ -152,6 +153,37 @@ enum TfSlot {
 
 type SharedTables = Arc<Mutex<TfSlot>>;
 
+/// The same lazy shared-slot pattern for the (rarer still) enrichment models:
+/// one instance per pipeline, loaded on the first region that needs it.
+enum EnrichSlot<T> {
+    Unloaded,
+    /// Load attempted, model files absent — enrichment skipped (warned once).
+    Missing,
+    Ready(T),
+}
+
+type SharedClassifier = Arc<Mutex<EnrichSlot<enrich::PictureClassifier>>>;
+type SharedCodeFormula = Arc<Mutex<EnrichSlot<enrich::CodeFormula>>>;
+
+/// The opt-in enrichment passes, mirroring docling's `PdfPipelineOptions`
+/// flags (`do_picture_classification`, `do_code_enrichment`,
+/// `do_formula_enrichment`). All off by default.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct EnrichmentOptions {
+    /// Classify each picture with DocumentFigureClassifier (26 classes).
+    pub picture_classification: bool,
+    /// Rewrite code blocks (and detect their language) with CodeFormulaV2.
+    pub code: bool,
+    /// Decode display formulas to LaTeX with CodeFormulaV2.
+    pub formula: bool,
+}
+
+impl EnrichmentOptions {
+    fn any(&self) -> bool {
+        self.picture_classification || self.code || self.formula
+    }
+}
+
 /// A self-contained set of the per-page models (layout, OCR). Each parallel
 /// page-worker owns its own `Worker` so inference runs concurrently without
 /// sharing an ONNX session (`ort`'s `Session::run` is `&mut self`); only the
@@ -162,13 +194,23 @@ struct Worker {
     ocr: Option<ocr::OcrModel>,
     /// Shared TableFormer slot; `None` when `no_table_former`/`no_ocr` skip it.
     tables: Option<SharedTables>,
+    /// Shared enrichment slots; `None` unless the corresponding flag is on.
+    classifier: Option<SharedClassifier>,
+    code_formula: Option<SharedCodeFormula>,
+    enrich: EnrichmentOptions,
     /// Skip layout, OCR, and TableFormer; reconstruct text purely from the PDF's
     /// embedded text layer. See [`Pipeline::no_ocr`].
     no_ocr: bool,
 }
 
 impl Worker {
-    fn load(intra: usize, tables: Option<SharedTables>, no_ocr: bool) -> Result<Self, PdfError> {
+    fn load(
+        intra: usize,
+        tables: Option<SharedTables>,
+        enrich_slots: (Option<SharedClassifier>, Option<SharedCodeFormula>),
+        enrich: EnrichmentOptions,
+        no_ocr: bool,
+    ) -> Result<Self, PdfError> {
         Ok(Self {
             layout: if no_ocr {
                 None
@@ -177,6 +219,9 @@ impl Worker {
             },
             ocr: None,
             tables,
+            classifier: enrich_slots.0,
+            code_formula: enrich_slots.1,
+            enrich,
             no_ocr,
         })
     }
@@ -195,8 +240,9 @@ impl Worker {
             let mut regions = Vec::new();
             assemble::add_orphan_regions(&mut regions, &page.cells);
             let table_rows = vec![None; regions.len()];
+            let enrich_out = vec![None; regions.len()];
             return Ok(timing::timed("assemble_page", || {
-                assemble::assemble_page(page, regions, &table_rows)
+                assemble::assemble_page(page, regions, &table_rows, &enrich_out)
             }));
         }
         let regions = timing::timed("layout.predict", || {
@@ -266,8 +312,109 @@ impl Worker {
                 });
             }
         }
+        // Enrichment passes (opt-in): DocumentPictureClassifier over picture
+        // regions, CodeFormulaV2 over code/formula regions. Same shared-slot
+        // shape as TableFormer — one lazily-loaded instance per pipeline, only
+        // ever locked when a page actually has a matching region.
+        let mut enrich_out: Vec<Option<assemble::Enrichment>> = vec![None; regions.len()];
+        if let Some(slot) = self.classifier.as_ref() {
+            if regions.iter().any(|r| r.label == "picture") {
+                timing::timed("picture_classifier", || {
+                    let mut guard = slot.lock().unwrap();
+                    if matches!(*guard, EnrichSlot::Unloaded) {
+                        *guard = match enrich::PictureClassifier::load_with(intra_threads()) {
+                            Some(m) => EnrichSlot::Ready(m),
+                            None => EnrichSlot::Missing,
+                        };
+                    }
+                    if let EnrichSlot::Ready(model) = &mut *guard {
+                        for (i, r) in regions.iter().enumerate() {
+                            if r.label != "picture" {
+                                continue;
+                            }
+                            let Some(crop) = assemble::crop_region_scaled(
+                                page,
+                                [r.l, r.t, r.r, r.b],
+                                enrich::CLASSIFIER_SCALE,
+                            ) else {
+                                continue;
+                            };
+                            match model.classify(&crop) {
+                                Ok(classes) => {
+                                    enrich_out[i] =
+                                        Some(assemble::Enrichment::PictureClasses(classes));
+                                }
+                                Err(e) => eprintln!("docling-pdf: page {}: {e}", n + 1),
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        if let Some(slot) = self.code_formula.as_ref() {
+            let wants = |label: &str| {
+                (label == "code" && self.enrich.code) || (label == "formula" && self.enrich.formula)
+            };
+            if regions.iter().any(|r| wants(r.label)) {
+                timing::timed("code_formula", || {
+                    let mut guard = slot.lock().unwrap();
+                    if matches!(*guard, EnrichSlot::Unloaded) {
+                        *guard = match enrich::CodeFormula::load_with(intra_threads()) {
+                            Some(m) => EnrichSlot::Ready(m),
+                            None => EnrichSlot::Missing,
+                        };
+                    }
+                    if let EnrichSlot::Ready(model) = &mut *guard {
+                        for (i, r) in regions.iter().enumerate() {
+                            if !wants(r.label) {
+                                continue;
+                            }
+                            // docling crops the postprocessed cluster box — the
+                            // union of the region's text cells, not the raw
+                            // detector box — expanded by 18% per side, at
+                            // ~120 dpi.
+                            let [bl, bt, br, bb] = assemble::region_cell_bbox(r, &page.cells)
+                                .unwrap_or([r.l, r.t, r.r, r.b]);
+                            let (w, h) = (br - bl, bb - bt);
+                            let ex = enrich::CODE_FORMULA_EXPANSION;
+                            let bbox = [bl - w * ex, bt - h * ex, br + w * ex, bb + h * ex];
+                            let Some(crop) = assemble::crop_region_scaled(
+                                page,
+                                bbox,
+                                enrich::CODE_FORMULA_SCALE,
+                            ) else {
+                                continue;
+                            };
+                            let kind = if r.label == "code" {
+                                enrich::CodeFormulaKind::Code
+                            } else {
+                                enrich::CodeFormulaKind::Formula
+                            };
+                            match model.predict(&crop, kind) {
+                                Ok(text) => {
+                                    enrich_out[i] = Some(match kind {
+                                        enrich::CodeFormulaKind::Code => {
+                                            let (code, language) =
+                                                enrich::extract_code_language(&text);
+                                            assemble::Enrichment::Code {
+                                                language,
+                                                text: code,
+                                            }
+                                        }
+                                        enrich::CodeFormulaKind::Formula => {
+                                            assemble::Enrichment::Formula { latex: text }
+                                        }
+                                    });
+                                }
+                                Err(e) => eprintln!("docling-pdf: page {}: {e}", n + 1),
+                            }
+                        }
+                    }
+                });
+            }
+        }
         Ok(timing::timed("assemble_page", || {
-            assemble::assemble_page(page, regions, &table_rows)
+            assemble::assemble_page(page, regions, &table_rows, &enrich_out)
         }))
     }
 }
@@ -331,6 +478,9 @@ pub struct Pipeline {
     pool: Vec<Worker>,
     /// The single TableFormer instance every worker shares (see [`TfSlot`]).
     tables: SharedTables,
+    /// The shared enrichment-model slots (same pattern as [`TfSlot`]).
+    classifier: SharedClassifier,
+    code_formula: SharedCodeFormula,
     /// Desired pool size for multi-page documents.
     target_workers: usize,
     /// Page count at/above which the parallel pool is worth its load cost.
@@ -340,6 +490,8 @@ pub struct Pipeline {
     no_table_former: bool,
     /// Skip layout, OCR, and TableFormer entirely. See [`Pipeline::no_ocr`].
     no_ocr: bool,
+    /// Opt-in enrichment passes. See [`Pipeline::enrichments`].
+    enrich: EnrichmentOptions,
 }
 
 impl Pipeline {
@@ -351,11 +503,24 @@ impl Pipeline {
             primary: None,
             pool: Vec::new(),
             tables: Arc::new(Mutex::new(TfSlot::Unloaded)),
+            classifier: Arc::new(Mutex::new(EnrichSlot::Unloaded)),
+            code_formula: Arc::new(Mutex::new(EnrichSlot::Unloaded)),
             target_workers: pdf_worker_count(),
             parallel_min: pdf_parallel_min(),
             no_table_former: false,
             no_ocr: false,
+            enrich: EnrichmentOptions::default(),
         })
+    }
+
+    /// Enable the opt-in enrichment passes (docling's
+    /// `do_picture_classification` / `do_code_enrichment` /
+    /// `do_formula_enrichment`). Each enabled pass lazily loads its model on
+    /// the first matching region; a missing model warns once and is skipped.
+    /// Set before the first conversion (no effect on already-loaded workers).
+    pub fn enrichments(mut self, opts: EnrichmentOptions) -> Self {
+        self.enrich = opts;
+        self
     }
 
     /// Skip loading and running the TableFormer table-structure model. Table
@@ -392,6 +557,20 @@ impl Pipeline {
         }
     }
 
+    /// The shared enrichment slots for a worker (`None` per model unless its
+    /// flag is on; `no_ocr` skips layout, so there are no regions to enrich).
+    fn enrich_slots(&self) -> (Option<SharedClassifier>, Option<SharedCodeFormula>) {
+        if self.no_ocr || !self.enrich.any() {
+            return (None, None);
+        }
+        (
+            self.enrich
+                .picture_classification
+                .then(|| Arc::clone(&self.classifier)),
+            (self.enrich.code || self.enrich.formula).then(|| Arc::clone(&self.code_formula)),
+        )
+    }
+
     /// Eagerly load the models (the full-intra serial worker: layout + OCR, and
     /// the shared TableFormer unless disabled) so the first conversion doesn't pay
     /// the load cost. Idempotent; respects `no_ocr` / `no_table_former` (with
@@ -408,6 +587,8 @@ impl Pipeline {
             self.primary = Some(Worker::load(
                 intra_threads(),
                 self.tables_slot(),
+                self.enrich_slots(),
+                self.enrich,
                 self.no_ocr,
             )?);
         }
@@ -700,12 +881,15 @@ impl Pipeline {
         }
         let intra = pdf_intra();
         let no_ocr = self.no_ocr;
+        let enrich = self.enrich;
         let tables = self.tables_slot();
+        let enrich_slots = self.enrich_slots();
         let loaded: Vec<Result<Worker, PdfError>> = std::thread::scope(|s| {
             let handles: Vec<_> = (0..need)
                 .map(|_| {
                     let tables = tables.clone();
-                    s.spawn(move || Worker::load(intra, tables, no_ocr))
+                    let enrich_slots = enrich_slots.clone();
+                    s.spawn(move || Worker::load(intra, tables, enrich_slots, enrich, no_ocr))
                 })
                 .collect();
             handles.into_iter().map(|h| h.join().unwrap()).collect()
@@ -764,63 +948,77 @@ pub fn convert(
     password: Option<&str>,
     name: &str,
 ) -> Result<DoclingDocument, PdfError> {
-    convert_with_options(bytes, password, name, false, false)
+    convert_with_options(
+        bytes,
+        password,
+        name,
+        false,
+        false,
+        EnrichmentOptions::default(),
+    )
 }
 
 /// Like [`convert`], but optionally skips loading/running TableFormer (see
 /// [`Pipeline::no_table_former`]) and/or layout+OCR+TableFormer entirely (see
-/// [`Pipeline::no_ocr`]).
+/// [`Pipeline::no_ocr`]), and/or enables the enrichment passes (see
+/// [`Pipeline::enrichments`]).
 pub fn convert_with_options(
     bytes: &[u8],
     password: Option<&str>,
     name: &str,
     no_table_former: bool,
     no_ocr: bool,
+    enrich: EnrichmentOptions,
 ) -> Result<DoclingDocument, PdfError> {
     Pipeline::new()?
         .no_table_former(no_table_former)
         .no_ocr(no_ocr)
+        .enrichments(enrich)
         .convert(bytes, password, name)
 }
 
 /// Convenience one-shot image conversion (loads the pipeline per call).
 pub fn convert_image(bytes: &[u8], name: &str) -> Result<DoclingDocument, PdfError> {
-    convert_image_with_options(bytes, name, false, false)
+    convert_image_with_options(bytes, name, false, false, EnrichmentOptions::default())
 }
 
 /// Like [`convert_image`], but optionally skips loading/running TableFormer (see
 /// [`Pipeline::no_table_former`]) and/or layout+OCR+TableFormer entirely (see
-/// [`Pipeline::no_ocr`]).
+/// [`Pipeline::no_ocr`]), and/or enables the enrichment passes.
 pub fn convert_image_with_options(
     bytes: &[u8],
     name: &str,
     no_table_former: bool,
     no_ocr: bool,
+    enrich: EnrichmentOptions,
 ) -> Result<DoclingDocument, PdfError> {
     Pipeline::new()?
         .no_table_former(no_table_former)
         .no_ocr(no_ocr)
+        .enrichments(enrich)
         .convert_image(bytes, name)
 }
 
 /// Convert pre-segmented pages (image + already-known text cells, e.g. METS/hOCR
 /// scans) through the shared layout + assembly pipeline.
 pub fn convert_pages(pages: Vec<PdfPage>, name: &str) -> Result<DoclingDocument, PdfError> {
-    convert_pages_with_options(pages, name, false, false)
+    convert_pages_with_options(pages, name, false, false, EnrichmentOptions::default())
 }
 
 /// Like [`convert_pages`], but optionally skips loading/running TableFormer (see
 /// [`Pipeline::no_table_former`]) and/or layout+OCR+TableFormer entirely (see
-/// [`Pipeline::no_ocr`]).
+/// [`Pipeline::no_ocr`]), and/or enables the enrichment passes.
 pub fn convert_pages_with_options(
     pages: Vec<PdfPage>,
     name: &str,
     no_table_former: bool,
     no_ocr: bool,
+    enrich: EnrichmentOptions,
 ) -> Result<DoclingDocument, PdfError> {
     Pipeline::new()?
         .no_table_former(no_table_former)
         .no_ocr(no_ocr)
+        .enrichments(enrich)
         .process_pages(pages, name)
 }
 

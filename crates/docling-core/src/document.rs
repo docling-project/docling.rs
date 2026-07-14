@@ -88,6 +88,10 @@ pub enum Node {
     Code {
         language: Option<String>,
         text: String,
+        /// The original (pre-enrichment) text when the CodeFormula model
+        /// rewrote `text`: docling keeps the raw extraction in the JSON `orig`
+        /// field while `text` carries the model output. `None` → `orig == text`.
+        orig: Option<String>,
     },
     /// A table. The first row is treated as the header.
     Table(Table),
@@ -96,6 +100,21 @@ pub enum Node {
     Picture {
         caption: Option<String>,
         image: Option<PictureImage>,
+        /// DocumentPictureClassifier predictions (all classes, descending
+        /// confidence), when the picture-classification enrichment ran.
+        /// Serialized as docling's `classification` annotation + `meta` field
+        /// on the JSON picture item; Markdown/DocLang output is unaffected.
+        classification: Option<Vec<PictureClass>>,
+    },
+    /// A display-math formula item decoded by the CodeFormula enrichment:
+    /// `latex` is the model's LaTeX (no `$$` wrapping), `orig` the raw glyph
+    /// text extracted from the PDF. Markdown renders `$$latex$$`; JSON emits a
+    /// `formula` text item (docling's un-enriched pipeline instead emits a
+    /// placeholder paragraph — see the PDF assembler).
+    Formula {
+        latex: String,
+        orig: String,
+        location: Option<[u16; 4]>,
     },
     /// A chart (docling's `PictureItem` classified as a chart, carrying a
     /// `PictureTabularChartData` annotation). Markdown and JSON render it exactly
@@ -285,6 +304,15 @@ pub struct FieldItem {
     pub marker: Option<String>,
     pub key: Option<String>,
     pub value: Option<String>,
+}
+
+/// One DocumentPictureClassifier prediction — docling-core's
+/// `PictureClassificationClass` (`class_name` + `confidence`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PictureClass {
+    /// e.g. `bar_chart`, `logo`, `signature` (the classifier's 26-label set).
+    pub class_name: String,
+    pub confidence: f32,
 }
 
 /// An extracted picture's raw encoded bytes plus its mimetype and pixel size —

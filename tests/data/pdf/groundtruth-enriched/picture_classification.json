@@ -1,0 +1,888 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "picture_classification",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 6445357065749877499,
+    "filename": "picture_classification.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/pictures/0"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/pictures/1"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 133.768,
+            "t": 667.0764932,
+            "r": 252.35512382,
+            "b": 654.4839197682998,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            15
+          ]
+        }
+      ],
+      "orig": "Figures Example",
+      "text": "Figures Example",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 133.768,
+            "t": 642.2184558,
+            "r": 477.4826813,
+            "b": 502.00488987723304,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            887
+          ]
+        }
+      ],
+      "orig": "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.",
+      "text": "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet."
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 226.891,
+            "t": 262.75545579999994,
+            "r": 384.35487429999984,
+            "b": 254.04888987723348,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            35
+          ]
+        }
+      ],
+      "orig": "Figure 1: This is an example image.",
+      "text": "Figure 1: This is an example image."
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 133.768,
+            "t": 238.84545579999997,
+            "r": 477.48168504000006,
+            "b": 122.54288987723339,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            747
+          ]
+        }
+      ],
+      "orig": "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.",
+      "text": "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua."
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 303.13300000000004,
+            "t": 96.16945579999992,
+            "r": 308.1143,
+            "b": 87.46288987723335,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "1",
+      "text": "1"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 2,
+          "bbox": {
+            "l": 133.768,
+            "t": 664.0394558,
+            "r": 477.48168504000006,
+            "b": 523.8258898772331,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            887
+          ]
+        }
+      ],
+      "orig": "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.",
+      "text": "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet."
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/pictures/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [
+        {
+          "page_no": 2,
+          "bbox": {
+            "l": 226.891,
+            "t": 268.6794558,
+            "r": 384.35487429999984,
+            "b": 259.97288987723346,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            35
+          ]
+        }
+      ],
+      "orig": "Figure 2: This is an example image.",
+      "text": "Figure 2: This is an example image."
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 2,
+          "bbox": {
+            "l": 133.768,
+            "t": 245.6084558,
+            "r": 477.48168504000006,
+            "b": 117.35088987723339,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            804
+          ]
+        }
+      ],
+      "orig": "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.",
+      "text": "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum."
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 2,
+          "bbox": {
+            "l": 303.13300000000004,
+            "t": 96.16945579999992,
+            "r": 308.1143,
+            "b": 87.46288987723335,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "2",
+      "text": "2"
+    }
+  ],
+  "pictures": [
+    {
+      "self_ref": "#/pictures/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/2"
+        }
+      ],
+      "content_layer": "body",
+      "meta": {
+        "classification": {
+          "predictions": [
+            {
+              "confidence": 0.9989230036735535,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "bar_chart"
+            },
+            {
+              "confidence": 0.0006355401710607111,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "line_chart"
+            },
+            {
+              "confidence": 0.00021971913520246744,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "table"
+            },
+            {
+              "confidence": 5.856509233126417e-05,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "scatter_plot"
+            },
+            {
+              "confidence": 5.580821380135603e-05,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "box_plot"
+            },
+            {
+              "confidence": 3.2323598134098575e-05,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "pie_chart"
+            },
+            {
+              "confidence": 2.248175769636873e-05,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "other"
+            },
+            {
+              "confidence": 1.8378181266598403e-05,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "screenshot_from_computer"
+            },
+            {
+              "confidence": 1.143320059782127e-05,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "flow_chart"
+            },
+            {
+              "confidence": 4.4517169044411276e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "engineering_drawing"
+            },
+            {
+              "confidence": 3.934483174816705e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "calendar"
+            },
+            {
+              "confidence": 3.49479910255468e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "geographical_map"
+            },
+            {
+              "confidence": 2.2770173018216155e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "icon"
+            },
+            {
+              "confidence": 2.171245114368503e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "full_page_image"
+            },
+            {
+              "confidence": 1.5278498040061095e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "logo"
+            },
+            {
+              "confidence": 1.2464073506635032e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "screenshot_from_manual"
+            },
+            {
+              "confidence": 9.276046739614685e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "page_thumbnail"
+            },
+            {
+              "confidence": 7.837383009245968e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "chemistry_structure"
+            },
+            {
+              "confidence": 6.703733106405707e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "qr_code"
+            },
+            {
+              "confidence": 4.1256174654336064e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "music"
+            },
+            {
+              "confidence": 2.567095407357556e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "topographical_map"
+            },
+            {
+              "confidence": 2.3420237482696393e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "bar_code"
+            },
+            {
+              "confidence": 1.1750945816402236e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "photograph"
+            },
+            {
+              "confidence": 1.0333488376090827e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "stamp"
+            },
+            {
+              "confidence": 7.85262628255623e-08,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "crossword_puzzle"
+            },
+            {
+              "confidence": 5.4340667077212856e-08,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "signature"
+            }
+          ]
+        }
+      },
+      "label": "picture",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 134.70913696289062,
+            "t": 487.69866943359375,
+            "r": 475.6763610839844,
+            "b": 282.34991455078125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [
+        {
+          "$ref": "#/texts/2"
+        }
+      ],
+      "references": [],
+      "footnotes": [],
+      "annotations": [
+        {
+          "kind": "classification",
+          "provenance": "DocumentPictureClassifier",
+          "predicted_classes": [
+            {
+              "class_name": "bar_chart",
+              "confidence": 0.9989230036735535
+            },
+            {
+              "class_name": "line_chart",
+              "confidence": 0.0006355401710607111
+            },
+            {
+              "class_name": "table",
+              "confidence": 0.00021971913520246744
+            },
+            {
+              "class_name": "scatter_plot",
+              "confidence": 5.856509233126417e-05
+            },
+            {
+              "class_name": "box_plot",
+              "confidence": 5.580821380135603e-05
+            },
+            {
+              "class_name": "pie_chart",
+              "confidence": 3.2323598134098575e-05
+            },
+            {
+              "class_name": "other",
+              "confidence": 2.248175769636873e-05
+            },
+            {
+              "class_name": "screenshot_from_computer",
+              "confidence": 1.8378181266598403e-05
+            },
+            {
+              "class_name": "flow_chart",
+              "confidence": 1.143320059782127e-05
+            },
+            {
+              "class_name": "engineering_drawing",
+              "confidence": 4.4517169044411276e-06
+            },
+            {
+              "class_name": "calendar",
+              "confidence": 3.934483174816705e-06
+            },
+            {
+              "class_name": "geographical_map",
+              "confidence": 3.49479910255468e-06
+            },
+            {
+              "class_name": "icon",
+              "confidence": 2.2770173018216155e-06
+            },
+            {
+              "class_name": "full_page_image",
+              "confidence": 2.171245114368503e-06
+            },
+            {
+              "class_name": "logo",
+              "confidence": 1.5278498040061095e-06
+            },
+            {
+              "class_name": "screenshot_from_manual",
+              "confidence": 1.2464073506635032e-06
+            },
+            {
+              "class_name": "page_thumbnail",
+              "confidence": 9.276046739614685e-07
+            },
+            {
+              "class_name": "chemistry_structure",
+              "confidence": 7.837383009245968e-07
+            },
+            {
+              "class_name": "qr_code",
+              "confidence": 6.703733106405707e-07
+            },
+            {
+              "class_name": "music",
+              "confidence": 4.1256174654336064e-07
+            },
+            {
+              "class_name": "topographical_map",
+              "confidence": 2.567095407357556e-07
+            },
+            {
+              "class_name": "bar_code",
+              "confidence": 2.3420237482696393e-07
+            },
+            {
+              "class_name": "photograph",
+              "confidence": 1.1750945816402236e-07
+            },
+            {
+              "class_name": "stamp",
+              "confidence": 1.0333488376090827e-07
+            },
+            {
+              "class_name": "crossword_puzzle",
+              "confidence": 7.85262628255623e-08
+            },
+            {
+              "class_name": "signature",
+              "confidence": 5.4340667077212856e-08
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "self_ref": "#/pictures/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/6"
+        }
+      ],
+      "content_layer": "body",
+      "meta": {
+        "classification": {
+          "predictions": [
+            {
+              "confidence": 0.9951556921005249,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "geographical_map"
+            },
+            {
+              "confidence": 0.004328129813075066,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "engineering_drawing"
+            },
+            {
+              "confidence": 0.0002828954893629998,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "topographical_map"
+            },
+            {
+              "confidence": 8.250963583122939e-05,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "flow_chart"
+            },
+            {
+              "confidence": 5.40164255653508e-05,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "screenshot_from_computer"
+            },
+            {
+              "confidence": 4.1973260522354394e-05,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "line_chart"
+            },
+            {
+              "confidence": 9.419441084901337e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "bar_chart"
+            },
+            {
+              "confidence": 9.290942216466647e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "screenshot_from_manual"
+            },
+            {
+              "confidence": 6.9929551500536036e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "full_page_image"
+            },
+            {
+              "confidence": 6.011740879330318e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "chemistry_structure"
+            },
+            {
+              "confidence": 5.815365511807613e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "scatter_plot"
+            },
+            {
+              "confidence": 4.0808768062561285e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "other"
+            },
+            {
+              "confidence": 4.051324594911421e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "table"
+            },
+            {
+              "confidence": 1.7149955056083854e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "calendar"
+            },
+            {
+              "confidence": 1.1059661346735083e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "icon"
+            },
+            {
+              "confidence": 1.087649138753477e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "page_thumbnail"
+            },
+            {
+              "confidence": 1.0244710892948206e-06,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "logo"
+            },
+            {
+              "confidence": 8.777870448284375e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "pie_chart"
+            },
+            {
+              "confidence": 8.600738965469645e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "box_plot"
+            },
+            {
+              "confidence": 8.364200994037674e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "crossword_puzzle"
+            },
+            {
+              "confidence": 4.6474917780869873e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "music"
+            },
+            {
+              "confidence": 4.172465821739024e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "photograph"
+            },
+            {
+              "confidence": 2.7129735258313303e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "qr_code"
+            },
+            {
+              "confidence": 1.7795780138385453e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "stamp"
+            },
+            {
+              "confidence": 1.2964436280071823e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "signature"
+            },
+            {
+              "confidence": 1.0748919265779477e-07,
+              "created_by": "DocumentPictureClassifier",
+              "class_name": "bar_code"
+            }
+          ]
+        }
+      },
+      "label": "picture",
+      "prov": [
+        {
+          "page_no": 2,
+          "bbox": {
+            "l": 218.88284301757812,
+            "t": 514.0193481445312,
+            "r": 392.1819763183594,
+            "b": 283.26318359375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [
+        {
+          "$ref": "#/texts/6"
+        }
+      ],
+      "references": [],
+      "footnotes": [],
+      "annotations": [
+        {
+          "kind": "classification",
+          "provenance": "DocumentPictureClassifier",
+          "predicted_classes": [
+            {
+              "class_name": "geographical_map",
+              "confidence": 0.9951556921005249
+            },
+            {
+              "class_name": "engineering_drawing",
+              "confidence": 0.004328129813075066
+            },
+            {
+              "class_name": "topographical_map",
+              "confidence": 0.0002828954893629998
+            },
+            {
+              "class_name": "flow_chart",
+              "confidence": 8.250963583122939e-05
+            },
+            {
+              "class_name": "screenshot_from_computer",
+              "confidence": 5.40164255653508e-05
+            },
+            {
+              "class_name": "line_chart",
+              "confidence": 4.1973260522354394e-05
+            },
+            {
+              "class_name": "bar_chart",
+              "confidence": 9.419441084901337e-06
+            },
+            {
+              "class_name": "screenshot_from_manual",
+              "confidence": 9.290942216466647e-06
+            },
+            {
+              "class_name": "full_page_image",
+              "confidence": 6.9929551500536036e-06
+            },
+            {
+              "class_name": "chemistry_structure",
+              "confidence": 6.011740879330318e-06
+            },
+            {
+              "class_name": "scatter_plot",
+              "confidence": 5.815365511807613e-06
+            },
+            {
+              "class_name": "other",
+              "confidence": 4.0808768062561285e-06
+            },
+            {
+              "class_name": "table",
+              "confidence": 4.051324594911421e-06
+            },
+            {
+              "class_name": "calendar",
+              "confidence": 1.7149955056083854e-06
+            },
+            {
+              "class_name": "icon",
+              "confidence": 1.1059661346735083e-06
+            },
+            {
+              "class_name": "page_thumbnail",
+              "confidence": 1.087649138753477e-06
+            },
+            {
+              "class_name": "logo",
+              "confidence": 1.0244710892948206e-06
+            },
+            {
+              "class_name": "pie_chart",
+              "confidence": 8.777870448284375e-07
+            },
+            {
+              "class_name": "box_plot",
+              "confidence": 8.600738965469645e-07
+            },
+            {
+              "class_name": "crossword_puzzle",
+              "confidence": 8.364200994037674e-07
+            },
+            {
+              "class_name": "music",
+              "confidence": 4.6474917780869873e-07
+            },
+            {
+              "class_name": "photograph",
+              "confidence": 4.172465821739024e-07
+            },
+            {
+              "class_name": "qr_code",
+              "confidence": 2.7129735258313303e-07
+            },
+            {
+              "class_name": "stamp",
+              "confidence": 1.7795780138385453e-07
+            },
+            {
+              "class_name": "signature",
+              "confidence": 1.2964436280071823e-07
+            },
+            {
+              "class_name": "bar_code",
+              "confidence": 1.0748919265779477e-07
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 612.0,
+        "height": 792.0
+      },
+      "page_no": 1
+    },
+    "2": {
+      "size": {
+        "width": 612.0,
+        "height": 792.0
+      },
+      "page_no": 2
+    }
+  }
+}

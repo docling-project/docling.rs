@@ -31,6 +31,13 @@
 #   models/chunk/tokenizer.json                   (all-MiniLM-L6-v2's tokenizer,
 #     the HybridChunker's default token counter; falls back to Hugging Face when
 #     the release doesn't host it; skip with --no-chunk)
+#   models/picture_classifier.onnx                (DocumentFigureClassifier-v2.5,
+#     the --enrich-picture-classes model, ~17 MB; falls back to Hugging Face when
+#     the release doesn't host it)
+#   models/code_formula/{vision,embed,decoder_kv}.onnx + tokenizer.json
+#     (CodeFormulaV2, the --enrich-code/--enrich-formula VLM, ~1.3 GB fp32 —
+#     opt-in with --enrich; release-hosted only. With int8 enabled the ~165 MB
+#     decoder_kv_int8.onnx replaces the ~655 MB fp32 decoder)
 #
 # Also fetches the INT8-quantized CPU models when the release hosts them (see
 # PDF_CONFORMANCE.md — ~2.4x faster layout inference at unchanged conformance):
@@ -59,6 +66,7 @@ FORCE=false
 WITH_ASR=true
 WITH_INT8=true
 WITH_CHUNK=true
+WITH_ENRICH=false
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=true ;;
@@ -66,8 +74,9 @@ for arg in "$@"; do
     --int8) WITH_INT8=true ;; # accepted for compatibility; int8 is the default
     --no-int8) WITH_INT8=false ;;
     --no-chunk) WITH_CHUNK=false ;;
+    --enrich) WITH_ENRICH=true ;;
     *)
-      echo "usage: download_dependencies.sh [--force] [--no-asr] [--no-int8] [--no-chunk]" >&2
+      echo "usage: download_dependencies.sh [--force] [--no-asr] [--no-int8] [--no-chunk] [--enrich]" >&2
       exit 2
       ;;
   esac
@@ -138,6 +147,41 @@ if [ "$WITH_CHUNK" = true ]; then
   if [ ! -f models/chunk/tokenizer.json ]; then
     fetch "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json" \
       models/chunk/tokenizer.json
+  fi
+fi
+
+# DocumentFigureClassifier (picture classification enrichment, ~17 MB): the
+# `--enrich-picture-classes` / `do_picture_classification` model. Small, so
+# fetched by default — from the release when hosted, else the upstream ONNX
+# straight from Hugging Face (docling-project/DocumentFigureClassifier-v2.5
+# ships the graph itself).
+fetch_optional "$BASE_URL/picture_classifier.onnx" models/picture_classifier.onnx
+if [ ! -f models/picture_classifier.onnx ]; then
+  fetch "https://huggingface.co/docling-project/DocumentFigureClassifier-v2.5/resolve/main/model.onnx" \
+    models/picture_classifier.onnx
+fi
+
+if [ "$WITH_ENRICH" = true ]; then
+  # CodeFormulaV2 (code/formula enrichment, ~1.3 GB fp32): the
+  # `--enrich-code`/`--enrich-formula` VLM, exported to ONNX by
+  # scripts/install/export_code_formula.py and hosted with the release
+  # (there is no upstream ONNX export to fall back to). Opt-in (--enrich)
+  # because of its size.
+  mkdir -p models/code_formula
+  fetch "$BASE_URL/cf_vision.onnx" models/code_formula/vision.onnx
+  fetch "$BASE_URL/cf_embed.onnx" models/code_formula/embed.onnx
+  fetch "$BASE_URL/cf_tokenizer.json" models/code_formula/tokenizer.json
+  if [ "$WITH_INT8" = true ]; then
+    # INT8 decoder (~165 MB vs ~655 MB fp32) — preferred automatically when
+    # present. Near-exact, not byte-exact: greedy near-tie tokens can flip
+    # (whitespace-only drift on the conformance fixture); fetch with --no-int8
+    # or set DOCLING_RS_FP32=1 at runtime for the byte-exact fp32 graph.
+    fetch_optional "$BASE_URL/cf_decoder_kv_int8.onnx" models/code_formula/decoder_kv_int8.onnx
+  fi
+  if [ "$WITH_INT8" = true ] && [ -f models/code_formula/decoder_kv_int8.onnx ]; then
+    echo "code_formula: int8 decoder present — fp32 decoder_kv.onnx not needed (skipped)"
+  else
+    fetch "$BASE_URL/cf_decoder_kv.onnx" models/code_formula/decoder_kv.onnx
   fi
 fi
 

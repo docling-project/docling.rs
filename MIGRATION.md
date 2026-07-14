@@ -28,7 +28,7 @@ phased plan is kept at the end as history.)
 | **Performance** | PDF ML pipeline **4.3× faster warm / 4.7× end-to-end** than Python docling at 2.3–2.6× less peak RAM (INT8 + SIMD, conformance-validated); declarative formats 20–60× warm, ~60× less RAM; details + methodology in [`PDF_CONFORMANCE.md`](./PDF_CONFORMANCE.md) |
 | **Models** | docling's own checkpoints (layout heron, TableFormer, PP-OCRv3, Whisper tiny), format-converted to ONNX by `scripts/export_*.py` — no retraining; INT8 variants are calibrated post-training quantizations (`scripts/install/quantize_models.py`) |
 | **Tracking upstream** | See [§9](#9-keeping-up-with-upstream-docling): conformance is measured against the *latest published* docling on demand, so an upstream release that changes output surfaces as a concrete per-fixture diff |
-| **Not ported (by design)** | VLM pipelines and enrichment models (§5); inline formatting is baked into text rather than structured fields (§4) |
+| **Not ported (by design)** | VLM full-page pipelines (§5); inline formatting is baked into text rather than structured fields (§4). The optional enrichment models (picture classification, code, formulas) **are** ported — opt-in `do_picture_classification` / `do_code_enrichment` / `do_formula_enrichment`, ONNX like the rest of the stack |
 
 ---
 
@@ -314,10 +314,15 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
 
 **Out of scope by design:**
 
-- **VLM pipelines** (SmolDocling / remote VLM) and **enrichment models** (picture
-  classification, formula understanding, code understanding). Model-bound; out of
+- **VLM full-page pipelines** (SmolDocling / remote VLM). Model-bound; out of
   scope for the discriminative port. (**Audio/ASR is now done** — see §2; the
-  only container gap is AVI, which symphonia cannot demux.)
+  only container gap is AVI, which symphonia cannot demux. The **enrichment
+  models are now done** too: DocumentFigureClassifier-v2.5 for
+  `do_picture_classification` and CodeFormulaV2 — an Idefics3-class VLM,
+  exported to a three-graph ONNX set with a KV-cached greedy decode verified
+  token-identical to `transformers.generate` — for `do_code_enrichment` /
+  `do_formula_enrichment`; opt-in flags on the converter/CLI/Python bindings,
+  conformance-checked by `scripts/conformance/enrich_conformance.sh`.)
 
 **Now migrated (previously listed here):**
 
@@ -627,7 +632,7 @@ compares against the docling version actually installed, so it won't flag
 differences that are really just a stale committed corpus.
 
 What this cannot absorb automatically: upstream features that need new model
-*architectures* (VLM pipeline, enrichment models — out of scope per §5) and
+*architectures* (the VLM full-page pipeline — out of scope per §5) and
 places where the document models intentionally differ (§4). Those are
 documented divergences rather than drift.
 

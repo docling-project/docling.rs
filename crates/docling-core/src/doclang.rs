@@ -774,8 +774,29 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
                 out.push(depth, "</text>".to_string());
                 *i += 1;
             }
-            Node::Code { language, text } => {
+            Node::Code {
+                language,
+                text,
+                orig: _,
+            } => {
                 emit_code(out, depth, language.as_deref(), text, None);
+                *i += 1;
+            }
+            // A CodeFormula-decoded display formula: a `<formula>` element like
+            // the inline-math one, with the layout location when present.
+            Node::Formula {
+                latex, location, ..
+            } => {
+                if let Some(loc) = location {
+                    out.push(depth, "<formula>".to_string());
+                    push_location(out, depth + 1, loc);
+                    if !latex.is_empty() {
+                        out.push(depth + 1, escape_text(latex));
+                    }
+                    out.push(depth, "</formula>".to_string());
+                } else {
+                    out.push(depth, format!("<formula>{}</formula>", escape_text(latex)));
+                }
                 *i += 1;
             }
             Node::PageFurniture {
@@ -801,7 +822,9 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
                 emit_table(out, depth, t);
                 *i += 1;
             }
-            Node::Picture { caption, image } => {
+            // Classifier predictions are JSON-only; DocLang keeps the plain
+            // `<picture>` shape.
+            Node::Picture { caption, image, .. } => {
                 emit_picture(out, depth, caption.as_deref(), image.as_ref(), None);
                 *i += 1;
             }
@@ -1286,7 +1309,7 @@ fn emit_furniture(out: &mut Out, depth: i32, layer: ContentLayer, inner: &Node) 
         // pixels (docling's referenced-asset conversion skips furniture, so the
         // image stays a base64 data URI), then a caption that carries its own
         // `<href>`/`<layer>` head when the caption is a link.
-        Node::Picture { caption, image } => {
+        Node::Picture { caption, image, .. } => {
             let caption = caption.as_deref().filter(|c| !c.trim().is_empty());
             out.push(depth, "<picture>".to_string());
             out.push(depth + 1, token.clone());
@@ -1426,7 +1449,7 @@ fn emit_located(out: &mut Out, depth: i32, location: &[u16; 4], inner: &Node) {
         Node::Paragraph { text } => {
             emit_text_element(out, depth, "text", "text", text, Some(location));
         }
-        Node::Picture { caption, image } => {
+        Node::Picture { caption, image, .. } => {
             emit_picture(
                 out,
                 depth,
@@ -1441,7 +1464,7 @@ fn emit_located(out: &mut Out, depth: i32, location: &[u16; 4], inner: &Node) {
             t.location = Some(*location);
             emit_table(out, depth, &t);
         }
-        Node::Code { language, text } => {
+        Node::Code { language, text, .. } => {
             emit_code(out, depth, language.as_deref(), text, Some(location));
         }
         // Other node kinds carry no location today — render them as-is.
@@ -1737,6 +1760,7 @@ mod tests {
         export_to_doclang(&[Node::Code {
             language: language.map(String::from),
             text: text.into(),
+            orig: None,
         }])
     }
 

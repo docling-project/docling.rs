@@ -20,17 +20,25 @@ use crate::pdfium_backend::{PdfPage, TextCell};
 use crate::{convert_pages_with_options, PdfError};
 
 pub fn convert_mets_gbs(bytes: &[u8], name: &str) -> Result<DoclingDocument, PdfError> {
-    convert_mets_gbs_with_options(bytes, name, false, false)
+    convert_mets_gbs_with_options(
+        bytes,
+        name,
+        false,
+        false,
+        crate::EnrichmentOptions::default(),
+    )
 }
 
 /// Like [`convert_mets_gbs`], but optionally skips loading/running TableFormer
 /// (see [`crate::Pipeline::no_table_former`]) and/or layout+OCR+TableFormer
-/// entirely (see [`crate::Pipeline::no_ocr`]).
+/// entirely (see [`crate::Pipeline::no_ocr`]), and/or enables the enrichment
+/// passes (see [`crate::Pipeline::enrichments`]).
 pub fn convert_mets_gbs_with_options(
     bytes: &[u8],
     name: &str,
     no_table_former: bool,
     no_ocr: bool,
+    enrich: crate::EnrichmentOptions,
 ) -> Result<DoclingDocument, PdfError> {
     let mut html: BTreeMap<String, String> = BTreeMap::new();
     let mut tiff: BTreeMap<String, Vec<u8>> = BTreeMap::new();
@@ -92,7 +100,7 @@ pub fn convert_mets_gbs_with_options(
             "mets: no hOCR/TIFF page pairs found in archive".into(),
         ));
     }
-    convert_pages_with_options(pages, name, no_table_former, no_ocr)
+    convert_pages_with_options(pages, name, no_table_former, no_ocr, enrich)
 }
 
 /// Parse an hOCR page: the `ocr_page` bbox gives the page geometry (cells are in

@@ -132,6 +132,7 @@ impl MarkdownBackend {
                                 out.push(Node::Code {
                                     language: None,
                                     text,
+                                    orig: None,
                                 });
                             }
                         }
@@ -188,7 +189,11 @@ impl MarkdownBackend {
                         unescape_entities(trimmed)
                     };
                     if !text.is_empty() {
-                        out.push(Node::Code { language, text });
+                        out.push(Node::Code {
+                            language,
+                            text,
+                            orig: None,
+                        });
                     }
                 }
                 Event::Start(Tag::Table(_)) => {
@@ -661,6 +666,7 @@ mod tests {
             vec![Node::Code {
                 language: None,
                 text: "& <".into(),
+                orig: None,
             }]
         );
     }

@@ -16,6 +16,16 @@ PDF_CONFORMANCE.md for the measured speed/quality numbers):
   autoregressive tag decoder. Output is byte-identical on the corpus;
   ~10% faster table-structure decode, 78 -> 50 MB.
 
+* **code-formula-decoder** — dynamic INT8 of the CodeFormulaV2 KV-cache
+  decoder step (the enrichment VLM; needs the --enrich models). Not in the
+  default target list because the fp32 export is opt-in too. ~655 -> ~165 MB
+  (4x less decoder RAM). NEAR-exact, not byte-exact: greedy decoding has
+  occasional near-tie tokens the weight rounding can flip - on the
+  conformance fixture the only drift is one extra blank line inside the
+  code block (per-channel and fp32-lm_head variants flip it identically,
+  so per-tensor is kept for the smaller file). DOCLING_RS_FP32=1 restores
+  the byte-exact fp32 decoder.
+
 Usage (from the repo root, models fetched by scripts/install/download_dependencies.sh):
 
     uv venv .venv-quant && uv pip install --python .venv-quant/bin/python \
@@ -145,6 +155,49 @@ def quantize_tableformer_decoder():
         print(f"tableformer-decoder: done -> {dst} ({os.path.getsize(dst) / 1e6:.1f} MB)")
 
 
+def quantize_code_formula_decoder():
+    """Dynamic INT8 (weights-only MatMul) of the CodeFormulaV2 KV-cache decoder
+    step — the autoregressive stage that dominates enrichment latency. Same
+    recipe as the TableFormer decoder. Near-exact (see the module docstring);
+    re-run scripts/conformance/enrich_conformance.sh after re-quantizing.
+    ~655 -> ~165 MB."""
+    import onnx
+    from onnxruntime.quantization import QuantType, quantize_dynamic
+
+    src = f"{MODELS}/code_formula/decoder_kv.onnx"
+    if not os.path.exists(src):
+        print(f"code-formula-decoder: {src} not found — skipping")
+        return
+    tmp = f"{MODELS}/code_formula/decoder_kv_fold.onnx"
+    dst = f"{MODELS}/code_formula/decoder_kv_int8.onnx"
+
+    # torch's exporter emits the Linear weights as `Constant` *nodes*, but
+    # `MatMulConstBOnly` only quantizes MatMuls whose B is an *initializer* —
+    # so fold every tensor-valued Constant into an initializer first (the
+    # unfolded graph quantizes to a byte-identical no-op).
+    m = onnx.load(src)
+    keep = []
+    for node in m.graph.node:
+        t = next((a.t for a in node.attribute if a.name == "value"), None)
+        if node.op_type == "Constant" and t is not None:
+            t.name = node.output[0]
+            m.graph.initializer.append(t)
+        else:
+            keep.append(node)
+    del m.graph.node[:]
+    m.graph.node.extend(keep)
+    del m.graph.value_info[:]
+    onnx.save(m, tmp, save_as_external_data=True, location="decoder_kv_fold.onnx.data")
+
+    print("code-formula-decoder: dynamic INT8 quantization...", flush=True)
+    quantize_dynamic(
+        tmp, dst, weight_type=QuantType.QInt8, extra_options={"MatMulConstBOnly": True}
+    )
+    os.remove(tmp)
+    os.remove(f"{tmp}.data")
+    print(f"code-formula-decoder: done -> {dst} ({os.path.getsize(dst) / 1e6:.1f} MB)")
+
+
 def main():
     targets = sys.argv[1:] or ["layout", "tableformer-decoder"]
     for t in targets:
@@ -152,8 +205,13 @@ def main():
             quantize_layout()
         elif t == "tableformer-decoder":
             quantize_tableformer_decoder()
+        elif t == "code-formula-decoder":
+            quantize_code_formula_decoder()
         else:
-            sys.exit(f"unknown target {t!r} (expected: layout, tableformer-decoder)")
+            sys.exit(
+                f"unknown target {t!r} "
+                "(expected: layout, tableformer-decoder, code-formula-decoder)"
+            )
 
 
 if __name__ == "__main__":

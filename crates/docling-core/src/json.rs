@@ -183,14 +183,30 @@ impl Builder {
                 let mark = if *checked { "- [x] " } else { "- [ ] " };
                 Some(self.add_text("text", &format!("{mark}{text}"), parent, json!({})))
             }
-            Node::Code { language, text } => Some(self.add_code(text, language.as_deref(), parent)),
+            Node::Code {
+                language,
+                text,
+                orig,
+            } => Some(self.add_code(text, language.as_deref(), orig.as_deref(), parent)),
+            // A CodeFormula-decoded display formula: `text` carries the LaTeX,
+            // `orig` the raw glyph extraction (docling's enriched shape).
+            Node::Formula { latex, orig, .. } => Some(self.add_formula_item(latex, orig, parent)),
             Node::Table(t) => Some(self.add_table(t, parent)),
-            Node::Picture { caption, image } => {
-                Some(self.add_picture(caption.as_deref(), image.as_ref(), parent))
-            }
+            Node::Picture {
+                caption,
+                image,
+                classification,
+            } => Some(self.add_picture(
+                caption.as_deref(),
+                image.as_ref(),
+                classification.as_deref(),
+                parent,
+            )),
             // A chart is a picture item in the JSON (its data table is
             // DocLang-only); no image payload.
-            Node::Chart { caption, .. } => Some(self.add_picture(caption.as_deref(), None, parent)),
+            Node::Chart { caption, .. } => {
+                Some(self.add_picture(caption.as_deref(), None, None, parent))
+            }
             // A DocLang-only node is omitted from the JSON body.
             Node::DoclangOnly(_) => None,
             Node::Group { label, children } => Some(self.add_group(label, children, parent)),
@@ -297,7 +313,31 @@ impl Builder {
         self_ref
     }
 
-    fn add_code(&mut self, text: &str, language: Option<&str>, parent: &str) -> String {
+    /// A CodeFormula-enriched display formula: `text` is the model's LaTeX
+    /// while `orig` keeps the raw glyph extraction (docling's enriched shape;
+    /// the plain [`Self::add_formula`] above sets both to the same string).
+    fn add_formula_item(&mut self, latex: &str, orig: &str, parent: &str) -> String {
+        let self_ref = format!("#/texts/{}", self.texts.len());
+        self.texts.push(json!({
+            "self_ref": self_ref,
+            "parent": { "$ref": parent },
+            "children": [],
+            "content_layer": "body",
+            "label": "formula",
+            "prov": [],
+            "orig": orig,
+            "text": latex,
+        }));
+        self_ref
+    }
+
+    fn add_code(
+        &mut self,
+        text: &str,
+        language: Option<&str>,
+        orig: Option<&str>,
+        parent: &str,
+    ) -> String {
         let self_ref = format!("#/texts/{}", self.texts.len());
         let raw = unescape_text(text);
         self.texts.push(json!({
@@ -307,7 +347,9 @@ impl Builder {
             "content_layer": "body",
             "label": "code",
             "prov": [],
-            "orig": raw,
+            // With code enrichment, `text` is the model's rewrite while `orig`
+            // keeps the raw extraction; otherwise both are the same string.
+            "orig": orig.map(unescape_text).unwrap_or_else(|| raw.clone()),
             "text": raw,
             "captions": [],
             "references": [],
@@ -455,6 +497,7 @@ impl Builder {
         &mut self,
         caption: Option<&str>,
         image: Option<&crate::PictureImage>,
+        classification: Option<&[crate::PictureClass]>,
         parent: &str,
     ) -> String {
         let self_ref = format!("#/pictures/{}", self.pictures.len());
@@ -464,18 +507,60 @@ impl Builder {
             let cap_ref = self.add_text("caption", cap, &self_ref, json!({}));
             captions.push(json!({ "$ref": cap_ref }));
         }
-        let mut item = json!({
-            "self_ref": self_ref,
-            "parent": { "$ref": parent },
-            "children": [],
-            "content_layer": "body",
-            "label": "picture",
-            "prov": [],
-            "captions": captions,
-            "references": [],
-            "footnotes": [],
-            "annotations": [],
-        });
+        // DocumentPictureClassifier predictions land twice, exactly like
+        // docling 2.x writes them: the (deprecated but still emitted)
+        // `classification` annotation and the newer `meta.classification`
+        // field (whose per-prediction key order differs — pydantic field
+        // order: confidence, created_by, class_name).
+        let annotations = match classification {
+            Some(classes) => json!([{
+                "kind": "classification",
+                "provenance": "DocumentPictureClassifier",
+                "predicted_classes": classes.iter().map(|c| json!({
+                    "class_name": c.class_name,
+                    "confidence": c.confidence as f64,
+                })).collect::<Vec<_>>(),
+            }]),
+            None => json!([]),
+        };
+        // `meta` sits between `content_layer` and `label` in docling's field
+        // order (and `preserve_order` keeps ours byte-compatible), so the item
+        // is built in one shot per shape rather than patched afterwards.
+        let mut item = match classification {
+            Some(classes) => json!({
+                "self_ref": self_ref,
+                "parent": { "$ref": parent },
+                "children": [],
+                "content_layer": "body",
+                "meta": {
+                    "classification": {
+                        "predictions": classes.iter().map(|c| json!({
+                            "confidence": c.confidence as f64,
+                            "created_by": "DocumentPictureClassifier",
+                            "class_name": c.class_name,
+                        })).collect::<Vec<_>>(),
+                    },
+                },
+                "label": "picture",
+                "prov": [],
+                "captions": captions,
+                "references": [],
+                "footnotes": [],
+                "annotations": annotations,
+            }),
+            None => json!({
+                "self_ref": self_ref,
+                "parent": { "$ref": parent },
+                "children": [],
+                "content_layer": "body",
+                "label": "picture",
+                "prov": [],
+                "captions": captions,
+                "references": [],
+                "footnotes": [],
+                "annotations": annotations,
+            }),
+        };
         // docling stores the extracted image as an `ImageRef` (data URI + size).
         if let Some(img) = image {
             item["image"] = json!({
@@ -633,6 +718,7 @@ mod tests {
                 height: 2,
                 data: b"foobar".to_vec(),
             }),
+            classification: None,
         });
         doc
     }

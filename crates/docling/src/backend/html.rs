@@ -223,6 +223,7 @@ fn walk_block(
                     nodes.push(Node::Picture {
                         caption: e.attr("alt").filter(|a| !a.is_empty()).map(str::to_string),
                         image: e.attr("src").and_then(|s| images.resolve(s)),
+                        classification: None,
                     });
                 } else if name == "signature" || name == "stamp" {
                     // docling turns these into an image annotated with the kind.
@@ -230,6 +231,7 @@ fn walk_block(
                     nodes.push(Node::Picture {
                         caption: None,
                         image: None,
+                        classification: None,
                     });
                     let mut label = name.to_string();
                     label[..1].make_ascii_uppercase();
@@ -248,6 +250,7 @@ fn walk_block(
                         nodes.push(Node::Picture {
                             caption,
                             image: src.as_deref().and_then(|s| images.resolve(s)),
+                            classification: None,
                         });
                     } else {
                         collect_element(cref, base, None, &mut inline);
@@ -309,6 +312,7 @@ fn handle_block(
                 nodes.push(Node::Code {
                     language: None,
                     text: code,
+                    orig: None,
                 });
             } else {
                 let (text, runs) = render_inline(elem, base);
@@ -328,7 +332,11 @@ fn handle_block(
                 });
             } else {
                 let (language, text) = extract_pre(elem);
-                nodes.push(Node::Code { language, text });
+                nodes.push(Node::Code {
+                    language,
+                    text,
+                    orig: None,
+                });
             }
         }
         "table" => {
@@ -350,6 +358,7 @@ fn handle_block(
         "figure" => nodes.push(Node::Picture {
             caption: figure_caption(elem),
             image: figure_img_src(elem).and_then(|s| images.resolve(&s)),
+            classification: None,
         }),
         "hr" => {}
         // An `<input type="checkbox|radio">` is a checkbox item; its text comes
@@ -1629,6 +1638,7 @@ mod tests {
             vec![Node::Code {
                 language: Some("rust".into()),
                 text: "let x = 1;".into(),
+                orig: None,
             }]
         );
     }
@@ -1667,6 +1677,7 @@ mod tests {
             Node::Picture {
                 image: Some(img),
                 caption,
+                ..
             } => {
                 assert_eq!(caption.as_deref(), Some("k"));
                 assert_eq!(img.mimetype, "image/png");

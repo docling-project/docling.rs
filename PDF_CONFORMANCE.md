@@ -98,6 +98,38 @@ bounded by these, so raising it further is a model problem, not a serialization
 one: every laid-out block kind now carries provenance, so the ±2 figure sits at
 the geometry-ignored ceiling.
 
+## Enrichment models (opt-in)
+
+docling's optional enrichment stages are ported behind the same flags
+(`--enrich-picture-classes` / `--enrich-code` / `--enrich-formula`, docling's
+`do_picture_classification` / `do_code_enrichment` / `do_formula_enrichment`)
+and validated by `scripts/conformance/enrich_conformance.sh` against Python
+docling 2.112's output on the enrichment fixtures
+(`tests/data/pdf/groundtruth-enriched/`):
+
+| Fixture | Check | Result |
+|---|---|---|
+| code_and_formula.pdf | Markdown, `--enrich-code --enrich-formula` | **byte-exact** (CodeFormulaV2's code rewrite, `JavaScript` language, formula LaTeX) |
+| picture_classification.pdf | JSON classification annotation + meta | same class ranking; confidences match to ~3 decimals |
+
+The CodeFormulaV2 export (`scripts/install/export_code_formula.py`) verifies
+its three ONNX graphs' greedy decode **token-identical** to
+`transformers.generate` before writing them. Its decoder also ships as a
+dynamic INT8 quantization (`scripts/install/quantize_models.py
+code-formula-decoder`, ~655 → ~165 MB, 4× less decoder RAM) that is preferred
+automatically when present (`DOCLING_RS_FP32=1` opts out). Unlike the layout /
+TableFormer INT8 models it is *near*-exact rather than byte-exact: greedy VLM
+decoding has near-tie tokens that weight rounding can flip — on the fixture
+the only drift is one extra blank line in the code block, and per-channel /
+fp32-lm_head variants flip it identically, so the smaller per-tensor file is
+kept. The conformance script gates fp32 byte-exact and allows the int8 leg
+whitespace-only drift. The residual confidence drift on
+the classifier comes from the crops: docling re-renders each region through
+pdfium at the enrichment scale, while docling.rs resizes from the existing
+scale-2 page render — sub-pixel differences the classifier's softmax sees in
+the third decimal, and that the VLM's argmax decoding absorbs entirely on the
+fixtures.
+
 ## How the pipeline works
 
 pdfium extracts the glyph layer and renders each page to a bitmap; an ONNX stack

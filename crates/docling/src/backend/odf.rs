@@ -589,6 +589,7 @@ fn emit_frame_graphic(frame: XmlNode, styles: &Styles, doc: &mut DoclingDocument
         doc.push(Node::Picture {
             caption: None,
             image: None,
+            classification: None,
         });
         return true;
     }
@@ -1393,6 +1394,7 @@ fn walk_slide_frame(frame: XmlNode, styles: &Styles, doc: &mut DoclingDocument, 
         doc.push(Node::Picture {
             caption: None,
             image: None,
+            classification: None,
         });
     }
     for tb in frame.descendants().filter(|n| n.has_tag_name("text-box")) {

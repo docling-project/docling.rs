@@ -138,6 +138,9 @@ class DocumentConverter:
         allowed_formats: Optional[Iterable[InputFormat]] = None,
         do_ocr: bool = True,
         do_table_structure: bool = True,
+        do_picture_classification: bool = False,
+        do_code_enrichment: bool = False,
+        do_formula_enrichment: bool = False,
         fetch_images: bool = False,
         use_web_browser: bool = False,
         artifacts_path=None,
@@ -149,6 +152,15 @@ class DocumentConverter:
         if pipeline is not None:
             do_ocr = pipeline.do_ocr
             do_table_structure = pipeline.do_table_structure
+            do_picture_classification = getattr(
+                pipeline, "do_picture_classification", do_picture_classification
+            )
+            do_code_enrichment = getattr(
+                pipeline, "do_code_enrichment", do_code_enrichment
+            )
+            do_formula_enrichment = getattr(
+                pipeline, "do_formula_enrichment", do_formula_enrichment
+            )
             acc = getattr(pipeline, "accelerator_options", None)
             if acc is not None:
                 if acc.device in (AcceleratorDevice.CUDA, AcceleratorDevice.MPS):
@@ -167,6 +179,9 @@ class DocumentConverter:
             do_ocr=do_ocr,
             do_table_structure=do_table_structure,
             use_web_browser=use_web_browser,
+            do_picture_classification=do_picture_classification,
+            do_code_enrichment=do_code_enrichment,
+            do_formula_enrichment=do_formula_enrichment,
             allowed_formats=(
                 [InputFormat(f).value for f in allowed_formats]
                 if allowed_formats is not None
