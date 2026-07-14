@@ -36,6 +36,9 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 mail-parser = "0.11"
 pulldown-cmark = { version = "0.13.4", default-features = false }
 quick-xml = "0.37"
+# Data-parallel fan-out over independent OOXML parts (XLSX sheets, PPTX
+# slides) — see the profile in the module docs of `backend/xlsx.rs`.
+rayon = "1.10"
 regex = "1.11"
 roxmltree = "0.20"
 scraper = "0.27.0"

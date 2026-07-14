@@ -14,13 +14,18 @@ use quick_xml::Reader;
 use zip::ZipArchive;
 
 /// A read-only view over the parts of an OOXML package.
+///
+/// Cloning is cheap (the file bytes are shared behind an `Arc`, the ZIP
+/// central directory is reference-counted by the `zip` crate), which gives
+/// each rayon worker its own independent cursor over the same archive.
+#[derive(Clone)]
 pub struct Package {
-    zip: ZipArchive<Cursor<Vec<u8>>>,
+    zip: ZipArchive<Cursor<std::sync::Arc<[u8]>>>,
 }
 
 impl Package {
     pub fn open(bytes: &[u8]) -> Option<Self> {
-        ZipArchive::new(Cursor::new(bytes.to_vec()))
+        ZipArchive::new(Cursor::new(std::sync::Arc::from(bytes)))
             .ok()
             .map(|zip| Self { zip })
     }

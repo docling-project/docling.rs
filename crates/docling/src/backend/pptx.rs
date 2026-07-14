@@ -11,6 +11,7 @@
 use std::collections::{HashMap, HashSet};
 
 use docling_core::{DoclingDocument, Node, PictureImage, Table, TableStructure};
+use rayon::prelude::*;
 use roxmltree::{Document, Node as XmlNode};
 
 use crate::backend::ooxml::{content_type, picture_image, resolve, Package};
@@ -38,54 +39,24 @@ impl DeclarativeBackend for PptxBackend {
             .collect();
         let authors = comment_authors(&mut pkg);
 
-        for (slide_ix, rid) in slide_rids(&presentation).into_iter().enumerate() {
-            let Some(part) = rid_to_part.get(&rid).cloned() else {
+        // Slides are independent, so they convert in parallel — each worker
+        // clones the package (cheap: shared bytes + zip central directory)
+        // and builds its fragment; the ordered collect keeps output identical
+        // to the sequential walk.
+        let slides: Vec<(usize, String)> = slide_rids(&presentation)
+            .into_iter()
+            .enumerate()
+            .filter_map(|(ix, rid)| rid_to_part.get(&rid).map(|p| (ix, p.clone())))
+            .collect();
+        let frags: Vec<Option<(Vec<Node>, Vec<Node>)>> = slides
+            .par_iter()
+            .map(|(_, part)| convert_slide(pkg.clone(), part, slide_size, &content_types, &authors))
+            .collect();
+        for ((slide_ix, _), frag) in slides.into_iter().zip(frags) {
+            let Some((content, comments)) = frag else {
                 continue;
             };
-            // Placeholder geometry inherited from the slide's layout → master,
-            // for shapes that carry no own `<a:xfrm>` (python-pptx resolves
-            // `shape.left/top/...` up this chain).
-            let phmap = slide_placeholders(&mut pkg, &part);
-            // Relationship ids whose target is a real, image-typed part — only
-            // these become pictures (linked/missing/wrong-type blips are dropped,
-            // matching python-pptx + PIL).
-            let dir = part
-                .rsplit_once('/')
-                .map(|(d, _)| d)
-                .unwrap_or("")
-                .to_string();
-            let mut valid_imgs: HashSet<String> = HashSet::new();
-            let mut images: HashMap<String, PictureImage> = HashMap::new();
-            for r in pkg.rels_for(&part) {
-                let p = resolve(&dir, &r.target);
-                if !content_type(&content_types, &p)
-                    .map(|ct| ct.starts_with("image/"))
-                    .unwrap_or(false)
-                {
-                    continue;
-                }
-                valid_imgs.insert(r.id.clone());
-                // Decodable images carry their pixels for export; the rest still
-                // emit a placeholder picture.
-                if let Some(img) = pkg.read_bytes(&p).and_then(|b| picture_image(&p, b)) {
-                    images.insert(r.id, img);
-                }
-            }
-
-            let Some(xml) = pkg.read(&part) else {
-                continue;
-            };
-            let Ok(slide) = Document::parse(&xml) else {
-                continue;
-            };
-            if let Some(tree) = descendant(slide.root_element(), "spTree") {
-                for shape in tree.children().filter(XmlNode::is_element) {
-                    handle_shape(shape, &valid_imgs, &images, slide_size, &phmap, &mut doc);
-                }
-            }
-            // Speaker notes are slide content (docling gives them a zero-bbox
-            // provenance on the slide's page), so they precede the page break.
-            slide_notes(&mut pkg, &part, &dir, &mut doc);
+            doc.nodes.extend(content);
             // DocLang page break: docling's serializer places each slide
             // boundary's break *after* the following slide's content (every
             // slide beyond the first trails one — same artifact as XLSX
@@ -95,10 +66,73 @@ impl DeclarativeBackend for PptxBackend {
             }
             // Review comments (`p:cm`) carry no provenance, so they serialize
             // after the page break, matching docling's comment_section groups.
-            slide_comments(&mut pkg, &part, &dir, &authors, &mut doc);
+            doc.nodes.extend(comments);
         }
         Ok(doc)
     }
+}
+
+/// Convert one slide part into its content nodes (shapes + speaker notes)
+/// and its review-comment nodes, or `None` when the part is absent or not
+/// parsable XML (such a slide contributes nothing — not even a page break).
+fn convert_slide(
+    mut pkg: Package,
+    part: &str,
+    slide_size: (i64, i64),
+    content_types: &str,
+    authors: &HashMap<String, (String, String)>,
+) -> Option<(Vec<Node>, Vec<Node>)> {
+    // Placeholder geometry inherited from the slide's layout → master,
+    // for shapes that carry no own `<a:xfrm>` (python-pptx resolves
+    // `shape.left/top/...` up this chain).
+    let phmap = slide_placeholders(&mut pkg, part);
+    // Relationship ids whose target is a real, image-typed part — only
+    // these become pictures (linked/missing/wrong-type blips are dropped,
+    // matching python-pptx + PIL).
+    let dir = part
+        .rsplit_once('/')
+        .map(|(d, _)| d)
+        .unwrap_or("")
+        .to_string();
+    let mut valid_imgs: HashSet<String> = HashSet::new();
+    let mut images: HashMap<String, PictureImage> = HashMap::new();
+    for r in pkg.rels_for(part) {
+        let p = resolve(&dir, &r.target);
+        if !content_type(content_types, &p)
+            .map(|ct| ct.starts_with("image/"))
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        valid_imgs.insert(r.id.clone());
+        // Decodable images carry their pixels for export; the rest still
+        // emit a placeholder picture.
+        if let Some(img) = pkg.read_bytes(&p).and_then(|b| picture_image(&p, b)) {
+            images.insert(r.id, img);
+        }
+    }
+
+    let xml = pkg.read(part)?;
+    let slide = Document::parse(&xml).ok()?;
+    let mut content = DoclingDocument::new("slide");
+    if let Some(tree) = descendant(slide.root_element(), "spTree") {
+        for shape in tree.children().filter(XmlNode::is_element) {
+            handle_shape(
+                shape,
+                &valid_imgs,
+                &images,
+                slide_size,
+                &phmap,
+                &mut content,
+            );
+        }
+    }
+    // Speaker notes are slide content (docling gives them a zero-bbox
+    // provenance on the slide's page), so they precede the page break.
+    slide_notes(&mut pkg, part, &dir, &mut content);
+    let mut comments = DoclingDocument::new("comments");
+    slide_comments(&mut pkg, part, &dir, authors, &mut comments);
+    Some((content.nodes, comments.nodes))
 }
 
 /// Author id → (name, initials) from `ppt/commentAuthors.xml`.

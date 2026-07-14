@@ -12,17 +12,33 @@
 
 use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
+use std::sync::Arc;
 
 use calamine::{Data, Range, Reader, Xlsx};
 use docling_core::{DoclingDocument, Node, Table};
 use quick_xml::events::Event;
 use quick_xml::Reader as XmlReader;
+use rayon::prelude::*;
 
 use crate::backend::ooxml::{resolve, Package};
 use crate::backend::xlsx_drawings;
 use crate::backend::DeclarativeBackend;
 use crate::error::ConversionError;
 use crate::source::SourceDocument;
+
+/// A sheet's merged regions as absolute `((start_row, start_col), (end_row,
+/// end_col))` cell spans.
+type Merges = Vec<((u32, u32), (u32, u32))>;
+
+/// Load one sheet's merged regions (`<mergeCells>`), absolute coordinates.
+fn sheet_merges<R: std::io::Read + std::io::Seek>(wb: &mut Xlsx<R>, name: &str) -> Merges {
+    wb.worksheet_merge_cells(name)
+        .and_then(|r| r.ok())
+        .unwrap_or_default()
+        .iter()
+        .map(|d| (d.start, d.end))
+        .collect()
+}
 
 pub struct XlsxBackend;
 
@@ -31,7 +47,6 @@ impl DeclarativeBackend for XlsxBackend {
         let cursor = Cursor::new(source.bytes.clone());
         let mut workbook: Xlsx<_> =
             Xlsx::new(cursor).map_err(|e| ConversionError::Parse(format!("xlsx: {e}")))?;
-        let _ = workbook.load_merged_regions();
         let mut pkg = Package::open(&source.bytes)
             .ok_or_else(|| ConversionError::Parse("xlsx: bad zip".into()))?;
 
@@ -61,13 +76,33 @@ impl DeclarativeBackend for XlsxBackend {
             .map(|xml| xlsx_drawings::parse_persons(&xml))
             .unwrap_or_default();
 
-        // Pre-load every worksheet's cell range once: chart series resolve
-        // by reference into arbitrary sheets.
-        let mut ranges: HashMap<String, Range<Data>> = HashMap::new();
+        // Load every worksheet's cell range + merged regions up front, in
+        // parallel — one calamine reader per rayon worker over the shared
+        // bytes (opening a reader is ~2ms; the per-sheet XML parse is what
+        // dominates on many-sheet files). All ranges must be loaded before
+        // any sheet's items assemble: chart series resolve by reference into
+        // arbitrary sheets.
+        let shared: Arc<[u8]> = Arc::from(source.bytes.as_slice());
+        let mut ranges: HashMap<String, (Range<Data>, Merges)> = metas
+            .par_iter()
+            .filter(|(_, typ, _)| matches!(typ, calamine::SheetType::WorkSheet))
+            .map_init(
+                || Xlsx::new(Cursor::new(shared.clone())).ok(),
+                |wb, (name, _, _)| {
+                    let wb = wb.as_mut()?;
+                    let range = wb.worksheet_range(name).ok()?;
+                    Some((name.clone(), (range, sheet_merges(wb, name))))
+                },
+            )
+            .flatten()
+            .collect();
+        // Safety net: a sheet whose parallel load failed (it shouldn't — the
+        // same bytes already opened once above) loads from the main reader.
         for (name, typ, _) in &metas {
-            if matches!(typ, calamine::SheetType::WorkSheet) {
+            if matches!(typ, calamine::SheetType::WorkSheet) && !ranges.contains_key(name) {
                 if let Ok(range) = workbook.worksheet_range(name) {
-                    ranges.insert(name.clone(), range);
+                    let merges = sheet_merges(&mut workbook, name);
+                    ranges.insert(name.clone(), (range, merges));
                 }
             }
         }
@@ -78,7 +113,7 @@ impl DeclarativeBackend for XlsxBackend {
                 return Vec::new();
             };
             let sheet: String = sheet.unwrap_or_else(|| own_sheet.to_string());
-            let Some(range) = ranges.get(&sheet) else {
+            let Some((range, _)) = ranges.get(&sheet) else {
                 return Vec::new();
             };
             let (rs_r, rs_c) = range.start().unwrap_or((0, 0));
@@ -100,151 +135,38 @@ impl DeclarativeBackend for XlsxBackend {
 
         let mut doc = DoclingDocument::new(&source.name);
         let mut comments: Vec<String> = Vec::new();
+        // Each sheet's items (tables, drawings, charts, comments) assemble in
+        // parallel, one package clone per worker; the ordered collect and the
+        // sequential merge below keep node order, page breaks, and the
+        // comments tail identical to the sequential walk.
+        let per_sheet: Vec<(Vec<((usize, usize, usize, usize), Node)>, Vec<String>)> = metas
+            .par_iter()
+            .enumerate()
+            .map(|(page_ix, (name, typ, _))| {
+                sheet_items(SheetCtx {
+                    pkg: pkg.clone(),
+                    name,
+                    typ: *typ,
+                    page_ix,
+                    metas: &metas,
+                    sheet_parts: &sheet_parts,
+                    ranges: &ranges,
+                    persons: &persons,
+                    resolve_ref: &resolve_ref,
+                })
+            })
+            .collect();
+
         // The page number of the most recent sheet that produced items — the
         // DocLang page break trails the *following* sheet's content (docling
         // serializes each sheet group before the page-break node that the
         // item iterator placed inside it).
         let mut prev_item_page: Option<usize> = None;
-        for (page_ix, (name, typ, visible)) in metas.iter().enumerate() {
+        for (page_ix, ((_, _, visible), (mut items, sheet_comments))) in
+            metas.iter().zip(per_sheet).enumerate()
+        {
             let hidden = !matches!(visible, calamine::SheetVisible::Visible);
-            // (bbox in cell units, node) items for this sheet/page.
-            let mut items: Vec<((usize, usize, usize, usize), Node)> = Vec::new();
-
-            if matches!(typ, calamine::SheetType::WorkSheet) {
-                if let Some(range) = ranges.get(name) {
-                    let abs_merges: Vec<((u32, u32), (u32, u32))> = workbook
-                        .merged_regions_by_sheet(name)
-                        .iter()
-                        .map(|(_, _, d)| (d.start, d.end))
-                        .collect();
-                    let (rs_r, rs_c) = range.start().unwrap_or((0, 0));
-                    let mut merge_of: HashMap<(usize, usize), (usize, usize)> = HashMap::new();
-                    for ((sr, sc), (er, ec)) in abs_merges {
-                        let tl = ((sr - rs_r) as usize, (sc - rs_c) as usize);
-                        for r in sr..=er {
-                            for c in sc..=ec {
-                                merge_of.insert(((r - rs_r) as usize, (c - rs_c) as usize), tl);
-                            }
-                        }
-                    }
-                    let (rh, rw) = range.get_size();
-                    let height = rh.max(merge_of.keys().map(|(r, _)| r + 1).max().unwrap_or(0));
-                    let width = rw.max(merge_of.keys().map(|(_, c)| c + 1).max().unwrap_or(0));
-                    // docling's bboxes are in *absolute* cell indices; calamine's
-                    // range is clipped to its first non-empty row/column.
-                    let (or, oc) = (rs_r as usize, rs_c as usize);
-                    for t in find_tables(range, &merge_of, height, width) {
-                        items.push((
-                            (
-                                oc + t.min_c,
-                                or + t.min_r,
-                                oc + t.max_c + 1,
-                                or + t.max_r + 1,
-                            ),
-                            Node::Table(t.table),
-                        ));
-                    }
-                }
-            }
-
-            // Drawings: anchored images and chart frames.
-            if let Some(part) = sheet_parts.get(name) {
-                let drawing_targets: Vec<String> = pkg
-                    .rels_for(part)
-                    .iter()
-                    .filter(|r| r.rel_type.ends_with("/drawing"))
-                    .map(|r| resolve(part_dir(part), &r.target))
-                    .collect();
-                for dpath in drawing_targets {
-                    let Some(dxml) = pkg.read(&dpath) else {
-                        continue;
-                    };
-                    let dimages = pkg.image_rels(&dpath, part_dir(&dpath));
-                    let drels: HashMap<String, String> = pkg
-                        .rels_for(&dpath)
-                        .iter()
-                        .map(|r| (r.id.clone(), resolve(part_dir(&dpath), &r.target)))
-                        .collect();
-                    for item in xlsx_drawings::parse_drawing(&dxml) {
-                        match item.kind {
-                            xlsx_drawings::DrawingKind::Image(rid) => {
-                                items.push((
-                                    item.bbox,
-                                    Node::Picture {
-                                        caption: None,
-                                        image: dimages.get(&rid).cloned(),
-                                        classification: None,
-                                    },
-                                ));
-                            }
-                            xlsx_drawings::DrawingKind::Chart(rid) => {
-                                let Some(cpath) = drels.get(&rid) else {
-                                    continue;
-                                };
-                                let Some(cxml) = pkg.read(cpath) else {
-                                    continue;
-                                };
-                                let Some(spec) = xlsx_drawings::parse_chart(&cxml) else {
-                                    continue;
-                                };
-                                let table = chart_table(&spec, name, &resolve_ref);
-                                let Some(table) = table else { continue };
-                                items.push((
-                                    item.bbox,
-                                    Node::Chart {
-                                        kind: spec.kind.to_string(),
-                                        table,
-                                        caption: spec.title.clone(),
-                                        location: None,
-                                    },
-                                ));
-                            }
-                        }
-                    }
-                }
-
-                // Cell comments: legacy part order gives the cells; threaded
-                // XML (matched by worksheet index) overrides author/time.
-                let legacy: Vec<(String, String, String)> = pkg
-                    .rels_for(part)
-                    .iter()
-                    .filter(|r| r.rel_type.ends_with("/comments"))
-                    .filter_map(|r| pkg.read(&resolve(part_dir(part), &r.target)))
-                    .flat_map(|xml| xlsx_drawings::parse_legacy_comments(&xml))
-                    .collect();
-                if !legacy.is_empty() {
-                    let ws_index = metas
-                        .iter()
-                        .filter(|(_, t, _)| matches!(t, calamine::SheetType::WorkSheet))
-                        .position(|(n, _, _)| n == name)
-                        .map(|i| i + 1)
-                        .unwrap_or(page_ix + 1);
-                    let threaded = pkg
-                        .read(&format!(
-                            "xl/threadedComments/threadedComment{ws_index}.xml"
-                        ))
-                        .map(|xml| xlsx_drawings::parse_threaded_comments(&xml, &persons))
-                        .unwrap_or_default();
-                    // Row-major over commented cells (docling scans the grid).
-                    let mut cells: Vec<(usize, usize, String)> = legacy
-                        .iter()
-                        .filter_map(|(cell, author, text)| {
-                            let (c, r) = cell_ref_pub(cell)?;
-                            let line = match threaded.get(cell) {
-                                Some((a, t, time)) => match time {
-                                    Some(ts) => format!("[author: {a}, time: {ts}]: {t}"),
-                                    None => format!("[author: {a}]: {t}"),
-                                },
-                                None => format!("[author: {author}]: {text}"),
-                            };
-                            Some((r, c, line))
-                        })
-                        .collect();
-                    cells.sort_by_key(|(r, c, _)| (*r, *c));
-                    comments.extend(cells.into_iter().map(|(_, _, line)| line));
-                }
-            }
-
+            comments.extend(sheet_comments);
             if items.is_empty() {
                 continue;
             }
@@ -306,6 +228,174 @@ impl DeclarativeBackend for XlsxBackend {
         }
         Ok(doc)
     }
+}
+
+/// Everything one sheet worker needs, bundled to stay under rayon's closure
+/// and keep the call site tidy.
+struct SheetCtx<'a, F: Fn(&str, &str) -> Vec<String> + Sync> {
+    pkg: Package,
+    name: &'a String,
+    typ: calamine::SheetType,
+    page_ix: usize,
+    metas: &'a [(String, calamine::SheetType, calamine::SheetVisible)],
+    sheet_parts: &'a HashMap<String, String>,
+    ranges: &'a HashMap<String, (Range<Data>, Merges)>,
+    persons: &'a HashMap<String, String>,
+    resolve_ref: &'a F,
+}
+
+/// Assemble one sheet's `(bbox, node)` items and its comment lines — the
+/// per-sheet half of `convert`, run under rayon; the caller merges results
+/// in workbook order.
+fn sheet_items<F: Fn(&str, &str) -> Vec<String> + Sync>(
+    ctx: SheetCtx<'_, F>,
+) -> (Vec<((usize, usize, usize, usize), Node)>, Vec<String>) {
+    let SheetCtx {
+        mut pkg,
+        name,
+        typ,
+        page_ix,
+        metas,
+        sheet_parts,
+        ranges,
+        persons,
+        resolve_ref,
+    } = ctx;
+    let mut comments: Vec<String> = Vec::new();
+    // (bbox in cell units, node) items for this sheet/page.
+    let mut items: Vec<((usize, usize, usize, usize), Node)> = Vec::new();
+
+    if matches!(typ, calamine::SheetType::WorkSheet) {
+        if let Some((range, abs_merges)) = ranges.get(name) {
+            let (rs_r, rs_c) = range.start().unwrap_or((0, 0));
+            let mut merge_of: HashMap<(usize, usize), (usize, usize)> = HashMap::new();
+            for &((sr, sc), (er, ec)) in abs_merges {
+                let tl = ((sr - rs_r) as usize, (sc - rs_c) as usize);
+                for r in sr..=er {
+                    for c in sc..=ec {
+                        merge_of.insert(((r - rs_r) as usize, (c - rs_c) as usize), tl);
+                    }
+                }
+            }
+            let (rh, rw) = range.get_size();
+            let height = rh.max(merge_of.keys().map(|(r, _)| r + 1).max().unwrap_or(0));
+            let width = rw.max(merge_of.keys().map(|(_, c)| c + 1).max().unwrap_or(0));
+            // docling's bboxes are in *absolute* cell indices; calamine's
+            // range is clipped to its first non-empty row/column.
+            let (or, oc) = (rs_r as usize, rs_c as usize);
+            for t in find_tables(range, &merge_of, height, width) {
+                items.push((
+                    (
+                        oc + t.min_c,
+                        or + t.min_r,
+                        oc + t.max_c + 1,
+                        or + t.max_r + 1,
+                    ),
+                    Node::Table(t.table),
+                ));
+            }
+        }
+    }
+
+    // Drawings: anchored images and chart frames.
+    if let Some(part) = sheet_parts.get(name) {
+        let drawing_targets: Vec<String> = pkg
+            .rels_for(part)
+            .iter()
+            .filter(|r| r.rel_type.ends_with("/drawing"))
+            .map(|r| resolve(part_dir(part), &r.target))
+            .collect();
+        for dpath in drawing_targets {
+            let Some(dxml) = pkg.read(&dpath) else {
+                continue;
+            };
+            let dimages = pkg.image_rels(&dpath, part_dir(&dpath));
+            let drels: HashMap<String, String> = pkg
+                .rels_for(&dpath)
+                .iter()
+                .map(|r| (r.id.clone(), resolve(part_dir(&dpath), &r.target)))
+                .collect();
+            for item in xlsx_drawings::parse_drawing(&dxml) {
+                match item.kind {
+                    xlsx_drawings::DrawingKind::Image(rid) => {
+                        items.push((
+                            item.bbox,
+                            Node::Picture {
+                                caption: None,
+                                image: dimages.get(&rid).cloned(),
+                                classification: None,
+                            },
+                        ));
+                    }
+                    xlsx_drawings::DrawingKind::Chart(rid) => {
+                        let Some(cpath) = drels.get(&rid) else {
+                            continue;
+                        };
+                        let Some(cxml) = pkg.read(cpath) else {
+                            continue;
+                        };
+                        let Some(spec) = xlsx_drawings::parse_chart(&cxml) else {
+                            continue;
+                        };
+                        let table = chart_table(&spec, name, &resolve_ref);
+                        let Some(table) = table else { continue };
+                        items.push((
+                            item.bbox,
+                            Node::Chart {
+                                kind: spec.kind.to_string(),
+                                table,
+                                caption: spec.title.clone(),
+                                location: None,
+                            },
+                        ));
+                    }
+                }
+            }
+        }
+
+        // Cell comments: legacy part order gives the cells; threaded
+        // XML (matched by worksheet index) overrides author/time.
+        let legacy: Vec<(String, String, String)> = pkg
+            .rels_for(part)
+            .iter()
+            .filter(|r| r.rel_type.ends_with("/comments"))
+            .filter_map(|r| pkg.read(&resolve(part_dir(part), &r.target)))
+            .flat_map(|xml| xlsx_drawings::parse_legacy_comments(&xml))
+            .collect();
+        if !legacy.is_empty() {
+            let ws_index = metas
+                .iter()
+                .filter(|(_, t, _)| matches!(t, calamine::SheetType::WorkSheet))
+                .position(|(n, _, _)| n == name)
+                .map(|i| i + 1)
+                .unwrap_or(page_ix + 1);
+            let threaded = pkg
+                .read(&format!(
+                    "xl/threadedComments/threadedComment{ws_index}.xml"
+                ))
+                .map(|xml| xlsx_drawings::parse_threaded_comments(&xml, &persons))
+                .unwrap_or_default();
+            // Row-major over commented cells (docling scans the grid).
+            let mut cells: Vec<(usize, usize, String)> = legacy
+                .iter()
+                .filter_map(|(cell, author, text)| {
+                    let (c, r) = cell_ref_pub(cell)?;
+                    let line = match threaded.get(cell) {
+                        Some((a, t, time)) => match time {
+                            Some(ts) => format!("[author: {a}, time: {ts}]: {t}"),
+                            None => format!("[author: {a}]: {t}"),
+                        },
+                        None => format!("[author: {author}]: {text}"),
+                    };
+                    Some((r, c, line))
+                })
+                .collect();
+            cells.sort_by_key(|(r, c, _)| (*r, *c));
+            comments.extend(cells.into_iter().map(|(_, _, line)| line));
+        }
+    }
+
+    (items, comments)
 }
 
 /// The directory of an OPC part path (`xl/worksheets/sheet1.xml` → `xl/worksheets`).
