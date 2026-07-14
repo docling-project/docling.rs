@@ -97,17 +97,18 @@ def _run(
     dl_doc: Any,
     chunker: str,
     tokenizer: Optional[str] = None,
-    max_tokens: int = 256,
+    size: int = 256,
     merge_peers: bool = True,
-    max_words: int = 300,
     overlap: float = 0.05,
 ) -> Iterator[DocChunk]:
+    # `size` is the chunk budget in the chunker's unit: tokens for "hybrid"
+    # (max_tokens), words for "window" (max_words); "hierarchical" ignores it.
     # The native side streams: a background Rust thread parses the document and
     # chunks it, handing over one record at a time — chunks are consumed as
     # they are produced, never materialized as a whole. Abandoning the
     # iterator early cancels the background chunking.
     stream = _chunk_document(
-        _document_json(dl_doc), chunker, tokenizer, max_tokens, merge_peers, max_words, overlap
+        _document_json(dl_doc), chunker, tokenizer, size, merge_peers, overlap
     )
     for record in stream:
         r = json.loads(record)
@@ -169,7 +170,7 @@ class HybridChunker(_BaseChunker):
             if cached.exists():
                 tokenizer = str(cached)
         return _run(
-            dl_doc, "hybrid", tokenizer, max_tokens=self.max_tokens, merge_peers=self.merge_peers
+            dl_doc, "hybrid", tokenizer, size=self.max_tokens, merge_peers=self.merge_peers
         )
 
 
@@ -204,4 +205,4 @@ class WindowChunker(_BaseChunker):
         self.overlap = float(overlap)
 
     def chunk(self, dl_doc: Any) -> Iterator[DocChunk]:
-        return _run(dl_doc, "window", max_words=self.max_words, overlap=self.overlap)
+        return _run(dl_doc, "window", size=self.max_words, overlap=self.overlap)

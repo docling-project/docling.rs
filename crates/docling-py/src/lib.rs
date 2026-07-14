@@ -362,12 +362,14 @@ impl Drop for PyChunkStream {
 /// `document_json` is docling-core's JSON wire format (what
 /// `DoclingDocument.export_to_dict()` serializes to). `chunker` selects the
 /// mode: `"hierarchical"` (structure-driven), `"hybrid"` (refines against a
-/// `max_tokens` budget, counting tokens with the HuggingFace `tokenizer.json`
-/// at `tokenizer` — or at `models/chunk/tokenizer.json`, the path
+/// token budget, counting tokens with the HuggingFace `tokenizer.json` at
+/// `tokenizer` — or at `models/chunk/tokenizer.json`, the path
 /// `scripts/install/download_dependencies.sh` populates, when `None`), or
 /// `"window"` (the document's Markdown cut into heading-bounded sections and
-/// windowed by `max_words` words with `overlap` fractional overlap —
-/// docling-rag's window chunker).
+/// windowed with `overlap` fractional overlap — docling-rag's window chunker).
+/// `size` is the chunk budget in the mode's unit: **tokens** for `"hybrid"`
+/// (docling's `max_tokens`), **words** for `"window"` (docling-rag's
+/// `max_words`); ignored by `"hierarchical"`.
 ///
 /// Returns a [`PyChunkStream`] that yields one JSON record
 /// `{text, headings, doc_items, contextualize}` per chunk as the background
@@ -379,19 +381,16 @@ impl Drop for PyChunkStream {
     document_json,
     chunker = "hierarchical".to_string(),
     tokenizer = None,
-    max_tokens = 256,
+    size = 256,
     merge_peers = true,
-    max_words = 300,
     overlap = 0.05,
 ))]
-#[allow(clippy::too_many_arguments)]
 fn chunk_document(
     document_json: String,
     chunker: String,
     tokenizer: Option<String>,
-    max_tokens: usize,
+    size: usize,
     merge_peers: bool,
-    max_words: usize,
     overlap: f32,
 ) -> PyChunkStream {
     use docling::chunker::{
@@ -428,7 +427,7 @@ fn chunk_document(
             "hybrid" => {
                 let tok = match docling::chunker::HuggingFaceTokenizer::resolve(
                     tokenizer.as_deref(),
-                    max_tokens,
+                    size,
                 ) {
                     Ok(t) => t,
                     Err(e) => {
@@ -444,7 +443,7 @@ fn chunk_document(
             }
             "window" => {
                 let markdown = result.document.export_to_markdown();
-                WindowChunker::new(max_words, overlap).chunk_with(&markdown, &mut |c| {
+                WindowChunker::new(size, overlap).chunk_with(&markdown, &mut |c| {
                     tx.send(Ok(record(&c, WindowChunker::contextualize(&c))))
                         .is_ok()
                 });
