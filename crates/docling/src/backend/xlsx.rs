@@ -30,6 +30,10 @@ use crate::source::SourceDocument;
 /// end_col))` cell spans.
 type Merges = Vec<((u32, u32), (u32, u32))>;
 
+/// One sheet's assembled content: `(bbox in cell units, node)` items in
+/// discovery order, plus the sheet's comment lines.
+type SheetItems = (Vec<((usize, usize, usize, usize), Node)>, Vec<String>);
+
 /// Load one sheet's merged regions (`<mergeCells>`), absolute coordinates.
 fn sheet_merges<R: std::io::Read + std::io::Seek>(wb: &mut Xlsx<R>, name: &str) -> Merges {
     wb.worksheet_merge_cells(name)
@@ -139,7 +143,7 @@ impl DeclarativeBackend for XlsxBackend {
         // parallel, one package clone per worker; the ordered collect and the
         // sequential merge below keep node order, page breaks, and the
         // comments tail identical to the sequential walk.
-        let per_sheet: Vec<(Vec<((usize, usize, usize, usize), Node)>, Vec<String>)> = metas
+        let per_sheet: Vec<SheetItems> = metas
             .par_iter()
             .enumerate()
             .map(|(page_ix, (name, typ, _))| {
@@ -247,9 +251,7 @@ struct SheetCtx<'a, F: Fn(&str, &str) -> Vec<String> + Sync> {
 /// Assemble one sheet's `(bbox, node)` items and its comment lines — the
 /// per-sheet half of `convert`, run under rayon; the caller merges results
 /// in workbook order.
-fn sheet_items<F: Fn(&str, &str) -> Vec<String> + Sync>(
-    ctx: SheetCtx<'_, F>,
-) -> (Vec<((usize, usize, usize, usize), Node)>, Vec<String>) {
+fn sheet_items<F: Fn(&str, &str) -> Vec<String> + Sync>(ctx: SheetCtx<'_, F>) -> SheetItems {
     let SheetCtx {
         mut pkg,
         name,
@@ -373,7 +375,7 @@ fn sheet_items<F: Fn(&str, &str) -> Vec<String> + Sync>(
                 .read(&format!(
                     "xl/threadedComments/threadedComment{ws_index}.xml"
                 ))
-                .map(|xml| xlsx_drawings::parse_threaded_comments(&xml, &persons))
+                .map(|xml| xlsx_drawings::parse_threaded_comments(&xml, persons))
                 .unwrap_or_default();
             // Row-major over commented cells (docling scans the grid).
             let mut cells: Vec<(usize, usize, String)> = legacy
