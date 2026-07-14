@@ -29,7 +29,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 # `chunking` pulls in the HF-tokenizer-backed HybridChunker for the chunk* API.
-docling = { path = "../docling", version = "0.34.0", features = ["chunking"] }
+docling = { path = "../docling", version = "0.35.0", features = ["chunking"] }
 # Node-API bindings. `napi4` enables threadsafe functions, used for streaming.
 napi = { version = "2", default-features = false, features = ["napi4"] }
 napi-derive = "2"
