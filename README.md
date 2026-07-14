@@ -137,7 +137,7 @@ corpus:
 use docling::chunker::{contextualize, HierarchicalChunker, HybridChunker, HuggingFaceTokenizer};
 
 let chunks = HierarchicalChunker.chunk(&result.document);          // structure-driven
-let tok = HuggingFaceTokenizer::from_file("tokenizer.json", 256)?; // feature "chunking"
+let tok = HuggingFaceTokenizer::from_file("models/tokenizer.json", 256)?; // feature "chunking", models should downloaded
 for chunk in HybridChunker::new(tok).chunk(&result.document) {
     let embed_me = contextualize(&chunk); // heading path + chunk text
 }
@@ -149,12 +149,13 @@ Same thing from Python (the `docling_rs` package runs these natively):
 from docling_rs import DocumentConverter
 from docling_rs.chunking import HierarchicalChunker, HybridChunker
 
+docling_rs.download_models()
 doc = DocumentConverter().convert("report.docx").document
 
 for chunk in HierarchicalChunker().chunk(doc):
     print(chunk.meta.headings, chunk.text)
 
-chunker = HybridChunker(tokenizer="tokenizer.json", max_tokens=256)
+chunker = HybridChunker(max_tokens=256)
 for chunk in chunker.chunk(doc):
     embed_me = chunker.contextualize(chunk)  # heading path + chunk text
 ```
