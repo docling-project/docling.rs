@@ -1,6 +1,6 @@
 # Third-party model notice
 
-`docling.rs`'s PDF/image pipeline uses two ONNX graphs that are **format
+`docling.rs`'s PDF/image pipeline uses ONNX graphs that are **format
 conversions of docling-project's own PyTorch models**, not weights docling.rs
 trains or modifies. They're licensed separately from docling.rs's own MIT
 code (see [`LICENSE`](./LICENSE)) under their upstream terms:
@@ -9,10 +9,13 @@ code (see [`LICENSE`](./LICENSE)) under their upstream terms:
 |---|---|---|
 | RT-DETR layout model (`layout_heron.onnx`) | [`docling-project/docling-layout-heron`](https://huggingface.co/docling-project/docling-layout-heron) | Apache-2.0 |
 | TableFormer (`tableformer/{encoder,decoder,bbox}.onnx`) | [`docling-project/docling-models`](https://huggingface.co/docling-project/docling-models) (`model_artifacts/tableformer/accurate`) | CDLA-Permissive-2.0 / Apache-2.0 |
+| DocumentFigureClassifier (`picture_classifier.onnx`) | [`docling-project/DocumentFigureClassifier-v2.5`](https://huggingface.co/docling-project/DocumentFigureClassifier-v2.5) (upstream's own ONNX, re-hosted unmodified) | Apache-2.0 |
+| CodeFormulaV2 (`cf_{vision,embed,decoder_kv}.onnx` + `cf_tokenizer.json`) | [`docling-project/CodeFormulaV2`](https://huggingface.co/docling-project/CodeFormulaV2) | Apache-2.0 |
 
-`scripts/install/export_layout.py` and `scripts/install/export_tableformer.py` do the
-conversion (PyTorch → ONNX via `torch.onnx.export`); no weights are retrained,
-fine-tuned, or otherwise altered. `.github/workflows/publish-models.yml` runs
+`scripts/install/export_layout.py`, `scripts/install/export_tableformer.py` and
+`scripts/install/export_code_formula.py` do the conversion (PyTorch → ONNX via
+`torch.onnx.export`); no weights are retrained, fine-tuned, or otherwise
+altered. `.github/workflows/publish-models.yml` runs
 that conversion (and re-hosts pdfium + the OCR model alongside it) and
 publishes everything as GitHub Release assets on this repo (tag `models-v1`),
 fetched by `scripts/install/download_dependencies.sh` — see that script and

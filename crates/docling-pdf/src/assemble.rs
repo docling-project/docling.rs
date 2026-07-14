@@ -5,7 +5,8 @@
 //! assigned to its best-containing region, regions are ordered in reading order
 //! (two-column aware), and each becomes a typed node by its layout label.
 
-use docling_core::{Node, PictureImage, Table};
+use docling_core::{Node, PictureClass, PictureImage, Table};
+use image::RgbImage;
 
 use crate::layout::Region;
 use crate::pdfium_backend::{PdfPage, TextCell};
@@ -963,6 +964,80 @@ fn reconstruct_table(region: &Region, cells: &[TextCell]) -> Vec<Vec<String>> {
     grid
 }
 
+/// The union bbox of the text cells assigned to a region (same >50%-overlap
+/// rule as [`region_text`]), or `None` when no cell lands in it. docling's
+/// LayoutPostprocessor shrinks a regular cluster's bbox to its cells, and the
+/// enrichment crops are taken from that cell-tight box — cropping the raw
+/// detector box instead hands the VLM surrounding chrome (e.g. the `Listing N:`
+/// caption under a code block) that changes its output.
+pub fn region_cell_bbox(region: &Region, cells: &[TextCell]) -> Option<[f32; 4]> {
+    let mut bbox: Option<[f32; 4]> = None;
+    for c in cells {
+        let ca = area(c.l, c.t, c.r, c.b).max(1.0);
+        if inter(region, c.l, c.t, c.r, c.b) / ca <= 0.5 {
+            continue;
+        }
+        bbox = Some(match bbox {
+            None => [c.l, c.t, c.r, c.b],
+            Some([l, t, r, b]) => [l.min(c.l), t.min(c.t), r.max(c.r), b.max(c.b)],
+        });
+    }
+    bbox
+}
+
+/// One region's enrichment-model result, produced by the pipeline's opt-in
+/// passes (issue #76) and applied during assembly.
+#[derive(Debug, Clone)]
+pub enum Enrichment {
+    /// DocumentPictureClassifier predictions, descending confidence.
+    PictureClasses(Vec<PictureClass>),
+    /// CodeFormulaV2 output for a `code` region: the rewritten source text and
+    /// the `<_language_>` prefix (when the model emitted one).
+    Code {
+        language: Option<String>,
+        text: String,
+    },
+    /// CodeFormulaV2 output for a `formula` region: the decoded LaTeX.
+    Formula { latex: String },
+}
+
+/// Crop a region (page points, already expanded by the caller if needed) from
+/// the rendered page image and resize it to `target_scale` pixels per point —
+/// the enrichment-model equivalent of docling's
+/// `page.get_image(scale=…, cropbox=…)`, sourced from the existing
+/// [`crate::pdfium_backend::RENDER_SCALE`] render instead of a fresh pdfium
+/// pass (the page bitmap is already the exact docling render at scale 2).
+pub fn crop_region_scaled(page: &PdfPage, bbox: [f32; 4], target_scale: f32) -> Option<RgbImage> {
+    let s = page.scale;
+    let [l, t, r, b] = bbox;
+    let (iw, ih) = (page.image.width(), page.image.height());
+    let x = (l * s).max(0.0) as u32;
+    let y = (t * s).max(0.0) as u32;
+    if x >= iw || y >= ih {
+        return None;
+    }
+    let w = (((r - l.max(0.0)) * s) as u32).min(iw - x);
+    let h = (((b - t.max(0.0)) * s) as u32).min(ih - y);
+    if w == 0 || h == 0 {
+        return None;
+    }
+    let crop = image::imageops::crop_imm(&page.image, x, y, w, h).to_image();
+    // docling renders the crop at `target_scale` directly; from the scale-2
+    // page render that is a resize to the same pixel geometry
+    // (`round(width_points * scale)`, PIL's BICUBIC ≙ CatmullRom).
+    let tw = ((w as f32 / s) * target_scale).round().max(1.0) as u32;
+    let th = ((h as f32 / s) * target_scale).round().max(1.0) as u32;
+    if (tw, th) == (w, h) {
+        return Some(crop);
+    }
+    Some(image::imageops::resize(
+        &crop,
+        tw,
+        th,
+        image::imageops::FilterType::CatmullRom,
+    ))
+}
+
 /// Crop a layout region from the rendered page image and encode it as PNG (the
 /// figure bytes docling stores on a `PictureItem`). Region coordinates are page
 /// points; the image is rendered at `page.scale`.
@@ -1097,25 +1172,36 @@ pub fn assemble_page(
     page: &PdfPage,
     regions: Vec<Region>,
     table_rows: &[Option<Vec<Vec<String>>>],
+    enrichments: &[Option<Enrichment>],
 ) -> (Vec<Node>, Vec<(String, String)>) {
     let mut nodes: Vec<Node> = Vec::new();
     // Recover this page's hyperlinks (rendered only in strict Markdown).
     let links = resolve_link_anchors(page);
-    // Pair each region with its precomputed TableFormer grid (indexed by original
-    // order) and order by reading order together, so they stay aligned.
-    let mut items: Vec<(Region, Option<Vec<Vec<String>>>)> = regions
+    // Pair each region with its precomputed TableFormer grid and enrichment
+    // (indexed by original order) and order by reading order together, so they
+    // stay aligned.
+    type RegionItem = (Region, Option<Vec<Vec<String>>>, Option<Enrichment>);
+    let mut items: Vec<RegionItem> = regions
         .into_iter()
         .enumerate()
-        .map(|(i, r)| (r, table_rows.get(i).cloned().flatten()))
+        .map(|(i, r)| {
+            (
+                r,
+                table_rows.get(i).cloned().flatten(),
+                enrichments.get(i).cloned().flatten(),
+            )
+        })
         .collect();
     order_regions(&mut items, page.width, page.height, |it| &it.0);
     // Float a margin page number to the front of reading order (docling parity:
     // right_to_left_02's bottom `11` is its first item). Stable, so everything
     // else keeps its order; no-op on pages without such a region.
     let page_h = page.height;
-    items.sort_by_key(|(r, _)| !is_page_number(r, &page.cells, page_h));
-    let table_rows: Vec<Option<Vec<Vec<String>>>> = items.iter().map(|(_, t)| t.clone()).collect();
-    let regions: Vec<Region> = items.into_iter().map(|(r, _)| r).collect();
+    items.sort_by_key(|(r, _, _)| !is_page_number(r, &page.cells, page_h));
+    let table_rows: Vec<Option<Vec<Vec<String>>>> =
+        items.iter().map(|(_, t, _)| t.clone()).collect();
+    let enrichments: Vec<Option<Enrichment>> = items.iter().map(|(_, _, e)| e.clone()).collect();
+    let regions: Vec<Region> = items.into_iter().map(|(r, _, _)| r).collect();
     // docling emits a figure's caption *before* the image marker. Pair each
     // picture with the caption region nearest below it and consume that caption,
     // so it isn't also emitted in its own (lower) reading-order position.
@@ -1210,11 +1296,16 @@ pub fn assemble_page(
             let caption = caption_for[i]
                 .map(|ci| region_text(&regions[ci], &page.cells))
                 .filter(|t| !t.is_empty());
+            let classification = match &enrichments[i] {
+                Some(Enrichment::PictureClasses(classes)) => Some(classes.clone()),
+                _ => None,
+            };
             nodes.push(located(
                 loc,
                 Node::Picture {
                     caption,
                     image: crate::timing::timed("crop_region", || crop_region(page, region)),
+                    classification,
                 },
             ));
             continue;
@@ -1294,11 +1385,19 @@ pub fn assemble_page(
                     }),
                 ));
             }
-            // docling does not decode formulas in the standard pipeline; it emits
-            // a placeholder comment rather than the (garbled) raw glyph text.
-            "formula" => nodes.push(Node::Paragraph {
-                text: "<!-- formula-not-decoded -->".into(),
-            }),
+            // With formula enrichment the CodeFormula model decodes the region
+            // to LaTeX; otherwise docling emits a placeholder comment rather
+            // than the (garbled) raw glyph text.
+            "formula" => match &enrichments[i] {
+                Some(Enrichment::Formula { latex }) => nodes.push(Node::Formula {
+                    latex: latex.clone(),
+                    orig: text.clone(),
+                    location: Some(loc),
+                }),
+                _ => nodes.push(Node::Paragraph {
+                    text: "<!-- formula-not-decoded -->".into(),
+                }),
+            },
             // Code blocks: use the space-glyph-only grouping (monospace keeps its
             // source spacing) and emit a fenced block, preserving the line breaks
             // and indentation of the source (unlike prose, which reflows). pdfium
@@ -1313,13 +1412,35 @@ pub fn assemble_page(
                 } else {
                     code
                 };
-                nodes.push(located(
-                    loc,
-                    Node::Code {
+                // With code enrichment the CodeFormula model rewrites the block
+                // (and names its language); `orig` keeps the raw extraction in
+                // docling's shape — its parser has no line-preserving code
+                // path, so its `orig` is the same code with the lines joined
+                // by single spaces (indentation collapsed).
+                let node = match &enrichments[i] {
+                    Some(Enrichment::Code {
+                        language,
+                        text: enriched,
+                    }) => {
+                        let flat = code
+                            .lines()
+                            .map(str::trim)
+                            .filter(|l| !l.is_empty())
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        Node::Code {
+                            language: language.clone(),
+                            text: enriched.clone(),
+                            orig: Some(flat),
+                        }
+                    }
+                    _ => Node::Code {
                         language: None,
                         text: code,
+                        orig: None,
                     },
-                ));
+                };
+                nodes.push(located(loc, node));
                 // docling emits the `Listing N:` caption after the code block.
                 if let Some(ci) = code_caption_for[i] {
                     let cap = region_text(&regions[ci], &page.cells);
@@ -1751,6 +1872,7 @@ mod tests {
             Node::Picture {
                 caption: None,
                 image: None,
+                classification: None,
             },
             para("Fig. 1. a diagram"),
             para("the most common kind"),

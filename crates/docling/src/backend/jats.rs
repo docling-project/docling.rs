@@ -567,6 +567,7 @@ fn add_figure(doc: &mut DoclingDocument, node: XmlNode) {
     doc.push(Node::Picture {
         caption: (!fig_text.is_empty()).then(|| escape_text(&fig_text)),
         image: None,
+        classification: None,
     });
 }
 

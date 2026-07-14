@@ -71,6 +71,10 @@ pub struct DocumentConverter {
     no_table_former: bool,
     no_ocr: bool,
     use_web_browser: bool,
+    /// Opt-in PDF/image enrichment models (docling's
+    /// `do_picture_classification` / `do_code_enrichment` /
+    /// `do_formula_enrichment`).
+    enrich: docling_pdf::EnrichmentOptions,
 }
 
 impl DocumentConverter {
@@ -89,6 +93,7 @@ impl DocumentConverter {
             no_table_former: false,
             no_ocr: false,
             use_web_browser: false,
+            enrich: docling_pdf::EnrichmentOptions::default(),
         }
     }
 
@@ -145,6 +150,45 @@ impl DocumentConverter {
     /// without this flag. Implies [`no_table_former`](Self::no_table_former).
     pub fn no_ocr(mut self, disable: bool) -> Self {
         self.no_ocr = disable;
+        self
+    }
+
+    /// Classify each detected picture with the DocumentFigureClassifier model
+    /// (docling's `do_picture_classification`). Off by default.
+    ///
+    /// The full 26-class prediction distribution (bar_chart, logo, signature,
+    /// …) lands on the picture item and is serialized into the docling JSON as
+    /// the `classification` annotation plus the `meta.classification` field.
+    /// Markdown output is unaffected. Needs `models/picture_classifier.onnx`
+    /// (fetched by `scripts/install/download_dependencies.sh`); a missing
+    /// model warns once and skips classification.
+    pub fn do_picture_classification(mut self, enable: bool) -> Self {
+        self.enrich.picture_classification = enable;
+        self
+    }
+
+    /// Rewrite detected code blocks with the CodeFormulaV2 VLM (docling's
+    /// `do_code_enrichment`). Off by default.
+    ///
+    /// The model re-reads the code crop at ~120 dpi, emits the clean source
+    /// text (line breaks included) and identifies the language, which lands in
+    /// the JSON `code_language` field. Needs the `models/code_formula/` graphs
+    /// (fetched by `scripts/install/download_dependencies.sh`); a missing
+    /// model warns once and leaves the block as extracted.
+    pub fn do_code_enrichment(mut self, enable: bool) -> Self {
+        self.enrich.code = enable;
+        self
+    }
+
+    /// Decode display formulas to LaTeX with the CodeFormulaV2 VLM (docling's
+    /// `do_formula_enrichment`). Off by default.
+    ///
+    /// An enriched formula renders as `$$latex$$` in Markdown and as a
+    /// `formula` text item in the JSON, replacing the
+    /// `<!-- formula-not-decoded -->` placeholder. Same model artifacts as
+    /// [`do_code_enrichment`](Self::do_code_enrichment).
+    pub fn do_formula_enrichment(mut self, enable: bool) -> Self {
+        self.enrich.formula = enable;
         self
     }
 
@@ -229,6 +273,7 @@ impl DocumentConverter {
             self.strict,
             self.no_table_former,
             self.no_ocr,
+            self.enrich,
         ))
     }
 
@@ -321,6 +366,7 @@ impl DocumentConverter {
                 &source.name,
                 self.no_table_former,
                 self.no_ocr,
+                self.enrich,
             )
             .map_err(|e| ConversionError::Parse(e.to_string()))?,
             InputFormat::Image => docling_pdf::convert_image_with_options(
@@ -328,6 +374,7 @@ impl DocumentConverter {
                 &source.name,
                 self.no_table_former,
                 self.no_ocr,
+                self.enrich,
             )
             .map_err(|e| ConversionError::Parse(e.to_string()))?,
             InputFormat::MetsGbs => docling_pdf::convert_mets_gbs_with_options(
@@ -335,6 +382,7 @@ impl DocumentConverter {
                 &source.name,
                 self.no_table_former,
                 self.no_ocr,
+                self.enrich,
             )
             .map_err(|e| ConversionError::Parse(e.to_string()))?,
             // Audio → Whisper ASR (symphonia decode + ONNX inference); each

@@ -361,7 +361,7 @@ fn render_one(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
             let mark = if *checked { "- [x] " } else { "- [ ] " };
             blocks.push(strict_text(&format!("{mark}{text}"), ctx.strict));
         }
-        Node::Code { language, text } => {
+        Node::Code { language, text, .. } => {
             // Legacy docling never emits a language on the fence; strict keeps it.
             let lang = match language {
                 Some(l) if ctx.strict => l.as_str(),
@@ -369,13 +369,17 @@ fn render_one(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
             };
             blocks.push(format!("```{lang}\n{text}\n```"));
         }
+        // A CodeFormula-decoded display formula renders as docling's `$$…$$`
+        // (the un-enriched pipeline emits a placeholder paragraph instead).
+        Node::Formula { latex, .. } => blocks.push(format!("$${latex}$$")),
         Node::Table(table) => {
             let rendered = render_table(table, ctx.compact_tables);
             if !rendered.is_empty() {
                 blocks.push(rendered);
             }
         }
-        Node::Picture { caption, image } => {
+        // Classification predictions don't affect docling's Markdown output.
+        Node::Picture { caption, image, .. } => {
             if let Some(cap) = caption {
                 if !cap.is_empty() {
                     blocks.push(cap.clone());
@@ -860,6 +864,7 @@ mod tests {
         doc.push(Node::Code {
             language: Some("rust".into()),
             text: "let x = 1;".into(),
+            orig: None,
         });
         doc.push(Node::Table(Table {
             rows: vec![vec!["a".into(), "b".into()], vec!["1".into(), "2".into()]],
@@ -870,6 +875,7 @@ mod tests {
         doc.push(Node::Picture {
             caption: Some("Fig 1".into()),
             image: None,
+            classification: None,
         });
         doc.add_paragraph("Last paragraph.");
 

@@ -3,7 +3,7 @@
 //! A stand-in for `docling.cli.main`; the full Typer-style CLI (batch mode,
 //! pipeline options) is a later phase.
 //!
-//! Usage: docling-rs [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--use-web-browser] <input-file>
+//! Usage: docling-rs [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] <input-file>
 //!   --to md|json       output format (default: md). `json` emits docling-core's
 //!                      native DoclingDocument JSON (export_to_dict).
 //!   --images MODE      picture handling for Markdown (mirrors docling's
@@ -35,6 +35,19 @@
 //!                      from Rust) so stylesheet-driven `display:none` elements
 //!                      (e.g. a collapsed nav menu) are dropped before parsing.
 //!                      Requires building with `--features web-browser`.
+//!   --enrich-picture-classes
+//!                      classify each detected picture (PDF/image input) with the
+//!                      DocumentFigureClassifier model; the 26-class prediction
+//!                      distribution lands in the JSON picture item (docling's
+//!                      do_picture_classification). Needs
+//!                      models/picture_classifier.onnx.
+//!   --enrich-code      rewrite detected code blocks (and detect their language)
+//!                      with the CodeFormulaV2 VLM (docling's do_code_enrichment).
+//!                      Needs models/code_formula/. Slow on CPU: an autoregressive
+//!                      generation per code block.
+//!   --enrich-formula   decode display formulas to LaTeX with CodeFormulaV2
+//!                      (docling's do_formula_enrichment); Markdown then renders
+//!                      $$latex$$ instead of the formula placeholder comment.
 
 use std::io::{self, Write};
 use std::path::Path;
@@ -51,6 +64,9 @@ fn main() -> ExitCode {
     let mut no_table_former = false;
     let mut no_ocr = false;
     let mut use_web_browser = false;
+    let mut enrich_picture_classes = false;
+    let mut enrich_code = false;
+    let mut enrich_formula = false;
     let mut bench_warm: Option<usize> = None;
     let mut path: Option<String> = None;
     let mut args = std::env::args().skip(1);
@@ -62,6 +78,11 @@ fn main() -> ExitCode {
             "--no-table-former" => no_table_former = true,
             "--no-ocr" => no_ocr = true,
             "--use-web-browser" => use_web_browser = true,
+            // Opt-in enrichment models (docling CLI flag names): picture
+            // classification, code rewrite + language, formula LaTeX.
+            "--enrich-picture-classes" => enrich_picture_classes = true,
+            "--enrich-code" => enrich_code = true,
+            "--enrich-formula" => enrich_formula = true,
             "--to" => to = args.next().unwrap_or_default(),
             "--images" => images = args.next().unwrap_or_default(),
             // Hidden benchmarking aid: load the PDF/image pipeline once, then time
@@ -131,7 +152,10 @@ fn main() -> ExitCode {
         .fetch_images(fetch_images)
         .no_table_former(no_table_former)
         .no_ocr(no_ocr)
-        .use_web_browser(use_web_browser);
+        .use_web_browser(use_web_browser)
+        .do_picture_classification(enrich_picture_classes)
+        .do_code_enrichment(enrich_code)
+        .do_formula_enrichment(enrich_formula);
 
     // Stream Markdown by default: print each chunk as the converter produces it
     // (page by page for PDF). JSON needs the whole tree, and the referenced image

@@ -401,6 +401,8 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
 | TableFormer (optional) | `models/tableformer/{encoder,decoder,bbox}.onnx` (+ `.data` sidecars where the export needs them) |
 | Whisper tiny (audio/ASR; skip with `--no-asr`) | `models/asr/{encoder_model,decoder_model}.onnx`, `models/asr/vocab.json` (+ `added_tokens.json` for language selection) |
 | INT8 CPU models (optional; fetch with `--int8`) | `models/layout_heron_int8.onnx`, `models/tableformer/decoder_int8.onnx` |
+| DocumentFigureClassifier (picture classification) | `models/picture_classifier.onnx` |
+| CodeFormulaV2 (code/formula enrichment, ~1.3 GB; fetch with `--enrich`) | `models/code_formula/{vision,embed,decoder_kv}.onnx`, `models/code_formula/tokenizer.json` |
 
 Idempotent — safe to re-run; it skips files already on disk. Pass `--force` to
 re-fetch everything, or set `$DOCLING_RS_MODELS_URL` to fetch from a
@@ -409,6 +411,43 @@ come from Hugging Face (`$DOCLING_RS_ASR_MODELS_URL` overrides, or point
 `DOCLING_ASR_{ENCODER,DECODER,VOCAB}` at explicit files). pdfium is Linux x64
 only for now — other platforms, or building the models from source, need
 [`scripts/install/pdf_setup.sh`](#testing) instead.
+
+### Enrichment models (picture classification, code, formulas)
+
+docling's optional enrichment stages are ported behind the same opt-in flags
+(`PdfPipelineOptions.do_picture_classification` / `do_code_enrichment` /
+`do_formula_enrichment`):
+
+```bash
+docling-rs --enrich-picture-classes doc.pdf   # classify pictures (26 classes)
+docling-rs --enrich-code --enrich-formula doc.pdf
+```
+
+```rust
+let converter = DocumentConverter::new()
+    .do_picture_classification(true)
+    .do_code_enrichment(true)
+    .do_formula_enrichment(true);
+```
+
+* **Picture classification** — `docling-project/DocumentFigureClassifier-v2.5`
+  (EfficientNet, 26 figure classes: `bar_chart`, `logo`, `signature`, …). The
+  full prediction distribution lands on the JSON picture item as docling's
+  `classification` annotation + `meta.classification`; Markdown is unchanged.
+* **Code enrichment** — `docling-project/CodeFormulaV2` (an Idefics3/SmolVLM-
+  class VLM exported to ONNX by `scripts/install/export_code_formula.py`, its
+  greedy decode verified token-identical to `transformers.generate`). Rewrites
+  each code block from its ~120 dpi crop and fills the JSON `code_language`.
+* **Formula enrichment** — the same VLM decodes display formulas to LaTeX:
+  Markdown renders `$$…$$` instead of `<!-- formula-not-decoded -->`, and the
+  JSON formula item carries the LaTeX in `text` (raw glyphs stay in `orig`).
+
+Both models load lazily on the first matching region (a missing model warns
+once and skips that pass), and are shared pipeline-wide like TableFormer. The
+Python bindings take the same three `do_*` kwargs. Mind that CodeFormula is an
+autoregressive 256M-parameter VLM — expect seconds per code/formula region on
+CPU. `scripts/conformance/enrich_conformance.sh` checks the enriched output
+against Python docling's on the enrichment test PDFs.
 
 ### INT8 models (faster PDF conversion on CPU — the default)
 

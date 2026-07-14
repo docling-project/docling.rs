@@ -124,6 +124,7 @@ impl Parser {
             self.deferred.push(Node::Picture {
                 caption: cap,
                 image: None,
+                classification: None,
             });
             return;
         }

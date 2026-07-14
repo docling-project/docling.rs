@@ -77,6 +77,7 @@ pub(crate) fn spawn(
     strict: bool,
     no_table_former: bool,
     no_ocr: bool,
+    enrich: docling_pdf::EnrichmentOptions,
 ) -> MarkdownStream {
     let (tx, rx) = sync_channel::<Result<String, ConversionError>>(CHANNEL_DEPTH);
     let handle = std::thread::spawn(move || {
@@ -87,6 +88,7 @@ pub(crate) fn spawn(
             strict,
             no_table_former,
             no_ocr,
+            enrich,
             &tx,
         )
     });
@@ -99,6 +101,7 @@ pub(crate) fn spawn(
 /// The producer body: convert `source` and push Markdown chunks onto `tx`. Send
 /// failures (the consumer dropped the stream) are treated as a cancel — we stop
 /// quietly.
+#[allow(clippy::too_many_arguments)]
 fn run(
     converter: DocumentConverter,
     source: SourceDocument,
@@ -106,12 +109,21 @@ fn run(
     strict: bool,
     no_table_former: bool,
     no_ocr: bool,
+    enrich: docling_pdf::EnrichmentOptions,
     tx: &std::sync::mpsc::SyncSender<Result<String, ConversionError>>,
 ) {
     match source.format {
         // PDF is the format with internal page-level parallelism, so it gets the
         // true streaming path: emit each page's Markdown in order as it completes.
-        InputFormat::Pdf => run_pdf(&source, image_mode, strict, no_table_former, no_ocr, tx),
+        InputFormat::Pdf => run_pdf(
+            &source,
+            image_mode,
+            strict,
+            no_table_former,
+            no_ocr,
+            enrich,
+            tx,
+        ),
         // Every other backend builds the whole `DoclingDocument` synchronously, so
         // there is no latency to stream away; serialize it through the same chunk
         // API for a uniform interface (one chunk plus the trailing newline).
@@ -125,15 +137,18 @@ fn run_pdf(
     strict: bool,
     no_table_former: bool,
     no_ocr: bool,
+    enrich: docling_pdf::EnrichmentOptions,
     tx: &std::sync::mpsc::SyncSender<Result<String, ConversionError>>,
 ) {
     // The PDF pipeline builds its document from `DoclingDocument::new` defaults, so
     // tables use the padded GitHub serializer (compact_tables = false), matching the
     // buffered PDF path.
     let mut streamer = MarkdownStreamer::new(strict, image_mode, false);
-    let mut pipeline = match docling_pdf::Pipeline::new()
-        .map(|p| p.no_table_former(no_table_former).no_ocr(no_ocr))
-    {
+    let mut pipeline = match docling_pdf::Pipeline::new().map(|p| {
+        p.no_table_former(no_table_former)
+            .no_ocr(no_ocr)
+            .enrichments(enrich)
+    }) {
         Ok(p) => p,
         Err(e) => {
             let _ = tx.send(Err(ConversionError::Parse(e.to_string())));

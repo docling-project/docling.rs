@@ -116,6 +116,7 @@ fn text_item(item: &Value, level: u8, doc: &mut DoclingDocument) {
                 .filter(|s| !s.is_empty() && *s != "unknown")
                 .map(String::from),
             text,
+            orig: None,
         }),
         "list_item" => doc.push(Node::ListItem {
             ordered: item["enumerated"].as_bool().unwrap_or(false),
@@ -265,6 +266,7 @@ fn picture_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
     doc.push(Node::Picture {
         caption: None,
         image: None,
+        classification: None,
     });
     push_captions(item, root, doc);
 }

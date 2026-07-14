@@ -87,6 +87,22 @@ jobs:
         continue-on-error: true
         run: python scripts/install/quantize_models.py tableformer-decoder
 
+      # --- CodeFormula VLM (optional — the enrichment models are opt-in) ---
+      # CodeFormulaV2 (Idefics3/SmolVLM-class, Apache-2.0) exported to the
+      # three-graph ONNX set the Rust `--enrich-code`/`--enrich-formula`
+      # passes run; the export script verifies the graphs argmax-identical to
+      # transformers.generate before writing them.
+      - name: Install CodeFormula export deps
+        continue-on-error: true
+        id: cf-deps
+        run: pip install "transformers>=4.46" onnxruntime pillow huggingface_hub
+
+      - name: Export CodeFormula
+        if: steps.cf-deps.outcome == 'success'
+        continue-on-error: true
+        id: cf-export
+        run: python scripts/install/export_code_formula.py models/code_formula
+
       # --- pdfium + OCR + chunk tokenizer (re-hosted third-party assets) ---
       # The tokenizer is all-MiniLM-L6-v2's tokenizer.json (Apache-2.0), the
       # default docling's HybridChunker counts tokens with; re-hosted so the
@@ -103,6 +119,10 @@ jobs:
             "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt"
           curl -fsSL -o third-party/chunk_tokenizer.json \
             "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json"
+          # DocumentFigureClassifier-v2.5 (Apache-2.0) ships its ONNX graph
+          # upstream — re-hosted as-is for --enrich-picture-classes.
+          curl -fsSL -o third-party/picture_classifier.onnx \
+            "https://huggingface.co/docling-project/DocumentFigureClassifier-v2.5/resolve/main/model.onnx"
 
       # --- stage + publish -------------------------------------------------
       # GitHub release assets can't contain "/", so tableformer/*.onnx is
@@ -132,6 +152,13 @@ jobs:
           stage models/tableformer/decoder_kv.onnx decoder_kv.onnx
           stage models/tableformer/decoder_kv_int8.onnx decoder_kv_int8.onnx
           stage models/tableformer/bbox.onnx bbox.onnx
+          stage third-party/picture_classifier.onnx picture_classifier.onnx
+          # CodeFormula graphs flatten with a cf_ prefix (release assets are
+          # one flat namespace).
+          stage models/code_formula/vision.onnx cf_vision.onnx
+          stage models/code_formula/embed.onnx cf_embed.onnx
+          stage models/code_formula/decoder_kv.onnx cf_decoder_kv.onnx
+          stage models/code_formula/tokenizer.json cf_tokenizer.json
           echo "staged:"
           ls -la release-assets/
 
