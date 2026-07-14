@@ -88,9 +88,27 @@ pub struct HierarchicalChunker;
 impl HierarchicalChunker {
     /// Chunk the document.
     pub fn chunk(&self, doc: &DoclingDocument) -> Vec<DocChunk> {
-        let mut w = Walker::default();
+        let mut chunks = Vec::new();
+        self.chunk_with(doc, &mut |c| {
+            chunks.push(c);
+            true
+        });
+        chunks
+    }
+
+    /// Stream the chunks: `sink` is called with each chunk as the document
+    /// walk produces it, so a consumer can process (embed, forward) chunks
+    /// without materializing the whole `Vec` first. A `false` return from
+    /// `sink` cancels the walk. [`Self::chunk`] is this with a collecting
+    /// sink — the chunks and their order are identical.
+    pub fn chunk_with(&self, doc: &DoclingDocument, sink: &mut dyn FnMut(DocChunk) -> bool) {
+        let mut w = Walker {
+            alloc: Alloc::default(),
+            headings: BTreeMap::new(),
+            stopped: false,
+            sink,
+        };
         w.walk(&doc.nodes);
-        w.chunks
     }
 }
 
@@ -139,22 +157,23 @@ impl Alloc {
     }
 }
 
-#[derive(Debug, Default)]
-struct Walker {
+struct Walker<'s> {
     alloc: Alloc,
     /// Active heading per docling level (title = 0, `section_header` = its
     /// `level`), pruned like docling's `heading_by_level`.
     headings: BTreeMap<u8, String>,
-    chunks: Vec<DocChunk>,
+    /// Set once the sink refuses a chunk; the walk unwinds without emitting.
+    stopped: bool,
+    sink: &'s mut dyn FnMut(DocChunk) -> bool,
 }
 
-impl Walker {
+impl Walker<'_> {
     fn emit(&mut self, text: String, doc_items: Vec<ChunkItem>) {
-        if text.is_empty() {
+        if self.stopped || text.is_empty() {
             return;
         }
         let headings: Vec<String> = self.headings.values().cloned().collect();
-        self.chunks.push(DocChunk {
+        self.stopped = !(self.sink)(DocChunk {
             text,
             headings: (!headings.is_empty()).then_some(headings),
             doc_items,
@@ -216,6 +235,9 @@ impl Walker {
     fn walk(&mut self, nodes: &[Node]) {
         let mut i = 0;
         while i < nodes.len() {
+            if self.stopped {
+                return;
+            }
             if matches!(nodes[i], Node::ListItem { .. }) {
                 let start = i;
                 i += 1;
@@ -1078,19 +1100,40 @@ impl<T: ChunkTokenizer> HybridChunker<T> {
 
     /// Chunk the document.
     pub fn chunk(&self, doc: &DoclingDocument) -> Vec<DocChunk> {
-        let chunks = HierarchicalChunker.chunk(doc);
-        let chunks: Vec<DocChunk> = chunks
-            .into_iter()
-            .flat_map(|c| self.split_by_doc_items(c))
-            .collect();
-        let chunks: Vec<DocChunk> = chunks
-            .into_iter()
-            .flat_map(|c| self.split_using_plain_text(c))
-            .collect();
-        if self.merge_peers {
-            self.merge_matching(chunks)
-        } else {
-            chunks
+        let mut chunks = Vec::new();
+        self.chunk_with(doc, &mut |c| {
+            chunks.push(c);
+            true
+        });
+        chunks
+    }
+
+    /// Stream the chunks: each hierarchical chunk is split against the token
+    /// budget as the document walk produces it, and the peer merge flushes a
+    /// merged chunk to `sink` as soon as its window closes (a chunk with
+    /// different headings arrives, or the budget fills). A `false` return from
+    /// `sink` cancels the chunking. [`Self::chunk`] is this with a collecting
+    /// sink — the chunks and their order are identical.
+    pub fn chunk_with(&self, doc: &DoclingDocument, sink: &mut dyn FnMut(DocChunk) -> bool) {
+        let mut merger = PeerMerger::default();
+        let mut alive = true;
+        HierarchicalChunker.chunk_with(doc, &mut |c| {
+            for split in self.split_by_doc_items(c) {
+                for chunk in self.split_using_plain_text(split) {
+                    if !alive {
+                        return false;
+                    }
+                    alive = if self.merge_peers {
+                        self.merge_push(&mut merger, chunk, sink)
+                    } else {
+                        sink(chunk)
+                    };
+                }
+            }
+            alive
+        });
+        if alive {
+            self.merge_flush(&mut merger, sink);
         }
     }
 
@@ -1199,54 +1242,72 @@ impl<T: ChunkTokenizer> HybridChunker<T> {
             .collect()
     }
 
-    /// docling's `_merge_chunks_with_matching_metadata`.
-    fn merge_matching(&self, chunks: Vec<DocChunk>) -> Vec<DocChunk> {
-        let max = self.max_tokens();
-        let num = chunks.len();
-        let mut out = Vec::new();
-        let mut window_start = 0usize;
-        let mut window_end = 0usize;
-        let mut current_headings: Option<Vec<String>> = None;
-        let mut merged: Option<DocChunk> = None;
-        while window_end < num {
-            let chunk = &chunks[window_end];
-            let mut ready_to_append = false;
-            if window_start == window_end {
-                current_headings = chunk.headings.clone();
-                window_end += 1;
-            } else {
-                let window = &chunks[window_start..=window_end];
-                let candidate = DocChunk {
-                    text: window
-                        .iter()
-                        .map(|c| c.text.as_str())
-                        .collect::<Vec<_>>()
-                        .join("\n"),
-                    headings: current_headings.clone(),
-                    doc_items: window
-                        .iter()
-                        .flat_map(|c| c.doc_items.iter().cloned())
-                        .collect(),
-                };
-                if chunk.headings == current_headings && self.count_chunk_tokens(&candidate) <= max
-                {
-                    window_end += 1;
-                    merged = Some(candidate);
-                } else {
-                    ready_to_append = true;
-                }
-            }
-            if ready_to_append || window_end == num {
-                if window_start + 1 == window_end {
-                    out.push(chunks[window_start].clone());
-                } else {
-                    out.push(merged.take().expect("multi-chunk window has a merge"));
-                }
-                window_start = window_end;
-            }
+    /// One step of docling's `_merge_chunks_with_matching_metadata`, streamed:
+    /// extend the window with `chunk` when its headings match the window's and
+    /// the merged candidate stays within budget, otherwise flush the window to
+    /// `sink` and start a new one at `chunk`. Returns `false` once the sink
+    /// cancels.
+    fn merge_push(
+        &self,
+        m: &mut PeerMerger,
+        chunk: DocChunk,
+        sink: &mut dyn FnMut(DocChunk) -> bool,
+    ) -> bool {
+        if m.window.is_empty() {
+            m.window.push(chunk);
+            return true;
         }
-        out
+        let candidate = DocChunk {
+            text: m
+                .window
+                .iter()
+                .map(|c| c.text.as_str())
+                .chain([chunk.text.as_str()])
+                .collect::<Vec<_>>()
+                .join("\n"),
+            headings: m.window[0].headings.clone(),
+            doc_items: m
+                .window
+                .iter()
+                .flat_map(|c| c.doc_items.iter().cloned())
+                .chain(chunk.doc_items.iter().cloned())
+                .collect(),
+        };
+        if chunk.headings == m.window[0].headings
+            && self.count_chunk_tokens(&candidate) <= self.max_tokens()
+        {
+            m.window.push(chunk);
+            m.merged = Some(candidate);
+            true
+        } else {
+            let alive = self.merge_flush(m, sink);
+            m.window.push(chunk);
+            alive
+        }
     }
+
+    /// Flush the merge window: a single chunk passes through unchanged, a
+    /// multi-chunk window emits its precomputed merge. Returns `false` once
+    /// the sink cancels.
+    fn merge_flush(&self, m: &mut PeerMerger, sink: &mut dyn FnMut(DocChunk) -> bool) -> bool {
+        let alive = if m.window.len() == 1 {
+            sink(m.window.pop().expect("single-chunk window"))
+        } else if !m.window.is_empty() {
+            m.window.clear();
+            sink(m.merged.take().expect("multi-chunk window has a merge"))
+        } else {
+            true
+        };
+        m.merged = None;
+        alive
+    }
+}
+
+/// The in-flight peer-merge window of [`HybridChunker::chunk_with`].
+#[derive(Default)]
+struct PeerMerger {
+    window: Vec<DocChunk>,
+    merged: Option<DocChunk>,
 }
 
 // ---------------------------------------------------------------------------

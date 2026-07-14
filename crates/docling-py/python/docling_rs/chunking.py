@@ -15,6 +15,13 @@ module mirrors docling's chunker API shape so call sites translate directly::
     for chunk in chunker.chunk(doc):                         # tokenization-aware
         embed_me = chunker.contextualize(chunk)              # heading path + text
 
+Both chunkers **stream**: ``chunk()`` returns a lazy iterator fed by a native
+background thread — each chunk is handed to Python as the Rust side produces
+it, so the full chunk list is never materialized and the first chunk arrives
+before the last one is computed. Abandoning the iterator early (``break``,
+``itertools.islice``, dropping the generator) cancels the background chunking;
+Ctrl-C interrupts a pending ``next()``.
+
 Differences from docling's ``docling.chunking``:
 
 * ``HybridChunker(tokenizer=...)`` takes a **path to a HuggingFace
@@ -85,10 +92,13 @@ def _document_json(dl_doc: Any) -> str:
 def _run(
     dl_doc: Any, hybrid: bool, tokenizer: Optional[str], max_tokens: int, merge_peers: bool
 ) -> Iterator[DocChunk]:
-    records = json.loads(
-        _chunk_document(_document_json(dl_doc), hybrid, tokenizer, max_tokens, merge_peers)
-    )
-    for r in records:
+    # The native side streams: a background Rust thread parses the document and
+    # chunks it, handing over one record at a time — chunks are consumed as
+    # they are produced, never materialized as a whole. Abandoning the
+    # iterator early cancels the background chunking.
+    stream = _chunk_document(_document_json(dl_doc), hybrid, tokenizer, max_tokens, merge_peers)
+    for record in stream:
+        r = json.loads(record)
         yield DocChunk(
             text=r["text"],
             meta=DocMeta(headings=r["headings"], doc_items=r["doc_items"]),

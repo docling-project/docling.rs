@@ -83,6 +83,49 @@ def test_bad_tokenizer_path_raises_conversion_error():
         list(chunker.chunk(_document()))
 
 
+def _big_document(paragraphs=3_000):
+    big_md = "# Doc\n\n" + "\n\n".join(
+        " ".join(f"word{s}x{w}" for w in range(60)) for s in range(paragraphs)
+    )
+    return docling_rs.DocumentConverter().convert_bytes("big.md", big_md.encode()).document
+
+
+@pytest.mark.skipif(not TOKENIZER.exists(), reason="MiniLM tokenizer.json not checked out")
+def test_chunk_streams_lazily():
+    # chunk() is fed by a native background thread: the first chunk must arrive
+    # long before the whole document is chunked.
+    import time
+
+    doc = _big_document()
+    chunker = HybridChunker(tokenizer=str(TOKENIZER), max_tokens=64)
+
+    t0 = time.monotonic()
+    it = chunker.chunk(doc)
+    first = next(it)
+    first_at = time.monotonic() - t0
+    n = 1 + sum(1 for _ in it)
+    total = time.monotonic() - t0
+
+    assert isinstance(first, DocChunk) and n > 1000
+    assert first_at * 4 < total, f"first chunk at {first_at:.2f}s of {total:.2f}s total"
+
+
+@pytest.mark.skipif(not TOKENIZER.exists(), reason="MiniLM tokenizer.json not checked out")
+def test_abandoning_the_iterator_cancels_the_stream():
+    from itertools import islice
+
+    doc = _big_document()
+    chunker = HybridChunker(tokenizer=str(TOKENIZER), max_tokens=64)
+
+    # islice consumes only 5 chunks; dropping the generator must cancel the
+    # background chunking without hanging (join happens on GC of the stream).
+    preview = list(islice(chunker.chunk(doc), 5))
+    assert len(preview) == 5
+    # The preview is the prefix of a full run.
+    full_first5 = list(islice(chunker.chunk(doc), 5))
+    assert [c.text for c in preview] == [c.text for c in full_first5]
+
+
 @pytest.mark.skipif(not TOKENIZER.exists(), reason="MiniLM tokenizer.json not checked out")
 def test_ctrl_c_interrupts_native_chunking():
     # A SIGINT arriving while the Rust side is chunking must raise
@@ -91,10 +134,7 @@ def test_ctrl_c_interrupts_native_chunking():
     import threading
     import time
 
-    big_md = "# Doc\n\n" + "\n\n".join(
-        " ".join(f"word{s}x{w}" for w in range(60)) for s in range(30_000)
-    )
-    doc = docling_rs.DocumentConverter().convert_bytes("big.md", big_md.encode()).document
+    doc = _big_document()
 
     timer = threading.Timer(0.5, lambda: signal.raise_signal(signal.SIGINT))
     timer.start()

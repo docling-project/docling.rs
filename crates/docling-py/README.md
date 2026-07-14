@@ -136,6 +136,37 @@ cache — `docling_rs.download_models()` fetches it with the other assets. Since
 Python chunkers (`pip install "docling-core[chunking]"`) also keep working on
 it — the native classes are the faster, dependency-free path.
 
+### Streaming
+
+`chunk()` **streams natively**: it returns a lazy iterator fed by a Rust
+background thread, which hands each chunk to Python as the chunkers produce
+it. The full chunk list is never materialized on either side of the FFI
+boundary — the first chunk is ready for embedding while the rest of the
+document is still being chunked, and a slow consumer throttles the producer
+through a bounded queue instead of buffering unboundedly.
+
+```python
+from itertools import islice
+
+from docling_rs import DocumentConverter
+from docling_rs.chunking import HybridChunker
+
+doc = DocumentConverter().convert("large.html").document
+chunker = HybridChunker(tokenizer="tokenizer.json", max_tokens=512)
+
+# Chunks arrive one by one; embed each as soon as it is produced.
+for chunk in chunker.chunk(doc):
+    index.add(embed(chunker.contextualize(chunk)))
+
+# Laziness composes: this chunks only far enough to produce 10 chunks.
+preview = list(islice(chunker.chunk(doc), 10))
+```
+
+Abandoning the iterator early (`break`, `islice`, dropping the generator)
+cancels the background chunking, and Ctrl-C interrupts a pending `next()`.
+Errors (a bad tokenizer path, malformed document JSON) surface on the first
+`next()`, not at `chunk()` call time.
+
 ## Not covered (yet)
 
 VLM/enrichment pipelines, GPU accelerator devices (the engine is ONNX Runtime on
