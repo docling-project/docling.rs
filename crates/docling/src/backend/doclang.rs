@@ -383,10 +383,8 @@ fn is_inline_group(el: XmlNode) -> bool {
                 "layer" | "location" | "href" | "checkbox" => {}
                 _ => fragments += 1,
             },
-            NodeType::Text => {
-                if !child.text().unwrap_or("").trim().is_empty() {
-                    fragments += 1;
-                }
+            NodeType::Text if !child.text().unwrap_or("").trim().is_empty() => {
+                fragments += 1;
             }
             _ => {}
         }
@@ -407,10 +405,8 @@ fn single_styled_wrap(el: XmlNode) -> bool {
                 "layer" | "location" | "href" => {}
                 _ => return false,
             },
-            NodeType::Text => {
-                if !child.text().unwrap_or("").trim().is_empty() {
-                    return false;
-                }
+            NodeType::Text if !child.text().unwrap_or("").trim().is_empty() => {
+                return false;
             }
             _ => {}
         }
