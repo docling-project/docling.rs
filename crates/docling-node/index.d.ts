@@ -153,3 +153,32 @@ export declare function streamFileMarkdown(
   filePath: string,
   options?: StreamOptions,
 ): AsyncGenerator<string, void, unknown>
+
+/**
+ * Stream a file's chunks as the chunkers produce them — the streaming
+ * counterpart of {@link chunkFile}. The first chunk is ready (e.g. for
+ * embedding) while the rest of the document is still being chunked, and no
+ * all-chunks array is materialized. Abandoning the generator early (`break`)
+ * cancels the background chunking. Throws for PDF/image/METS if deps aren't
+ * installed.
+ */
+export declare function streamFileChunks(
+  filePath: string,
+  options?: ChunkOptions | null,
+): AsyncGenerator<Chunk, void, unknown>
+
+/** Streaming counterpart of {@link chunk} (same contract as {@link streamFileChunks}). */
+export declare function streamChunks(
+  input: ConvertInput,
+  options?: ChunkOptions | null,
+): AsyncGenerator<Chunk, void, unknown>
+
+/**
+ * Streaming counterpart of {@link chunkDocument}: chunk an already-converted
+ * docling-core JSON document (same contract as {@link streamFileChunks}).
+ * Touches no ML models.
+ */
+export declare function streamDocumentChunks(
+  documentJson: string,
+  options?: ChunkOptions | null,
+): AsyncGenerator<Chunk, void, unknown>

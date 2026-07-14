@@ -906,8 +906,31 @@ fn build_chunk_config(options: Option<ChunkOptions>) -> Result<ChunkConfig> {
 
 /// Run the configured chunker over a converted document. Off-thread-safe.
 fn run_chunker(doc: &DoclingDocument, cfg: &ChunkConfig) -> Result<Vec<Chunk>> {
-    use docling::chunker::{contextualize, HierarchicalChunker, HybridChunker};
-    let chunks = if cfg.hybrid {
+    let mut chunks = Vec::new();
+    run_chunker_with(doc, cfg, &mut |c| {
+        chunks.push(c);
+        true
+    })?;
+    Ok(chunks)
+}
+
+/// Sink-driven [`run_chunker`]: `sink` receives each chunk as the chunkers
+/// produce it, and a `false` return cancels the chunking. Off-thread-safe.
+fn run_chunker_with(
+    doc: &DoclingDocument,
+    cfg: &ChunkConfig,
+    sink: &mut dyn FnMut(Chunk) -> bool,
+) -> Result<()> {
+    use docling::chunker::{contextualize, DocChunk, HierarchicalChunker, HybridChunker};
+    let mut native_sink = |c: DocChunk| -> bool {
+        sink(Chunk {
+            contextualized: contextualize(&c),
+            text: c.text,
+            headings: c.headings,
+            doc_items: c.doc_items.into_iter().map(|i| i.self_ref).collect(),
+        })
+    };
+    if cfg.hybrid {
         // Explicit path, or models/chunk/tokenizer.json (the download script's
         // default location); a clear error otherwise.
         let tok = docling::chunker::HuggingFaceTokenizer::resolve(
@@ -917,19 +940,11 @@ fn run_chunker(doc: &DoclingDocument, cfg: &ChunkConfig) -> Result<Vec<Chunk>> {
         .map_err(convert_err)?;
         HybridChunker::new(tok)
             .with_merge_peers(cfg.merge_peers)
-            .chunk(doc)
+            .chunk_with(doc, &mut native_sink);
     } else {
-        HierarchicalChunker.chunk(doc)
-    };
-    Ok(chunks
-        .iter()
-        .map(|c| Chunk {
-            text: c.text.clone(),
-            headings: c.headings.clone(),
-            doc_items: c.doc_items.iter().map(|i| i.self_ref.clone()).collect(),
-            contextualized: contextualize(c),
-        })
-        .collect())
+        HierarchicalChunker.chunk_with(doc, &mut native_sink);
+    }
+    Ok(())
 }
 
 /// Convert a source and chunk the result. The chunk text is docling-flavoured
@@ -1010,6 +1025,100 @@ fn json_source(document_json: String) -> SourceDocument {
         InputFormat::JsonDocling,
         document_json.into_bytes(),
     )
+}
+
+// ---------------------------------------------------------------------------
+// Streaming chunking: chunks are pushed to JS as the chunkers produce them.
+// ---------------------------------------------------------------------------
+
+/// Convert `source` and stream its chunks through the threadsafe callback:
+/// once per chunk, `Ok(None)` at the end, `Err` on failure. A dead callback
+/// (the JS side went away) cancels the chunking.
+fn stream_chunks(
+    source: SourceDocument,
+    cfg: &ChunkConfig,
+    callback: ThreadsafeFunction<Option<Chunk>, ErrorStrategy::CalleeHandled>,
+) {
+    let result = match RsConverter::new().convert(source).map_err(convert_err) {
+        Ok(r) => r,
+        Err(e) => {
+            callback.call(Err(e), ThreadsafeFunctionCallMode::NonBlocking);
+            return;
+        }
+    };
+    let outcome = run_chunker_with(&result.document, cfg, &mut |chunk| {
+        callback.call(Ok(Some(chunk)), ThreadsafeFunctionCallMode::NonBlocking) == Status::Ok
+    });
+    match outcome {
+        // End-of-stream sentinel.
+        Ok(()) => {
+            callback.call(Ok(None), ThreadsafeFunctionCallMode::NonBlocking);
+        }
+        Err(e) => {
+            callback.call(Err(e), ThreadsafeFunctionCallMode::NonBlocking);
+        }
+    }
+}
+
+/// Chunk a file and stream each chunk as the chunkers produce it — no
+/// all-chunks array is materialized, and the first chunk reaches JS while the
+/// rest of the document is still being chunked.
+///
+/// `callback` is invoked as `(err, chunk)`: once per chunk with `chunk` a
+/// `Chunk`, once with `chunk === null` at the end, or once with a non-null
+/// `err` on failure. Prefer the `streamFileChunks` async-generator wrapper in
+/// JS over calling this directly.
+#[napi]
+pub fn chunk_file_streaming(
+    path: String,
+    callback: ThreadsafeFunction<Option<Chunk>, ErrorStrategy::CalleeHandled>,
+    options: Option<ChunkOptions>,
+) -> Result<()> {
+    let cfg = build_chunk_config(options)?;
+    // The background thread owns the conversion + chunking and pushes each
+    // chunk through the threadsafe function (which marshals to the JS loop).
+    std::thread::spawn(move || {
+        let source = match SourceDocument::from_file(&path).map_err(convert_err) {
+            Ok(s) => s,
+            Err(e) => {
+                callback.call(Err(e), ThreadsafeFunctionCallMode::NonBlocking);
+                return;
+            }
+        };
+        stream_chunks(source, &cfg, callback);
+    });
+    Ok(())
+}
+
+/// Streaming [`chunk`]: chunk in-memory bytes, pushing each chunk through the
+/// callback (same contract as [`chunk_file_streaming`]). Prefer the
+/// `streamChunks` async-generator wrapper in JS.
+#[napi]
+pub fn chunk_streaming(
+    input: ConvertInput,
+    callback: ThreadsafeFunction<Option<Chunk>, ErrorStrategy::CalleeHandled>,
+    options: Option<ChunkOptions>,
+) -> Result<()> {
+    let cfg = build_chunk_config(options)?;
+    let source = source_from_input(input)?;
+    std::thread::spawn(move || stream_chunks(source, &cfg, callback));
+    Ok(())
+}
+
+/// Streaming [`chunk_document`]: chunk an already-converted docling-core JSON
+/// document, pushing each chunk through the callback (same contract as
+/// [`chunk_file_streaming`]). Prefer the `streamDocumentChunks`
+/// async-generator wrapper in JS.
+#[napi]
+pub fn chunk_document_streaming(
+    document_json: String,
+    callback: ThreadsafeFunction<Option<Chunk>, ErrorStrategy::CalleeHandled>,
+    options: Option<ChunkOptions>,
+) -> Result<()> {
+    let cfg = build_chunk_config(options)?;
+    let source = json_source(document_json);
+    std::thread::spawn(move || stream_chunks(source, &cfg, callback));
+    Ok(())
 }
 
 pub struct ChunkFileTask {

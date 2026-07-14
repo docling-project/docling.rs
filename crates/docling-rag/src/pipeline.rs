@@ -141,9 +141,10 @@ impl Pipeline {
         // of being skipped by the hash dedup.
         let staged = match self.cfg.chunker {
             crate::config::ChunkerKind::Window => self.ingest_streaming(r, &doc.id, bytes).await,
-            // docling's chunkers walk the finished document tree, so their path
-            // is buffered: convert whole, chunk whole, then embed in batches.
-            _ => self.ingest_buffered(r, &doc.id, bytes).await,
+            // docling's chunkers walk the finished document tree, so conversion
+            // is whole-document — but the chunks stream into embedding as the
+            // chunkers produce them.
+            _ => self.ingest_docling(r, &doc.id, bytes).await,
         };
         let out = match staged {
             Ok(out) => out,
@@ -205,71 +206,81 @@ impl Pipeline {
         Ok(IngestOutcome::Ingested(n))
     }
 
-    /// The buffered variant of [`Self::ingest_streaming`] for the docling
-    /// chunkers (`RAG_CHUNKER=hierarchical|hybrid`): they need the complete
-    /// document tree, so conversion and chunking run whole-document on a
-    /// blocking thread, then the chunks embed + insert in batches.
-    async fn ingest_buffered(
+    /// The docling-chunker variant of [`Self::ingest_streaming`]
+    /// (`RAG_CHUNKER=hierarchical|hybrid`): the chunkers need the complete
+    /// document tree, so conversion runs whole-document on a blocking thread —
+    /// but the chunks *stream*: batches are handed to the embed/insert worker
+    /// as the chunkers produce them, overlapping chunking with embedding.
+    async fn ingest_docling(
         &self,
         r: &SourceRef,
         doc_id: &str,
         bytes: Vec<u8>,
     ) -> Result<StagedOutcome> {
+        let (chunk_tx, chunk_rx) = tokio::sync::mpsc::channel::<Vec<crate::model::Chunk>>(4);
+        let embed_worker = self.spawn_embed_worker(chunk_rx);
+
         let name = r.name.clone();
         let kind = self.cfg.chunker;
         let tokenizer = self.cfg.chunk_tokenizer.clone();
         let max_tokens = self.cfg.chunk_size;
         let doc_id_owned = doc_id.to_string();
-        type Converted = (Option<usize>, f64, f64, String, Vec<crate::model::Chunk>);
-        let (pages, parse_secs, chunk_secs, markdown, chunks) =
-            tokio::task::spawn_blocking(move || -> Result<Converted> {
-                let ext = name.rsplit('.').next().unwrap_or("");
-                let fmt = InputFormat::from_extension(ext).ok_or_else(|| {
-                    RagError::Conversion(format!("unsupported extension '.{ext}'"))
-                })?;
-                let pages = metrics::count_pages(fmt, &bytes);
-                let src = SourceDocument::from_bytes(name, fmt, bytes);
-                let t = std::time::Instant::now();
-                let result = DocumentConverter::new()
-                    .convert(src)
-                    .map_err(|e| RagError::Conversion(e.to_string()))?;
-                let parse_secs = t.elapsed().as_secs_f64();
-                let markdown = result.document.export_to_markdown();
-                let t = std::time::Instant::now();
-                let chunks = crate::chunk::docling_chunks(
-                    &doc_id_owned,
-                    &result.document,
-                    kind,
-                    tokenizer.as_deref(),
-                    max_tokens,
-                )?;
-                let chunk_secs = t.elapsed().as_secs_f64();
-                Ok((pages, parse_secs, chunk_secs, markdown, chunks))
-            })
+        type Converted = (Option<usize>, f64, f64, String);
+        let producer = tokio::task::spawn_blocking(move || -> Result<Converted> {
+            let ext = name.rsplit('.').next().unwrap_or("");
+            let fmt = InputFormat::from_extension(ext)
+                .ok_or_else(|| RagError::Conversion(format!("unsupported extension '.{ext}'")))?;
+            let pages = metrics::count_pages(fmt, &bytes);
+            let src = SourceDocument::from_bytes(name, fmt, bytes);
+            let t = std::time::Instant::now();
+            let result = DocumentConverter::new()
+                .convert(src)
+                .map_err(|e| RagError::Conversion(e.to_string()))?;
+            let parse_secs = t.elapsed().as_secs_f64();
+            let markdown = result.document.export_to_markdown();
+
+            const BATCH: usize = 64;
+            let mut backlog: Vec<crate::model::Chunk> = Vec::with_capacity(BATCH);
+            let t = std::time::Instant::now();
+            // chunk_secs counts chunker busy time only: time blocked handing a
+            // full batch to the embed worker is subtracted (that would bill
+            // embedding slowness to chunking).
+            let mut send_secs = 0.0f64;
+            let mut disconnected = false;
+            crate::chunk::docling_chunks_with(
+                &doc_id_owned,
+                &result.document,
+                kind,
+                tokenizer.as_deref(),
+                max_tokens,
+                &mut |chunk| {
+                    backlog.push(chunk);
+                    if backlog.len() < BATCH {
+                        return true;
+                    }
+                    let ts = std::time::Instant::now();
+                    // A send failure means the embed worker died; its error wins.
+                    disconnected = chunk_tx
+                        .blocking_send(std::mem::take(&mut backlog))
+                        .is_err();
+                    send_secs += ts.elapsed().as_secs_f64();
+                    !disconnected
+                },
+            )?;
+            if !disconnected && !backlog.is_empty() {
+                let _ = chunk_tx.blocking_send(backlog);
+            }
+            let chunk_secs = (t.elapsed().as_secs_f64() - send_secs).max(0.0);
+            Ok((pages, parse_secs, chunk_secs, markdown))
+        });
+
+        // Join stages; producer errors (bad document) take precedence.
+        let (pages, parse_secs, chunk_secs, markdown) = producer
             .await
             .map_err(|e| RagError::Conversion(format!("convert join: {e}")))??;
-
-        let n = chunks.len();
-        let (mut embed_secs, mut embedded_words) = (0.0f64, 0usize);
-        const BATCH: usize = 64;
-        for batch in chunks.chunks(BATCH) {
-            let mut batch = batch.to_vec();
-            let texts: Vec<String> = batch.iter().map(|c| c.text.clone()).collect();
-            let t = std::time::Instant::now();
-            let embeddings = self.embedder.embed(&texts).await?;
-            embed_secs += t.elapsed().as_secs_f64();
-            if embeddings.len() != batch.len() {
-                return Err(RagError::Embedding("embedding count mismatch".into()));
-            }
-            for (chunk, emb) in batch.iter_mut().zip(embeddings) {
-                chunk.embedding = Some(emb);
-            }
-            embedded_words += texts
-                .iter()
-                .map(|t| t.split_whitespace().count())
-                .sum::<usize>();
-            self.store.insert_chunks(&batch).await?;
-        }
+        let (embed_secs, embedded_words, n) = embed_worker
+            .await
+            .map_err(|e| RagError::Embedding(format!("embed join: {e}")))??;
 
         Ok(StagedOutcome {
             pages,
@@ -279,6 +290,39 @@ impl Pipeline {
             embedded_words,
             chunks: n,
             markdown,
+        })
+    }
+
+    /// Spawn the embed + insert worker: chunk batches from `rx` are embedded
+    /// and stored concurrently with whatever stage produces them. Resolves to
+    /// `(embed_secs, embedded_words, chunks_inserted)` once `rx` closes.
+    fn spawn_embed_worker(
+        &self,
+        mut rx: tokio::sync::mpsc::Receiver<Vec<crate::model::Chunk>>,
+    ) -> tokio::task::JoinHandle<Result<(f64, usize, usize)>> {
+        let embedder = self.embedder.clone();
+        let store = self.store.clone();
+        tokio::spawn(async move {
+            let (mut embed_secs, mut embedded_words, mut n_chunks) = (0.0f64, 0usize, 0usize);
+            while let Some(mut batch) = rx.recv().await {
+                let texts: Vec<String> = batch.iter().map(|c| c.text.clone()).collect();
+                let t = std::time::Instant::now();
+                let embeddings = embedder.embed(&texts).await?;
+                embed_secs += t.elapsed().as_secs_f64();
+                if embeddings.len() != batch.len() {
+                    return Err(RagError::Embedding("embedding count mismatch".into()));
+                }
+                for (chunk, emb) in batch.iter_mut().zip(embeddings) {
+                    chunk.embedding = Some(emb);
+                }
+                embedded_words += texts
+                    .iter()
+                    .map(|t| t.split_whitespace().count())
+                    .sum::<usize>();
+                n_chunks += batch.len();
+                store.insert_chunks(&batch).await?;
+            }
+            Ok((embed_secs, embedded_words, n_chunks))
         })
     }
 
@@ -325,31 +369,7 @@ impl Pipeline {
         // --- Stage 2: incremental chunking; completed chunks go to the embedder.
         // --- Stage 3: embed + insert worker, concurrent with stages 1 and 2.
         let (chunk_tx, chunk_rx) = tokio::sync::mpsc::channel::<Vec<crate::model::Chunk>>(4);
-        let embedder = self.embedder.clone();
-        let store = self.store.clone();
-        let embed_worker = tokio::spawn(async move {
-            let mut rx = chunk_rx;
-            let (mut embed_secs, mut embedded_words, mut n_chunks) = (0.0f64, 0usize, 0usize);
-            while let Some(mut batch) = rx.recv().await {
-                let texts: Vec<String> = batch.iter().map(|c| c.text.clone()).collect();
-                let t = std::time::Instant::now();
-                let embeddings = embedder.embed(&texts).await?;
-                embed_secs += t.elapsed().as_secs_f64();
-                if embeddings.len() != batch.len() {
-                    return Err(RagError::Embedding("embedding count mismatch".into()));
-                }
-                for (chunk, emb) in batch.iter_mut().zip(embeddings) {
-                    chunk.embedding = Some(emb);
-                }
-                embedded_words += texts
-                    .iter()
-                    .map(|t| t.split_whitespace().count())
-                    .sum::<usize>();
-                n_chunks += batch.len();
-                store.insert_chunks(&batch).await?;
-            }
-            Ok::<_, RagError>((embed_secs, embedded_words, n_chunks))
-        });
+        let embed_worker = self.spawn_embed_worker(chunk_rx);
 
         let mut streaming = self.chunker.streaming(doc_id);
         let mut markdown = String::new();

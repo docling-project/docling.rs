@@ -129,6 +129,26 @@ Each `Chunk` is `{ text, headings?, docItems, contextualized }` — `docItems`
 holds the source items' JSON-pointer refs (`"#/texts/12"`), `contextualized`
 is docling's `contextualize()` rendering to feed the embedding model.
 
+#### Streaming chunks
+
+`streamFileChunks` / `streamChunks` / `streamDocumentChunks` are the streaming
+counterparts: async generators that yield each chunk **as the chunkers produce
+it** — the first chunk is ready for embedding while the rest of the document
+is still being chunked, and no all-chunks array is materialized. Abandoning
+the generator early (`break`) cancels the background chunking.
+
+```js
+import { streamFileChunks } from 'docling.rs'
+
+for await (const c of streamFileChunks('report.docx', {
+  chunker: 'hybrid',
+  tokenizer: 'tokenizer.json',
+  maxTokens: 256,
+})) {
+  await embed(c.contextualized) // embedding overlaps the remaining chunking
+}
+```
+
 ### PDF / images: getting the ML models
 
 Declarative formats (Markdown, HTML, DOCX, XLSX, …) are pure Rust and need
@@ -244,6 +264,7 @@ JSON output always embeds extracted images as data URIs.
 | `chunk(input, options?)` | `Chunk[]` | Same, over in-memory bytes. |
 | `chunkDocument(documentJson, options?)` | `Chunk[]` | Chunk an already-converted docling JSON document. |
 | `chunkFileAsync` / `chunkAsync` / `chunkDocumentAsync` | `Promise<Chunk[]>` | Off the event loop. |
+| `streamFileChunks` / `streamChunks` / `streamDocumentChunks` | `AsyncGenerator<Chunk>` | Chunks yielded as produced; `break` cancels. |
 | `supportedFormats()` | `string[]` | Supported input format ids. |
 | `formatFromName(name)` | `string \| null` | Detect a format id from a filename/extension. |
 | `checkDependencies(options?)` | `DependencyStatus` | Report which PDF/image deps are present. |

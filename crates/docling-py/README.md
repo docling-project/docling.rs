@@ -117,7 +117,7 @@ to CPU — the engine runs ONNX Runtime on the CPU execution provider.
 
 ```python
 from docling_rs import DocumentConverter
-from docling_rs.chunking import HierarchicalChunker, HybridChunker
+from docling_rs.chunking import HierarchicalChunker, HybridChunker, WindowChunker
 
 doc = DocumentConverter().convert("report.docx").document
 
@@ -127,7 +127,22 @@ for chunk in HierarchicalChunker().chunk(doc):        # structure-driven
 chunker = HybridChunker(tokenizer="tokenizer.json", max_tokens=256)
 for chunk in chunker.chunk(doc):                       # tokenization-aware
     embed_me = chunker.contextualize(chunk)            # heading path + text
+
+chunker = WindowChunker(max_words=300, overlap=0.05)   # word-window, no tokenizer
+for chunk in chunker.chunk(doc):                       # docling-rag's window chunker
+    embed_me = chunker.contextualize(chunk)            # '# path' line + body
 ```
+
+`WindowChunker` is **docling-rag's window chunker**: the document's Markdown is
+cut into heading-bounded sections of plain words (markup stripped), and a
+fixed window of `max_words` words (default 300) slides over each section with
+`overlap` fractional overlap (default 0.05 = 5%). A chunk never crosses a
+heading, `chunk.meta.headings` carries the heading path, and
+`contextualize(chunk)` renders rag-style — a `# Outer > Inner` context line, a
+blank line, then the body. No tokenizer and no ML models are involved, making
+it the zero-dependency choice when an approximate chunk size is enough
+(`meta.doc_items` is empty — it works on the rendered Markdown, not the
+document tree).
 
 Two deltas from docling: `HybridChunker(tokenizer=...)` takes a **path to a
 HuggingFace `tokenizer.json`** (loaded natively — no `transformers` install),
@@ -138,6 +153,37 @@ cache — `docling_rs.download_models()` fetches it with the other assets. Since
 `result.document` is a genuine `docling_core` `DoclingDocument`, docling's own
 Python chunkers (`pip install "docling-core[chunking]"`) also keep working on
 it — the native classes are the faster, dependency-free path.
+
+### Streaming
+
+`chunk()` **streams natively**: it returns a lazy iterator fed by a Rust
+background thread, which hands each chunk to Python as the chunkers produce
+it. The full chunk list is never materialized on either side of the FFI
+boundary — the first chunk is ready for embedding while the rest of the
+document is still being chunked, and a slow consumer throttles the producer
+through a bounded queue instead of buffering unboundedly.
+
+```python
+from itertools import islice
+
+from docling_rs import DocumentConverter
+from docling_rs.chunking import HybridChunker
+
+doc = DocumentConverter().convert("large.html").document
+chunker = HybridChunker(tokenizer="tokenizer.json", max_tokens=512)
+
+# Chunks arrive one by one; embed each as soon as it is produced.
+for chunk in chunker.chunk(doc):
+    index.add(embed(chunker.contextualize(chunk)))
+
+# Laziness composes: this chunks only far enough to produce 10 chunks.
+preview = list(islice(chunker.chunk(doc), 10))
+```
+
+Abandoning the iterator early (`break`, `islice`, dropping the generator)
+cancels the background chunking, and Ctrl-C interrupts a pending `next()`.
+Errors (a bad tokenizer path, malformed document JSON) surface on the first
+`next()`, not at `chunk()` call time.
 
 ## Not covered (yet)
 

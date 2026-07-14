@@ -238,6 +238,51 @@ async function* streamFileMarkdown(filePath, options = {}) {
   )
 }
 
+/**
+ * Stream a file's chunks as the chunkers produce them — the streaming
+ * counterpart of `chunkFile`. The first chunk is ready (e.g. for embedding)
+ * while the rest of the document is still being chunked, and no all-chunks
+ * array is materialized. Abandoning the generator early (`break`) cancels the
+ * background chunking.
+ *
+ * @param {string} filePath
+ * @param {object} [options] same `ChunkOptions` as `chunkFile`
+ * @returns {AsyncGenerator<Chunk, void, unknown>}
+ */
+async function* streamFileChunks(filePath, options = {}) {
+  assertMlReady(mlFormatOf(filePath))
+  const opts = withDefaultTokenizer(options)
+  yield* chunkStream((callback) => native.chunkFileStreaming(filePath, callback, opts))
+}
+
+/**
+ * Streaming counterpart of `chunk`: chunk in-memory bytes, yielding each chunk
+ * as it is produced (same contract as {@link streamFileChunks}).
+ *
+ * @param {object} input same `ConvertInput` as `chunk`
+ * @param {object} [options] same `ChunkOptions` as `chunk`
+ * @returns {AsyncGenerator<Chunk, void, unknown>}
+ */
+async function* streamChunks(input, options = {}) {
+  assertMlReady(mlFormatOf(input && input.name, input && input.format))
+  const opts = withDefaultTokenizer(options)
+  yield* chunkStream((callback) => native.chunkStreaming(input, callback, opts))
+}
+
+/**
+ * Streaming counterpart of `chunkDocument`: chunk an already-converted
+ * docling-core JSON document, yielding each chunk as it is produced (same
+ * contract as {@link streamFileChunks}). Touches no ML models — unguarded.
+ *
+ * @param {string} documentJson
+ * @param {object} [options] same `ChunkOptions` as `chunkDocument`
+ * @returns {AsyncGenerator<Chunk, void, unknown>}
+ */
+async function* streamDocumentChunks(documentJson, options = {}) {
+  const opts = withDefaultTokenizer(options)
+  yield* chunkStream((callback) => native.chunkDocumentStreaming(documentJson, callback, opts))
+}
+
 // --- exports (explicit, so ESM named imports work in Node and Bun) ----------
 
 module.exports.convert = convert
@@ -254,6 +299,9 @@ module.exports.chunkDocumentAsync = chunkDocumentAsync
 module.exports.DocumentConverter = DocumentConverter
 module.exports.Pipeline = Pipeline
 module.exports.streamFileMarkdown = streamFileMarkdown
+module.exports.streamFileChunks = streamFileChunks
+module.exports.streamChunks = streamChunks
+module.exports.streamDocumentChunks = streamDocumentChunks
 module.exports.checkDependencies = checkDependencies
 module.exports.supportedFormats = native.supportedFormats
 module.exports.formatFromName = native.formatFromName

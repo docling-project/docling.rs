@@ -18,6 +18,8 @@ import {
   DocumentConverter,
   formatFromName,
   Pipeline,
+  streamChunks,
+  streamDocumentChunks,
   streamFileMarkdown,
   supportedFormats,
 } from '../index.js'
@@ -116,6 +118,39 @@ async function main() {
     const async_ = await chunkDocumentAsync(res.content)
     assert.deepEqual(async_, sync)
     assert.ok(sync.some((c) => c.text.includes('Install')))
+  })
+
+  await check('streamChunks yields the same chunks as chunk, one at a time', async () => {
+    const buffered = chunk({ name: 'guide.md', data: Buffer.from(CHUNK_MD) })
+    const streamed = []
+    for await (const c of streamChunks({ name: 'guide.md', data: Buffer.from(CHUNK_MD) })) {
+      streamed.push(c)
+    }
+    assert.deepEqual(streamed, buffered)
+  })
+
+  await check('streamChunks supports early break', async () => {
+    let first = null
+    for await (const c of streamChunks({ name: 'guide.md', data: Buffer.from(CHUNK_MD) })) {
+      first = c
+      break // abandoning the generator cancels the background chunking
+    }
+    assert.ok(first && typeof first.text === 'string')
+  })
+
+  await check('streamDocumentChunks streams a converted JSON document', async () => {
+    const res = convert({ name: 'guide.md', data: Buffer.from(CHUNK_MD) }, { to: 'json' })
+    const streamed = []
+    for await (const c of streamDocumentChunks(res.content)) streamed.push(c)
+    assert.deepEqual(streamed, chunkDocument(res.content))
+  })
+
+  await check('streamChunks surfaces conversion errors', async () => {
+    await assert.rejects(async () => {
+      for await (const _ of streamChunks({ name: 'x', data: Buffer.from(MD), format: 'nope' })) {
+        void _
+      }
+    })
   })
 
   await check('hybrid without any tokenizer errors with the download hint', () => {

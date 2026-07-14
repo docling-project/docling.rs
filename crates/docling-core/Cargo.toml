@@ -22,7 +22,11 @@ sha2 = "0.10"
 # HuggingFace tokenizer for the HybridChunker (behind the `chunking` feature);
 # same flags as docling-rag's optional embedder to keep one build of the crate.
 tokenizers = { version = "0.20", default-features = false, features = ["onig"], optional = true }
+# Markdown parsing for the WindowChunker's heading-bounded sections (behind the
+# `chunking` feature); same flags as the docling crate's Markdown backend.
+pulldown-cmark = { version = "0.13", default-features = false, optional = true }
 
 [features]
-# Tokenization-aware chunking (HybridChunker's HuggingFaceTokenizer).
-chunking = ["dep:tokenizers"]
+# Tokenization-aware chunking (HybridChunker's HuggingFaceTokenizer) and the
+# Markdown window chunker (WindowChunker).
+chunking = ["dep:tokenizers", "dep:pulldown-cmark"]

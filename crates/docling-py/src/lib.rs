@@ -304,63 +304,186 @@ fn native_result(r: docling::ConversionResult) -> PyNativeResult {
     }
 }
 
+/// Bounded queue between the chunking thread and the Python iterator: a slow
+/// consumer throttles the producer instead of letting chunks pile up.
+const CHUNK_CHANNEL_DEPTH: usize = 64;
+
+/// A stream of chunk records — the native side of `docling_rs.chunking`'s
+/// lazy `chunk()`. A background thread parses the document and streams each
+/// chunk as the chunkers produce it; iterating yields one JSON record
+/// (`{text, headings, doc_items, contextualize}`) at a time, so no
+/// all-chunks array is ever materialized. Waits are GIL-released and poll for
+/// signals, so Ctrl-C interrupts a pending `next()`. Dropping the stream
+/// early cancels the producer.
+#[pyclass(name = "ChunkStream")]
+struct PyChunkStream {
+    /// `None` once exhausted, errored, or dropped — disconnects the producer.
+    rx: std::sync::Mutex<Option<std::sync::mpsc::Receiver<Result<String, String>>>>,
+    handle: std::sync::Mutex<Option<std::thread::JoinHandle<()>>>,
+}
+
+impl PyChunkStream {
+    /// Disconnect the producer and reap its thread.
+    fn finish(&self) {
+        *self.rx.lock().unwrap() = None;
+        if let Some(h) = self.handle.lock().unwrap().take() {
+            let _ = h.join();
+        }
+    }
+}
+
+#[pymethods]
+impl PyChunkStream {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&self, py: Python<'_>) -> PyResult<Option<String>> {
+        use std::sync::mpsc::RecvTimeoutError;
+        use std::time::Duration;
+
+        enum Recv {
+            Item(Result<String, String>),
+            Timeout,
+            Done,
+        }
+        loop {
+            let received = py.allow_threads(|| match self.rx.lock().unwrap().as_ref() {
+                None => Recv::Done,
+                Some(rx) => match rx.recv_timeout(Duration::from_millis(100)) {
+                    Ok(item) => Recv::Item(item),
+                    Err(RecvTimeoutError::Timeout) => Recv::Timeout,
+                    Err(RecvTimeoutError::Disconnected) => Recv::Done,
+                },
+            });
+            match received {
+                Recv::Item(Ok(record)) => return Ok(Some(record)),
+                Recv::Item(Err(e)) => {
+                    self.finish();
+                    return Err(ConversionError::new_err(e));
+                }
+                Recv::Timeout => py.check_signals()?,
+                Recv::Done => {
+                    self.finish();
+                    return Ok(None);
+                }
+            }
+        }
+    }
+}
+
+impl Drop for PyChunkStream {
+    fn drop(&mut self) {
+        // Disconnect first so a producer blocked on a full channel sees its
+        // send fail, then reap it — no detached thread keeps chunking.
+        self.finish();
+    }
+}
+
 /// Chunk a document with the Rust chunkers (docling-core's
-/// `HierarchicalChunker` / `HybridChunker` ported to `docling::chunker`).
+/// `HierarchicalChunker` / `HybridChunker` ported to `docling::chunker`, plus
+/// docling-rag's Markdown `WindowChunker`).
 ///
 /// `document_json` is docling-core's JSON wire format (what
-/// `DoclingDocument.export_to_dict()` serializes to). With `hybrid = False`
-/// the hierarchical chunker runs; with `hybrid = True` the hybrid chunker
-/// refines against a `max_tokens` budget, counting tokens with the HuggingFace
-/// `tokenizer.json` at `tokenizer` — or at `models/chunk/tokenizer.json` (the
-/// path `scripts/install/download_dependencies.sh` populates) when `None`.
-/// Returns a JSON array of records `{text, headings, doc_items, contextualize}`
-/// — the Python layer (`docling_rs.chunking`) turns them into docling-shaped
-/// chunk objects. Runs the parse + chunking off the Python thread with the
-/// GIL released, so Ctrl-C interrupts it.
+/// `DoclingDocument.export_to_dict()` serializes to). `chunker` selects the
+/// mode: `"hierarchical"` (structure-driven), `"hybrid"` (refines against a
+/// token budget, counting tokens with the HuggingFace `tokenizer.json` at
+/// `tokenizer` — or at `models/chunk/tokenizer.json`, the path
+/// `scripts/install/download_dependencies.sh` populates, when `None`), or
+/// `"window"` (the document's Markdown cut into heading-bounded sections and
+/// windowed with `overlap` fractional overlap — docling-rag's window chunker).
+/// `size` is the chunk budget in the mode's unit: **tokens** for `"hybrid"`
+/// (docling's `max_tokens`), **words** for `"window"` (docling-rag's
+/// `max_words`); ignored by `"hierarchical"`.
+///
+/// Returns a [`PyChunkStream`] that yields one JSON record
+/// `{text, headings, doc_items, contextualize}` per chunk as the background
+/// thread produces it — the Python layer (`docling_rs.chunking`) turns them
+/// into docling-shaped chunk objects lazily. A parse/tokenizer error surfaces
+/// on the first `next()`.
 #[pyfunction]
-#[pyo3(signature = (document_json, hybrid = false, tokenizer = None, max_tokens = 256, merge_peers = true))]
+#[pyo3(signature = (
+    document_json,
+    chunker = "hierarchical".to_string(),
+    tokenizer = None,
+    size = 256,
+    merge_peers = true,
+    overlap = 0.05,
+))]
 fn chunk_document(
-    py: Python<'_>,
     document_json: String,
-    hybrid: bool,
+    chunker: String,
     tokenizer: Option<String>,
-    max_tokens: usize,
+    size: usize,
     merge_peers: bool,
-) -> PyResult<String> {
-    run_interruptible(py, move || {
-        use docling::chunker::{contextualize, HierarchicalChunker, HybridChunker};
+    overlap: f32,
+) -> PyChunkStream {
+    use docling::chunker::{
+        contextualize, DocChunk, HierarchicalChunker, HybridChunker, WindowChunker,
+    };
+
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Result<String, String>>(CHUNK_CHANNEL_DEPTH);
+    let handle = std::thread::spawn(move || {
         let source = SourceDocument::from_bytes(
             "document",
             docling::InputFormat::JsonDocling,
             document_json.into_bytes(),
         );
-        let result = docling::DocumentConverter::new()
-            .convert(source)
-            .map_err(|e| ConversionError::new_err(e.to_string()))?;
-        let chunks = if hybrid {
-            let tok =
-                docling::chunker::HuggingFaceTokenizer::resolve(tokenizer.as_deref(), max_tokens)
-                    .map_err(ConversionError::new_err)?;
-            HybridChunker::new(tok)
-                .with_merge_peers(merge_peers)
-                .chunk(&result.document)
-        } else {
-            HierarchicalChunker.chunk(&result.document)
+        let result = match docling::DocumentConverter::new().convert(source) {
+            Ok(r) => r,
+            Err(e) => {
+                let _ = tx.send(Err(e.to_string()));
+                return;
+            }
         };
-        let records: Vec<serde_json::Value> = chunks
-            .iter()
-            .map(|c| {
-                serde_json::json!({
-                    "text": c.text,
-                    "headings": c.headings,
-                    "doc_items": c.doc_items.iter().map(|i| i.self_ref.clone()).collect::<Vec<_>>(),
-                    "contextualize": contextualize(c),
-                })
+        // Once the consumer drops the stream, the send fails and the `false`
+        // return cancels the walk — no work is spent on unread chunks.
+        // The window chunker embeds its own (rag-style) contextualization.
+        let record = |c: &DocChunk, contextualized: String| -> String {
+            serde_json::json!({
+                "text": c.text,
+                "headings": c.headings,
+                "doc_items": c.doc_items.iter().map(|i| i.self_ref.clone()).collect::<Vec<_>>(),
+                "contextualize": contextualized,
             })
-            .collect();
-        serde_json::to_string(&records)
-            .map_err(|e| ConversionError::new_err(format!("chunk records: {e}")))
-    })
+            .to_string()
+        };
+        match chunker.as_str() {
+            "hybrid" => {
+                let tok = match docling::chunker::HuggingFaceTokenizer::resolve(
+                    tokenizer.as_deref(),
+                    size,
+                ) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        let _ = tx.send(Err(e));
+                        return;
+                    }
+                };
+                HybridChunker::new(tok)
+                    .with_merge_peers(merge_peers)
+                    .chunk_with(&result.document, &mut |c| {
+                        tx.send(Ok(record(&c, contextualize(&c)))).is_ok()
+                    });
+            }
+            "window" => {
+                let markdown = result.document.export_to_markdown();
+                WindowChunker::new(size, overlap).chunk_with(&markdown, &mut |c| {
+                    tx.send(Ok(record(&c, WindowChunker::contextualize(&c))))
+                        .is_ok()
+                });
+            }
+            _ => {
+                HierarchicalChunker.chunk_with(&result.document, &mut |c| {
+                    tx.send(Ok(record(&c, contextualize(&c)))).is_ok()
+                });
+            }
+        }
+    });
+    PyChunkStream {
+        rx: std::sync::Mutex::new(Some(rx)),
+        handle: std::sync::Mutex::new(Some(handle)),
+    }
 }
 
 /// str / pathlib.Path / anything os.PathLike → PathBuf.
@@ -380,6 +503,7 @@ impl<'py> FromPyObject<'py> for PathLike {
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDocumentConverter>()?;
     m.add_class::<PyNativeResult>()?;
+    m.add_class::<PyChunkStream>()?;
     m.add_function(pyo3::wrap_pyfunction!(chunk_document, m)?)?;
     m.add("ConversionError", m.py().get_type::<ConversionError>())?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;

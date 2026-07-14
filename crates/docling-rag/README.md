@@ -100,10 +100,13 @@ one chunk per document item with its heading path, tables triplet-serialized;
 `hybrid` additionally splits/merges against a real token budget
 (`RAG_CHUNK_SIZE` tokens counted by a HuggingFace `tokenizer.json` —
 `RAG_CHUNK_TOKENIZER`, or `models/chunk/tokenizer.json` as fetched by
-`scripts/install/download_dependencies.sh`). These two are buffered (the whole
-document converts before chunking), have no overlap concept (`RAG_CHUNK_OVERLAP`
-applies to `window` only, matching docling's own chunkers), and put the heading
-path and source item refs in each chunk's metadata.
+`scripts/install/download_dependencies.sh`). These two need the complete
+document tree, so conversion is whole-document — but their chunks **stream**
+into embedding as the chunkers produce them, overlapping chunking with
+embedding like the `window` path. They have no overlap concept
+(`RAG_CHUNK_OVERLAP` applies to `window` only, matching docling's own
+chunkers), and put the heading path and source item refs in each chunk's
+metadata.
 
 Documents (metadata) and chunks (text + embedding) are stored in **two separate
 tables**.
