@@ -13,8 +13,14 @@ PDF_CONFORMANCE.md for the measured speed/quality numbers):
   fp32 level. ~2.4x faster layout inference on AVX-512-VNNI CPUs, 172 -> 68 MB.
 
 * **tableformer-decoder** — dynamic INT8 (weights-only MatMul) of the
-  autoregressive tag decoder. Output is byte-identical on the corpus;
-  ~10% faster table-structure decode, 78 -> 50 MB.
+  legacy autoregressive tag decoder (~10% faster than its fp32 file,
+  78 -> 50 MB). Byte-exactness is quantizer-environment-sensitive:
+  redp5110's TOC decode has near-tie tokens that a re-quantization can
+  flip (the currently shipped asset is corpus-exact; a fresh one drifted
+  that single fixture) — always re-gate pdf_conformance.sh after
+  re-quantizing and keep the previously validated asset if it drifts.
+  Since #97 the Rust loop prefers the byte-exact fp32 decoder_kv over
+  this file anyway, so it only serves setups without the KV export.
 
 * **code-formula-decoder** — dynamic INT8 of the CodeFormulaV2 KV-cache
   decoder step (the enrichment VLM; needs the --enrich models). Not in the
