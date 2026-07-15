@@ -110,7 +110,11 @@ def quantize_layout():
             return next(self.it, None)
 
     print("layout: pre-processing (shape inference)...", flush=True)
-    quant_pre_process(src, pre, skip_symbolic_shape=False)
+    # skip_symbolic_shape: the #73 dynamic-batch graph makes ORT's symbolic
+    # shape inference bail ("Incomplete symbolic shape inference"); the
+    # ONNX-level inference quant_pre_process falls back to is enough for the
+    # Conv-only QDQ pass.
+    quant_pre_process(src, pre, skip_symbolic_shape=True)
     print("layout: static QDQ INT8 quantization (Conv only)...", flush=True)
     quantize_static(
         pre,

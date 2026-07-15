@@ -252,6 +252,56 @@ impl Worker {
                 .predict(&page.image, page.width, page.height)
         })
         .map_err(|e| PdfError::Layout(format!("page {}: {e}", n + 1)))?;
+        self.finish_page(n, page, regions)
+    }
+
+    /// Layout-detect a whole batch of pages with one inference call (issue #73),
+    /// then run each page's remaining stages (OCR / TableFormer / enrichment /
+    /// assembly) per page. Index-aligned with `items`; a layout failure fails
+    /// every page in the batch (they shared the one inference call).
+    fn process_batch(&mut self, items: &mut [(usize, PdfPage)]) -> Vec<Result<PageOut, PdfError>> {
+        if self.no_ocr {
+            // No layout model to batch — the text-layer-only path is per page.
+            return items
+                .iter_mut()
+                .map(|(n, page)| {
+                    let n = *n;
+                    self.process(n, page)
+                })
+                .collect();
+        }
+        let inputs: Vec<(&image::RgbImage, f32, f32)> = items
+            .iter()
+            .map(|(_, page)| (&page.image, page.width, page.height))
+            .collect();
+        let batched = timing::timed("layout.predict", || {
+            self.layout
+                .as_mut()
+                .expect("layout model loaded unless no_ocr")
+                .predict_batch(&inputs)
+        });
+        match batched {
+            Ok(all) => items
+                .iter_mut()
+                .zip(all)
+                .map(|((n, page), regions)| self.finish_page(*n, page, regions))
+                .collect(),
+            Err(e) => items
+                .iter()
+                .map(|(n, _)| Err(PdfError::Layout(format!("page {}: {e}", n + 1))))
+                .collect(),
+        }
+    }
+
+    /// Everything after layout detection: per-label confidence thresholds,
+    /// overlap resolution, orphan-text recovery, OCR for cell-less pages,
+    /// TableFormer, enrichment, and page assembly.
+    fn finish_page(
+        &mut self,
+        n: usize,
+        page: &mut PdfPage,
+        regions: Vec<layout::Region>,
+    ) -> Result<PageOut, PdfError> {
         // docling's LayoutPostprocessor drops each detection below its label's
         // confidence threshold (stricter than the 0.3 base the predictor keeps),
         // before any overlap resolution. This removes the low-confidence tables /
@@ -453,6 +503,26 @@ fn pdf_worker_count() -> usize {
     (intra_threads() / pdf_intra()).clamp(1, 4)
 }
 
+/// Max pages a worker layout-detects with one batched inference call (issue
+/// #73). Workers drain the work channel opportunistically up to this size —
+/// whatever is already rendered gets batched, so batching never *waits* for
+/// pages and adds no latency when rendering is the bottleneck.
+///
+/// Default: 4 on 8+ cores, 1 (per-page) below. Measured on a 4-core box the
+/// batch only adds cache pressure and costs pipeline overlap (2 workers × 2
+/// threads: 8.1 s/conv at batch=1 vs 9.3 s at batch=4 on the 9-page
+/// 2206.01062 fixture); the single-session amortization it buys needs the
+/// wider thread budget of a many-core machine. Output is bit-identical at
+/// every batch size, so this is purely a throughput knob.
+/// `DOCLING_RS_PDF_LAYOUT_BATCH` overrides; `1` restores per-page inference.
+fn pdf_layout_batch() -> usize {
+    std::env::var("DOCLING_RS_PDF_LAYOUT_BATCH")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or_else(|| if intra_threads() >= 8 { 4 } else { 1 })
+}
+
 /// Minimum page count before a PDF is worth the parallel worker pool. Below this,
 /// the serial primary (running its model on every core) is faster than fanning out
 /// — the helper pool's one-time model-load cost only pays off once enough pages
@@ -651,7 +721,11 @@ impl Pipeline {
         self.ensure_pool()?;
         let n_workers = self.pool.len();
         let render_image = !self.no_ocr;
-        let (work_tx, work_rx) = sync_channel::<(usize, PdfPage)>(n_workers * 2);
+        let layout_batch = pdf_layout_batch();
+        // Bound sized so every worker can accumulate a full layout batch while
+        // rendering stays ahead (and never below the pre-#73 render-ahead of
+        // two pages per worker); still a hard cap on resident page bitmaps.
+        let (work_tx, work_rx) = sync_channel::<(usize, PdfPage)>(n_workers * layout_batch.max(2));
         let work_rx: Arc<Mutex<Receiver<(usize, PdfPage)>>> = Arc::new(Mutex::new(work_rx));
         let results: Arc<Mutex<Vec<(usize, PageOut)>>> = Arc::new(Mutex::new(Vec::new()));
         let first_err: Arc<Mutex<Option<PdfError>>> = Arc::new(Mutex::new(None));
@@ -664,16 +738,34 @@ impl Pipeline {
                 let results = Arc::clone(&results);
                 let first_err = Arc::clone(&first_err);
                 s.spawn(move || loop {
-                    // Hold the receiver lock only for the recv; release before the
-                    // (long) per-page work so other workers can pull concurrently.
-                    let item = work_rx.lock().unwrap().recv();
-                    let Ok((idx, mut page)) = item else { break };
-                    match worker.process(idx, &mut page) {
-                        Ok(out) => results.lock().unwrap().push((idx, out)),
-                        Err(e) => {
-                            let mut slot = first_err.lock().unwrap();
-                            if slot.is_none() {
-                                *slot = Some(e);
+                    // Hold the receiver lock only for the recv (plus a non-blocking
+                    // drain up to the layout batch size); release before the (long)
+                    // per-page work so other workers can pull concurrently.
+                    let mut batch = Vec::new();
+                    {
+                        let rx = work_rx.lock().unwrap();
+                        match rx.recv() {
+                            Ok(item) => {
+                                batch.push(item);
+                                while batch.len() < layout_batch {
+                                    match rx.try_recv() {
+                                        Ok(item) => batch.push(item),
+                                        Err(_) => break,
+                                    }
+                                }
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                    let outs = worker.process_batch(&mut batch);
+                    for ((idx, _), out) in batch.iter().zip(outs) {
+                        match out {
+                            Ok(out) => results.lock().unwrap().push((*idx, out)),
+                            Err(e) => {
+                                let mut slot = first_err.lock().unwrap();
+                                if slot.is_none() {
+                                    *slot = Some(e);
+                                }
                             }
                         }
                     }
@@ -787,7 +879,11 @@ impl Pipeline {
         self.ensure_pool()?;
         let n_workers = self.pool.len();
         let render_image = !self.no_ocr;
-        let (work_tx, work_rx) = sync_channel::<(usize, PdfPage)>(n_workers * 2);
+        let layout_batch = pdf_layout_batch();
+        // Bound sized so every worker can accumulate a full layout batch while
+        // rendering stays ahead (and never below the pre-#73 render-ahead of
+        // two pages per worker); still a hard cap on resident page bitmaps.
+        let (work_tx, work_rx) = sync_channel::<(usize, PdfPage)>(n_workers * layout_batch.max(2));
         let work_rx: Arc<Mutex<Receiver<(usize, PdfPage)>>> = Arc::new(Mutex::new(work_rx));
         // Workers and the renderer report here; the calling thread drains it in
         // page order. Bounded so workers block (bounding resident bitmaps) when the
@@ -799,16 +895,34 @@ impl Pipeline {
         let mut first_err: Option<PdfError> = None;
 
         std::thread::scope(|s| {
-            // Workers: pull a page, process it, report (index-tagged) result.
+            // Workers: pull a batch of pages (whatever is already rendered, up
+            // to the layout batch size), process it, report (index-tagged)
+            // results.
             for worker in workers.iter_mut() {
                 let work_rx = Arc::clone(&work_rx);
                 let res_tx = res_tx.clone();
-                s.spawn(move || loop {
-                    let item = work_rx.lock().unwrap().recv();
-                    let Ok((idx, mut page)) = item else { break };
-                    let out = worker.process(idx, &mut page).map(|o| (idx, o));
-                    if res_tx.send(out).is_err() {
-                        break; // consumer gone
+                s.spawn(move || 'outer: loop {
+                    let mut batch = Vec::new();
+                    {
+                        let rx = work_rx.lock().unwrap();
+                        match rx.recv() {
+                            Ok(item) => {
+                                batch.push(item);
+                                while batch.len() < layout_batch {
+                                    match rx.try_recv() {
+                                        Ok(item) => batch.push(item),
+                                        Err(_) => break,
+                                    }
+                                }
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                    let outs = worker.process_batch(&mut batch);
+                    for ((idx, _), out) in batch.iter().zip(outs) {
+                        if res_tx.send(out.map(|o| (*idx, o))).is_err() {
+                            break 'outer; // consumer gone
+                        }
                     }
                 });
             }

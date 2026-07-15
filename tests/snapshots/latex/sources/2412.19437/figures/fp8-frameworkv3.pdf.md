@@ -1,66 +1,18 @@
-Fprop
-
-To BF16
-
-To FP8
-
-Σ
-
 Input
 
 BF16
 
-FP32
+Input
 
-To FP8
-
-Weight
-
-Dgrad
+Gradient To FP8
 
 To BF16
 
-To FP8
-
-Input
-
 Σ
-
-Gradient
 
 FP32
-
-To FP8
-
-Wgrad
-
-Weight
-
-Σ
 
 Output
-
-Gradient
-
-FP32
-
-FP32
-
-To
-
-BF16
-
-To FP32
-
-Master
-
-Optimizer
-
-Weight
-
-States
-
-To FP8
 
 Output
 
@@ -69,3 +21,41 @@ Gradient
 BF16
 
 <!-- image -->
+
+Fprop
+
+Σ
+
+FP32
+
+Weight
+
+Dgrad To BF16
+
+To FP8
+
+To FP8
+
+To FP8
+
+To FP8
+
+Wgrad
+
+Σ
+
+FP32
+
+Master
+
+Weight To FP32
+
+Weight
+
+Gradient
+
+FP32
+
+Optimizer
+
+States To BF16

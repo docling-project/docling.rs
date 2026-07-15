@@ -4,13 +4,11 @@ Scaling
 
 Factor
 
-Weight
+...
 
 ...
 
-WGMMA 1
-
-WGMMA 4
+Weight
 
 Scaling
 
@@ -18,19 +16,17 @@ Factor
 
 ...
 
-...
-
-Low Prec Acc
-
-/
-
-GEMM Input
+WGMMA 1
 
 Tensor Core
 
 Output
 
-<!-- image -->
+CUDA Core WGMMA 4
+
+Low Prec Acc
+
+GEMM Input
 
 Interval
 
@@ -38,6 +34,8 @@ Scaling Factor
 
 FP32 Register
 
-CUDA Core
-
 (b) Increasing accumulation precision
+
+<!-- image -->
+
+/

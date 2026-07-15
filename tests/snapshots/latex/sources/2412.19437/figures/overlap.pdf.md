@@ -6,8 +6,4 @@
 
 <!-- image -->
 
-## △ Forward chunk ▲ Backward chunk
-
-<!-- image -->
-
 <!-- image -->

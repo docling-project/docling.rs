@@ -1,4 +1,4 @@
-Effective Context Length
+Vanilla Attention
 
 <!-- image -->
 
@@ -6,6 +6,6 @@ Sliding Window Attention
 
 <!-- image -->
 
-Vanilla Attention
+Effective Context Length
 
 <!-- image -->

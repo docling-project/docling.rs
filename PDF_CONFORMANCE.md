@@ -159,7 +159,11 @@ threads per worker with `workers ≈ cores / 2` (capped at 4): two threads shari
 in-cache copy of the weights beats both one fat model and many single-thread workers.
 The speed-up scales with cores and memory bandwidth. Tune per machine with
 `DOCLING_RS_PDF_WORKERS` (pool size) and `DOCLING_RS_PDF_INTRA` (intra-op threads
-per worker).
+per worker). Each worker layout-detects up to `DOCLING_RS_PDF_LAYOUT_BATCH`
+already-rendered pages per inference call (issue #73; default 4 on 8+ cores,
+1 below — measured on a 4-core box the batch costs pipeline overlap: 8.1 →
+9.3 s/conv on 2206.01062). Output is bit-identical at every batch size, so
+the knob is purely about throughput.
 
 ### Text reconstruction: a pure-Rust PDF text parser (default)
 
@@ -442,11 +446,22 @@ Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.
      names) and prefers the smaller legacy file by default; point
      `DOCLING_TABLEFORMER_DECODER` at `decoder_kv(_int8).onnx` for
      very-large-table workloads.
-3. **Layout batching for the parallel path**: the pool currently runs batch-1
-   inference per page. RT-DETR's 640×640 input is fixed-shape, so pages can be
-   batched (e.g. batch-4) per worker with one session — better core utilization
-   and less framework overhead on wide machines. Output is per-image, so
-   quality is unaffected. (Needs a re-export with a dynamic batch dim.)
+3. ~~**Layout batching for the parallel path**: the pool currently runs batch-1
+   inference per page.~~ **Done (issue #73)**: each pool worker drains the work
+   channel opportunistically (whatever is already rendered, up to
+   `DOCLING_RS_PDF_LAYOUT_BATCH` — default 4 on 8+ cores, 1 below) and
+   layout-detects the batch with one inference call — batching never *waits* for pages, so it adds no
+   latency when rendering is the bottleneck. Needs the dynamic-batch ONNX
+   export (`scripts/install/export_layout.py`); an old fixed-batch graph
+   triggers a warn-once per-page fallback. Two export subtleties keep numerics
+   identical to the historical static export: a plain `dynamic_axes` export
+   leaves the AIFI sincos position embedding as runtime ops that drift ~1e-6
+   from the torch-folded constant (enough to flip borderline detections
+   corpus-wide — groundtruth exact matches dropped 5/14 → 0/14 before the
+   fix), so the exporter folds the static graph's position-embedding subgraph
+   offline and splices the constant into the dynamic graph. Verified:
+   groundtruth parity restored (5/14 exact, 6/14 normalized), and batch=1 ==
+   batch=4 **bit-identical** across the whole corpus.
 4. **The 3×→2× page downscale** (~15% of a text-heavy conversion, ~25% after
    INT8): ~~replace the scalar `image`-crate CatmullRom with a SIMD
    convolution.~~ **Done on this branch:** `fast_image_resize` with the same
