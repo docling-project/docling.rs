@@ -69,6 +69,12 @@ requests, so repeat PDF conversions skip the model load (~13× faster than a
 cold call on the test fixtures); a semaphore bounds concurrent conversions.
 Markdown responses stream (chunked transfer); `/health` + `/ready` suit
 container probes, and SIGTERM drains in-flight requests before exit.
+`GET /` serves API docs plus an interactive test form — upload or URL in,
+streamed result out, with extracted pictures rendered below the text:
+
+<p align="center">
+  <img src="docs/assets/serve-form.png" alt="docling-serve test form: a converted image with the Markdown result and a gallery of extracted pictures" width="720">
+</p>
 
 ```bash
 cargo run --release -p docling-serve                 # 127.0.0.1:5001

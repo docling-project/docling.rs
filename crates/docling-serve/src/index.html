@@ -120,25 +120,55 @@ for (const radio of document.querySelectorAll('input[name=mode]')) {
 // show them as a gallery under the text, and shorten the base64 blobs in
 // the text panel so it stays readable. Markdown embeds only with the
 // "embed images" box checked (images=embedded); JSON always embeds.
+// Scanned with indexOf, not a regex: V8's regex engine overflows its
+// backtrack stack (RangeError) on multi-megabyte base64 runs.
+function findDataImageSpans(text) {
+  const isB64 = (c) =>
+    (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+    c === '+' || c === '/' || c === '=';
+  const spans = []; // [uriStart, base64Start, end]
+  let from = 0;
+  for (;;) {
+    const start = text.indexOf('data:image/', from);
+    if (start === -1) break;
+    const marker = text.indexOf(';base64,', start);
+    const subtype = marker === -1 ? '' : text.slice(start + 11, marker);
+    if (marker === -1 || subtype.length > 20 || !/^[a-z.+-]+$/.test(subtype)) {
+      from = start + 11;
+      continue;
+    }
+    let end = marker + 8;
+    while (end < text.length && isB64(text[end])) end++;
+    if (end > marker + 8) spans.push([start, marker + 8, end]);
+    from = Math.max(end, start + 11);
+  }
+  return spans;
+}
+
 function renderImages(text, to) {
   if (to !== 'md' && to !== 'json') return;
-  const uris = [...text.matchAll(/data:image\/[a-z.+-]+;base64,[A-Za-z0-9+\/=]+/g)].map((m) => m[0]);
-  if (!uris.length) return;
+  const spans = findDataImageSpans(text);
+  if (!spans.length) return;
   const gallery = $('gallery');
-  uris.forEach((uri, i) => {
+  spans.forEach(([start, , end], i) => {
     const figure = document.createElement('figure');
     const img = document.createElement('img');
-    img.src = uri;
+    img.src = text.slice(start, end);
     img.alt = `picture ${i + 1}`;
     const caption = document.createElement('figcaption');
     caption.textContent = `picture ${i + 1}`;
     figure.append(img, caption);
     gallery.append(figure);
   });
-  $('result').textContent = text.replace(
-    /(data:image\/[a-z.+-]+;base64,)[A-Za-z0-9+\/=]{48,}/g,
-    (_, prefix) => prefix + '…',
-  );
+  // Rebuild the panel text with each base64 payload collapsed to '…'.
+  const parts = [];
+  let pos = 0;
+  for (const [, base64Start, end] of spans) {
+    parts.push(text.slice(pos, base64Start), '…');
+    pos = end;
+  }
+  parts.push(text.slice(pos));
+  $('result').textContent = parts.join('');
 }
 
 $('go').addEventListener('click', async () => {
@@ -206,7 +236,7 @@ $('go').addEventListener('click', async () => {
     if (to === 'json' || to === 'chunks') {
       try { out.textContent = JSON.stringify(JSON.parse(out.textContent), null, 2); } catch {}
     }
-    renderImages(out.textContent, to);
+    try { renderImages(out.textContent, to); } catch (e) { console.error('gallery:', e); }
   } catch (e) {
     out.classList.add('err');
     out.textContent = String(e);
