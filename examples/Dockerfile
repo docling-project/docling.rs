@@ -45,7 +45,12 @@ RUN apt-get update \
 
 # torch (CPU) + the docling model packages used by the export scripts, plus
 # the quantization/calibration deps (pypdfium2, pillow, sympy).
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
+# torch <2.13: its TorchScript exporter starts constant-folding the sincos
+# position embedding itself, which breaks export_layout.py's fold-and-splice
+# (it finds no pos-embed subgraph) and would change the folded constant's
+# provenance vs the corpus-validated export. Keep the version the published
+# models were exported with until the script (and conformance) move together.
+RUN pip install --no-cache-dir "torch<2.13" --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu \
         "transformers>=4.45,<5" "onnx>=1.16,<2" \
         docling-ibm-models onnxscript onnxruntime huggingface_hub \
