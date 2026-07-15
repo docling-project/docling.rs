@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>docling-serve — HTTP conversion API</title>
+<style>
+  :root { --fg: #1a1a1a; --muted: #6a6a6a; --line: #e2e2e2; --accent: #0969da; --bg: #ffffff; --panel: #f6f8fa; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #e6e6e6; --muted: #9a9a9a; --line: #333; --accent: #58a6ff; --bg: #0d1117; --panel: #161b22; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0 auto; max-width: 60rem; padding: 2rem 1.25rem 4rem; font: 16px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg); }
+  h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+  h1 .duck { font-size: 1.3rem; }
+  h2 { font-size: 1.15rem; margin: 2.2rem 0 .6rem; border-bottom: 1px solid var(--line); padding-bottom: .3rem; }
+  p.sub { color: var(--muted); margin: 0 0 1.5rem; }
+  code, pre { font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  code { background: var(--panel); padding: .1em .35em; border-radius: 4px; }
+  pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .9rem 1rem; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+  th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .form { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.2rem; }
+  .row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: .8rem; }
+  label { font-size: .92rem; }
+  select, input[type=text] { padding: .35rem .5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  input[type=text] { flex: 1; min-width: 16rem; }
+  button { padding: .45rem 1.1rem; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: wait; }
+  .out { margin-top: 1rem; }
+  .out pre { max-height: 24rem; overflow: auto; white-space: pre-wrap; }
+  .err { color: #d1242f; }
+  .hint { color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<h1><span class="duck">🦆</span> docling-serve</h1>
+<p class="sub">HTTP conversion API over <a href="https://github.com/docling-project/docling.rs">docling.rs</a> —
+convert documents to Markdown, docling JSON, DocLang archives, or chunk records.</p>
+
+<h2>Try it</h2>
+<div class="form">
+  <div class="row">
+    <label><input type="radio" name="mode" value="file" checked> Upload</label>
+    <label><input type="radio" name="mode" value="url"> URL</label>
+    <input type="file" id="file">
+    <input type="text" id="url" placeholder="https://example.com/document.pdf" style="display:none">
+  </div>
+  <div class="row">
+    <label>Output:
+      <select id="to">
+        <option value="md">Markdown</option>
+        <option value="json">docling JSON</option>
+        <option value="chunks">chunk records</option>
+        <option value="dclx">DocLang archive (.dclx)</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="strict"> strict Markdown</label>
+    <label><input type="checkbox" id="no_ocr"> no OCR</label>
+    <label><input type="checkbox" id="no_table_former"> no TableFormer</label>
+    <button id="go">Convert</button>
+  </div>
+  <div class="hint">PDF/image inputs run the ML pipeline — the first conversion loads the models
+  (tens of seconds), repeats are fast. Markdown responses stream in as they convert.</div>
+  <div class="out">
+    <pre id="result" style="display:none"></pre>
+  </div>
+</div>
+
+<h2>API</h2>
+<table>
+  <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+  <tr><td><code>POST</code></td><td><code>/v1/convert</code></td>
+      <td>Convert an upload (<code>multipart/form-data</code>, a <code>file</code> part — the filename's
+      extension selects the input format) or a URL (<code>application/json</code>:
+      <code>{"url": …, "file_name"?: …}</code>).</td></tr>
+  <tr><td><code>GET</code></td><td><code>/health</code></td><td>Liveness probe.</td></tr>
+  <tr><td><code>GET</code></td><td><code>/ready</code></td><td>Readiness probe — 503 until <code>--warmup</code> finishes loading the ML models.</td></tr>
+</table>
+
+<h2>Options</h2>
+<p>As query parameters, multipart text fields, or JSON keys (body wins over query):</p>
+<table>
+  <tr><th>Option</th><th>Values</th><th>Description</th></tr>
+  <tr><td><code>to</code></td><td><code>md</code> (default) | <code>json</code> | <code>dclx</code> | <code>chunks</code></td>
+      <td>Markdown (streamed) · docling <code>DoclingDocument</code> JSON · DocLang OPC archive (download) · chunker records (hierarchical + hybrid when a tokenizer is installed).</td></tr>
+  <tr><td><code>strict</code></td><td><code>true</code>/<code>false</code></td><td>Cleaner strict Markdown dialect instead of byte-for-byte docling-legacy output.</td></tr>
+  <tr><td><code>images</code></td><td><code>placeholder</code> (default) | <code>embedded</code></td><td>Markdown picture handling (embedded = base64 data URIs).</td></tr>
+  <tr><td><code>no_ocr</code></td><td><code>true</code>/<code>false</code></td><td>PDF/image: skip layout/OCR/TableFormer entirely; emit the embedded text layer only.</td></tr>
+  <tr><td><code>no_table_former</code></td><td><code>true</code>/<code>false</code></td><td>PDF/image: geometric table reconstruction instead of the TableFormer model.</td></tr>
+  <tr><td><code>fetch_images</code></td><td><code>true</code>/<code>false</code></td><td>HTML/EPUB: resolve external <code>&lt;img src&gt;</code> and embed the bytes.</td></tr>
+</table>
+
+<h2>Examples</h2>
+<pre>curl -F file=@paper.pdf  localhost:5001/v1/convert                 # Markdown (streams)
+curl -F file=@report.docx 'localhost:5001/v1/convert?to=json'      # docling JSON
+curl -F file=@sheet.xlsx  'localhost:5001/v1/convert?to=dclx' -OJ  # DocLang archive
+curl -F file=@page.html   'localhost:5001/v1/convert?to=chunks'    # chunk records
+curl -H 'content-type: application/json' \
+     -d '{"url": "https://example.com/doc.pdf", "to": "md"}' \
+     localhost:5001/v1/convert                                     # convert a URL</pre>
+
+<script>
+const $ = (id) => document.getElementById(id);
+for (const radio of document.querySelectorAll('input[name=mode]')) {
+  radio.addEventListener('change', () => {
+    const file = document.querySelector('input[name=mode]:checked').value === 'file';
+    $('file').style.display = file ? '' : 'none';
+    $('url').style.display = file ? 'none' : '';
+  });
+}
+$('go').addEventListener('click', async () => {
+  const out = $('result');
+  out.style.display = '';
+  out.classList.remove('err');
+  const to = $('to').value;
+  const opts = {
+    to,
+    strict: $('strict').checked,
+    no_ocr: $('no_ocr').checked,
+    no_table_former: $('no_table_former').checked,
+  };
+  let request;
+  if (document.querySelector('input[name=mode]:checked').value === 'file') {
+    const file = $('file').files[0];
+    if (!file) { out.textContent = 'Pick a file first.'; return; }
+    const form = new FormData();
+    form.append('file', file);
+    for (const [k, v] of Object.entries(opts)) form.append(k, String(v));
+    request = fetch('/v1/convert', { method: 'POST', body: form });
+  } else {
+    const url = $('url').value.trim();
+    if (!url) { out.textContent = 'Enter a URL first.'; return; }
+    request = fetch('/v1/convert', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url, ...opts }),
+    });
+  }
+  $('go').disabled = true;
+  out.textContent = 'Converting… (a first PDF/image conversion loads the models)';
+  try {
+    const response = await request;
+    if (!response.ok) {
+      const body = await response.text();
+      out.classList.add('err');
+      try { out.textContent = `HTTP ${response.status}: ${JSON.parse(body).error}`; }
+      catch { out.textContent = `HTTP ${response.status}: ${body}`; }
+      return;
+    }
+    if (to === 'dclx') {
+      const blob = await response.blob();
+      const cd = response.headers.get('content-disposition') || '';
+      const name = (cd.match(/filename="([^"]+)"/) || [, 'document.dclx'])[1];
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      out.textContent = `Downloaded ${name} (${blob.size} bytes).`;
+      return;
+    }
+    // Stream the body into the panel as it arrives (Markdown streams page by page).
+    out.textContent = '';
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      out.textContent += decoder.decode(value, { stream: true });
+    }
+    if (to === 'json' || to === 'chunks') {
+      try { out.textContent = JSON.stringify(JSON.parse(out.textContent), null, 2); } catch {}
+    }
+  } catch (e) {
+    out.classList.add('err');
+    out.textContent = String(e);
+  } finally {
+    $('go').disabled = false;
+  }
+});
+</script>
+</body>
+</html>

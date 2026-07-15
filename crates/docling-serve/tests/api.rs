@@ -185,3 +185,14 @@ async fn strict_field_changes_markdown_dialect() {
     let strict = body_string(app().oneshot(convert_request(&ct2, b2, "")).await.unwrap()).await;
     assert_ne!(legacy, strict, "strict flag had no effect");
 }
+
+#[tokio::test]
+async fn index_serves_docs_and_form() {
+    let response = app()
+        .oneshot(Request::get("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_string(response).await;
+    assert!(body.contains("/v1/convert") && body.contains("<form") || body.contains("Convert"));
+}

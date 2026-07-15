@@ -5,6 +5,7 @@
 //!
 //! | Method | Path          | Description                                        |
 //! |--------|---------------|----------------------------------------------------|
+//! | GET    | `/`           | API docs + an interactive test form                |
 //! | POST   | `/v1/convert` | convert an upload (multipart) or a URL (JSON body) |
 //! | GET    | `/health`     | liveness probe                                     |
 //! | GET    | `/ready`      | readiness probe (200 once models are warm)         |
@@ -113,6 +114,11 @@ pub fn router(cfg: ServeConfig) -> Router {
         });
     }
     Router::new()
+        // Docs + test form, like the original docling-serve's playground.
+        .route(
+            "/",
+            get(|| async { axum::response::Html(include_str!("index.html")) }),
+        )
         .route("/health", get(|| async { Json(json!({"status": "ok"})) }))
         .route("/ready", get(ready))
         .route("/v1/convert", post(convert))
