@@ -30,5 +30,5 @@ web-browser = ["docling/web-browser"]
 chunking = ["docling/chunking"]
 
 [dependencies]
-docling = { path = "../docling", version = "0.38.0" }
+docling = { path = "../docling", version = "0.38.1" }
 serde_json = "1"
