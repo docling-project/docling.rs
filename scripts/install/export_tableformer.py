@@ -136,7 +136,15 @@ class Encode(nn.Module):
             k, v = _cross_kv(layer, mem)
             ks.append(k)
             vs.append(v)
-        return torch.stack(ks, 0), torch.stack(vs, 0), eo_raw
+        # Per-layer, pre-transposed variants (issue #97): the hoisted-KV decoder
+        # step consumes these directly, so the per-token graph never re-splits /
+        # re-transposes the constant 19 MB cross tensors (was ~5 ms of every
+        # ~7.5 ms step). K is emitted K^T ([1,H,head_dim,S]) ready for q@K^T.
+        per_layer = []
+        for k, v in zip(ks, vs):
+            per_layer.append(k.transpose(2, 3).contiguous())
+        per_layer.extend(vs)
+        return (torch.stack(ks, 0), torch.stack(vs, 0), eo_raw, *per_layer)
 
 
 class BBoxDecode(nn.Module):
@@ -244,6 +252,57 @@ class DecodeKV(nn.Module):
         return tt._fc(last), last, out_cache_k, out_cache_v
 
 
+class DecodeKVHoisted(nn.Module):
+    # DecodeKV with the constant cross-attention tensors hoisted out of the
+    # step graph (issue #97). The stacked [L,1,H,S,hd] cross inputs made every
+    # token pay a Split of 2x9.6 MB plus per-layer Transposes (~5 ms of a
+    # ~7.5 ms step); here each layer's K^T ([1,H,hd,S]) and V ([1,H,S,hd])
+    # arrive as separate, already-laid-out inputs (computed once per table by
+    # the encoder), and cross-attention is written out manually so the ONNX
+    # graph consumes them in place. Self-attention and the caches are exactly
+    # DecodeKV's.
+    def forward(self, tag, cache_k, cache_v, *cross):
+        e = EMBED_DIM_
+        cross_kt, cross_v = cross[:N_LAYERS], cross[N_LAYERS:]
+        pos = cache_k.shape[3]
+        x = tt._embedding(tag)
+        x = x + tt._positional_encoding.pe[pos]
+        out = x
+        new_ks, new_vs = [], []
+        for i, layer in enumerate(tt._decoder.layers):
+            sa = layer.self_attn
+            W, b = sa.in_proj_weight, sa.in_proj_bias
+            q = F.linear(out, W[:e], b[:e])
+            k = F.linear(out, W[e : 2 * e], b[e : 2 * e])
+            v = F.linear(out, W[2 * e :], b[2 * e :])
+            q = q.reshape(1, N_HEADS, HEAD_DIM).permute(1, 0, 2).unsqueeze(0)
+            k = k.reshape(1, N_HEADS, HEAD_DIM).permute(1, 0, 2).unsqueeze(0)
+            v = v.reshape(1, N_HEADS, HEAD_DIM).permute(1, 0, 2).unsqueeze(0)
+            new_ks.append(k)
+            new_vs.append(v)
+            kk = torch.cat([cache_k[i], k], dim=2)
+            vv = torch.cat([cache_v[i], v], dim=2)
+            t = F.scaled_dot_product_attention(q, kk, vv)
+            t = t.squeeze(0).permute(1, 0, 2).reshape(1, 1, e)
+            t = F.linear(t, sa.out_proj.weight, sa.out_proj.bias)
+            tgt_last = layer.norm1(out + t)
+            # manual cross-attention over the pre-transposed constants
+            mha = layer.multihead_attn
+            cq = F.linear(tgt_last, mha.in_proj_weight[:e], mha.in_proj_bias[:e])
+            cq = cq.reshape(1, N_HEADS, HEAD_DIM).permute(1, 0, 2).unsqueeze(0)
+            scores = (cq * HEAD_DIM**-0.5) @ cross_kt[i]  # [1,H,1,S]
+            co = torch.softmax(scores, dim=-1) @ cross_v[i]  # [1,H,1,hd]
+            co = co.squeeze(0).permute(1, 0, 2).reshape(1, 1, e)
+            t = F.linear(co, mha.out_proj.weight, mha.out_proj.bias)
+            tgt_last = layer.norm2(tgt_last + t)
+            t = layer.linear2(layer.activation(layer.linear1(tgt_last)))
+            out = layer.norm3(tgt_last + t)
+        out_cache_k = torch.cat([cache_k, torch.stack(new_ks, 0)], dim=3)
+        out_cache_v = torch.cat([cache_v, torch.stack(new_vs, 0)], dim=3)
+        last = out[-1]
+        return tt._fc(last), last, out_cache_k, out_cache_v
+
+
 def check(name, a, b):
     import numpy as np
 
@@ -256,10 +315,13 @@ from torch.export import Dim  # noqa: E402
 
 img = torch.randn(1, 3, 448, 448)
 with torch.no_grad():
-    cross_k, cross_v, enc_out = Encode()(img)
+    cross_k, cross_v, enc_out, *cross_per_layer = Encode()(img)
 torch.onnx.export(
     Encode(), (img,), f"{OUT}/encoder.onnx",
-    input_names=["image"], output_names=["cross_k", "cross_v", "enc_out"],
+    input_names=["image"],
+    output_names=["cross_k", "cross_v", "enc_out"]
+    + [f"cross_kt_{i}" for i in range(N_LAYERS)]
+    + [f"cross_v_{i}" for i in range(N_LAYERS)],
     opset_version=17, dynamo=False,
 )
 tags = torch.full((3, 1), start, dtype=torch.long)
@@ -319,7 +381,7 @@ check("classes", bo[1], classes.numpy())
 # Verify against the layer-output-cache module by rolling both autoregressively
 # from <start> over the same encoder memory: greedy argmax must match at every
 # step (the two are the same math; only reduction shapes differ).
-print("verifying DecodeKV against the layer-output cache, 64-step rollout:")
+print("verifying DecodeKVHoisted against the layer-output cache, 64-step rollout:")
 kv_k = torch.zeros((N_LAYERS, 1, nh, 0, HEAD_DIM))
 kv_v = torch.zeros((N_LAYERS, 1, nh, 0, HEAD_DIM))
 lc_cache = torch.zeros((N_LAYERS, 0, 1, EMBED_DIM))
@@ -331,41 +393,45 @@ with torch.no_grad():
             torch.tensor(roll_tags, dtype=torch.long).unsqueeze(1),
             cross_k, cross_v, lc_cache,
         )
-        kv_logits, _, kv_k, kv_v = DecodeKV()(
+        kv_logits, _, kv_k, kv_v = DecodeKVHoisted()(
             torch.tensor([[roll_tags[-1]]], dtype=torch.long),
-            cross_k, cross_v, kv_k, kv_v,
+            kv_k, kv_v, *cross_per_layer,
         )
         d = float((lc_logits - kv_logits).abs().max())
         max_dlogit = max(max_dlogit, d)
         a, b = int(lc_logits.argmax()), int(kv_logits.argmax())
-        assert a == b, f"step {step}: argmax diverged (layer-cache {a} vs kv {b})"
+        assert a == b, f"step {step}: argmax diverged (layer-cache {a} vs kv-hoisted {b})"
         roll_tags.append(a)
 print(f"  64 steps argmax-identical, max|dlogits| = {max_dlogit:.2e}")
 
 tag1 = torch.tensor([[start]], dtype=torch.long)
 past_kv = Dim("past", min=0, max=1024)
+cross_names = [f"cross_kt_{i}" for i in range(N_LAYERS)] + [
+    f"cross_v_{i}" for i in range(N_LAYERS)
+]
+# Export with the rollout's past=64 caches: a past=0 example lets the exporter
+# specialize `pe[cache_k.shape[3]]` to `pe[0]`, silently zeroing the positional
+# encoding for every later step (decode then never emits <end>).
 torch.onnx.export(
-    DecodeKV(), (tag1, cross_k, cross_v, kv_k, kv_v), f"{OUT}/decoder_kv.onnx",
-    input_names=["tag", "cross_k", "cross_v", "cache_k", "cache_v"],
+    DecodeKVHoisted(), (tag1, kv_k, kv_v, *cross_per_layer),
+    f"{OUT}/decoder_kv.onnx",
+    input_names=["tag", "cache_k", "cache_v"] + cross_names,
     output_names=["logits", "hidden", "out_cache_k", "out_cache_v"],
     dynamo=True,
-    dynamic_shapes=({}, {}, {}, {3: past_kv}, {3: past_kv}),
+    dynamic_shapes=(
+        {},
+        {3: past_kv},
+        {3: past_kv},
+        tuple({} for _ in cross_names),
+    ),
 )
-print("decoder_kv.onnx (true-KV-cache step):")
+print("decoder_kv.onnx (hoisted true-KV-cache step):")
+empty_kv = torch.zeros((N_LAYERS, 1, nh, 0, HEAD_DIM))
 with torch.no_grad():
-    kl, kh, kck, kcv = DecodeKV()(tag1, cross_k, cross_v,
-                                  torch.zeros((N_LAYERS, 1, nh, 0, HEAD_DIM)),
-                                  torch.zeros((N_LAYERS, 1, nh, 0, HEAD_DIM)))
-ko = ort.InferenceSession(f"{OUT}/decoder_kv.onnx").run(
-    None,
-    {
-        "tag": tag1.numpy(),
-        "cross_k": cross_k.numpy(),
-        "cross_v": cross_v.numpy(),
-        "cache_k": torch.zeros((N_LAYERS, 1, nh, 0, HEAD_DIM)).numpy(),
-        "cache_v": torch.zeros((N_LAYERS, 1, nh, 0, HEAD_DIM)).numpy(),
-    },
-)
+    kl, kh, kck, kcv = DecodeKVHoisted()(tag1, empty_kv, empty_kv, *cross_per_layer)
+feeds = {"tag": tag1.numpy(), "cache_k": empty_kv.numpy(), "cache_v": empty_kv.numpy()}
+feeds.update({n: t.numpy() for n, t in zip(cross_names, cross_per_layer)})
+ko = ort.InferenceSession(f"{OUT}/decoder_kv.onnx").run(None, feeds)
 check("logits", ko[0], kl.numpy())
 check("hidden", ko[1], kh.numpy())
 check("out_cache_k", ko[2], kck.numpy())

@@ -442,12 +442,25 @@ Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.
      the legacy graph on corpus-sized tables (~100–300 tokens) — ONNX Runtime
      executes the legacy graph's full-prefix re-projection as one efficient
      batched GEMM, so the O(n²) FLOPs don't become O(n²) wall time until
-     tables get much larger. The Rust loop auto-detects either graph (input
-     names) and now prefers `decoder_kv(_int8).onnx` by default — re-measured
-     warm it is ~13% faster on ordinary corpus tables and ~17% on the
-     huge-table page (2305.03393v1-pg9), byte-identical output (91/91), for
-     +36 MB on disk; point `DOCLING_TABLEFORMER_DECODER` at the legacy
-     `decoder(_int8).onnx` to trade the speed back for the smaller file.
+     tables get much larger. The Rust loop auto-detects the graph generation
+     (input names) and prefers `decoder_kv(_int8).onnx` by default; point
+     `DOCLING_TABLEFORMER_DECODER` at the legacy `decoder(_int8).onnx` to
+     trade speed back for the smaller file. **#97** rebuilt the KV step
+     graph around hoisted cross-attention: the stacked `cross_k`/`cross_v`
+     inputs made every decode step re-`Split` and re-`Transpose` 2×9.6 MB of
+     constants (~5 ms of a ~7.5 ms step, measured with the ORT node
+     profiler); the encoder now emits each layer's `cross_kt_i` (pre-transposed
+     for q·Kᵀ) and `cross_v_i` once per table and the step graph consumes
+     them in place. Per-step decode fell 17 → 10 ms and `tableformer.structure`
+     1.40 → 0.91 s on the huge-table page (2305.03393v1-pg9, fp32); the
+     remaining step cost is real compute (28 small projection/FFN GEMMs).
+     Output stays byte-identical (91/91 snapshot corpus; the export
+     self-verifies a 64-step argmax-identical rollout vs the legacy graph).
+     Export subtlety: the example inputs must carry `past>0` or
+     `torch.export` specializes `pe[cache.shape[3]]` to `pe[0]` and decode
+     never terminates. Old stacked-KV and legacy graphs keep working (three
+     generations auto-detected); a hoisted decoder with a pre-#97 encoder
+     falls back to geometric tables with a re-export hint.
 3. ~~**Layout batching for the parallel path**: the pool currently runs batch-1
    inference per page.~~ **Done (issue #73)**: each pool worker drains the work
    channel opportunistically (whatever is already rendered, up to

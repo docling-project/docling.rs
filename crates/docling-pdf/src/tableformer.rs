@@ -56,12 +56,26 @@ pub struct TableFormer {
     encoder: Session,
     decoder: Session,
     bbox: Session,
-    /// True when the decoder is the true-KV-cache export (`decoder_kv.onnx`:
-    /// inputs `tag`/`cache_k`/`cache_v`, one token per step); false for the
-    /// legacy layer-output-cache graph (`decoder.onnx`: full `tags` + `cache`).
-    /// Detected from the session's input names, so an explicit
-    /// `DOCLING_TABLEFORMER_DECODER` override works with either graph.
-    kv: bool,
+    /// Which decoder graph flavour is loaded, detected from the session's
+    /// input names (so an explicit `DOCLING_TABLEFORMER_DECODER` override
+    /// works with any of them).
+    style: DecoderStyle,
+}
+
+/// The three decoder-graph generations the loop supports.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DecoderStyle {
+    /// `decoder.onnx`: layer-output cache; feeds the full `tags` prefix and a
+    /// single `cache` every step.
+    Legacy,
+    /// The pre-#97 `decoder_kv.onnx`: one tag per step, `cache_k`/`cache_v`,
+    /// with the stacked `cross_k`/`cross_v` re-split inside every step.
+    KvStacked,
+    /// The #97 `decoder_kv.onnx`: one tag per step, and the constant cross
+    /// tensors arrive as 2×`N_LAYERS` per-layer inputs (`cross_kt_i` already
+    /// transposed for q·Kᵀ, `cross_v_i`), computed once per table by the
+    /// encoder — the step graph does no work proportional to their size.
+    KvHoisted,
 }
 
 /// KV-cache geometry fixed by the `decoder_kv.onnx` export
@@ -90,6 +104,9 @@ struct EncodeOut {
     ck: DynValue,
     cv: DynValue,
     eo: DynValue,
+    /// `KvHoisted` only: per-layer `[cross_kt_0..N, cross_v_0..N]`, index-aligned
+    /// with the decoder's input names, borrowed by every decode step.
+    per_layer: Vec<(String, DynValue)>,
 }
 
 impl TableFormer {
@@ -123,10 +140,14 @@ impl TableFormer {
                     "models/tableformer/decoder.onnx",
                 ]
             } else {
+                // decoder_kv ranks ABOVE decoder_int8: the #97 hoisted fp32 KV
+                // graph is faster than the quantized legacy graph on every
+                // machine measured, and it is byte-exact (its own int8 variant
+                // is not produced — see quantize_models.py).
                 &[
                     "models/tableformer/decoder_kv_int8.onnx",
-                    "models/tableformer/decoder_int8.onnx",
                     "models/tableformer/decoder_kv.onnx",
+                    "models/tableformer/decoder_int8.onnx",
                     "models/tableformer/decoder.onnx",
                 ]
             };
@@ -171,12 +192,30 @@ impl TableFormer {
         };
         match (build(&enc, true), build(&dec, false), build(&bbx, true)) {
             (Ok(encoder), Ok(decoder), Ok(bbox)) => {
-                let kv = decoder.inputs().iter().any(|i| i.name() == "cache_k");
+                let has = |n: &str| decoder.inputs().iter().any(|i| i.name() == n);
+                let style = if has("cross_kt_0") {
+                    DecoderStyle::KvHoisted
+                } else if has("cache_k") {
+                    DecoderStyle::KvStacked
+                } else {
+                    DecoderStyle::Legacy
+                };
+                if style == DecoderStyle::KvHoisted
+                    && !encoder.outputs().iter().any(|o| o.name() == "cross_kt_0")
+                {
+                    eprintln!(
+                        "docling-pdf: tableformer decoder needs per-layer cross tensors \
+                         (cross_kt_*) the encoder doesn't emit — re-download or re-export \
+                         the model set (scripts/install/export_tableformer.py); \
+                         falling back to geometric tables"
+                    );
+                    return None;
+                }
                 Some(Self {
                     encoder,
                     decoder,
                     bbox,
-                    kv,
+                    style,
                 })
             }
             _ => None,
@@ -192,6 +231,21 @@ impl TableFormer {
             .encoder
             .run(ort::inputs!["image" => input])
             .map_err(|e| format!("tableformer: encode: {e}"))?;
+        let mut per_layer = Vec::new();
+        if self.style == DecoderStyle::KvHoisted {
+            for prefix in ["cross_kt_", "cross_v_"] {
+                for i in 0.. {
+                    let name = format!("{prefix}{i}");
+                    match enc_out.remove(&name) {
+                        Some(v) => per_layer.push((name, v)),
+                        None => break,
+                    }
+                }
+            }
+            if per_layer.is_empty() {
+                return Err("tableformer: encoder emitted no cross_kt_* outputs".into());
+            }
+        }
         let mut grab = |name: &str| -> Result<DynValue, String> {
             enc_out
                 .remove(name)
@@ -201,6 +255,7 @@ impl TableFormer {
             ck: grab("cross_k")?,
             cv: grab("cross_v")?,
             eo: grab("enc_out")?,
+            per_layer,
         })
     }
 
@@ -219,31 +274,80 @@ impl TableFormer {
         cache: &mut DecodeCache,
         empty: &EmptyCache,
     ) -> Result<(i64, Vec<f32>), String> {
-        let mut dout = if self.kv {
-            // KV graph: feed only the newly emitted tag; the projected K/V for
-            // the whole prefix live in cache_k/cache_v and are fed back as-is.
-            let last = *tags.last().expect("decode starts from <start>");
-            let tag_t = Tensor::from_array(([1usize, 1usize], vec![last]))
-                .map_err(|e| format!("tableformer: tag: {e}"))?;
-            match (cache.a.as_ref(), cache.b.as_ref()) {
-                (Some(k), Some(v)) => self.decoder.run(ort::inputs![
-                    "tag" => tag_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
-                    "cache_k" => k, "cache_v" => v]),
-                _ => self.decoder.run(ort::inputs![
-                    "tag" => tag_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
-                    "cache_k" => &empty.0,
-                    "cache_v" => empty.1.as_ref().expect("kv empty cache has both halves")]),
+        crate::timing::timed("tf.decode_step", || {
+            self.decode_step_inner(tags, enc, cache, empty)
+        })
+    }
+
+    fn decode_step_inner(
+        &mut self,
+        tags: &[i64],
+        enc: &EncodeOut,
+        cache: &mut DecodeCache,
+        empty: &EmptyCache,
+    ) -> Result<(i64, Vec<f32>), String> {
+        let mut dout = match self.style {
+            DecoderStyle::KvHoisted => {
+                // #97 graph: one tag; the constant per-layer cross tensors are
+                // borrowed views — the step pays nothing proportional to them.
+                let last = *tags.last().expect("decode starts from <start>");
+                let tag_t = Tensor::from_array(([1usize, 1usize], vec![last]))
+                    .map_err(|e| format!("tableformer: tag: {e}"))?;
+                let mut inputs: Vec<(
+                    std::borrow::Cow<'_, str>,
+                    ort::session::SessionInputValue<'_>,
+                )> = Vec::with_capacity(3 + enc.per_layer.len());
+                inputs.push(("tag".into(), tag_t.into()));
+                match (cache.a.as_ref(), cache.b.as_ref()) {
+                    (Some(k), Some(v)) => {
+                        inputs.push(("cache_k".into(), k.into()));
+                        inputs.push(("cache_v".into(), v.into()));
+                    }
+                    _ => {
+                        inputs.push(("cache_k".into(), (&empty.0).into()));
+                        inputs.push((
+                            "cache_v".into(),
+                            empty
+                                .1
+                                .as_ref()
+                                .expect("kv empty cache has both halves")
+                                .into(),
+                        ));
+                    }
+                }
+                for (name, v) in &enc.per_layer {
+                    inputs.push((name.as_str().into(), v.into()));
+                }
+                self.decoder.run(inputs)
             }
-        } else {
-            let tags_t = Tensor::from_array(([tags.len(), 1usize], tags.to_vec()))
-                .map_err(|e| format!("tableformer: tags: {e}"))?;
-            match cache.a.as_ref() {
-                None => self.decoder.run(ort::inputs![
-                    "tags" => tags_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
-                    "cache" => &empty.0]),
-                Some(c) => self.decoder.run(ort::inputs![
-                    "tags" => tags_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
-                    "cache" => c]),
+            DecoderStyle::KvStacked => {
+                // Pre-#97 KV graph: feed only the newly emitted tag; the projected
+                // K/V for the whole prefix live in cache_k/cache_v and are fed
+                // back as-is.
+                let last = *tags.last().expect("decode starts from <start>");
+                let tag_t = Tensor::from_array(([1usize, 1usize], vec![last]))
+                    .map_err(|e| format!("tableformer: tag: {e}"))?;
+                match (cache.a.as_ref(), cache.b.as_ref()) {
+                    (Some(k), Some(v)) => self.decoder.run(ort::inputs![
+                        "tag" => tag_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
+                        "cache_k" => k, "cache_v" => v]),
+                    _ => self.decoder.run(ort::inputs![
+                        "tag" => tag_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
+                        "cache_k" => &empty.0,
+                        "cache_v" => empty.1.as_ref().expect("kv empty cache has both halves")]),
+                }
+            }
+            DecoderStyle::Legacy => {
+                let tags_t = Tensor::from_array(([tags.len(), 1usize], tags.to_vec()))
+                    .map_err(|e| format!("tableformer: tags: {e}"))?;
+                match cache.a.as_ref() {
+                    None => self.decoder.run(ort::inputs![
+                        "tags" => tags_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
+                        "cache" => &empty.0]),
+                    Some(c) => self.decoder.run(ort::inputs![
+                        "tags" => tags_t, "cross_k" => &enc.ck, "cross_v" => &enc.cv,
+                        "cache" => c]),
+                }
             }
         }
         .map_err(|e| format!("tableformer: decode: {e}"))?;
@@ -255,7 +359,7 @@ impl TableFormer {
             .try_extract_tensor::<f32>()
             .map_err(|e| format!("tableformer: hidden: {e}"))?;
         let hidden = hidden.to_vec();
-        if self.kv {
+        if self.style != DecoderStyle::Legacy {
             cache.a = Some(
                 dout.remove("out_cache_k")
                     .ok_or_else(|| "tableformer: out_cache_k missing".to_string())?,
@@ -278,7 +382,7 @@ impl TableFormer {
     /// allow it).
     fn empty_cache(&self) -> Result<EmptyCache, String> {
         let alloc = self.decoder.allocator();
-        if self.kv {
+        if self.style != DecoderStyle::Legacy {
             let mk = || {
                 Tensor::<f32>::new(alloc, [N_LAYERS, 1, KV_HEADS, 0usize, KV_HEAD_DIM])
                     .map_err(|e| format!("tableformer: empty kv cache: {e}"))
