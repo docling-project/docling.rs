@@ -56,9 +56,11 @@ COPY scripts/install ./scripts/install
 COPY tests/data/pdf/sources ./tests/data/pdf/sources
 COPY tests/data/scanned/sources ./tests/data/scanned/sources
 
-# RT-DETR layout detector -> models/layout_heron.onnx
+# RT-DETR layout detector -> models/layout_heron.onnx. The trailing cache
+# cleanup keeps the multi-GB HuggingFace downloads out of the layer.
 RUN mkdir -p /opt/models/chunk /opt/pdfium \
-    && python scripts/install/export_layout.py /opt/models/layout_heron.onnx
+    && python scripts/install/export_layout.py /opt/models/layout_heron.onnx \
+    && rm -rf /root/.cache/huggingface
 
 # TableFormer export + quantization/calibration deps (downgrades transformers
 # to 4.x — the remaining exports don't import it).
@@ -89,7 +91,8 @@ RUN true \
     && curl -fsSL -o /tmp/pdfium.tgz \
         "https://github.com/bblanchon/pdfium-binaries/releases/latest/download/pdfium-linux-x64.tgz" \
     && tar xzf /tmp/pdfium.tgz -C /opt/pdfium \
-    && rm /tmp/pdfium.tgz
+    && rm /tmp/pdfium.tgz \
+    && rm -rf /root/.cache/huggingface
 
 # INT8=1 (default): quantize the layout model (static, Conv-only, calibrated on
 # the corpus copied above) and point the `layout_heron_active.onnx` name — which
