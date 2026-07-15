@@ -23,6 +23,7 @@
 //! phased plan. Phase 0 ships the converter plumbing plus Markdown and CSV
 //! backends; PDF/DOCX/HTML and the ML pipeline land in later phases.
 
+pub mod chunks;
 mod converter;
 pub mod dclx;
 mod error;

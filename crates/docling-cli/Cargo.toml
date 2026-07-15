@@ -28,7 +28,13 @@ web-browser = ["docling/web-browser"]
 # Tokenization-aware chunking: enables the hybrid chunk records in `--to chunks`
 # (the hierarchical ones need no tokenizer and are always available).
 chunking = ["docling/chunking"]
+# `docling-rs serve` subcommand: the HTTP conversion API (pulls the async
+# stack — tokio/axum — so it is off by default; the standalone `docling-serve`
+# binary is always available from its own crate).
+serve = ["dep:docling-serve", "dep:tokio"]
 
 [dependencies]
 docling = { path = "../docling", version = "0.38.2" }
+docling-serve = { path = "../docling-serve", version = "0.38.2", optional = true, default-features = false }
 serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread"], optional = true }

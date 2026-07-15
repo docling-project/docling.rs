@@ -54,7 +54,8 @@ crates/
 ├── docling-cli/    # `--strict`, `--to md|json`, `--images placeholder|embedded|referenced`
 ├── docling-node/   # Node.js/Bun N-API bindings (napi-rs), published to npm as `docling.rs`
 ├── docling-py/     # PyO3 bindings (maturin), published to PyPI as `docling-rs` (strangler-fig over docling-core)
-└── docling-rag/    # RAG layer on top of the converter (chunking, embeddings, vector search, REST API)
+├── docling-rag/    # RAG layer on top of the converter (chunking, embeddings, vector search, REST API)
+└── docling-serve/  # HTTP conversion API (docling-serve analogue): POST /v1/convert over a warm pipeline
 ```
 
 The public API is unchanged from day one:

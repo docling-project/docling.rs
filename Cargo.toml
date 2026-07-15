@@ -22,6 +22,8 @@ members = [
     # RAG subsystem: chunking + embeddings + vector store + semantic search.
     # A self-contained async (tokio) island; does not touch the sync crates above.
     "crates/docling-rag",
+    # HTTP conversion API (docling-serve analogue): axum server over the converter.
+    "crates/docling-serve",
 ]
 
 [workspace.package]

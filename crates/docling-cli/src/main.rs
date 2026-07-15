@@ -1,7 +1,7 @@
 //! Minimal CLI: convert a file and print Markdown or JSON to stdout.
 //!
-//! A stand-in for `docling.cli.main`; the full Typer-style CLI (batch mode,
-//! pipeline options) is a later phase.
+//! The docling.rs counterpart of `docling.cli.main`; `docling-rs serve`
+//! (with `--features serve`) starts the HTTP conversion API.
 //!
 //! Usage: docling-rs [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] <input-file>
 //!   --to md|json       output format (default: md). `json` emits docling-core's
@@ -56,6 +56,16 @@ use std::process::ExitCode;
 use docling::{DocumentConverter, ImageMode, InputFormat, Pipeline, SourceDocument};
 
 fn main() -> ExitCode {
+    // `docling-rs serve …` — the HTTP conversion API (issue-#78 analogue of
+    // docling-serve). Compiled in only with `--features serve`; the flags
+    // after `serve` are the `docling-serve` binary's (see that crate).
+    {
+        let mut args = std::env::args().skip(1);
+        if args.next().as_deref() == Some("serve") {
+            return run_serve(args.collect());
+        }
+    }
+
     let mut strict = false;
     let mut to = "md".to_string();
     let mut images = "placeholder".to_string();
@@ -258,6 +268,66 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// `docling-rs serve …`: parse the serve flags and run the HTTP server.
+#[cfg(feature = "serve")]
+fn run_serve(args: Vec<String>) -> ExitCode {
+    use docling_serve::ServeConfig;
+    let mut cfg = ServeConfig::default();
+    let mut it = args.into_iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--addr" => match it.next() {
+                Some(v) => cfg.addr = v,
+                None => return serve_usage("--addr needs HOST:PORT"),
+            },
+            "--concurrency" => match it.next().and_then(|v| v.parse().ok()) {
+                Some(v) if v >= 1 => cfg.concurrency = v,
+                _ => return serve_usage("--concurrency needs a positive integer"),
+            },
+            "--max-body-mb" => match it.next().and_then(|v| v.parse::<usize>().ok()) {
+                Some(v) if v >= 1 => cfg.max_body_bytes = v * 1024 * 1024,
+                _ => return serve_usage("--max-body-mb needs a positive integer"),
+            },
+            "--warmup" => cfg.warmup = true,
+            "--no-url-fetch" => cfg.allow_url_fetch = false,
+            "--strict" => cfg.strict = true,
+            other => return serve_usage(&format!("unknown argument '{other}'")),
+        }
+    }
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("error: tokio runtime: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    match runtime.block_on(docling_serve::serve(cfg)) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+#[cfg(feature = "serve")]
+fn serve_usage(err: &str) -> ExitCode {
+    eprintln!("error: {err}");
+    eprintln!("usage: docling-rs serve [--addr HOST:PORT] [--concurrency N] [--max-body-mb N] [--warmup] [--no-url-fetch] [--strict]");
+    ExitCode::from(2)
+}
+
+/// Without the `serve` feature the subcommand explains how to get it.
+#[cfg(not(feature = "serve"))]
+fn run_serve(_args: Vec<String>) -> ExitCode {
+    eprintln!(
+        "error: this binary was built without the HTTP server.\n\
+         Rebuild with `cargo build -p docling-cli --features serve`, or use the\n\
+         standalone server: `cargo run -p docling-serve --release -- --help`."
+    );
+    ExitCode::from(2)
+}
+
 /// Build the PDF/image pipeline once (loading the ONNX models), then time `runs`
 /// warm conversions and return the average seconds per conversion. The first
 /// conversion is a discarded warm-up that triggers the lazy model loads, so the
@@ -298,50 +368,11 @@ fn bench_warm_conversion(
     Ok(total / runs as f64)
 }
 
-/// Serialize the chunk records `--to chunks` prints: the hierarchical chunker's
-/// output always, plus the hybrid chunker's when a tokenizer is available —
-/// `DOCLING_CHUNK_TOKENIZER`, or `models/chunk/tokenizer.json` as populated by
-/// `scripts/install/download_dependencies.sh` (requires the `chunking` build
-/// feature).
+/// Serialize the chunk records `--to chunks` prints (see
+/// [`docling::chunks::chunk_records`] for the tokenizer resolution rules).
 fn chunks_json(document: &docling::DoclingDocument) -> String {
-    use docling::chunker::{contextualize, DocChunk, HierarchicalChunker};
-
-    fn records(chunks: &[DocChunk]) -> serde_json::Value {
-        serde_json::Value::Array(
-            chunks
-                .iter()
-                .map(|c| {
-                    serde_json::json!({
-                        "text": c.text,
-                        "headings": c.headings,
-                        "doc_items": c.doc_items.iter().map(|i| i.self_ref.clone()).collect::<Vec<_>>(),
-                        "contextualize": contextualize(c),
-                    })
-                })
-                .collect(),
-        )
-    }
-
-    let hierarchical = HierarchicalChunker.chunk(document);
-    #[cfg_attr(not(feature = "chunking"), allow(unused_mut))]
-    let mut out = serde_json::json!({ "hierarchical": records(&hierarchical) });
-
-    #[cfg(feature = "chunking")]
-    if let Ok(tok_path) = std::env::var("DOCLING_CHUNK_TOKENIZER").or_else(|_| {
-        docling::chunker::resolve_tokenizer_path(None).map_err(|_| std::env::VarError::NotPresent)
-    }) {
-        let max_tokens = std::env::var("DOCLING_CHUNK_MAX_TOKENS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(256);
-        match docling::chunker::HuggingFaceTokenizer::from_file(&tok_path, max_tokens) {
-            Ok(tok) => {
-                let hybrid = docling::chunker::HybridChunker::new(tok).chunk(document);
-                out["hybrid"] = records(&hybrid);
-            }
-            Err(e) => eprintln!("warning: {e}"),
-        }
-    }
+    let mut warn = |msg: String| eprintln!("warning: {msg}");
+    let out = docling::chunks::chunk_records(document, &mut warn);
     format!(
         "{}\n",
         serde_json::to_string_pretty(&out).expect("chunks are serializable")

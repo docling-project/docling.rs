@@ -7,8 +7,10 @@
 A Rust port of [docling](https://github.com/docling-project/docling): convert
 documents into a unified `DoclingDocument` for downstream AI workflows.
 
-This is an **early, in-progress** port. See [`MIGRATION.md`](./MIGRATION.md) for
-the full architecture, the Python → Rust mapping, and the phased plan.
+The format migration is **complete** — every document format in docling's
+pipeline is supported, validated byte-for-byte against live docling. See
+[`MIGRATION.md`](./MIGRATION.md) for the full architecture, the Python → Rust
+mapping, and per-format conformance.
 
 ## Status
 
@@ -57,6 +59,38 @@ API-key-protected REST API (`docling-rag serve`) for document info and
 search. Configure it via [`.env`](./.env.example); see the
 [crate README](./crates/docling-rag/README.md) for a quickstart on any
 documents folder.
+
+## HTTP conversion API — `docling-rs serve`
+
+[`crates/docling-serve`](./crates/docling-serve) is the analogue of Python's
+`docling-serve`: a long-running server exposing the converter over HTTP. One
+warm PDF/image pipeline (layout/OCR/TableFormer stay loaded) is shared across
+requests, so repeat PDF conversions skip the model load (~13× faster than a
+cold call on the test fixtures); a semaphore bounds concurrent conversions.
+Markdown responses stream (chunked transfer); `/health` + `/ready` suit
+container probes, and SIGTERM drains in-flight requests before exit.
+
+```bash
+cargo run --release -p docling-serve                 # 127.0.0.1:5001
+# or: cargo run --release -p docling-cli --features serve -- serve
+
+curl -F file=@paper.pdf localhost:5001/v1/convert                # Markdown
+curl -F file=@report.docx 'localhost:5001/v1/convert?to=json'    # docling JSON
+curl -F file=@sheet.xlsx  'localhost:5001/v1/convert?to=dclx' -O # DocLang archive
+curl -F file=@page.html   'localhost:5001/v1/convert?to=chunks'  # chunk records
+curl -H 'content-type: application/json' \
+     -d '{"url": "https://example.com/doc.pdf", "to": "md"}' \
+     localhost:5001/v1/convert                                   # fetch a URL
+```
+
+Options per request: `to=md|json|dclx|chunks`, `strict`, `images=placeholder|embedded`,
+`no_ocr`, `no_table_former`, `fetch_images` — as query parameters, multipart
+fields, or JSON keys (body wins). Server flags: `--addr`, `--concurrency`,
+`--max-body-mb`, `--warmup`, `--no-url-fetch`, `--strict`. A container image
+builds from [`crates/docling-serve/Dockerfile`](./crates/docling-serve/Dockerfile)
+(models + pdfium baked in, or mounted with `--build-arg FETCH_ASSETS=0`).
+URL inputs make the server fetch outbound (SSRF surface): it binds loopback by
+default — front it with a policy proxy or pass `--no-url-fetch`.
 
 ## The API
 
