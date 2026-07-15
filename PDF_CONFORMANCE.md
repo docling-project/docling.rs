@@ -476,11 +476,22 @@ Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.
      borrowed `&str`.
    - RTL merge is O(n²) (string prepend + `Vec::remove(0)`,
      `dp_lines.rs:87-155`); accumulate reversed and flip once per line.
-6. **OCR line batching** (`ocr.rs::recognize`): lines are recognized one at a
-   time on one thread (deliberately, for CTC determinism). Batching same-width
-   buckets keeps determinism per line and would speed scanned documents
-   several-fold; alternatively run multiple single-thread recognitions across
-   the existing worker pool.
+6. ~~**OCR line batching** (`ocr.rs::recognize`): lines are recognized one at
+   a time on one thread (deliberately, for CTC determinism). Batching
+   same-width buckets keeps determinism per line.~~ **Done on this branch**
+   (`ocr.rs::recognize_batch`): each page's line crops are gathered first and
+   equal-width lines share one recognition run (page order, batches capped at
+   16). Same-width batching is **bit-identical** to sequential runs (verified:
+   max output diff 0.0 over the scanned corpus's crops); the snapshot corpus
+   is unchanged. Measured `ocr.page`: 195 → 176 ms on `ocr_test.pdf`, 682 →
+   587 ms over `nemotron_multipage.pdf`'s 4 pages (−10–14%). The
+   "several-fold" hope required *padded* batches (PaddleOCR-style, pad to
+   bucket max): measured on the real crops, padding perturbs the valid
+   region's probabilities by up to 0.34 through the model's global-attention
+   blocks and changes the decoded text on 16/20 lines — off the table for a
+   byte-stable pipeline. The remaining lever is running same-width buckets
+   across the page-worker pool's idle threads (needs one extra session per
+   worker: `ort`'s `Session::run` takes `&mut self`).
 7. **ort session options**: checked — ONNX Runtime's C-API default is already
    `ORT_ENABLE_ALL`, so an explicit optimization level gains nothing.
    `with_optimized_model_path` (caching the optimized graph on disk) could
