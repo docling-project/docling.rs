@@ -52,7 +52,7 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
         sympy pypdfium2 pillow numpy
 
 WORKDIR /build
-COPY scripts/install/export_layout.py scripts/install/export_tableformer.py scripts/install/quantize_models.py ./scripts/
+COPY scripts/install ./scripts/install
 # Real corpus pages for INT8 calibration (build-stage only, not in the runtime).
 COPY tests/data/pdf/sources ./tests/data/pdf/sources
 COPY tests/data/scanned/sources ./tests/data/scanned/sources
