@@ -36,7 +36,7 @@ if [[ -z "${FORCE_VERSION:-}" ]]; then
   # Publishable crates — MUST match scripts/ci/ci_publish.sh. A release fires only
   # if one of these crates' Rust source or manifest changed (root Cargo.toml too,
   # for workspace-wide dependency/config changes).
-  gate_crates=(docling-core docling-pdf docling-asr docling docling-serve docling-cli)
+  gate_crates=(docling-core docling-pdf docling-asr docling docling-serve docling-rag docling-cli)
   gate_paths=(Cargo.toml)
   for c in "${gate_crates[@]}"; do
     gate_paths+=("crates/$c/src" "crates/$c/Cargo.toml" "crates/$c/build.rs")
