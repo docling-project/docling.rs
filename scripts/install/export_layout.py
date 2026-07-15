@@ -49,6 +49,13 @@ def main() -> None:
         out,
         input_names=["pixel_values"],
         output_names=["logits", "pred_boxes"],
+        # Dynamic batch so the Rust worker can run several pages per inference
+        # call (issue #73); everything else stays fixed at 3x640x640.
+        dynamic_axes={
+            "pixel_values": {0: "batch"},
+            "logits": {0: "batch"},
+            "pred_boxes": {0: "batch"},
+        },
         opset_version=17,
         do_constant_folding=True,
         dynamo=False,

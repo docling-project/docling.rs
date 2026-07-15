@@ -111,17 +111,39 @@ impl LayoutModel {
         page_w: f32,
         page_h: f32,
     ) -> Result<Vec<Region>, String> {
-        // Resize to 640×640 (RT-DETR ignores aspect ratio), rescale to [0,1],
-        // lay out as CHW.
-        let resized = image::imageops::resize(img, SIDE, SIDE, FilterType::Triangle);
-        let n = (SIDE * SIDE) as usize;
-        let mut data = vec![0f32; 3 * n];
-        for (i, px) in resized.pixels().enumerate() {
-            data[i] = px[0] as f32 / 255.0;
-            data[n + i] = px[1] as f32 / 255.0;
-            data[2 * n + i] = px[2] as f32 / 255.0;
+        Ok(self
+            .predict_batch(&[(img, page_w, page_h)])?
+            .pop()
+            .expect("one result per input page"))
+    }
+
+    /// Detect layout regions on several page images with **one** inference call
+    /// (issue #73). The ONNX export has a dynamic batch dimension, so a worker
+    /// can amortize the per-run framework overhead and keep its cores busier on
+    /// multi-page documents. Results are per-image, index-aligned with `pages`,
+    /// and identical to calling [`predict`](Self::predict) per page.
+    pub fn predict_batch(
+        &mut self,
+        pages: &[(&RgbImage, f32, f32)],
+    ) -> Result<Vec<Vec<Region>>, String> {
+        if pages.is_empty() {
+            return Ok(Vec::new());
         }
-        let input = Tensor::from_array(([1usize, 3, SIDE as usize, SIDE as usize], data))
+        // Resize each page to 640×640 (RT-DETR ignores aspect ratio), rescale to
+        // [0,1], lay out as NCHW.
+        let n = (SIDE * SIDE) as usize;
+        let batch = pages.len();
+        let mut data = vec![0f32; batch * 3 * n];
+        for (p, (img, _, _)) in pages.iter().enumerate() {
+            let resized = image::imageops::resize(*img, SIDE, SIDE, FilterType::Triangle);
+            let page_off = p * 3 * n;
+            for (i, px) in resized.pixels().enumerate() {
+                data[page_off + i] = px[0] as f32 / 255.0;
+                data[page_off + n + i] = px[1] as f32 / 255.0;
+                data[page_off + 2 * n + i] = px[2] as f32 / 255.0;
+            }
+        }
+        let input = Tensor::from_array(([batch, 3, SIDE as usize, SIDE as usize], data))
             .map_err(|e| format!("layout: input tensor: {e}"))?;
         let outputs = self
             .session
@@ -137,39 +159,47 @@ impl LayoutModel {
         let num_queries = lshape[1] as usize;
         let num_classes = lshape[2] as usize;
 
-        // sigmoid over every (query, class); take the top `num_queries` scores.
-        let mut scored: Vec<(f32, usize)> = (0..num_queries * num_classes)
-            .map(|idx| (sigmoid(logits[idx]), idx))
-            .collect();
-        scored.sort_unstable_by(|a, b| b.0.total_cmp(&a.0));
-        scored.truncate(num_queries);
+        let mut all = Vec::with_capacity(batch);
+        for (p, (_, page_w, page_h)) in pages.iter().enumerate() {
+            let logits =
+                &logits[p * num_queries * num_classes..(p + 1) * num_queries * num_classes];
+            let boxes = &boxes[p * num_queries * 4..(p + 1) * num_queries * 4];
 
-        let mut regions = Vec::new();
-        for (score, idx) in scored {
-            if score <= THRESHOLD {
-                continue;
+            // sigmoid over every (query, class); take the top `num_queries` scores.
+            let mut scored: Vec<(f32, usize)> = (0..num_queries * num_classes)
+                .map(|idx| (sigmoid(logits[idx]), idx))
+                .collect();
+            scored.sort_unstable_by(|a, b| b.0.total_cmp(&a.0));
+            scored.truncate(num_queries);
+
+            let mut regions = Vec::new();
+            for (score, idx) in scored {
+                if score <= THRESHOLD {
+                    continue;
+                }
+                let label_id = idx % num_classes;
+                let q = idx / num_classes;
+                let cx = boxes[q * 4];
+                let cy = boxes[q * 4 + 1];
+                let w = boxes[q * 4 + 2];
+                let h = boxes[q * 4 + 3];
+                // center_to_corners, then scale normalized coords to page points.
+                let l = (cx - w / 2.0) * page_w;
+                let t = (cy - h / 2.0) * page_h;
+                let r = (cx + w / 2.0) * page_w;
+                let b = (cy + h / 2.0) * page_h;
+                regions.push(Region {
+                    label: LABELS.get(label_id).copied().unwrap_or("text"),
+                    score,
+                    l,
+                    t,
+                    r,
+                    b,
+                });
             }
-            let label_id = idx % num_classes;
-            let q = idx / num_classes;
-            let cx = boxes[q * 4];
-            let cy = boxes[q * 4 + 1];
-            let w = boxes[q * 4 + 2];
-            let h = boxes[q * 4 + 3];
-            // center_to_corners, then scale normalized coords to page points.
-            let l = (cx - w / 2.0) * page_w;
-            let t = (cy - h / 2.0) * page_h;
-            let r = (cx + w / 2.0) * page_w;
-            let b = (cy + h / 2.0) * page_h;
-            regions.push(Region {
-                label: LABELS.get(label_id).copied().unwrap_or("text"),
-                score,
-                l,
-                t,
-                r,
-                b,
-            });
+            all.push(regions);
         }
-        Ok(regions)
+        Ok(all)
     }
 }
 
