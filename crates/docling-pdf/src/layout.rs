@@ -97,6 +97,9 @@ impl LayoutModel {
             "models/layout_heron.onnx",
             "models/layout_heron_int8.onnx",
         );
+        if crate::timing::enabled() {
+            eprintln!("docling-pdf: layout model: {path}");
+        }
         let session = Session::builder()
             .map_err(|e| format!("layout: builder: {e}"))?
             // Let inference use the available cores (ort otherwise defaults low);

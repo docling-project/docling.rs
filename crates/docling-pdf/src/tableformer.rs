@@ -138,6 +138,9 @@ impl TableFormer {
         });
         let bbx = std::env::var("DOCLING_TABLEFORMER_BBOX")
             .unwrap_or_else(|_| crate::resolve_asset("models/tableformer/bbox.onnx"));
+        if crate::timing::enabled() {
+            eprintln!("docling-pdf: tableformer decoder: {dec}");
+        }
         if [&enc, &dec, &bbx]
             .iter()
             .any(|p| !std::path::Path::new(p).exists())
