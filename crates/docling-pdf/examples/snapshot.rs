@@ -28,8 +28,13 @@ fn find_pdfs(dir: &Path, out: &mut Vec<PathBuf>) {
     entries.sort();
     for p in entries {
         if p.is_dir() {
-            // Skip `large/` — big perf-test inputs with no conformance baseline.
-            if p.file_name().is_some_and(|n| n == "large") {
+            // Skip `large/` — big perf-test inputs with no conformance baseline —
+            // and `*_artifacts/` — gitignored by-products of `--images referenced`
+            // / dclx conversions that would otherwise be swept in as image inputs
+            // and mint snapshots that don't exist on a clean checkout.
+            if p.file_name()
+                .is_some_and(|n| n == "large" || n.to_string_lossy().ends_with("_artifacts"))
+            {
                 continue;
             }
             find_pdfs(&p, out);

@@ -28,7 +28,17 @@ DOCLING_PKG="docling[easyocr]"
 # Idempotent and fast after the first run. (The first run is heavy: docling
 # pulls torch + model packages — several hundred MB.)
 ensure_docling() {
-  if [[ -x "$PYBIN" ]] && "$PYBIN" -c "import docling.backend.html_backend" >/dev/null 2>&1; then
+  # The gate checks the ML pipeline deps too (find_spec, no heavy import): a
+  # .venv-compare created by an older/slim install passes an html_backend-only
+  # probe, and the PDF/image head-to-head in performance.sh then silently
+  # degrades to Rust-only. A partial env is topped up in place below.
+  if [[ -x "$PYBIN" ]] && "$PYBIN" - >/dev/null 2>&1 <<'GATE'
+import importlib.util, sys
+sys.exit(0 if all(importlib.util.find_spec(m) for m in
+                  ("docling.backend.html_backend", "docling_ibm_models", "torch", "easyocr"))
+         else 1)
+GATE
+  then
     return 0
   fi
   echo ">> installing latest published '$DOCLING_PKG' from PyPI ..." >&2
@@ -37,7 +47,7 @@ ensure_docling() {
     echo "       or create $VENV and 'pip install \"$DOCLING_PKG\"' yourself." >&2
     return 1
   fi
-  uv venv "$VENV" >&2
+  [[ -x "$PYBIN" ]] || uv venv "$VENV" >&2
   uv pip install --quiet --python "$PYBIN" "$DOCLING_PKG" >&2
   # The msword backend imports these unconditionally (image rendering + OMML→LaTeX).
   uv pip install --quiet --python "$PYBIN" pypdfium2 pylatexenc >&2
