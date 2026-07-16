@@ -135,15 +135,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # `slug` is the features list with `-` instead of `,` — actions/cache
+        # rejects keys containing commas.
         include:
           - os: ubuntu-latest
             features: cuda
+            slug: cuda
           - os: ubuntu-latest
             features: cuda,tensorrt
+            slug: cuda-tensorrt
           - os: macos-latest
             features: coreml
+            slug: coreml
           - os: windows-latest
             features: directml
+            slug: directml
     steps:
       - uses: actions/checkout@v7
 
@@ -159,8 +165,8 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: ${{ runner.os }}-cargo-ep-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-ep-
+          key: ${{ runner.os }}-cargo-ep-${{ matrix.slug }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-ep-${{ matrix.slug }}-
 
       - name: Check docling-cli with GPU features
         run: cargo check -p docling-cli --features "${{ matrix.features }}"
