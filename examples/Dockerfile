@@ -135,11 +135,11 @@ COPY crates ./crates
 # --features serve compiles in the `docling-rs serve` subcommand (the HTTP
 # conversion API), so one image covers both CLI and server use.
 # Cargo.lock is gitignored in this repo, so a fresh clone has none — the
-# `Cargo.loc[k]` glob makes the COPY tolerate its absence, and --locked is
-# applied only when a lock file actually came along.
+# `Cargo.loc[k]` glob makes the COPY tolerate its absence. When a local lock
+# did come along it seeds the resolution, but no --locked: the gitignored lock
+# is routinely stale vs the manifests, and a hard pin on it fails the build.
 RUN if [ -n "$TARGET_CPU" ]; then export RUSTFLAGS="-C target-cpu=$TARGET_CPU"; fi \
-    && cargo build --release -p docling-cli --features serve \
-        $([ -f Cargo.lock ] && echo --locked)
+    && cargo build --release -p docling-cli --features serve
 
 # Collect the binary + the ONNX Runtime shared lib `ort` downloaded during build.
 RUN mkdir -p /artifacts \
