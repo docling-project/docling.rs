@@ -178,3 +178,19 @@ jobs:
               --title "docling.rs ML models ($TAG)" \
               --notes-file MODELS_NOTICE.md
           fi
+
+      # --- prune stale assets ------------------------------------------------
+      # --clobber only overwrites assets whose names match; a re-run that
+      # renames or drops an export would leave the old asset behind forever.
+      # Keep the release exactly equal to what this run staged: delete every
+      # published asset that has no counterpart in release-assets/.
+      - name: Prune stale release assets
+        run: |
+          gh release view "$TAG" --repo "${{ github.repository }}" \
+            --json assets --jq '.assets[].name' |
+          while IFS= read -r asset; do
+            if [ ! -f "release-assets/$asset" ]; then
+              echo "pruning stale asset: $asset"
+              gh release delete-asset "$TAG" "$asset" --repo "${{ github.repository }}" --yes
+            fi
+          done
