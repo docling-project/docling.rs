@@ -1,0 +1,11 @@
+# Whitelist: the image build needs only the manifests, crates/, the export
+# scripts, and the INT8 calibration corpora. Everything else — including
+# whatever untracked state a developer checkout accumulates (models/, target/,
+# venvs, node_modules, local exports) — stays out of the build context.
+*
+!Cargo.toml
+!Cargo.lock
+!crates
+!scripts/install
+!tests/data/pdf/sources
+!tests/data/scanned/sources

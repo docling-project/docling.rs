@@ -312,6 +312,14 @@ Cumulative head-to-head vs Python docling (measured on an 8-thread desktop,
 `scripts/test/performance.sh`): **4.3× faster warm conversion, 4.7× end-to-end,
 2.3–2.6× less peak memory** on the PDF ML pipeline — up from ~1.2× warm
 before this work. Model sizes: layout 172 → 68 MB, TF decoder 78 → 50 MB.
+
+A re-measure on the final stack (hoisted-KV TableFormer decoder default per
+#97; different desktop, Jul 2026) with `performance.sh
+tests/data/pdf/sources/2305.03393v1-pg9.pdf` — a single table-dense page, so
+the page-parallel worker pool sits mostly idle and this bounds the *low* end
+of the speedup range: **3.0× end-to-end** (16.3 → 5.4 s avg over 5 runs),
+**2.0× warm conversion** (9.1 → 4.7 s/doc), **1.9× less peak memory**
+(1589 → 857 MB).
 Also fixed along the way: the `"` show-text operator dropped its word/char
 spacing operands (real spec violation), and OCR/TableFormer sub-stages are
 now visible in `DOCLING_RS_TIMING` profiles.

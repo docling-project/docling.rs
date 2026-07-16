@@ -2,26 +2,35 @@
 #
 # Example deployment image for docling.rs (the Rust docling port) with the full
 # PDF ML pipeline — pdfium rasterization + RT-DETR layout + TableFormer table
-# structure (KV-cached decoder) + PP-OCRv3. Builds a slim runtime with the
-# `docling.rs` CLI, the native libs, and all models baked in, so a container can
+# structure (hoisted-KV cached decoder, #97) + PP-OCRv3 — plus the picture
+# classifier and the hybrid-chunker tokenizer. Builds a slim runtime with the
+# `docling-rs` CLI, the native libs, and all models baked in, so a container can
 # convert PDFs/images offline with no Python at runtime.
 #
 # Build from the repository root:
-#   docker build -f examples/Dockerfile -t docling.rs .
+#   docker build -f examples/Dockerfile -t docling-rs .
 # Convert a document (Markdown to stdout):
-#   docker run --rm -v "$PWD:/data" docling.rs /data/input.pdf
+#   docker run --rm -v "$PWD:/data" docling-rs /data/input.pdf
 #
-# By default the models stage also INT8-quantizes the layout model (Conv-only,
-# calibrated on the repo's PDF corpus) and the TableFormer decoder, and the
-# runtime points at the int8 files — ~2.4x faster layout inference on CPU at
-# validated-unchanged conformance (see PDF_PERFORMANCE.md). Build with
-# `--build-arg INT8=0` for pure fp32, or override per container:
-#   docker run -e DOCLING_LAYOUT_ONNX=/opt/models/layout_heron.onnx ...
-# (both precisions are baked into the image).
+# Optimizations baked in by default (see PDF_CONFORMANCE.md for the measured
+# numbers; every one is byte-exact on the snapshot corpus):
+#   * layout INT8 — static Conv-only quantization calibrated on the repo's PDF
+#     corpus, ~2.4x faster layout inference (`--build-arg INT8=0` for fp32;
+#     both precisions ship in the image, switchable per container via
+#     `-e DOCLING_LAYOUT_ONNX=/opt/models/layout_heron.onnx`)
+#   * TableFormer hoisted-KV decoder (fp32) — one-token-per-step decode with
+#     per-layer cross-attention tensors computed once per table; preferred
+#     over the quantized legacy decoder on every machine measured, so the
+#     legacy TF INT8 file is deliberately not built (see quantize_models.py)
+#   * codegen-units=1 on top of the workspace's lto="thin"
+#   * optional `--build-arg TARGET_CPU=x86-64-v3` (or `native` for same-host
+#     deploys): lets the compiler use AVX2+ in the image-processing hot paths;
+#     the default stays portable to any x86-64
 #
 # Stages:
 #   models  — export the layout + TableFormer ONNX (torch, one-time), fetch
-#             the OCR model/dict + pdfium, INT8-quantize (unless INT8=0)
+#             the OCR model/dict, picture classifier, chunker tokenizer and
+#             pdfium, INT8-quantize the layout model (unless INT8=0)
 #   builder — compile the CLI (the `ort` crate downloads ONNX Runtime at build)
 #   runtime — slim image with just the binary, native libs and models
 
@@ -34,52 +43,72 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates tar \
     && rm -rf /var/lib/apt/lists/*
 
-# torch (CPU) + the docling model packages used by the export scripts, plus
-# the quantization/calibration deps (pypdfium2, pillow, sympy).
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu \
-        "transformers>=4.45,<5" "onnx>=1.16,<2" \
-        docling-ibm-models onnxscript onnxruntime huggingface_hub \
-        sympy pypdfium2 pillow numpy
+# Install order matters and mirrors the (proven) publish-models workflow:
+# the layout export needs transformers 5.x module names for its pos-embed
+# fold-and-splice, while docling-ibm-models pins transformers <5 — so the
+# layout model is exported BEFORE the TableFormer deps downgrade transformers.
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu \
+        torch "transformers>=5" "onnx>=1.16,<2"
 
 WORKDIR /build
-COPY scripts/install/export_layout.py scripts/install/export_tableformer.py scripts/install/quantize_models.py ./scripts/
+COPY scripts/install ./scripts/install
 # Real corpus pages for INT8 calibration (build-stage only, not in the runtime).
 COPY tests/data/pdf/sources ./tests/data/pdf/sources
 COPY tests/data/scanned/sources ./tests/data/scanned/sources
 
-RUN mkdir -p /opt/models /opt/pdfium \
-    # RT-DETR layout detector -> models/layout_heron.onnx
+# RT-DETR layout detector -> models/layout_heron.onnx. The trailing cache
+# cleanup keeps the multi-GB HuggingFace downloads out of the layer.
+RUN mkdir -p /opt/models/chunk /opt/pdfium \
     && python scripts/install/export_layout.py /opt/models/layout_heron.onnx \
-    # TableFormer encoder/decoder/bbox. The decoder is the KV-cached step
-    # (self-attention state cache + precomputed cross-attention K/V) — byte-exact
-    # vs docling and ~2-4x faster on table-dense pages. The artifacts dir
-    # auto-resolves (downloads docling-project/docling-models if absent).
+    && rm -rf /root/.cache/huggingface
+
+# TableFormer export + quantization/calibration deps (downgrades transformers
+# to 4.x — the remaining exports don't import it).
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu \
+        docling-ibm-models onnxscript onnxruntime huggingface_hub \
+        opencv-python-headless sympy pypdfium2 pillow numpy
+
+RUN true \
+    # TableFormer encoder/decoder/bbox. Exports both decoder generations: the
+    # #97 hoisted-KV step graph (decoder_kv.onnx — per-layer cross-attention
+    # K/V hoisted into the encoder, byte-exact vs docling and the fastest
+    # variant on every machine measured) and the legacy layer-output-cache
+    # decoder.onnx as a fallback. The artifacts dir auto-resolves (downloads
+    # docling-project/docling-models if absent).
     && python scripts/install/export_tableformer.py /opt/models/tableformer \
     # PP-OCRv3 recognition model + dictionary (for scanned pages)
-    && curl -sSL -o /opt/models/ocr_rec.onnx \
+    && curl -fsSL -o /opt/models/ocr_rec.onnx \
         "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/ch_PP-OCRv3_rec_infer.onnx" \
-    && curl -sSL -o /opt/models/ppocr_keys_v1.txt \
+    && curl -fsSL -o /opt/models/ppocr_keys_v1.txt \
         "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt" \
+    # DocumentFigureClassifier-v2.5 (--enrich-picture-classes)
+    && curl -fsSL -o /opt/models/picture_classifier.onnx \
+        "https://huggingface.co/docling-project/DocumentFigureClassifier-v2.5/resolve/main/model.onnx" \
+    # all-MiniLM-L6-v2 tokenizer — the hybrid chunker works out of the box
+    && curl -fsSL -o /opt/models/chunk/tokenizer.json \
+        "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json" \
     # pdfium prebuilt (page rasterization only)
-    && curl -sSL -o /tmp/pdfium.tgz \
+    && curl -fsSL -o /tmp/pdfium.tgz \
         "https://github.com/bblanchon/pdfium-binaries/releases/latest/download/pdfium-linux-x64.tgz" \
     && tar xzf /tmp/pdfium.tgz -C /opt/pdfium \
-    && rm /tmp/pdfium.tgz
+    && rm /tmp/pdfium.tgz \
+    && rm -rf /root/.cache/huggingface
 
-# INT8=1 (default): quantize layout (static, conv-only, calibrated on the
-# corpus copied above) + TableFormer decoder (dynamic), and point the
-# `*_active` names — which the runtime ENV references — at the int8 files.
-# INT8=0 keeps the active names on fp32. Both precisions ship in the image
-# either way, so a container can switch back via the DOCLING_* env vars.
+# INT8=1 (default): quantize the layout model (static, Conv-only, calibrated on
+# the corpus copied above) and point the `layout_heron_active.onnx` name — which
+# the runtime ENV references — at the int8 file. INT8=0 keeps it on fp32. Both
+# precisions ship in the image either way.
+#
+# Only `layout` is quantized: the TableFormer decoder the runtime uses is the
+# hoisted-KV fp32 graph, which outperforms the quantized legacy decoder AND is
+# byte-exact — a freshly quantized TF decoder can also flip near-tie tokens on
+# heavy tables (see quantize_models.py), so it has no place in this image.
 ARG INT8=1
 RUN if [ "$INT8" = "1" ]; then \
-        DOCLING_RS_MODELS_DIR=/opt/models python scripts/install/quantize_models.py \
-        && ln -s layout_heron_int8.onnx /opt/models/layout_heron_active.onnx \
-        && ln -s decoder_int8.onnx /opt/models/tableformer/decoder_active.onnx; \
+        DOCLING_RS_MODELS_DIR=/opt/models python scripts/install/quantize_models.py layout \
+        && ln -s layout_heron_int8.onnx /opt/models/layout_heron_active.onnx; \
     else \
-        ln -s layout_heron.onnx /opt/models/layout_heron_active.onnx \
-        && ln -s decoder.onnx /opt/models/tableformer/decoder_active.onnx; \
+        ln -s layout_heron.onnx /opt/models/layout_heron_active.onnx; \
     fi
 
 # ----------------------------------------------------------------------------
@@ -94,10 +123,23 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# Warm the dependency cache on the manifests first (fast rebuilds on src edits).
-COPY Cargo.toml Cargo.lock ./
+# TARGET_CPU: empty (default) = portable x86-64 image; "x86-64-v3" = require
+# AVX2 (2013+ CPUs, most cloud fleets); "native" = tune for the build host
+# (only for images that run where they're built). Affects the Rust-side image
+# processing hot paths (resize, normalization); ONNX Runtime ships its own
+# runtime CPU dispatch either way.
+ARG TARGET_CPU=""
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+COPY Cargo.toml Cargo.loc[k] ./
 COPY crates ./crates
-RUN cargo build --release -p docling-cli --locked
+# --features serve compiles in the `docling-rs serve` subcommand (the HTTP
+# conversion API), so one image covers both CLI and server use.
+# Cargo.lock is gitignored in this repo, so a fresh clone has none — the
+# `Cargo.loc[k]` glob makes the COPY tolerate its absence. When a local lock
+# did come along it seeds the resolution, but no --locked: the gitignored lock
+# is routinely stale vs the manifests, and a hard pin on it fails the build.
+RUN if [ -n "$TARGET_CPU" ]; then export RUSTFLAGS="-C target-cpu=$TARGET_CPU"; fi \
+    && cargo build --release -p docling-cli --features serve
 
 # Collect the binary + the ONNX Runtime shared lib `ort` downloaded during build.
 RUN mkdir -p /artifacts \
@@ -114,30 +156,40 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /artifacts/ /tmp/artifacts/
-RUN cp /tmp/artifacts/docling.rs /usr/local/bin/ \
+RUN cp /tmp/artifacts/docling-rs /usr/local/bin/ \
     && (cp /tmp/artifacts/libonnxruntime*.so* /usr/local/lib/ 2>/dev/null || true) \
     && rm -rf /tmp/artifacts \
     && ldconfig
 
 COPY --from=models /opt/models /opt/models
 COPY --from=models /opt/pdfium /opt/pdfium
+# The picture classifier has no env override — it resolves models/… relative
+# to the CWD, the binary's dir, or the binary's parent. The binary lives in
+# /usr/local/bin, so this symlink makes /opt/models visible from any CWD.
+RUN ln -s /opt/models /usr/local/models
 
-# The pipeline finds its native lib + models via these env vars (the TableFormer
-# graphs default to models/tableformer/*; set them explicitly so the binary works
-# from any working directory).
-# The `*_active` names are symlinks resolved by the models stage's INT8 arg
-# (int8 by default, fp32 with --build-arg INT8=0); the concrete files are all
-# present, so a container can pin either precision explicitly, e.g.
-# `-e DOCLING_LAYOUT_ONNX=/opt/models/layout_heron.onnx` for fp32.
+# The pipeline finds its native lib + models via these env vars (set explicitly
+# so the binary works from any working directory).
+#   * layout_heron_active.onnx is a symlink resolved by the models stage's INT8
+#     arg (int8 by default, fp32 with --build-arg INT8=0); both concrete files
+#     are present, so a container can pin either precision explicitly, e.g.
+#     `-e DOCLING_LAYOUT_ONNX=/opt/models/layout_heron.onnx` for fp32.
+#   * The TableFormer decoder is pinned to the hoisted-KV fp32 graph (#97);
+#     `-e DOCLING_TABLEFORMER_DECODER=/opt/models/tableformer/decoder.onnx`
+#     switches to the legacy graph (both are auto-detected by input names).
 ENV PDFIUM_DYNAMIC_LIB_PATH=/opt/pdfium/lib \
     DOCLING_LAYOUT_ONNX=/opt/models/layout_heron_active.onnx \
     DOCLING_OCR_REC_ONNX=/opt/models/ocr_rec.onnx \
     DOCLING_OCR_DICT=/opt/models/ppocr_keys_v1.txt \
     DOCLING_TABLEFORMER_ENCODER=/opt/models/tableformer/encoder.onnx \
-    DOCLING_TABLEFORMER_DECODER=/opt/models/tableformer/decoder_active.onnx \
+    DOCLING_TABLEFORMER_DECODER=/opt/models/tableformer/decoder_kv.onnx \
     DOCLING_TABLEFORMER_BBOX=/opt/models/tableformer/bbox.onnx \
+    DOCLING_CHUNK_TOKENIZER=/opt/models/chunk/tokenizer.json \
     LD_LIBRARY_PATH=/usr/local/lib:/opt/pdfium/lib
 
 # Default: read a file arg and print Markdown to stdout, e.g.
-#   docker run --rm -v "$PWD:/data" docling.rs /data/input.pdf --to json
-ENTRYPOINT ["docling.rs"]
+#   docker run --rm -v "$PWD:/data" docling-rs /data/input.pdf --to json
+# The HTTP conversion API is compiled in as well:
+#   docker run --rm -p 5001:5001 docling-rs serve --addr 0.0.0.0:5001
+EXPOSE 5001
+ENTRYPOINT ["docling-rs"]
