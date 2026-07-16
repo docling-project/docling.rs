@@ -145,13 +145,19 @@ impl LayoutModel {
         match self.run_batch(pages) {
             Err(e) if pages.len() > 1 => {
                 // A graph without the dynamic batch dim (pre-#73 export) fails
-                // only for batch > 1 — remember and recover per page.
-                eprintln!(
-                    "docling-pdf: layout model rejected a {}-page batch ({e}); \
-                     falling back to per-page inference — re-export with \
-                     scripts/install/export_layout.py for batched layout",
-                    pages.len()
-                );
+                // only for batch > 1 — remember and recover per page. Warn once
+                // per process, not per worker: every worker owns a LayoutModel
+                // over the same graph file, so repeats carry no information.
+                static WARNED: std::sync::atomic::AtomicBool =
+                    std::sync::atomic::AtomicBool::new(false);
+                if !WARNED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                    eprintln!(
+                        "docling-pdf: layout model rejected a {}-page batch ({e}); \
+                         falling back to per-page inference — re-export with \
+                         scripts/install/export_layout.py for batched layout",
+                        pages.len()
+                    );
+                }
                 self.batch_unsupported = true;
                 self.predict_singly(pages)
             }
