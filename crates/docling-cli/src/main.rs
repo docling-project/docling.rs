@@ -106,6 +106,12 @@ fn main() -> ExitCode {
                     return ExitCode::from(2);
                 }
             }
+            _ if arg.starts_with("--") => {
+                eprintln!(
+                    "error: unknown flag '{arg}' (enrichment flags: --enrich-picture-classes, --enrich-code, --enrich-formula)"
+                );
+                return ExitCode::from(2);
+            }
             _ => path = Some(arg),
         }
     }
