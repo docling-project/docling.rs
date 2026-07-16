@@ -81,7 +81,12 @@ done
 
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-git add Cargo.toml crates/*/Cargo.toml
+# Re-sync the committed Cargo.lock with the bumped workspace versions —
+# without this every `--locked` build off master (CI, the Dockerfiles) fails
+# from this commit until the next manual `cargo update`. `--workspace` only
+# refreshes the workspace members' own entries; third-party pins stay put.
+cargo update --workspace --quiet
+git add Cargo.toml Cargo.lock crates/*/Cargo.toml
 # Commit only if the bump changed something — a forced re-publish of a version
 # whose manifests are already at $new has nothing to commit.
 if git diff --cached --quiet; then

@@ -17,7 +17,7 @@ FROM rust:1.96-bookworm AS build
 WORKDIR /src
 COPY . .
 ARG FETCH_ASSETS=1
-RUN cargo build --release -p docling-serve
+RUN cargo build --release -p docling-serve --locked
 RUN if [ "$FETCH_ASSETS" = "1" ]; then sh scripts/install/download_dependencies.sh; \
     else mkdir -p models .pdfium; fi
 

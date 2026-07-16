@@ -130,16 +130,15 @@ WORKDIR /app
 # runtime CPU dispatch either way.
 ARG TARGET_CPU=""
 ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
-COPY Cargo.toml Cargo.loc[k] ./
+COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 # --features serve compiles in the `docling-rs serve` subcommand (the HTTP
-# conversion API), so one image covers both CLI and server use.
-# Cargo.lock is gitignored in this repo, so a fresh clone has none — the
-# `Cargo.loc[k]` glob makes the COPY tolerate its absence. When a local lock
-# did come along it seeds the resolution, but no --locked: the gitignored lock
-# is routinely stale vs the manifests, and a hard pin on it fails the build.
+# conversion API), so one image covers both CLI and server use. The committed
+# Cargo.lock pins the dependency graph (--locked), so the image builds the
+# exact versions CI tested — release.sh keeps the lock in sync on version
+# bumps.
 RUN if [ -n "$TARGET_CPU" ]; then export RUSTFLAGS="-C target-cpu=$TARGET_CPU"; fi \
-    && cargo build --release -p docling-cli --features serve
+    && cargo build --release -p docling-cli --features serve --locked
 
 # Collect the binary + the ONNX Runtime shared lib `ort` downloaded during build.
 RUN mkdir -p /artifacts \

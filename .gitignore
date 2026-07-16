@@ -1,5 +1,4 @@
 /target
-Cargo.lock
 
 # Stray CLI conversion outputs (`docling-rs --to dclx <file>` writes next to CWD)
 /*.dclx
