@@ -12,7 +12,7 @@ categories.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-docling-core = { path = "../docling-core", version = "0.41.0" }
+docling-core = { path = "../docling-core", version = "0.41.1" }
 # Same ort as docling-pdf so the workspace keeps a single ONNX runtime.
 ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "download-binaries", "tls-rustls"] }
 serde_json = "1"
