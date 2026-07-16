@@ -525,6 +525,36 @@ export DOCLING_TABLEFORMER_DECODER=$PWD/models/tableformer/decoder.onnx
 (The [example Dockerfile](./examples/Dockerfile) bakes both precisions and
 defaults to INT8; build with `--build-arg INT8=0` for pure fp32.)
 
+### GPU execution providers (optional, off by default)
+
+The ONNX stages (layout, TableFormer, OCR, enrichment) run on CPU by default.
+GPU execution providers compile in behind cargo features — the standard build
+keeps zero GPU dependencies:
+
+```bash
+cargo build --release -p docling-cli --features cuda      # NVIDIA CUDA (Linux/Windows)
+#                                     --features tensorrt # NVIDIA TensorRT (usually with cuda)
+#                                     --features directml # DirectML (Windows)
+#                                     --features coreml   # CoreML (macOS)
+```
+
+A GPU build still defaults to CPU; pick the provider at runtime:
+
+```bash
+DOCLING_RS_EP=cuda docling-rs input.pdf   # this provider or fail loudly
+DOCLING_RS_EP=auto docling-rs input.pdf   # try compiled-in GPUs, fall back to CPU
+```
+
+An explicitly named provider that can't initialize (no device, missing
+driver/toolkit libs) fails the conversion rather than silently running 10×
+slower on CPU; `auto` is the quiet-fallback mode for images deployed on mixed
+fleets. When a GPU provider is selected, the pipeline automatically prefers
+the fp32 models over the int8 defaults — the int8 exports are calibrated for
+CPU kernels (an explicit `DOCLING_*_ONNX` path still wins). CUDA needs the
+CUDA 12 runtime + cuDNN 9 on the machine; the `ort` crate downloads the
+matching ONNX Runtime binaries at build time and copies the provider
+libraries next to the binary.
+
 Then either:
 
 ```bash

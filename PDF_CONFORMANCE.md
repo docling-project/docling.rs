@@ -426,6 +426,38 @@ produced **byte-identical corpus output** and ~10% faster table decode
 The decoder speed is *not* weight-bound — it is per-step overhead (see backlog
 item 2), which is why quantization helps so little there.
 
+### GPU execution providers (#74) — landed, awaiting GPU validation
+
+The ONNX sessions (layout, TableFormer×3, OCR recognition, both enrichment
+models) accept alternative ONNX Runtime execution providers behind cargo
+features: `cuda`, `tensorrt`, `directml` (Windows), `coreml` (macOS). CPU
+stays the default in every configuration — the features only compile a
+provider in; `DOCLING_RS_EP` selects one at runtime:
+
+| `DOCLING_RS_EP` | behavior |
+|---|---|
+| unset / `cpu` | CPU, byte-for-byte the pre-#74 code path (no EP registered) |
+| `cuda` \| `tensorrt` \| `directml` \| `coreml` | that provider, **error-on-failure**: an explicitly requested accelerator that can't initialize fails the conversion instead of silently degrading to a 10×-slower CPU run; requesting one that isn't compiled in warns once and stays on CPU |
+| `auto` | every compiled-in provider registered in order TensorRT → CUDA → CoreML → DirectML; ONNX Runtime falls back down the list to CPU at session creation (for images deployed on mixed fleets) |
+
+When a GPU provider is selected the model resolution skips the int8 defaults
+in favor of fp32 (`decoder_kv.onnx` stays preferred): the int8 exports are
+QDQ graphs calibrated for CPU kernels — on GPU they add de-quantize traffic
+and their conformance was only ever validated on CPU. An explicit
+`DOCLING_*_ONNX` path override still wins over this policy.
+
+Verified without GPU hardware (this is what CI's `ep-features` matrix
+covers): default/`cpu`/`auto`/unknown/uncompiled-request configurations all
+produce byte-identical corpus output on a CPU-only build; on a
+`--features cuda` build with no usable CUDA, `auto` falls back to CPU with
+fp32 models selected (output byte-identical to `DOCLING_RS_FP32=1`) and
+`DOCLING_RS_EP=cuda` fails loudly at the first session load. **Still open —
+needs a real GPU:** speed measurements and a corpus conformance run
+(`scripts/conformance/pdf_conformance.sh` with `DOCLING_RS_EP=cuda`) —
+fp32 GPU kernels are not bit-identical to fp32 CPU kernels, so expect
+groundtruth-distance parity rather than byte-exactness, same standard as the
+other numeric changes above.
+
 ### Ranked backlog of further ideas
 
 Ordered by expected impact ÷ risk. Items 1–3 attack the 85–95%.

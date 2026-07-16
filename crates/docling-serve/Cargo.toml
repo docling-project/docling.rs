@@ -12,6 +12,12 @@ default = ["chunking"]
 # Tokenization-aware chunking: enables the hybrid chunk records in `to=chunks`
 # responses (hierarchical records work without it).
 chunking = ["docling/chunking"]
+# GPU execution providers for the PDF/image ML pipeline (#74) — pass-through
+# to docling → docling-pdf; select at runtime with DOCLING_RS_EP.
+cuda = ["docling/cuda"]
+tensorrt = ["docling/tensorrt"]
+directml = ["docling/directml"]
+coreml = ["docling/coreml"]
 
 [dependencies]
 axum = { version = "0.8", features = ["multipart"] }

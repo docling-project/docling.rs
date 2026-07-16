@@ -32,6 +32,14 @@ chunking = ["docling/chunking"]
 # stack — tokio/axum — so it is off by default; the standalone `docling-serve`
 # binary is always available from its own crate).
 serve = ["dep:docling-serve", "dep:tokio"]
+# GPU execution providers for the PDF/image ML pipeline (#74) — pass-through
+# to docling → docling-pdf. Build e.g. `--features cuda`, then select the
+# provider at runtime: `DOCLING_RS_EP=cuda docling-rs input.pdf` (default
+# remains cpu even in a GPU build).
+cuda = ["docling/cuda"]
+tensorrt = ["docling/tensorrt"]
+directml = ["docling/directml"]
+coreml = ["docling/coreml"]
 
 [dependencies]
 docling = { path = "../docling", version = "0.40.3" }

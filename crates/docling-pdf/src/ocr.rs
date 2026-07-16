@@ -115,10 +115,12 @@ impl OcrModel {
         // (e.g. noisy faxes) and makes the snapshot output non-deterministic. The
         // recognition inputs are tiny per-line crops, so the throughput cost is
         // negligible.
-        let rec = Session::builder()
+        let builder = Session::builder()
             .map_err(|e| format!("ocr: builder: {e}"))?
             .with_intra_threads(1)
-            .map_err(|e| format!("ocr: intra_threads: {e}"))?
+            .map_err(|e| format!("ocr: intra_threads: {e}"))?;
+        let rec = crate::ep::apply(builder)
+            .map_err(|e| format!("ocr: {e}"))?
             .commit_from_file(&rec_path)
             .map_err(|e| format!("ocr: load {rec_path}: {e}"))?;
         let dict = std::fs::read_to_string(&dict_path)

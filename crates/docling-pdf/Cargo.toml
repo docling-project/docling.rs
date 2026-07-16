@@ -11,6 +11,22 @@ keywords.workspace = true
 categories.workspace = true
 rust-version.workspace = true
 
+[features]
+# GPU execution providers (#74). Each feature makes `ort` link/download an
+# ONNX Runtime binary that contains that provider; which provider actually
+# runs is chosen at startup via DOCLING_RS_EP (default: cpu). CPU stays the
+# default build with zero GPU dependencies. directml is Windows-only and
+# coreml is macOS-only (the underlying ONNX Runtime binaries only exist
+# there); cuda/tensorrt are Linux + Windows.
+# copy-dylibs rides along on every GPU feature: the CUDA/TensorRT providers
+# are separate shared libraries (libonnxruntime_providers_*.so) that must sit
+# next to the binary at runtime — without the copy, registration fails with a
+# bare "cannot open shared object file" even on a machine with a working GPU.
+cuda = ["ort/cuda", "ort/copy-dylibs"]
+tensorrt = ["ort/tensorrt", "ort/copy-dylibs"]
+directml = ["ort/directml", "ort/copy-dylibs"]
+coreml = ["ort/coreml", "ort/copy-dylibs"]
+
 [dependencies]
 docling-core = { path = "../docling-core", version = "0.40.3" }
 pdfium-render = "0.8"

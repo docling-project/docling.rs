@@ -100,12 +100,14 @@ impl LayoutModel {
         if crate::timing::enabled() {
             eprintln!("docling-pdf: layout model: {path}");
         }
-        let session = Session::builder()
+        let builder = Session::builder()
             .map_err(|e| format!("layout: builder: {e}"))?
             // Let inference use the available cores (ort otherwise defaults low);
             // a large PDF runs this model once per page.
             .with_intra_threads(intra)
-            .map_err(|e| format!("layout: intra_threads: {e}"))?
+            .map_err(|e| format!("layout: intra_threads: {e}"))?;
+        let session = crate::ep::apply(builder)
+            .map_err(|e| format!("layout: {e}"))?
             .commit_from_file(&path)
             .map_err(|e| format!("layout: load {path}: {e}"))?;
         Ok(Self {

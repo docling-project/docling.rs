@@ -124,6 +124,50 @@ jobs:
       - name: Check workspace on ${{ env.MSRV_WORKSPACE }}
         run: cargo +${{ env.MSRV_WORKSPACE }} check --workspace --locked
 
+  # Build-verify the GPU execution-provider features (#74) without GPU
+  # runners: `cargo check` proves the feature plumbing and the EP registration
+  # code compile against the matching `ort` feature set. Each provider is
+  # checked on the platform its ONNX Runtime binaries exist for — actually
+  # *running* on GPU is out of scope for CI (no GPU hardware here).
+  ep-features:
+    name: check (${{ matrix.features }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            features: cuda
+          - os: ubuntu-latest
+            features: cuda,tensorrt
+          - os: macos-latest
+            features: coreml
+          - os: windows-latest
+            features: directml
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust (stable)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-cargo-ep-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-ep-
+
+      - name: Check docling-cli with GPU features
+        run: cargo check -p docling-cli --features "${{ matrix.features }}"
+
+      - name: Test docling-pdf EP selection with GPU features
+        run: cargo test -p docling-pdf --lib --features "${{ matrix.features }}" ep::
+
   publish:
     name: release & publish
     needs: [lint, test]

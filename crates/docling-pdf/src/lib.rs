@@ -12,6 +12,7 @@
 mod assemble;
 mod dp_lines;
 pub mod enrich;
+pub(crate) mod ep;
 pub mod layout;
 mod mets;
 mod ocr;
@@ -85,6 +86,15 @@ pub(crate) fn fp32_forced() -> bool {
         .unwrap_or(false)
 }
 
+/// Should the int8 model defaults be skipped in favor of fp32? Either the
+/// user said so (`DOCLING_RS_FP32`), or a GPU execution provider is selected
+/// (#74) — the int8 exports are QDQ graphs calibrated for CPU kernels and
+/// only conformance-validated there. An explicit `DOCLING_*_ONNX` path
+/// override still wins over this at every call site.
+pub(crate) fn prefer_fp32() -> bool {
+    fp32_forced() || ep::prefers_fp32()
+}
+
 /// Resolve a default (CWD-relative) asset path. If it doesn't exist relative
 /// to the current directory, try next to the executable and one level above
 /// it (following symlinks — the layout `scripts/install/install.sh` produces:
@@ -121,7 +131,7 @@ pub(crate) fn model_path(env: &str, fp32_default: &str, int8_default: &str) -> S
     if let Ok(p) = std::env::var(env) {
         return p;
     }
-    if !fp32_forced() {
+    if !prefer_fp32() {
         let p = resolve_asset(int8_default);
         if std::path::Path::new(&p).exists() {
             return p;

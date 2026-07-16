@@ -134,7 +134,7 @@ impl TableFormer {
         // the pipeline is tightest against Python docling, so speed wins the
         // default and the legacy file stays as the smaller fallback.
         let dec = std::env::var("DOCLING_TABLEFORMER_DECODER").unwrap_or_else(|_| {
-            let candidates: &[&str] = if crate::fp32_forced() {
+            let candidates: &[&str] = if crate::prefer_fp32() {
                 &[
                     "models/tableformer/decoder_kv.onnx",
                     "models/tableformer/decoder.onnx",
@@ -181,12 +181,13 @@ impl TableFormer {
         // it for this session avoids repeatedly re-validating/re-touching that
         // plan (and the external-weights file) on each step.
         let build = |path: &str, mem_pattern: bool| -> Result<Session, String> {
-            Session::builder()
+            let builder = Session::builder()
                 .map_err(|e| e.to_string())?
                 .with_intra_threads(intra)
                 .map_err(|e| e.to_string())?
                 .with_memory_pattern(mem_pattern)
-                .map_err(|e| e.to_string())?
+                .map_err(|e| e.to_string())?;
+            crate::ep::apply(builder)?
                 .commit_from_file(path)
                 .map_err(|e| format!("tableformer load {path}: {e}"))
         };

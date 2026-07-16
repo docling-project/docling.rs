@@ -93,9 +93,9 @@ impl PictureClassifier {
             );
             return None;
         }
-        let session = Session::builder()
-            .ok()?
-            .with_intra_threads(intra)
+        let builder = Session::builder().ok()?.with_intra_threads(intra).ok()?;
+        let session = crate::ep::apply(builder)
+            .map_err(|e| eprintln!("docling-pdf: picture classifier: {e}"))
             .ok()?
             .commit_from_file(&path)
             .map_err(|e| eprintln!("docling-pdf: picture classifier load {path}: {e}"))
@@ -196,7 +196,7 @@ impl CodeFormula {
         // INT8 variants take priority when present, like the other models.
         let graph = |base: &str| {
             let int8 = file(&format!("{base}_int8.onnx"));
-            if !crate::fp32_forced() && std::path::Path::new(&int8).exists() {
+            if !crate::prefer_fp32() && std::path::Path::new(&int8).exists() {
                 int8
             } else {
                 file(&format!("{base}.onnx"))
@@ -212,9 +212,9 @@ impl CodeFormula {
             }
         }
         let load = |p: String| {
-            Session::builder()
-                .ok()?
-                .with_intra_threads(intra)
+            let builder = Session::builder().ok()?.with_intra_threads(intra).ok()?;
+            crate::ep::apply(builder)
+                .map_err(|e| eprintln!("docling-pdf: CodeFormula: {e}"))
                 .ok()?
                 .commit_from_file(&p)
                 .map_err(|e| eprintln!("docling-pdf: CodeFormula load {p}: {e}"))
