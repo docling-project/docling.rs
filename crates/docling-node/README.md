@@ -104,7 +104,7 @@ heading path); pass `chunker: 'hybrid'` to refine against a token budget
 docling's `HybridChunker`. The hybrid token counts come from a HuggingFace
 `tokenizer.json`: pass a path via `tokenizer`, or omit it to use
 `models/chunk/tokenizer.json` (all-MiniLM-L6-v2's — fetched by
-`scripts/download_dependencies.sh` alongside the ML models, resolved through
+`scripts/install/download_dependencies.sh` alongside the ML models, resolved through
 the same install-home logic).
 
 ```js
@@ -201,7 +201,7 @@ call are needed afterwards:
 > env var always wins over the `./models` / `./.pdfium` default.
 
 ```js
-checkDependencies() // { home, pdfium, layout, ocr, tableformer, ready, missing }
+checkDependencies() // { home, pdfium, layout, ocr, tableformer, chunkTokenizer, ready, missing }
 ```
 
 ### Reusing a warm `Pipeline` (many PDFs)

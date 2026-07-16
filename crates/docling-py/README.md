@@ -100,8 +100,9 @@ conv = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeli
 
 The Rust engine acts on `do_ocr`, `do_table_structure`, the opt-in enrichment
 flags `do_picture_classification` / `do_code_enrichment` /
-`do_formula_enrichment` (they need the enrichment models —
-`scripts/install/download_dependencies.sh --enrich`), and
+`do_formula_enrichment` (the picture classifier is fetched by the default
+`scripts/install/download_dependencies.sh` run; the code/formula models need
+its `--enrich` flag), and
 `accelerator_options.num_threads` (→ ONNX Runtime intra-op threads via
 `DOCLING_RS_PDF_THREADS`). The remaining `PdfPipelineOptions` fields
 (`images_scale`, `generate_page_images`, `table_structure_options.mode`, …) are

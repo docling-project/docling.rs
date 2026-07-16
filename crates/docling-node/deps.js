@@ -10,7 +10,7 @@
 //   - PP-OCR rec + dict    (models/ocr_rec.onnx, ppocr_keys_v1.txt)   — used for pages with no text layer
 //   - TableFormer          (models/tableformer/{encoder,decoder,bbox}.onnx) — optional; geometric fallback otherwise
 //
-// This module does NOT download anything — `scripts/download_dependencies.sh`
+// This module does NOT download anything — `scripts/install/download_dependencies.sh`
 // does that, fetching everything from this repo's GitHub Releases straight
 // into `./models` and `./.pdfium` (see docs/MODELS_NOTICE.md for attribution: the
 // layout model and TableFormer are PyTorch→ONNX exports of docling-project's
@@ -49,7 +49,7 @@ function pdfiumLibName() {
  * Resolve the install home directory (absolute), and which `pdfium/`-vs-
  * `.pdfium/` layout it uses. Precedence: an explicit `dir` > `$DOCLING_RS_HOME`
  * > the current directory, *if* it already has a local `models/` or `.pdfium/`
- * (the layout `scripts/download_dependencies.sh` and `scripts/pdf_setup.sh`
+ * (the layout `scripts/install/download_dependencies.sh` and `scripts/install/pdf_setup.sh`
  * both produce, and the one the native Rust pipeline's own env-var-less
  * defaults already resolve — `models/layout_heron.onnx`, `.pdfium/lib/…` —
  * relative to *its* CWD) > `~/.cache/docling.rs`. This lets a plain
@@ -99,7 +99,7 @@ function resolvePaths(dir) {
 
 /**
  * The hybrid chunker's default tokenizer (all-MiniLM-L6-v2's tokenizer.json,
- * fetched by `scripts/download_dependencies.sh` into `models/chunk/`), resolved
+ * fetched by `scripts/install/download_dependencies.sh` into `models/chunk/`), resolved
  * through the same install-home logic as the ML models. Returns `null` when not
  * installed — the native side then reports a clear error with the download hint.
  */
@@ -153,11 +153,11 @@ function downloadGuide() {
     'straight into ./models and ./.pdfium, which this package looks for by',
     'default; no env vars needed afterwards):',
     '',
-    '  curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/download_dependencies.sh | sh',
+    '  curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/install/download_dependencies.sh | sh',
     '',
     'or, from a checkout of the repo:',
     '',
-    '  scripts/download_dependencies.sh',
+    '  scripts/install/download_dependencies.sh',
     '',
     'TableFormer is optional (tables fall back to geometric reconstruction',
     'without it). To use your own export/host instead, point the DOCLING_*',
@@ -174,7 +174,7 @@ function downloadGuide() {
  * Throw a clear, actionable error if `format` needs the ML pipeline but its
  * dependencies aren't installed. Called before ML conversions; also wires up
  * the `DOCLING_*` / `PDFIUM_DYNAMIC_LIB_PATH` env vars for whatever is present,
- * so a checkout with `scripts/download_dependencies.sh` already run just works.
+ * so a checkout with `scripts/install/download_dependencies.sh` already run just works.
  */
 function assertMlReady(format, dir) {
   if (!ML_FORMATS.has(format)) return

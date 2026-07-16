@@ -233,8 +233,8 @@ exposed in the [Node bindings](./crates/docling-node) (`chunkFile` /
 [Python bindings](./crates/docling-py) (`docling_rs.chunking`), and the
 [RAG subsystem](./crates/docling-rag) (`RAG_CHUNKER=hierarchical|hybrid`). Conformance vs
 docling's chunkers over the 83-doc corpus (`scripts/conformance/
-chunks_conformance.sh`): **hierarchical 91% / hybrid 87% identical chunk
-records** (text + headings), 77 and 74 of 83 documents fully exact.
+chunks_conformance.sh`): **hierarchical 98.8% / hybrid 96.2% identical chunk
+records** (text + headings), 79 and 76 of 83 documents fully exact.
 
 ### Image extraction
 
@@ -461,7 +461,7 @@ instead — same models plus `pdfium.dll` — and see
 | PP-OCRv3 rec + dictionary | `models/ocr_rec.onnx`, `models/ppocr_keys_v1.txt` |
 | TableFormer (optional) | `models/tableformer/{encoder,decoder,bbox}.onnx` (+ `.data` sidecars where the export needs them) |
 | Whisper tiny (audio/ASR; skip with `--no-asr`) | `models/asr/{encoder_model,decoder_model}.onnx`, `models/asr/vocab.json` (+ `added_tokens.json` for language selection) |
-| INT8 CPU models (optional; fetch with `--int8`) | `models/layout_heron_int8.onnx`, `models/tableformer/decoder_int8.onnx` (+ `models/code_formula/decoder_kv_int8.onnx` with `--enrich`) |
+| INT8 CPU models (fetched by default; skip with `--no-int8`) | `models/layout_heron_int8.onnx`, `models/tableformer/decoder_int8.onnx` (+ `models/code_formula/decoder_kv_int8.onnx` with `--enrich`) |
 | DocumentFigureClassifier (picture classification) | `models/picture_classifier.onnx` |
 | CodeFormulaV2 (code/formula enrichment, ~1.3 GB; fetch with `--enrich`) | `models/code_formula/{vision,embed,decoder_kv}.onnx`, `models/code_formula/tokenizer.json` |
 
@@ -785,6 +785,7 @@ on a 1913-page document — see [`docs/PDF_CONFORMANCE.md`](./docs/PDF_CONFORMAN
 | `docling-pdf` | PDF/image ML pipeline (pdfium + ONNX layout/table/OCR) | `docling` PDF pipeline |
 | `docling-asr` | audio/ASR pipeline (symphonia + ONNX Whisper) | `docling` ASR pipeline |
 | `docling-cli` | command-line interface | `docling.cli` |
+| `docling-serve` | HTTP conversion API over a warm pipeline | `docling-serve` |
 | `docling-node` | Node.js / Bun N-API bindings | https://www.npmjs.com/package/docling.rs |
 | `docling-py` | Python bindings | https://pypi.org/project/docling-rs |
 | `docling-wasm` | WebAssembly bindings (declarative converters + PDF text layer in the browser) | — |

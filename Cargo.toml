@@ -1,11 +1,16 @@
 # docling.rs — a Rust port of docling.
 #
-# A Cargo workspace of five crates:
+# A Cargo workspace of nine crates:
 #   docling-core  — the DoclingDocument data model + Markdown/JSON serializers
 #   docling       — the DocumentConverter and the per-format backends
 #   docling-pdf   — the PDF/image ML pipeline (pdfium text + ONNX layout/OCR)
 #   docling-asr   — the audio/ASR pipeline (symphonia decode + ONNX Whisper)
 #   docling-cli   — the `docling-rs` command-line binary
+#   docling-node  — Node.js/Bun N-API bindings (npm `docling.rs`)
+#   docling-rag   — RAG layer: chunking, embeddings, vector search, REST API
+#   docling-serve — HTTP conversion API over a warm pipeline
+#   docling-wasm  — WebAssembly bindings (declarative converters + PDF text layer)
+# (crates/docling-py, the PyPI bindings, builds separately via maturin.)
 #   docling-rag   — pluggable RAG (chunk/embed/store/search) over the converter
 # See docs/MIGRATION.md for the Python → Rust mapping and what is / isn't ported.
 

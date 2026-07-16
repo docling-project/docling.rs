@@ -4,7 +4,7 @@
 // prebuilt `.node` for the host platform) with two things:
 //   1. dependency guards — converting a PDF/image/METS input throws a clear
 //      error unless the ML models + pdfium are on disk (see
-//      scripts/download_dependencies.sh);
+//      scripts/install/download_dependencies.sh);
 //   2. `streamFileMarkdown` async generators over Markdown chunks (module-level
 //      and on the warm `Pipeline`).
 //

@@ -238,7 +238,7 @@ model-level (or by-design) residual each issue closed with:
    docling gets `fcel`; multi-row headers / spans on 2206, 2203), so one
    cell-structure diff still cascades through the padded columns into many row
    diffs (2206's ~92 table-row diffs trace to ~4 structure diffs). A parity
-   harness (`DOCLING_RS_TF_MATCH_DUMP=dir` + `scripts/test/ref_match.py`-style
+   harness (`DOCLING_RS_TF_MATCH_DUMP=dir` + `scripts/test/tf_match_reference.py`-style
    replay through docling's Python post-processor) confirmed the ported matcher
    reproduces the reference on identical inputs, isolating the residual to the
    model predictions. `DOCLING_RS_TF_SIMPLE_MATCH=1` reverts to the pre-port

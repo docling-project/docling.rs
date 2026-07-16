@@ -1,7 +1,7 @@
 # docling-rag
 
 A pluggable **Retrieval-Augmented-Generation** subsystem built on the
-[`docling.rs`](../docling.rs) document converter.
+[`docling.rs`](../docling) document converter.
 
 Pipeline:
 

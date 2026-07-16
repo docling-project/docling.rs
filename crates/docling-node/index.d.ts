@@ -128,7 +128,7 @@ export interface DependencyStatus {
 
 /**
  * Report which PDF/image dependencies are present on disk. Fetch them with
- * `scripts/download_dependencies.sh` (see the package README) — this function
+ * `scripts/install/download_dependencies.sh` (see the package README) — this function
  * only reports status, it does not download anything.
  */
 export declare function checkDependencies(options?: { dir?: string }): DependencyStatus
