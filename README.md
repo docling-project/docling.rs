@@ -782,6 +782,7 @@ on a 1913-page document — see [`docs/PDF_CONFORMANCE.md`](./docs/PDF_CONFORMAN
 | `docling-cli` | command-line interface | `docling.cli` |
 | `docling-node` | Node.js / Bun N-API bindings | https://www.npmjs.com/package/docling.rs |
 | `docling-py` | Python bindings | https://pypi.org/project/docling-rs |
+| `docling-wasm` | WebAssembly bindings (declarative converters in the browser) | — |
 | `docling-rag` | RAG layer: chunking, embeddings, vector search, REST API | — |
 
 ## License
