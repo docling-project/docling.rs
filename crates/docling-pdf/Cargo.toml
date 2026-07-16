@@ -28,7 +28,7 @@ directml = ["ort/directml", "ort/copy-dylibs"]
 coreml = ["ort/coreml", "ort/copy-dylibs"]
 
 [dependencies]
-docling-core = { path = "../docling-core", version = "0.40.3" }
+docling-core = { path = "../docling-core", version = "0.41.0" }
 pdfium-render = "0.8"
 ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "download-binaries", "tls-rustls"] }
 image = "0.25"
