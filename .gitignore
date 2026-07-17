@@ -45,3 +45,4 @@ crates/docling-py/python/docling_rs/*.so
 # docling's .dclx loader extracts each archive it reads next to the file
 tests/data/**/*_artifacts/
 tests/data/**/groundtruth_dclx/tests/
+bench-gpu/
