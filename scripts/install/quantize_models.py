@@ -188,6 +188,20 @@ def validate_layout(src, dst):
     (download_dependencies.sh falls back gracefully — int8 is fetch_optional)."""
     import onnxruntime as ort
 
+    for path, kind in ((src, "fp32"), (dst, "int8")):
+        if not os.path.exists(path):
+            sys.exit(
+                f"layout gate: {path} not found — nothing to validate. "
+                + (
+                    "Fetch the models first (scripts/install/download_dependencies.sh)."
+                    if kind == "fp32"
+                    else "No int8 model on disk: the release ships fp32-only when a "
+                    "previous gate failed; build one with "
+                    "`python scripts/install/quantize_models.py layout` (it re-runs "
+                    "this gate on the result)."
+                )
+            )
+
     print("layout: validating int8 against fp32 (agreement gate)...", flush=True)
     opts = ort.SessionOptions()
     ref = ort.InferenceSession(src, opts, providers=["CPUExecutionProvider"])
