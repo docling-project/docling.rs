@@ -572,8 +572,8 @@ CUDA 12 runtime + cuDNN 9 on the machine; the `ort` crate downloads the
 matching ONNX Runtime binaries at build time and copies the provider
 libraries next to the binary.
 
-Measured (RTX 3080 Laptop vs Ryzen 9 5900HX, cold CLI runs): **1.6–2.4×**
-end-to-end on multi-page digital PDFs (`2305.03393v1`: 14.6 s → 6.2 s),
+Measured (RTX 3080 Laptop vs Ryzen 9 5900HX, cold CLI runs): **1.5–2.1×**
+end-to-end on multi-page digital PDFs (`2305.03393v1`: 13.6 s → 7.0 s),
 break-even around 3–4 pages — 1–2-page and OCR-heavy documents stay faster
 on CPU unless you amortize EP init with the warm `Pipeline`/`docling-serve`.
 Output is byte-identical to the CPU run on 21 of 22 corpus fixtures (fp32

@@ -471,53 +471,52 @@ on one borderline region: the caption fragment
 (`- c. …`) on CPU and as plain `text` on CUDA — same content, same
 position, one class score straddling the 0.3 threshold.
 
-**Corpus total (best-of-3): CPU 123.9 s · CUDA 95.2 s → 1.30×** — but the
+**Corpus total (best-of-3): CPU 124.5 s · CUDA 101.2 s → 1.23×** — but the
 aggregate hides a clean size split:
 
 | segment | speedup (best) |
 |---|---|
-| multi-page digital (9–39 pages: arXiv papers, redp5110) | **1.6–2.4×** (`2305.03393v1`: 14.6 s → 6.2 s) |
-| mid-size digital (4–5 pages) | 1.1–1.4× |
-| 1–2-page digital | 0.6–0.9× — CUDA EP init + host↔device traffic never amortizes |
-| scanned/OCR-heavy | 0.6–1.1× — dominated by pdfium render + OCR pre/post on CPU |
+| multi-page digital (9–39 pages: arXiv papers, redp5110) | **1.5–2.1×** (`2305.03393v1`: 13.6 s → 7.0 s) |
+| mid-size digital (4–5 pages) | 1.1–1.3× |
+| 1–2-page digital | 0.75–1.0× — CUDA EP init + host↔device traffic never amortizes |
+| scanned/OCR-heavy | 0.65–0.85× — dominated by pdfium render + OCR pre/post on CPU |
 
 Practical guidance: the break-even for a cold CLI run sits around 3–4
 pages. Below that, or for OCR-heavy scans, stay on CPU; for batches or
 services use the warm `Pipeline` / `docling-serve`, which pays EP
 initialization once per process instead of once per file and moves the
-break-even to roughly "any document with a table". One corpus-methodology
-caveat: the benchmark's first published run had one CPU row corrupted by an
-NTP clock step mid-run (a laptop syncing wall-clock backwards); the script
-now uses the monotonic clock, and that row is excluded from the totals
-above.
+break-even to roughly "any document with a table". The cold-vs-best gap on
+the CUDA column (~1.5–2.5 s) is that per-process EP initialization made
+visible. (Timing methodology: the script reads the monotonic clock —
+wall-clock `date` proved able to step backwards under NTP mid-benchmark.)
 
 <details>
 <summary>Per-file results (seconds, best of 3; cold = run 1 incl. model/EP init)</summary>
 
 | file | cpu cold | cpu best | cuda cold | cuda best | speedup (best) | output |
 |---|---|---|---|---|---|---|
-| 2203.01017v2 | 20.08 | 19.90 | 12.73 | 10.82 | 1.84x | 2 diff lines |
-| 2206.01062 | 18.21 | 15.06 | 9.84 | 9.52 | 1.58x | identical |
-| 2305.03393v1-pg9 | 3.62 | 3.62 | 4.45 | 4.23 | 0.85x | identical |
-| 2305.03393v1 | 16.30 | 14.65 | 8.11 | 6.17 | 2.37x | identical |
-| amt_handbook_sample | 2.27 | 1.79 | 3.53 | 2.89 | 0.62x | identical |
-| code_and_formula | 2.63 | 2.50 | 2.97 | 2.76 | 0.90x | identical |
-| multi_page | 4.94 | 4.55 | 3.29 | 3.22 | 1.41x | identical |
-| normal_4pages | 5.46 | 5.17 | 4.58 | 4.10 | 1.26x | identical |
-| picture_classification | 2.82 | 2.41 | 3.36 | 2.63 | 0.92x | identical |
-| redp5110_sampled | 19.00 | 16.88 | 9.80 | 7.97 | 2.12x | identical |
-| right_to_left_01 | 2.15 | 1.99 | 2.77 | 2.77 | 0.72x | identical |
-| right_to_left_02 | 2.14 | 2.14 | 3.39 | 2.83 | 0.76x | identical |
-| right_to_left_03 | 4.02 | 4.02 | 4.48 | 4.45 | 0.90x | identical |
-| skipped_1page | 3.83 | 3.72 | 3.47 | 2.75 | 1.35x | identical |
-| skipped_2pages | 4.15 | 3.48 | 3.25 | 3.19 | 1.09x | identical |
-| table_mislabeled_as_picture | 4.68 | 4.68 | 5.18 | 4.50 | 1.04x | identical |
-| nemotron_multipage | 5.17 | 5.17 | 6.82 | 5.39 | 0.96x | identical |
-| ocr_test | 2.34 | 2.34 | 3.52 | 3.14 | 0.75x | identical |
-| ocr_test_rotated_180 | 2.83 | 2.25 | 3.76 | 3.21 | 0.70x | identical |
-| ocr_test_rotated_270 | 2.52 | 2.52 | 4.38 | 4.04 | 0.62x | identical |
-| ocr_test_rotated_90 | — | — | 3.84 | 3.84 | — | identical (CPU timing lost to the clock step; excluded from totals) |
-| sample_with_rotation_mismatch | 6.00 | 5.09 | 5.95 | 4.60 | 1.11x | identical |
+| 2203.01017v2 | 19.93 | 18.13 | 13.31 | 10.38 | 1.75x | 2 diff lines |
+| 2206.01062 | 15.34 | 14.84 | 10.86 | 9.70 | 1.53x | identical |
+| 2305.03393v1-pg9 | 3.87 | 3.87 | 6.25 | 3.98 | 0.97x | identical |
+| 2305.03393v1 | 13.55 | 13.55 | 9.94 | 7.01 | 1.93x | identical |
+| amt_handbook_sample | 2.63 | 2.50 | 4.74 | 3.26 | 0.77x | identical |
+| code_and_formula | 3.13 | 3.13 | 5.14 | 3.09 | 1.01x | identical |
+| multi_page | 5.12 | 5.12 | 6.24 | 4.30 | 1.19x | identical |
+| normal_4pages | 7.67 | 6.34 | 7.04 | 4.76 | 1.33x | identical |
+| picture_classification | 2.56 | 2.56 | 5.24 | 2.95 | 0.87x | identical |
+| redp5110_sampled | 16.53 | 16.53 | 11.73 | 8.05 | 2.05x | identical |
+| right_to_left_01 | 1.94 | 1.94 | 5.01 | 2.59 | 0.75x | identical |
+| right_to_left_02 | 2.03 | 2.03 | 4.64 | 2.68 | 0.76x | identical |
+| right_to_left_03 | 3.26 | 3.26 | 5.95 | 4.09 | 0.80x | identical |
+| skipped_1page | 3.62 | 3.38 | 4.79 | 2.96 | 1.14x | identical |
+| skipped_2pages | 3.99 | 3.75 | 5.89 | 3.32 | 1.13x | identical |
+| table_mislabeled_as_picture | 4.67 | 4.48 | 6.71 | 4.51 | 0.99x | identical |
+| nemotron_multipage | 4.83 | 4.76 | 9.16 | 6.18 | 0.77x | identical |
+| ocr_test | 2.53 | 2.50 | 5.22 | 3.34 | 0.75x | identical |
+| ocr_test_rotated_180 | 2.64 | 2.64 | 4.27 | 3.10 | 0.85x | identical |
+| ocr_test_rotated_270 | 2.35 | 2.29 | 3.50 | 3.50 | 0.65x | identical |
+| ocr_test_rotated_90 | 2.37 | 2.35 | 5.46 | 3.48 | 0.68x | identical |
+| sample_with_rotation_mismatch | 4.54 | 4.54 | 4.74 | 3.92 | 1.16x | identical |
 
 </details>
 
