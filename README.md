@@ -572,6 +572,61 @@ CUDA 12 runtime + cuDNN 9 on the machine; the `ort` crate downloads the
 matching ONNX Runtime binaries at build time and copies the provider
 libraries next to the binary.
 
+> **Link fails with `undefined symbol: __isoc23_strtol` (Ubuntu ≤ 22.04,
+> Debian ≤ 12)?** The static ONNX Runtime binaries `ort` downloads are built
+> against glibc ≥ 2.38 (`__isoc23_*` first appears there). On an older glibc,
+> link dynamically against Microsoft's official release instead (built on
+> glibc 2.28, so it runs anywhere recent) — same ONNX Runtime version the
+> pinned `ort` expects:
+>
+> ```bash
+> curl -fLO https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-linux-x64-gpu-1.24.2.tgz
+> tar xf onnxruntime-linux-x64-gpu-1.24.2.tgz
+> export ORT_LIB_LOCATION=$PWD/onnxruntime-linux-x64-gpu-1.24.2/lib
+> export ORT_PREFER_DYNAMIC_LINK=1
+> cargo build --release -p docling-cli --features cuda
+> # dynamic linking: libonnxruntime.so must be findable at runtime, too
+> export LD_LIBRARY_PATH=$ORT_LIB_LOCATION:$LD_LIBRARY_PATH
+> ```
+>
+> (`ort-sys` re-runs on these env changes — no `cargo clean` needed.)
+>
+> The alternative is a newer glibc itself. There is no safe way to upgrade
+> *only* glibc on a stable distro — every binary on the system links it, no
+> backports exist, and installing a 24.04 `.deb` on 22.04 is the classic way
+> to get a machine that no longer boots (`ls` and `apt` need glibc too). The
+> real options, honest to hacky:
+>
+> 1. **Upgrade the distro** — this *is* "upgrading glibc":
+>    `sudo do-release-upgrade` (22.04 → 24.04 ships glibc 2.39). The only way
+>    to get it system-wide; afterwards the static binaries link as-is.
+> 2. **Build in a newer-glibc container** (when the OS must stay put):
+>    ```bash
+>    docker run --rm -it --gpus all -v $PWD:/w -w /w \
+>        nvidia/cuda:12.6.2-cudnn-devel-ubuntu24.04 bash
+>    # inside: apt-get update && apt-get install -y curl build-essential
+>    #         curl https://sh.rustup.rs -sSf | sh -s -- -y && . ~/.cargo/env
+>    #         cargo build --release -p docling-cli --features cuda
+>    ```
+>    Mind that the produced binary then needs glibc ≥ 2.38 **at runtime
+>    too** — run it in the same (or a same-based) image.
+> 3. **A parallel glibc under `/opt`** (last resort — works, but every run
+>    depends on the rpath below):
+>    ```bash
+>    curl -fLO https://ftp.gnu.org/gnu/glibc/glibc-2.39.tar.xz && tar xf glibc-2.39.tar.xz
+>    mkdir glibc-build && cd glibc-build
+>    ../glibc-2.39/configure --prefix=/opt/glibc-2.39 && make -j$(nproc) && sudo make install
+>    ```
+>    The system glibc is untouched; link the build against the parallel one:
+>    ```bash
+>    export RUSTFLAGS="-C link-arg=-Wl,--dynamic-linker=/opt/glibc-2.39/lib/ld-linux-x86-64.so.2 \
+>                      -C link-arg=-Wl,-rpath,/opt/glibc-2.39/lib"
+>    cargo build --release -p docling-cli --features cuda
+>    ```
+>    The binary resolves glibc from `/opt` and everything else (libstdc++,
+>    CUDA) from the system — correct, since glibc is backwards-compatible,
+>    but fragile: anything run without that interpreter/rpath fails cryptically.
+
 Then either:
 
 ```bash
