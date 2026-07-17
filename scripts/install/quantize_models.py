@@ -135,6 +135,93 @@ def quantize_layout():
     )
     os.remove(pre)
     print(f"layout: done -> {dst} ({os.path.getsize(dst) / 1e6:.1f} MB)")
+    validate_layout(src, dst)
+
+
+# Mirror of layout.rs::LABELS — for the gate's reporting and the table check.
+LAYOUT_LABELS = [
+    "caption", "footnote", "formula", "list_item", "page_footer",
+    "page_header", "picture", "section_header", "table", "text", "title",
+    "document_index", "code", "checkbox_selected", "checkbox_unselected",
+    "form", "key_value_region",
+]
+TABLE = LAYOUT_LABELS.index("table")
+
+
+def _layout_detections(logits, boxes, score_min):
+    """Decode one page the way layout.rs does: sigmoid over every
+    (query, class), keep the top num_queries scores, threshold, and convert
+    cxcywh -> xyxy (normalized). Returns [(class_id, score, (l, t, r, b))]."""
+    q, c = logits.shape
+    scores = 1.0 / (1.0 + np.exp(-logits.reshape(-1)))
+    top = np.argsort(-scores)[:q]
+    dets = []
+    for idx in top:
+        s = float(scores[idx])
+        if s <= score_min:
+            continue
+        qi, ci = divmod(int(idx), c)
+        cx, cy, w, h = boxes[qi]
+        dets.append((ci, s, (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)))
+    return dets
+
+
+def _iou(a, b):
+    il = max(a[0], b[0])
+    it = max(a[1], b[1])
+    ir = min(a[2], b[2])
+    ib = min(a[3], b[3])
+    inter = max(0.0, ir - il) * max(0.0, ib - it)
+    if inter == 0.0:
+        return 0.0
+    area = lambda r: max(0.0, r[2] - r[0]) * max(0.0, r[3] - r[1])  # noqa: E731
+    return inter / (area(a) + area(b) - inter)
+
+
+def validate_layout(src, dst):
+    """Agreement gate: every confident fp32 detection (score >= 0.6) must
+    survive quantization — an int8 detection of the same class with IoU >= 0.5
+    at the pipeline's base threshold (0.3). Zero tolerance for lost *tables*
+    (a dropped table silently degrades to `<!-- image -->` downstream — the
+    exact regression this gate exists to stop) and <= 2% for the rest.
+    On failure the int8 file is DELETED so a publish run stages fp32 only
+    (download_dependencies.sh falls back gracefully — int8 is fetch_optional)."""
+    import onnxruntime as ort
+
+    print("layout: validating int8 against fp32 (agreement gate)...", flush=True)
+    opts = ort.SessionOptions()
+    ref = ort.InferenceSession(src, opts, providers=["CPUExecutionProvider"])
+    qnt = ort.InferenceSession(dst, opts, providers=["CPUExecutionProvider"])
+
+    total = missed = tables_missed = 0
+    for page_no, x in enumerate(calibration_pages()):
+        rl, rb = ref.run(["logits", "pred_boxes"], {"pixel_values": x})
+        ql, qb = qnt.run(["logits", "pred_boxes"], {"pixel_values": x})
+        ref_dets = _layout_detections(rl[0], rb[0], 0.6)
+        qnt_dets = _layout_detections(ql[0], qb[0], 0.3)
+        for ci, s, bb in ref_dets:
+            total += 1
+            if any(cj == ci and _iou(bb, b2) >= 0.5 for cj, _, b2 in qnt_dets):
+                continue
+            missed += 1
+            tables_missed += ci == TABLE
+            print(
+                f"layout gate: page {page_no}: lost {LAYOUT_LABELS[ci]}"
+                f" (fp32 score {s:.2f}, box {tuple(round(v, 3) for v in bb)})"
+            )
+
+    rate = missed / total if total else 1.0
+    print(
+        f"layout gate: {total} confident fp32 detections,"
+        f" {missed} lost by int8 ({rate:.2%}), {tables_missed} tables"
+    )
+    if total == 0 or tables_missed > 0 or rate > 0.02:
+        os.remove(dst)
+        sys.exit(
+            f"layout gate FAILED — {dst} deleted"
+            " (int8 disagrees with fp32; the fp32 model remains usable)"
+        )
+    print("layout gate: PASSED")
 
 
 def quantize_tableformer_decoder():
@@ -219,6 +306,10 @@ def main():
     for t in targets:
         if t == "layout":
             quantize_layout()
+        elif t == "validate-layout":
+            # Gate an existing fp32/int8 pair without re-quantizing (e.g. to
+            # vet already-downloaded release assets).
+            validate_layout(f"{MODELS}/layout_heron.onnx", f"{MODELS}/layout_heron_int8.onnx")
         elif t == "tableformer-decoder":
             quantize_tableformer_decoder()
         elif t == "code-formula-decoder":
@@ -226,7 +317,7 @@ def main():
         else:
             sys.exit(
                 f"unknown target {t!r} "
-                "(expected: layout, tableformer-decoder, code-formula-decoder)"
+                "(expected: layout, validate-layout, tableformer-decoder, code-formula-decoder)"
             )
 
 

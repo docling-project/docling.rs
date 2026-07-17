@@ -70,12 +70,20 @@ jobs:
       # --- INT8 quantization (optional — fp32 assets publish regardless) ---
       # Conv-only static INT8 of the layout model (calibrated on the repo's PDF
       # corpus, checked out above) + dynamic INT8 of the TableFormer decoder.
-      # Validated conformance-neutral; see PDF_PERFORMANCE.md. Two separate
-      # steps so a TableFormer export failure doesn't block the layout int8.
+      # quantize_models.py SELF-VALIDATES the layout quant (fp32-vs-int8
+      # agreement gate over the calibration corpus; zero tolerance for lost
+      # tables) and deletes its output on failure — so a bad quant simply
+      # isn't staged and the release stays fp32-only for that model
+      # (download_dependencies.sh treats every int8 asset as optional). The
+      # quant itself is deterministic given the fp32 input; what drifts
+      # between runs is the *export* upstream of it, which is exactly what
+      # the gate protects against. Deps pinned to the validated set. Two
+      # separate steps so a TableFormer export failure doesn't block the
+      # layout int8.
       - name: Install quantization deps
         continue-on-error: true
         id: quant-deps
-        run: pip install onnx onnxruntime sympy pypdfium2 pillow numpy
+        run: pip install onnx==1.22.0 onnxruntime==1.27.0 sympy==1.14.0 pypdfium2==5.12.0 pillow==12.3.0 numpy==2.4.6
 
       - name: Quantize layout model (static INT8, conv-only)
         if: steps.quant-deps.outcome == 'success'
