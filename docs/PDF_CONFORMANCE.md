@@ -436,7 +436,8 @@ provider in; `DOCLING_RS_EP` selects one at runtime:
 
 | `DOCLING_RS_EP` | behavior |
 |---|---|
-| unset / `cpu` | CPU, byte-for-byte the pre-#74 code path (no EP registered) |
+| unset | `auto` in a build with any GPU feature compiled in (a GPU build should use the GPU); CPU in a default build |
+| `cpu` | CPU, byte-for-byte the pre-#74 code path (no EP registered) |
 | `cuda` \| `tensorrt` \| `directml` \| `coreml` | that provider, **error-on-failure**: an explicitly requested accelerator that can't initialize fails the conversion instead of silently degrading to a 10×-slower CPU run; requesting one that isn't compiled in warns once and stays on CPU |
 | `auto` | every compiled-in provider registered in order TensorRT → CUDA → CoreML → DirectML; ONNX Runtime falls back down the list to CPU at session creation (for images deployed on mixed fleets) |
 

@@ -159,8 +159,9 @@ jobs:
 
   # CUDA wheel (PyPI `docling-rs-cuda`): the same sdist built with
   # `--features cuda`, Linux x86_64 only — the renamed package installs the
-  # same `docling_rs` module (mutually exclusive with `docling-rs`), stays on
-  # CPU by default, and turns on the GPU via `DOCLING_RS_EP=cuda|auto`.
+  # same `docling_rs` module (mutually exclusive with `docling-rs`) and
+  # defaults to `auto`: GPU when usable, CPU fallback (`DOCLING_RS_EP=cpu`
+  # forces CPU).
   # Operational notes:
   # - the wheel bundles libonnxruntime_providers_{shared,cuda}.so; if PyPI
   #   rejects the upload for size, request a per-project file-size bump

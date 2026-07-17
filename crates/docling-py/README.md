@@ -232,13 +232,16 @@ It installs the same `docling_rs` module — install *either* `docling-rs` *or*
 
 ```bash
 pip install docling-rs-cuda
-DOCLING_RS_EP=cuda python -c "import docling_rs; ..."   # or AcceleratorOptions(device="cuda")
+python -c "import docling_rs; ..."   # GPU used automatically when present
 ```
 
-Runtime still defaults to CPU (`DOCLING_RS_EP=cuda|auto` opts in, exactly like
-the CLI), the fp32 models are preferred automatically on GPU, and **CUDA 12 +
-cuDNN 9 must be installed on the system** — the wheel ships the ONNX Runtime
-provider, not the CUDA toolkit. The wheel is tagged **`manylinux_2_38`**
+The GPU wheel defaults to `auto`: it converts on the GPU when one is usable
+and falls back to CPU when not — no environment setup needed.
+`DOCLING_RS_EP=cpu` (or `AcceleratorOptions(device="cpu")`) forces CPU;
+`DOCLING_RS_EP=cuda` / `device="cuda"` pins the GPU and fails loudly if it
+can't initialize. The fp32 models are preferred automatically on GPU, and
+**CUDA 12 + cuDNN 9 must be installed on the system** — the wheel ships the
+ONNX Runtime provider, not the CUDA toolkit. The wheel is tagged **`manylinux_2_38`**
 (glibc ≥ 2.38 at runtime, i.e. Ubuntu 24.04+ / Debian 13+): the CUDA ONNX
 Runtime static binaries carry glibc-2.38 symbols, so this floor is inherent —
 it is also why the CI job builds on plain `ubuntu-24.04` instead of the

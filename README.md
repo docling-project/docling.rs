@@ -555,11 +555,13 @@ cargo build --release -p docling-cli --features cuda      # NVIDIA CUDA (Linux/W
 #                                     --features coreml   # CoreML (macOS)
 ```
 
-A GPU build still defaults to CPU; pick the provider at runtime:
+A GPU build defaults to `auto`: it converts on the GPU when one is usable
+and falls back to CPU when not — you chose a GPU build, so it uses the GPU.
+`DOCLING_RS_EP` overrides:
 
 ```bash
 DOCLING_RS_EP=cuda docling-rs input.pdf   # this provider or fail loudly
-DOCLING_RS_EP=auto docling-rs input.pdf   # try compiled-in GPUs, fall back to CPU
+DOCLING_RS_EP=cpu  docling-rs input.pdf   # force CPU (the default-build behavior)
 ```
 
 An explicitly named provider that can't initialize (no device, missing
