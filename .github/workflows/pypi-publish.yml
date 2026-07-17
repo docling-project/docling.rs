@@ -41,6 +41,11 @@ on:
         description: "Override the PyPI version (e.g. 0.16.0). Blank = tag, or workspace version from the root Cargo.toml."
         required: false
         default: ""
+      cuda_wheel:
+        description: "Also build the docling-rs-cuda wheel (Linux x86_64, CUDA EP compiled in)."
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: pypi-publish-${{ inputs.tag || github.ref }}
@@ -152,9 +157,71 @@ jobs:
           path: wheelhouse/*.whl
           if-no-files-found: error
 
+  # CUDA wheel (PyPI `docling-rs-cuda`): the same sdist built with
+  # `--features cuda`, Linux x86_64 only — the renamed package installs the
+  # same `docling_rs` module (mutually exclusive with `docling-rs`), stays on
+  # CPU by default, and turns on the GPU via `DOCLING_RS_EP=cuda|auto`.
+  # Operational notes:
+  # - the wheel bundles libonnxruntime_providers_{shared,cuda}.so; if PyPI
+  #   rejects the upload for size, request a per-project file-size bump
+  #   (onnxruntime-gpu is the precedent). CUDA 12 + cuDNN 9 remain *system*
+  #   requirements at runtime — the wheel does not ship them.
+  # - PyPI Trusted Publishing is per-project: register this workflow as a
+  #   trusted publisher on the `docling-rs-cuda` project as well, or the
+  #   publish step will reject that wheel.
+  wheel-cuda:
+    name: wheel x86_64 (docling-rs-cuda)
+    if: inputs.cuda_wheel
+    needs: sdist
+    runs-on: ubuntu-22.04
+    container: quay.io/pypa/manylinux_2_28_x86_64
+    steps:
+      - name: Download sdist
+        uses: actions/download-artifact@v4
+        with:
+          name: sdist
+          path: sdist
+
+      - name: Unpack sdist
+        run: |
+          mkdir pkg
+          tar -xzf sdist/*.tar.gz -C pkg --strip-components=1
+
+      - name: Install Rust
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+
+      - name: Build docling-rs-cuda wheel
+        run: |
+          export PATH="$HOME/.cargo/bin:/opt/python/cp311-cp311/bin:$PATH"
+          pip install "maturin>=1.5,<2"
+          cd pkg
+          sed -i 's/^name = "docling-rs"$/name = "docling-rs-cuda"/' pyproject.toml
+          # ONNX Runtime dlopens the provider libraries by bare name; give the
+          # native module an $ORIGIN rpath so the copies shipped inside the
+          # wheel are found without any environment setup.
+          export RUSTFLAGS='-C link-arg=-Wl,-rpath,$ORIGIN'
+          # Build once so ort fetches the CUDA ONNX Runtime and copy-dylibs
+          # drops the provider libraries next to target/release...
+          cargo build --release --features cuda
+          cp target/release/libonnxruntime_providers_shared.so \
+             target/release/libonnxruntime_providers_cuda.so \
+             python/docling_rs/
+          # ...then assemble the wheel (cargo cache is warm) with the provider
+          # libraries riding along as package data (pyproject include glob).
+          maturin build --release --features cuda --compatibility manylinux_2_28 --out ../wheelhouse
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-cuda
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+
   publish:
     name: publish to PyPI
-    needs: [sdist, wheels]
+    needs: [sdist, wheels, wheel-cuda]
+    # wheel-cuda is optional (gated on the cuda_wheel input): publish when it
+    # succeeded or was skipped, never when anything actually failed.
+    if: ${{ !cancelled() && needs.sdist.result == 'success' && needs.wheels.result == 'success' && (needs.wheel-cuda.result == 'success' || needs.wheel-cuda.result == 'skipped') }}
     runs-on: ubuntu-latest
     # Trusted Publishing (OIDC): no token secret. `id-token: write` lets the job
     # mint the OIDC token PyPI verifies against its trusted-publisher config; the

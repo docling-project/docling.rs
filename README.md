@@ -573,9 +573,12 @@ matching ONNX Runtime binaries at build time and copies the provider
 libraries next to the binary.
 
 Measured (RTX 3080 Laptop vs Ryzen 9 5900HX, cold CLI runs): **1.5–2.1×**
-end-to-end on multi-page digital PDFs (`2305.03393v1`: 13.6 s → 7.0 s),
-break-even around 3–4 pages — 1–2-page and OCR-heavy documents stay faster
-on CPU unless you amortize EP init with the warm `Pipeline`/`docling-serve`.
+end-to-end on multi-page digital PDFs (`2305.03393v1`: 13.6 s → 7.0 s) and
+**8.7×** on a 1913-page reference manual (15 min 13 s → 1 min 45 s) — the
+bigger the document, the closer to pure ONNX-stage speedup. Break-even for
+a cold run sits around 3–4 pages: 1–2-page and OCR-heavy documents stay
+faster on CPU unless you amortize EP init with the warm
+`Pipeline`/`docling-serve`.
 Output is byte-identical to the CPU run on 21 of 22 corpus fixtures (fp32
 GPU kernels aren't bit-exact, one heavy fixture drifts by 2 lines). Details
 + per-file table: [`PDF_CONFORMANCE.md`](./docs/PDF_CONFORMANCE.md#measured-on-real-hardware-issue-108);

@@ -481,6 +481,16 @@ aggregate hides a clean size split:
 | 1–2-page digital | 0.75–1.0× — CUDA EP init + host↔device traffic never amortizes |
 | scanned/OCR-heavy | 0.65–0.85× — dominated by pdfium render + OCR pre/post on CPU |
 
+The corpus is small-document-biased; on a genuinely large document the
+init noise vanishes and the ONNX stages dominate — that is the regime the
+GPU features exist for. The 1913-page .NET C# language reference (same
+machine, single cold run each):
+
+| provider | wall time | speedup |
+|---|---|---|
+| `cpu` | 15 min 13 s (767 % CPU) | — |
+| `cuda` | **1 min 45 s** (321 % CPU) | **8.7×** |
+
 Practical guidance: the break-even for a cold CLI run sits around 3–4
 pages. Below that, or for OCR-heavy scans, stay on CPU; for batches or
 services use the warm `Pipeline` / `docling-serve`, which pays EP

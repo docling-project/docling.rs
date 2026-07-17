@@ -221,6 +221,36 @@ idempotent (`skip-existing`). macOS wheels are omitted (no hosted runners here);
 macOS users install the sdist, which compiles from source. The ONNX runtime is
 bundled in the wheel; pdfium is fetched at runtime by `download_models()`.
 
+### GPU wheel: `docling-rs-cuda`
+
+The workflow's `cuda_wheel` input additionally builds a **Linux x86_64** wheel
+published as **`docling-rs-cuda`**: the same crate compiled with
+`--features cuda`, ONNX Runtime's CUDA provider libraries bundled next to the
+native module (found via an `$ORIGIN` rpath + an import-time preload).
+It installs the same `docling_rs` module — install *either* `docling-rs` *or*
+`docling-rs-cuda`, not both:
+
+```bash
+pip install docling-rs-cuda
+DOCLING_RS_EP=cuda python -c "import docling_rs; ..."   # or AcceleratorOptions(device="cuda")
+```
+
+Runtime still defaults to CPU (`DOCLING_RS_EP=cuda|auto` opts in, exactly like
+the CLI), the fp32 models are preferred automatically on GPU, and **CUDA 12 +
+cuDNN 9 must be installed on the system** — the wheel ships the ONNX Runtime
+provider, not the CUDA toolkit. Measured end-to-end on an RTX 3080 Laptop:
+1.5–2.1× on multi-page digital PDFs, 8.7× on a 1913-page manual (see
+[`PDF_CONFORMANCE.md`](../../docs/PDF_CONFORMANCE.md#measured-on-real-hardware-issue-108)).
+Local build for testing: `maturin build --release --features cuda`
+(add `RUSTFLAGS='-C link-arg=-Wl,-rpath,$ORIGIN'` and copy
+`target/release/libonnxruntime_providers_{shared,cuda}.so` into
+`python/docling_rs/` first to mirror the CI wheel exactly).
+
+PyPI setup (one-time): `docling-rs-cuda` is a separate PyPI project — register
+the same workflow as a trusted publisher there too, and if the wheel exceeds
+PyPI's default file-size limit, request a per-project bump (the
+`onnxruntime-gpu` package is the precedent).
+
 ### Test the release build locally
 
 Reproduce what CI does — build the wheel + sdist and verify both install and run

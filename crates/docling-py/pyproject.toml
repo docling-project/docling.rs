@@ -34,3 +34,8 @@ Repository = "https://github.com/docling-project/docling.rs"
 [tool.maturin]
 module-name = "docling_rs._native"
 python-source = "python"
+# The CUDA wheel job (pypi-publish.yml, `cuda_wheel` input) copies ONNX
+# Runtime's provider libraries into python/docling_rs/ before `maturin build
+# --features cuda` and seds `name` above to `docling-rs-cuda`; this include
+# ships them inside that wheel (absent files match nothing on CPU builds).
+include = [{ path = "python/docling_rs/libonnxruntime_providers_*.so", format = "wheel" }]

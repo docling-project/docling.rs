@@ -54,6 +54,33 @@ from .options import (
     TableStructureOptions,
 )
 from . import chunking
+
+
+def _preload_bundled_gpu_providers() -> None:
+    """GPU wheels (PyPI ``docling-rs-cuda``) bundle ONNX Runtime's CUDA
+    provider libraries next to the native module; ONNX Runtime dlopens them
+    by bare name at session creation. The native module is linked with an
+    ``$ORIGIN`` rpath so that lookup already finds them — this preload
+    (RTLD_GLOBAL) is the belt-and-braces for exotic loader configurations.
+    A no-op on CPU wheels (no such files); a failed preload only warns —
+    the actual error surfaces at EP selection with a clearer message."""
+    import ctypes
+
+    pkg = Path(__file__).parent
+    for name in (
+        "libonnxruntime_providers_shared.so",
+        "libonnxruntime_providers_cuda.so",
+    ):
+        lib = pkg / name
+        if lib.exists():
+            try:
+                ctypes.CDLL(str(lib), mode=ctypes.RTLD_GLOBAL)
+            except OSError as exc:  # missing system CUDA 12 / cuDNN 9
+                warnings.warn(f"docling-rs-cuda: could not preload {name}: {exc}")
+
+
+_preload_bundled_gpu_providers()
+
 from ._native import ConversionError, __version__
 from ._native import DocumentConverter as _NativeDocumentConverter
 
