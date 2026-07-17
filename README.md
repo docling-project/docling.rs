@@ -572,6 +572,27 @@ CUDA 12 runtime + cuDNN 9 on the machine; the `ort` crate downloads the
 matching ONNX Runtime binaries at build time and copies the provider
 libraries next to the binary.
 
+> **Link fails with `undefined symbol: __isoc23_strtol` (Ubuntu ≤ 22.04,
+> Debian ≤ 12)?** The static ONNX Runtime binaries `ort` downloads are built
+> against glibc ≥ 2.38 (`__isoc23_*` first appears there). On an older glibc,
+> link dynamically against Microsoft's official release instead (built on
+> glibc 2.28, so it runs anywhere recent) — same ONNX Runtime version the
+> pinned `ort` expects:
+>
+> ```bash
+> curl -fLO https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-linux-x64-gpu-1.24.2.tgz
+> tar xf onnxruntime-linux-x64-gpu-1.24.2.tgz
+> export ORT_LIB_LOCATION=$PWD/onnxruntime-linux-x64-gpu-1.24.2/lib
+> export ORT_PREFER_DYNAMIC_LINK=1
+> cargo build --release -p docling-cli --features cuda
+> # dynamic linking: libonnxruntime.so must be findable at runtime, too
+> export LD_LIBRARY_PATH=$ORT_LIB_LOCATION:$LD_LIBRARY_PATH
+> ```
+>
+> (`ort-sys` re-runs on these env changes — no `cargo clean` needed. Building
+> inside a glibc ≥ 2.38 distro/container, e.g. Ubuntu 24.04 with
+> `docker run --gpus all`, works as well.)
+
 Then either:
 
 ```bash
