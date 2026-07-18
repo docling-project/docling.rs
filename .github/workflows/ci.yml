@@ -220,6 +220,11 @@ jobs:
       - name: Check docling-cli with GPU features
         run: cargo check -p docling-cli --features "${{ matrix.features }}"
 
+      # docling-rag mirrors the same EP features (ingest conversion + the
+      # onnx-embed embedder session route through docling-pdf's ep module).
+      - name: Check docling-rag with GPU features
+        run: cargo check -p docling-rag --features "${{ matrix.features }},onnx-embed"
+
       - name: Test docling-pdf EP selection with GPU features
         run: 'cargo test -p docling-pdf --lib --features "${{ matrix.features }}" ep::'
 

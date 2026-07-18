@@ -56,7 +56,10 @@ document sources (**folder**/FTP/SFTP), and message queues
 (**in-process**/RabbitMQ/Redis). It ships Hybrid, Multi-Query fusion and HyDE
 retrieval plus an evaluation harness to compare configurations and an
 API-key-protected REST API (`docling-rag serve`) for document info and
-search. Configure it via [`.env`](./.env.example); see the
+search — with a built-in single-page search UI at `GET /` (API key stored in
+the browser's localStorage). A `--features cuda` build runs ingest conversion
+*and* the local ONNX embedder on the GPU via the same `DOCLING_RS_EP` switch
+as the rest of the stack. Configure it via [`.env`](./.env.example); see the
 [crate README](./crates/docling-rag/README.md) for a quickstart on any
 documents folder.
 

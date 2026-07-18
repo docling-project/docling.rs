@@ -53,10 +53,19 @@ must all come from the same model): `rm -rf data/ && cargo run -p docling-rag --
 `docling-rag serve` exposes the store over HTTP. Authentication uses a static
 API-key list from config (`RAG_API_KEYS`, comma-separated); send the key as
 `X-Api-Key: <key>` or `Authorization: Bearer <key>`. The server refuses to start
-with an empty key list; `GET /health` is the only public route.
+with an empty key list; `GET /` (the built-in UI) and `GET /health` are the
+only public routes.
+
+**Built-in web UI** — `GET /` serves a single self-contained page (embedded in
+the binary, no external assets): query box, retrieval-mode and top-k pickers,
+an LLM-answer toggle, scored results, and a live document/chunk counter from
+`/api/stats`. The API key is entered once and kept in the browser's
+`localStorage`; every request the page makes carries it as `X-Api-Key`. The
+page itself holds no data, which is why it can be public like `/health`.
 
 | Method | Path                  | Description                                     |
 |--------|-----------------------|-------------------------------------------------|
+| GET    | `/`                   | built-in search UI (no auth; static HTML)       |
 | GET    | `/health`             | liveness probe (no auth)                        |
 | GET    | `/api/stats`          | document / chunk counts                         |
 | GET    | `/api/documents`      | all documents with metadata + processing metrics |
@@ -262,7 +271,26 @@ let hits = pipeline.query(RetrievalMode::Hybrid, "how does chunking work?", 5).a
 ## Cargo features
 
 `default = ["sqlite", "ollama"]`. Optional: `postgres`, `onnx-embed`,
-`remote-sources` (FTP/SFTP), `rabbitmq`, `redis`, `gemini`, `openrouter`.
+`remote-sources` (FTP/SFTP), `rabbitmq`, `redis`, `gemini`, `openrouter`,
+and the GPU execution providers `cuda` / `tensorrt` / `directml` / `coreml`.
+
+### GPU
+
+`--features cuda` puts the whole ingest-and-search path on the GPU where it
+counts: document conversion (the PDF/image ML pipeline — 1.5–8.7× measured,
+see `docs/PDF_CONFORMANCE.md`) and, when `onnx-embed` is also enabled, the
+local embedder's ONNX session — both route through the same `DOCLING_RS_EP`
+selection as the rest of the stack, so one switch covers everything and a
+build without a usable GPU falls back to CPU per session:
+
+```bash
+cargo build --release -p docling-rag --features cuda,onnx-embed
+DOCLING_RS_EP=cuda target/release/docling-rag ingest   # pin GPU (or auto/cpu)
+```
+
+HTTP embedders (Ollama/Gemini) are unaffected — their GPU usage is the
+serving side's business. Runtime requirements match the CLI's CUDA build:
+CUDA 12 + cuDNN 9, glibc ≥ 2.38 for the static ONNX Runtime link.
 
 The default feature set is fully self-contained and offline-testable
 (`cargo test -p docling-rag`) using the bundled SQLite store and the

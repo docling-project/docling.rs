@@ -183,7 +183,7 @@ fn dispatches() -> Option<Vec<ExecutionProviderDispatch>> {
 /// Register the selected execution providers on a session builder. Called by
 /// every session in this crate; a no-op (and infallible) in the default
 /// CPU configuration.
-pub(crate) fn apply(builder: SessionBuilder) -> Result<SessionBuilder, String> {
+pub fn apply(builder: SessionBuilder) -> Result<SessionBuilder, String> {
     let Some(eps) = dispatches() else {
         return Ok(builder);
     };

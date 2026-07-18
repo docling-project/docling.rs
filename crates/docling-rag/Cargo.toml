@@ -27,6 +27,15 @@ gemini = []
 openrouter = []
 # Heavy / native-dependency backends. Real code, but not exercised in offline CI.
 onnx-embed = ["dep:ort", "dep:tokenizers"]
+# GPU execution providers (#108 follow-up): document conversion during ingest
+# runs on the selected provider (docling/<ep>), and — when onnx-embed is also
+# on — so does the local embedder (its session routes through docling-pdf's
+# ep module, the same DOCLING_RS_EP switch as the rest of the stack; `ort?/`
+# is a weak feature, so a GPU feature alone doesn't drag ort in).
+cuda = ["docling/cuda", "docling-pdf/cuda", "ort?/cuda", "ort?/copy-dylibs"]
+tensorrt = ["docling/tensorrt", "docling-pdf/tensorrt", "ort?/tensorrt", "ort?/copy-dylibs"]
+directml = ["docling/directml", "docling-pdf/directml", "ort?/directml", "ort?/copy-dylibs"]
+coreml = ["docling/coreml", "docling-pdf/coreml", "ort?/coreml", "ort?/copy-dylibs"]
 remote-sources = ["dep:suppaftp", "dep:ssh2"]
 rabbitmq = ["dep:lapin", "dep:futures-lite"]
 redis = ["dep:redis", "dep:futures-lite"]

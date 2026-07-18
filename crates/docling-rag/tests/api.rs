@@ -179,3 +179,28 @@ async fn router_refuses_empty_key_list() {
     let pipeline = Pipeline::from_config(&cfg).await.unwrap();
     assert!(api::router(pipeline, vec![]).is_err());
 }
+
+#[tokio::test]
+async fn ui_page_is_public_and_self_contained() {
+    let (base, client) = spawn_server().await;
+
+    // No auth: the page itself carries no data.
+    let r = client.get(format!("{base}/")).send().await.unwrap();
+    assert_eq!(r.status(), 200);
+    assert!(r
+        .headers()
+        .get("content-type")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .starts_with("text/html"));
+    let body = r.text().await.unwrap();
+    assert!(body.contains("docling-rag"), "page identifies itself");
+    assert!(body.contains("/api/search"), "page talks to the search API");
+    assert!(body.contains("localStorage"), "token persists client-side");
+    // Self-contained: a strict deployment must not need any external origin.
+    assert!(
+        !body.contains("https://") && !body.contains("http://"),
+        "no external assets"
+    );
+}

@@ -18,8 +18,10 @@ mod assemble;
 mod dp_lines;
 #[cfg(feature = "ml")]
 pub mod enrich;
+// Public so sibling crates (e.g. docling-rag's ONNX embedder) can route their
+// own `ort` sessions through the same `DOCLING_RS_EP` selection.
 #[cfg(feature = "ml")]
-pub(crate) mod ep;
+pub mod ep;
 pub mod layout;
 #[cfg(feature = "ml")]
 mod mets;

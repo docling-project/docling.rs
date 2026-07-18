@@ -1,0 +1,200 @@
+<!doctype html>
+<!-- docling-rag search UI: a single self-contained page served at GET /
+     (embedded into the binary via include_str!). Talks to the crate's own
+     REST API with the key from localStorage — nothing external is loaded. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>docling-rag</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --card: #ffffff; --text: #1c1c1e; --muted: #6e6e73;
+    --accent: #0a66c2; --border: #e2e2e6; --ok: #1a7f37; --bad: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131316; --card: #1d1d21; --text: #ececf0; --muted: #9a9aa2;
+      --accent: #6cb2ff; --border: #313138; --ok: #4ade80; --bad: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 20px; margin: 0; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  #status { font-size: 13px; color: var(--muted); }
+  #status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+                 background: var(--muted); margin-right: 4px; }
+  #status.ok .dot { background: var(--ok); }
+  #status.bad .dot { background: var(--bad); }
+  .card { background: var(--card); border: 1px solid var(--border);
+          border-radius: 10px; padding: 14px 16px; margin-top: 14px; }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 2px; }
+  input, select { font: inherit; color: var(--text); background: var(--bg);
+                  border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .grow { flex: 1 1 260px; } .grow input { width: 100%; }
+  button { font: inherit; font-weight: 600; color: #fff; background: var(--accent);
+           border: 0; border-radius: 7px; padding: 8px 18px; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .check { display: flex; align-items: center; gap: 6px; font-size: 13px;
+           color: var(--muted); padding-bottom: 8px; }
+  #stats { font-size: 13px; color: var(--muted); }
+  #error { color: var(--bad); font-size: 14px; margin-top: 12px; white-space: pre-wrap; }
+  .answer { border-left: 3px solid var(--accent); }
+  .answer h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em;
+               color: var(--muted); margin: 0 0 6px; }
+  .hit { margin-top: 10px; }
+  .hit .meta { display: flex; gap: 10px; font-size: 12px; color: var(--muted);
+               margin-bottom: 6px; flex-wrap: wrap; }
+  .hit .score { color: var(--accent); font-weight: 600; }
+  .hit pre { margin: 0; white-space: pre-wrap; word-break: break-word;
+             font: 13.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  details.token summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>docling-rag</h1>
+    <span id="status"><span class="dot"></span><span id="status-text">checking…</span></span>
+    <span id="stats"></span>
+  </header>
+
+  <div class="card">
+    <details class="token" id="token-box">
+      <summary>API key</summary>
+      <div class="row" style="margin-top:8px">
+        <div class="grow">
+          <label for="token">Stored in this browser's localStorage; sent as <code>X-Api-Key</code></label>
+          <input id="token" type="password" placeholder="RAG_API_KEYS entry" autocomplete="off">
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <form class="card" id="form">
+    <div class="row">
+      <div class="grow">
+        <label for="q">Query</label>
+        <input id="q" type="text" required placeholder="What are the payment terms?">
+      </div>
+      <div>
+        <label for="mode">Mode</label>
+        <select id="mode">
+          <option value="">server default</option>
+          <option>vector</option>
+          <option>bm25</option>
+          <option>hybrid</option>
+          <option>multi-query</option>
+          <option>hyde</option>
+        </select>
+      </div>
+      <div>
+        <label for="k">Top-k</label>
+        <input id="k" type="number" min="1" max="100" style="width:5.5em" placeholder="cfg">
+      </div>
+      <div class="check">
+        <input id="answer" type="checkbox"><label for="answer" style="margin:0">LLM answer</label>
+      </div>
+      <button id="go">Search</button>
+    </div>
+  </form>
+
+  <div id="error" hidden></div>
+  <div id="out"></div>
+</main>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const TOKEN_KEY = "docling-rag-token";
+
+$("token").value = localStorage.getItem(TOKEN_KEY) || "";
+if (!$("token").value) $("token-box").open = true;
+$("token").addEventListener("input", () => {
+  localStorage.setItem(TOKEN_KEY, $("token").value.trim());
+  refreshStats();
+});
+
+function headers() {
+  const h = { "Content-Type": "application/json" };
+  const t = localStorage.getItem(TOKEN_KEY);
+  if (t) h["X-Api-Key"] = t;
+  return h;
+}
+
+async function api(path, init) {
+  const res = await fetch(path, init);
+  if (res.status === 401) {
+    $("token-box").open = true;
+    throw new Error("unauthorized — set a valid API key (one of RAG_API_KEYS)");
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body;
+}
+
+async function refreshHealth() {
+  const el = $("status");
+  try {
+    await fetch("/health").then((r) => { if (!r.ok) throw 0; });
+    el.className = "ok"; $("status-text").textContent = "online";
+  } catch {
+    el.className = "bad"; $("status-text").textContent = "offline";
+  }
+}
+
+async function refreshStats() {
+  try {
+    const s = await api("/api/stats", { headers: headers() });
+    $("stats").textContent = `${s.documents} documents · ${s.chunks} chunks`;
+  } catch { $("stats").textContent = ""; }
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function render(data) {
+  const out = [];
+  if (data.answer) {
+    out.push(`<div class="card answer"><h2>Answer (${esc(data.mode)})</h2>` +
+             `<div>${esc(data.answer)}</div></div>`);
+  }
+  for (const hit of data.results || []) {
+    const c = hit.chunk || {};
+    out.push(`<div class="card hit"><div class="meta">` +
+             `<span class="score">${Number(hit.score).toFixed(4)}</span>` +
+             `<span>doc ${esc(c.doc_id ?? "?")}</span>` +
+             `<span>chunk #${esc(c.ordinal ?? "?")}</span></div>` +
+             `<pre>${esc(c.text ?? "")}</pre></div>`);
+  }
+  if (!out.length) out.push(`<div class="card">No results.</div>`);
+  $("out").innerHTML = out.join("");
+}
+
+$("form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  $("error").hidden = true; $("out").innerHTML = ""; $("go").disabled = true;
+  const body = { query: $("q").value, answer: $("answer").checked };
+  if ($("mode").value) body.mode = $("mode").value;
+  if ($("k").value) body.top_k = Number($("k").value);
+  try {
+    render(await api("/api/search", {
+      method: "POST", headers: headers(), body: JSON.stringify(body),
+    }));
+  } catch (e) {
+    $("error").textContent = String(e.message || e); $("error").hidden = false;
+  } finally { $("go").disabled = false; }
+});
+
+refreshHealth();
+refreshStats();
+</script>
+</body>
+</html>

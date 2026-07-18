@@ -4,10 +4,11 @@
 //! as `X-Api-Key: <key>` or `Authorization: Bearer <key>`. Auth is fail-closed:
 //! [`router`] errors when the key list is empty. `GET /health` is public.
 //!
-//! Endpoints (all under auth except `/health`):
+//! Endpoints (all under auth except `/` and `/health`):
 //!
 //! | Method | Path                  | Description                                   |
 //! |--------|-----------------------|-----------------------------------------------|
+//! | GET    | `/`                   | built-in search UI (public; static HTML)      |
 //! | GET    | `/health`             | liveness probe (public)                       |
 //! | GET    | `/api/stats`          | document / chunk counts                       |
 //! | GET    | `/api/documents`      | all documents with metadata + metrics         |
@@ -24,7 +25,7 @@ use crate::{RagError, Result};
 use axum::extract::{Path, Query, Request, State};
 use axum::http::{header, StatusCode};
 use axum::middleware::{self, Next};
-use axum::response::{IntoResponse, Response};
+use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::Deserialize;
@@ -58,6 +59,10 @@ pub fn router(pipeline: Pipeline, keys: Vec<String>) -> Result<Router> {
         .layer(middleware::from_fn_with_state(state.clone(), auth));
 
     Ok(Router::new()
+        // The built-in search UI: one self-contained page, no external assets.
+        // Public like /health — the page itself holds no data; every API call
+        // it makes carries the key the user stored in localStorage.
+        .route("/", get(|| async { Html(include_str!("ui.html")) }))
         .route("/health", get(|| async { Json(json!({"status": "ok"})) }))
         .merge(protected)
         .with_state(state))
