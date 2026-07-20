@@ -54,6 +54,14 @@ from .options import (
     TableStructureOptions,
 )
 from . import chunking
+
+# GPU wheels (PyPI ``docling-rs-cuda``) bundle ONNX Runtime's CUDA provider
+# libraries next to `_native` in this package directory; the native module is
+# linked with an `$ORIGIN` rpath, so ONNX Runtime's dlopen-by-name finds them
+# there with no Python-side setup — the same mechanism the native CLI uses.
+# (Deliberately NO ctypes preload here: loading the provider libraries with
+# RTLD_GLOBAL before the static ORT inside `_native` initializes duplicates
+# ORT symbols process-wide and segfaulted at session creation in testing.)
 from ._native import ConversionError, __version__
 from ._native import DocumentConverter as _NativeDocumentConverter
 
@@ -163,10 +171,20 @@ class DocumentConverter:
             )
             acc = getattr(pipeline, "accelerator_options", None)
             if acc is not None:
-                if acc.device in (AcceleratorDevice.CUDA, AcceleratorDevice.MPS):
+                # Map docling's device to the engine's DOCLING_RS_EP (resolved
+                # once per process, so this must run before the first
+                # conversion; an explicit environment override always wins).
+                # AUTO maps to nothing: the engine's own default already is
+                # "auto" in a GPU build (docling-rs-cuda) and CPU otherwise.
+                if acc.device == AcceleratorDevice.CUDA:
+                    os.environ.setdefault("DOCLING_RS_EP", "cuda")
+                elif acc.device == AcceleratorDevice.CPU:
+                    os.environ.setdefault("DOCLING_RS_EP", "cpu")
+                elif acc.device == AcceleratorDevice.MPS:
                     warnings.warn(
-                        f"docling.rs runs ONNX Runtime on the CPU; accelerator "
-                        f"device {acc.device.value!r} is ignored (using CPU).",
+                        "docling.rs has no MPS execution provider; device "
+                        "'mps' is ignored (CoreML exists behind the `coreml` "
+                        "cargo feature for native macOS builds).",
                         stacklevel=2,
                     )
                 if acc.num_threads:

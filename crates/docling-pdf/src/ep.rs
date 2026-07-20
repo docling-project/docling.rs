@@ -7,7 +7,10 @@
 //! binary that contains that EP); which provider actually runs is chosen at
 //! startup from `DOCLING_RS_EP`:
 //!
-//! * unset / `cpu` — CPU, exactly the pre-#74 behavior
+//! * unset — `auto` in a build that compiled any GPU provider in (you chose
+//!   a GPU build or installed the GPU wheel: use the GPU when one is usable,
+//!   fall back to CPU when not); plain CPU in a default build
+//! * `cpu` — force CPU, exactly the pre-#74 behavior
 //! * `cuda` / `tensorrt` (`trt`) / `directml` (`dml`) / `coreml` — that
 //!   provider, registered with error-on-failure: an *explicitly requested*
 //!   accelerator that can't initialize (missing driver, no device) fails the
@@ -79,6 +82,20 @@ fn any_gpu_compiled() -> bool {
         .any(compiled)
 }
 
+/// The choice when `DOCLING_RS_EP` is unset (or empty): a build that
+/// compiled a GPU provider in defaults to `auto` — whoever built with
+/// `--features cuda` (or installed the `docling-rs-cuda` wheel) wants the
+/// GPU used when one is usable, and `auto`'s per-session registration
+/// falls back to CPU when not. A default build has nothing to register and
+/// stays on the exact pre-#74 CPU path.
+fn default_choice() -> Ep {
+    if any_gpu_compiled() {
+        Ep::Auto
+    } else {
+        Ep::Cpu
+    }
+}
+
 /// The effective provider choice for this process, resolved once. Invalid or
 /// not-compiled-in requests degrade to CPU with a single stderr warning —
 /// same convention as a missing model file.
@@ -86,6 +103,9 @@ pub(crate) fn choice() -> Ep {
     static CHOICE: OnceLock<Ep> = OnceLock::new();
     *CHOICE.get_or_init(|| {
         let raw = std::env::var("DOCLING_RS_EP").unwrap_or_default();
+        if raw.trim().is_empty() {
+            return default_choice();
+        }
         let Some(ep) = parse(&raw) else {
             eprintln!(
                 "docling-pdf: DOCLING_RS_EP={raw:?} names no known execution provider \
@@ -208,5 +228,25 @@ mod tests {
         // `choice()` relies on this to keep the unreachable!() arm honest.
         assert!(compiled(Ep::Cpu));
         assert!(compiled(Ep::Auto));
+    }
+
+    #[test]
+    fn unset_defaults_to_auto_exactly_in_gpu_builds() {
+        // CI's ep-features matrix runs this with each GPU feature on, the
+        // plain test job with none — both arms get exercised.
+        #[cfg(any(
+            feature = "cuda",
+            feature = "tensorrt",
+            feature = "directml",
+            feature = "coreml"
+        ))]
+        assert_eq!(default_choice(), Ep::Auto);
+        #[cfg(not(any(
+            feature = "cuda",
+            feature = "tensorrt",
+            feature = "directml",
+            feature = "coreml"
+        )))]
+        assert_eq!(default_choice(), Ep::Cpu);
     }
 }

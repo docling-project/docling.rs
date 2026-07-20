@@ -31,5 +31,13 @@ docling = { path = "../docling", features = ["chunking"] }
 pyo3 = { version = "0.23", features = ["abi3-py39", "extension-module"] }
 serde_json = "1"
 
+[features]
+# The GPU wheel (PyPI `docling-rs-cuda`, built by pypi-publish.yml's
+# `cuda_wheel` input): compiles the CUDA execution provider in. A GPU build
+# defaults to `auto` — GPU when usable, CPU fallback; `DOCLING_RS_EP=cpu`
+# (or `AcceleratorOptions(device="cpu")`) forces CPU. The provider libraries
+# ship next to the native module inside the wheel.
+cuda = ["docling/cuda"]
+
 [profile.release]
 lto = "thin"

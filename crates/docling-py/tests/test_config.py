@@ -136,7 +136,12 @@ def test_conversion_error_type():
         DocumentConverter().convert(missing)
 
 
-def test_gpu_device_warns_cpu_only():
+def test_accelerator_device_maps_to_ep_env(monkeypatch):
+    # device=cuda/cpu maps to DOCLING_RS_EP (setdefault — an explicit env
+    # override wins); AUTO leaves the engine default alone (auto on the GPU
+    # wheel, CPU otherwise); MPS has no provider here and warns.
+    import os
+
     from docling_rs import (
         DocumentConverter,
         InputFormat,
@@ -146,13 +151,30 @@ def test_gpu_device_warns_cpu_only():
         AcceleratorDevice,
     )
 
-    opts = PdfPipelineOptions(
-        accelerator_options=AcceleratorOptions(device=AcceleratorDevice.CUDA)
-    )
-    with pytest.warns(UserWarning, match="CPU"):
+    def convert_with(device):
+        opts = PdfPipelineOptions(accelerator_options=AcceleratorOptions(device=device))
         DocumentConverter(
             format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)}
         )
+
+    monkeypatch.delenv("DOCLING_RS_EP", raising=False)
+    convert_with(AcceleratorDevice.CUDA)
+    assert os.environ["DOCLING_RS_EP"] == "cuda"
+
+    monkeypatch.setenv("DOCLING_RS_EP", "cpu")
+    convert_with(AcceleratorDevice.CUDA)  # explicit env wins over the option
+    assert os.environ["DOCLING_RS_EP"] == "cpu"
+
+    monkeypatch.delenv("DOCLING_RS_EP", raising=False)
+    convert_with(AcceleratorDevice.CPU)
+    assert os.environ["DOCLING_RS_EP"] == "cpu"
+
+    monkeypatch.delenv("DOCLING_RS_EP", raising=False)
+    convert_with(AcceleratorDevice.AUTO)
+    assert "DOCLING_RS_EP" not in os.environ
+
+    with pytest.warns(UserWarning, match="mps"):
+        convert_with(AcceleratorDevice.MPS)
 
 
 def test_initialize_pipeline_noop_for_non_ml_format():

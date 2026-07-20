@@ -48,9 +48,12 @@ class InputFormat(str, enum.Enum):
 
 
 class AcceleratorDevice(str, enum.Enum):
-    """docling's ``AcceleratorDevice``. The Rust engine runs ONNX Runtime on the
-    CPU execution provider, so `AUTO`/`CPU` are honoured and GPU devices fall
-    back to CPU."""
+    """docling's ``AcceleratorDevice``, mapped to the engine's
+    ``DOCLING_RS_EP``. ``AUTO`` (the default) leaves the engine's own default
+    in place: GPU-when-usable with CPU fallback on the ``docling-rs-cuda``
+    wheel, plain CPU on the CPU wheel. ``CUDA`` requires the GPU wheel and
+    fails loudly when the GPU can't initialize; ``CPU`` forces CPU. ``MPS``
+    has no ONNX Runtime provider here and warns."""
 
     AUTO = "auto"
     CPU = "cpu"

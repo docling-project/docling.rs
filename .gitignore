@@ -18,11 +18,8 @@ crates/docling-wasm/www/pkg/
 # Local RAG vector store (default RAG_DATABASE_URL=sqlite://data/rag.db)
 /data/
 
-# Local editable docling installs used by scripts/compare.sh & performance.sh
-# .venv-compare is the lightweight (no-torch) declarative-format env;
-# .venv-compare-pdf carries the full ML pipeline for PDF/image head-to-heads.
-/.venv-compare
-/.venv-compare-pdf
+# Python virtual environments (venv) — not committed, but can be created from requirements.txt
+/.venv*
 
 # Downloaded native libs / models (not committed)
 .pdfium/
@@ -33,15 +30,15 @@ models/
 __pycache__/
 *.pyc
 
-# Local docling ground-truth env & scratch dir for this migration work
-/.venv-gt
-/scratch-gt
-
+# Local docling scratch dir for this migration work
+/scratch-gt/
 
 # docling-py is a standalone crate (own workspace) — its build dirs
 crates/docling-py/target/
 crates/docling-py/.venv/
 crates/docling-py/python/docling_rs/*.so
+
 # docling's .dclx loader extracts each archive it reads next to the file
 tests/data/**/*_artifacts/
 tests/data/**/groundtruth_dclx/tests/
+bench-gpu/

@@ -426,7 +426,7 @@ produced **byte-identical corpus output** and ~10% faster table decode
 The decoder speed is *not* weight-bound — it is per-step overhead (see backlog
 item 2), which is why quantization helps so little there.
 
-### GPU execution providers (#74) — landed, awaiting GPU validation
+### GPU execution providers (#74) — validated on GPU (#108)
 
 The ONNX sessions (layout, TableFormer×3, OCR recognition, both enrichment
 models) accept alternative ONNX Runtime execution providers behind cargo
@@ -436,7 +436,8 @@ provider in; `DOCLING_RS_EP` selects one at runtime:
 
 | `DOCLING_RS_EP` | behavior |
 |---|---|
-| unset / `cpu` | CPU, byte-for-byte the pre-#74 code path (no EP registered) |
+| unset | `auto` in a build with any GPU feature compiled in (a GPU build should use the GPU); CPU in a default build |
+| `cpu` | CPU, byte-for-byte the pre-#74 code path (no EP registered) |
 | `cuda` \| `tensorrt` \| `directml` \| `coreml` | that provider, **error-on-failure**: an explicitly requested accelerator that can't initialize fails the conversion instead of silently degrading to a 10×-slower CPU run; requesting one that isn't compiled in warns once and stays on CPU |
 | `auto` | every compiled-in provider registered in order TensorRT → CUDA → CoreML → DirectML; ONNX Runtime falls back down the list to CPU at session creation (for images deployed on mixed fleets) |
 
@@ -451,12 +452,84 @@ covers): default/`cpu`/`auto`/unknown/uncompiled-request configurations all
 produce byte-identical corpus output on a CPU-only build; on a
 `--features cuda` build with no usable CUDA, `auto` falls back to CPU with
 fp32 models selected (output byte-identical to `DOCLING_RS_FP32=1`) and
-`DOCLING_RS_EP=cuda` fails loudly at the first session load. **Still open —
-needs a real GPU:** speed measurements and a corpus conformance run
-(`scripts/conformance/pdf_conformance.sh` with `DOCLING_RS_EP=cuda`) —
-fp32 GPU kernels are not bit-identical to fp32 CPU kernels, so expect
-groundtruth-distance parity rather than byte-exactness, same standard as the
-other numeric changes above.
+`DOCLING_RS_EP=cuda` fails loudly at the first session load.
+
+#### Measured on real hardware (issue #108)
+
+`scripts/test/gpu_benchmark.sh` — every corpus PDF (+ the scanned set)
+under `cpu` and `cuda`, best of 3 cold CLI runs each, outputs
+byte-compared. Machine: **NVIDIA GeForce RTX 3080 Laptop (16 GB), driver
+566.07 · AMD Ryzen 9 5900HX, 16 logical cores** (both providers on the
+fp32 models, per the policy above).
+
+**Output equivalence:** 21 of 22 fixtures byte-identical to CPU; one
+(`2203.01017v2`, the heaviest layout) differs by 2 markdown lines — fp32
+CUDA kernels are not bit-identical to fp32 CPU kernels, so a borderline
+detection can flip; groundtruth-distance parity is the standard here, and
+byte-parity on 21/22 exceeds it. The entire 2-line diff is one label flip
+on one borderline region: the caption fragment
+`c. Structure predicted by TableFormer:` comes out as a `list_item`
+(`- c. …`) on CPU and as plain `text` on CUDA — same content, same
+position, one class score straddling the 0.3 threshold.
+
+**Corpus total (best-of-3): CPU 124.5 s · CUDA 101.2 s → 1.23×** — but the
+aggregate hides a clean size split:
+
+| segment | speedup (best) |
+|---|---|
+| multi-page digital (9–39 pages: arXiv papers, redp5110) | **1.5–2.1×** (`2305.03393v1`: 13.6 s → 7.0 s) |
+| mid-size digital (4–5 pages) | 1.1–1.3× |
+| 1–2-page digital | 0.75–1.0× — CUDA EP init + host↔device traffic never amortizes |
+| scanned/OCR-heavy | 0.65–0.85× — dominated by pdfium render + OCR pre/post on CPU |
+
+The corpus is small-document-biased; on a genuinely large document the
+init noise vanishes and the ONNX stages dominate — that is the regime the
+GPU features exist for. The 1913-page .NET C# language reference (same
+machine, single cold run each):
+
+| provider | wall time | speedup |
+|---|---|---|
+| `cpu` | 15 min 13 s (767 % CPU) | — |
+| `cuda` | **1 min 45 s** (321 % CPU) | **8.7×** |
+
+Practical guidance: the break-even for a cold CLI run sits around 3–4
+pages. Below that, or for OCR-heavy scans, stay on CPU; for batches or
+services use the warm `Pipeline` / `docling-serve`, which pays EP
+initialization once per process instead of once per file and moves the
+break-even to roughly "any document with a table". The cold-vs-best gap on
+the CUDA column (~1.5–2.5 s) is that per-process EP initialization made
+visible. (Timing methodology: the script reads the monotonic clock —
+wall-clock `date` proved able to step backwards under NTP mid-benchmark.)
+
+<details>
+<summary>Per-file results (seconds, best of 3; cold = run 1 incl. model/EP init)</summary>
+
+| file | cpu cold | cpu best | cuda cold | cuda best | speedup (best) | output |
+|---|---|---|---|---|---|---|
+| 2203.01017v2 | 19.93 | 18.13 | 13.31 | 10.38 | 1.75x | 2 diff lines |
+| 2206.01062 | 15.34 | 14.84 | 10.86 | 9.70 | 1.53x | identical |
+| 2305.03393v1-pg9 | 3.87 | 3.87 | 6.25 | 3.98 | 0.97x | identical |
+| 2305.03393v1 | 13.55 | 13.55 | 9.94 | 7.01 | 1.93x | identical |
+| amt_handbook_sample | 2.63 | 2.50 | 4.74 | 3.26 | 0.77x | identical |
+| code_and_formula | 3.13 | 3.13 | 5.14 | 3.09 | 1.01x | identical |
+| multi_page | 5.12 | 5.12 | 6.24 | 4.30 | 1.19x | identical |
+| normal_4pages | 7.67 | 6.34 | 7.04 | 4.76 | 1.33x | identical |
+| picture_classification | 2.56 | 2.56 | 5.24 | 2.95 | 0.87x | identical |
+| redp5110_sampled | 16.53 | 16.53 | 11.73 | 8.05 | 2.05x | identical |
+| right_to_left_01 | 1.94 | 1.94 | 5.01 | 2.59 | 0.75x | identical |
+| right_to_left_02 | 2.03 | 2.03 | 4.64 | 2.68 | 0.76x | identical |
+| right_to_left_03 | 3.26 | 3.26 | 5.95 | 4.09 | 0.80x | identical |
+| skipped_1page | 3.62 | 3.38 | 4.79 | 2.96 | 1.14x | identical |
+| skipped_2pages | 3.99 | 3.75 | 5.89 | 3.32 | 1.13x | identical |
+| table_mislabeled_as_picture | 4.67 | 4.48 | 6.71 | 4.51 | 0.99x | identical |
+| nemotron_multipage | 4.83 | 4.76 | 9.16 | 6.18 | 0.77x | identical |
+| ocr_test | 2.53 | 2.50 | 5.22 | 3.34 | 0.75x | identical |
+| ocr_test_rotated_180 | 2.64 | 2.64 | 4.27 | 3.10 | 0.85x | identical |
+| ocr_test_rotated_270 | 2.35 | 2.29 | 3.50 | 3.50 | 0.65x | identical |
+| ocr_test_rotated_90 | 2.37 | 2.35 | 5.46 | 3.48 | 0.68x | identical |
+| sample_with_rotation_mismatch | 4.54 | 4.54 | 4.74 | 3.92 | 1.16x | identical |
+
+</details>
 
 ### Ranked backlog of further ideas
 
