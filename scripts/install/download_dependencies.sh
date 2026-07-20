@@ -202,10 +202,14 @@ if [ "$WITH_INT8" = true ]; then
   if [ -f models/layout_heron_int8.onnx ]; then
     echo "int8 models present — used by default (DOCLING_RS_FP32=1 forces full precision)"
   else
-    echo "int8 assets not hosted at $BASE_URL — the fp32 models will be used."
-    echo "To build the int8 models locally (see docs/PDF_CONFORMANCE.md):"
-    echo "  pip install onnx onnxruntime sympy pypdfium2 pillow numpy"
-    echo "  python scripts/install/quantize_models.py"
+    echo "layout int8 not hosted at $BASE_URL — the fp32 layout model will be used"
+    echo "(correct output, ~2.4x slower layout stage on CPU; irrelevant for GPU builds,"
+    echo "which prefer fp32 anyway). The publish gate currently rejects the CI export's"
+    echo "int8 quantization, and quantizing the downloaded fp32 reproduces exactly that"
+    echo "rejected artifact — a good local int8 needs a layout model exported from"
+    echo "source first (scripts/install/pdf_setup.sh), then the self-validating"
+    echo "  python scripts/install/quantize_models.py layout"
+    echo "See docs/PDF_CONFORMANCE.md."
   fi
 fi
 
