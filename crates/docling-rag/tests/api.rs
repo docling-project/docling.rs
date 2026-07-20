@@ -241,6 +241,23 @@ async fn upload_and_delete_document() {
         .unwrap();
     assert_eq!(r["outcome"], "ingested");
     assert!(r["chunks"].as_u64().unwrap() >= 1);
+    // The response carries the stored row's id and per-phase metrics.
+    let uploaded_id = r["id"].as_str().unwrap().to_string();
+    assert!(r["metrics"]["parsing"]["seconds"].is_number());
+    assert!(r["metrics"]["embedding"]["seconds"].is_number());
+
+    // GET one document: augmented with the live chunk count + progress flag.
+    let one: serde_json::Value = client
+        .get(format!("{base}/api/documents/{uploaded_id}"))
+        .header(auth.0, auth.1)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(one["chunks"].as_u64().unwrap() >= 1);
+    assert_eq!(one["processing"], false);
 
     // Same bytes again -> deduplicated.
     let r: serde_json::Value = client

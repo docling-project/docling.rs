@@ -81,6 +81,16 @@ impl VectorStore for MemoryStore {
         Ok(self.chunks.read().unwrap().len())
     }
 
+    async fn count_chunks_for(&self, doc_id: &str) -> Result<usize> {
+        Ok(self
+            .chunks
+            .read()
+            .unwrap()
+            .iter()
+            .filter(|c| c.doc_id == doc_id)
+            .count())
+    }
+
     async fn count_documents(&self) -> Result<usize> {
         Ok(self.docs.read().unwrap().len())
     }

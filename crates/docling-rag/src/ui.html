@@ -184,13 +184,48 @@ async function refreshDocs() {
   const list = $("doc-list");
   try {
     const d = await api("/api/documents", { headers: headers() });
-    list.innerHTML = (d.documents || []).map((doc) =>
-      `<div class="doc" data-id="${esc(doc.id)}">` +
-      `<span class="title">${esc(doc.title)}</span>` +
+    list.innerHTML = (d.documents || []).map((doc) => {
+      const busy = String(doc.hash || "").startsWith("pending:");
+      return `<div class="doc" data-id="${esc(doc.id)}">` +
+      `<span class="title">${esc(doc.title)}${busy ? " ⏳ processing…" : ""}</span>` +
       `<span class="src">${esc(doc.source_uri)}</span>` +
-      `<button type="button" class="del">delete</button></div>`
-    ).join("") || `<span id="upload-note">No documents yet.</span>`;
+      `<button type="button" class="del">delete</button></div>`;
+    }).join("") || `<span id="upload-note">No documents yet.</span>`;
   } catch { list.innerHTML = ""; }
+}
+
+// One-line summary of where the ingest time went, from the metrics the
+// upload response carries.
+function phaseSummary(m) {
+  if (!m) return "";
+  const s = (p) => (m[p] && m[p].seconds != null) ? `${p} ${m[p].seconds.toFixed(1)}s` : null;
+  const parts = [s("parsing"), s("chunking"), s("embedding")].filter(Boolean);
+  return parts.length ? ` · ${parts.join(" · ")}` : "";
+}
+
+// While an upload runs, poll the documents API: the row appears with a
+// pending hash as soon as conversion starts, and its chunk count grows as
+// batches stream into the store.
+function startUploadProgress(name) {
+  const started = Date.now();
+  const uri = `upload:///${name}`;
+  const tick = async () => {
+    const secs = Math.round((Date.now() - started) / 1000);
+    try {
+      const d = await api("/api/documents", { headers: headers() });
+      const row = (d.documents || []).find((doc) => doc.source_uri === uri);
+      if (row && String(row.hash || "").startsWith("pending:")) {
+        const info = await api(`/api/documents/${encodeURIComponent(row.id)}`,
+                               { headers: headers() });
+        $("upload-note").textContent =
+          `converting + embedding… ${info.chunks} chunks · ${secs}s`;
+        return;
+      }
+    } catch { /* keep the plain elapsed note */ }
+    $("upload-note").textContent = `converting… ${secs}s`;
+  };
+  tick();
+  return setInterval(tick, 2000);
 }
 
 $("doc-list").addEventListener("click", async (ev) => {
@@ -215,21 +250,21 @@ $("upload").addEventListener("click", async () => {
   const file = $("file").files[0];
   if (!file) { $("upload-note").textContent = "pick a file first"; return; }
   $("upload").disabled = true;
-  $("upload-note").textContent = "converting + embedding…";
   $("error").hidden = true;
+  const progress = startUploadProgress(file.name);
   try {
     const r = await api(`/api/documents?name=${encodeURIComponent(file.name)}`, {
       method: "POST", headers: headers(), body: file,
     });
     $("upload-note").textContent = r.outcome === "skipped"
       ? "already stored (identical content)"
-      : `ingested — ${r.chunks} chunks`;
+      : `ingested — ${r.chunks} chunks${phaseSummary(r.metrics)}`;
     $("file").value = "";
     refreshDocs(); refreshStats();
   } catch (e) {
     $("upload-note").textContent = "";
     $("error").textContent = String(e.message || e); $("error").hidden = false;
-  } finally { $("upload").disabled = false; }
+  } finally { clearInterval(progress); $("upload").disabled = false; }
 });
 
 function esc(s) {

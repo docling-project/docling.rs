@@ -231,6 +231,14 @@ impl VectorStore for SqliteStore {
         Ok(row.get::<i64, _>("n") as usize)
     }
 
+    async fn count_chunks_for(&self, doc_id: &str) -> Result<usize> {
+        let row = sqlx::query("SELECT COUNT(*) AS n FROM chunks WHERE doc_id = ?")
+            .bind(doc_id)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(row.get::<i64, _>("n") as usize)
+    }
+
     async fn count_documents(&self) -> Result<usize> {
         let row = sqlx::query("SELECT COUNT(*) AS n FROM documents")
             .fetch_one(&self.pool)

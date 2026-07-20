@@ -45,6 +45,10 @@ pub trait VectorStore: Send + Sync {
     /// Total number of stored chunks.
     async fn count_chunks(&self) -> Result<usize>;
 
+    /// Number of chunks stored for one document — cheap enough to poll (the
+    /// API's ingest-progress endpoint hits it every couple of seconds).
+    async fn count_chunks_for(&self, doc_id: &str) -> Result<usize>;
+
     /// Total number of stored documents.
     async fn count_documents(&self) -> Result<usize>;
 

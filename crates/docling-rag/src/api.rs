@@ -169,12 +169,28 @@ async fn upload_document(
         rel_path: name.clone(),
     };
     match state.pipeline.ingest_bytes(&r, body.to_vec()).await {
-        Ok(IngestOutcome::Ingested(chunks)) => Ok(Json(json!({
-            "outcome": "ingested",
-            "name": name,
-            "chunks": chunks,
-        }))
-        .into_response()),
+        Ok(IngestOutcome::Ingested(chunks)) => {
+            // Include the stored row's id + per-phase processing metrics so
+            // the caller (the UI) can show where the time went.
+            let stored = state
+                .pipeline
+                .store()
+                .list_documents()
+                .await
+                .ok()
+                .and_then(|docs| docs.into_iter().find(|d| d.source_uri == r.uri));
+            let (id, metrics) = stored
+                .map(|d| (json!(d.id), d.metadata.get("metrics").cloned()))
+                .unwrap_or((serde_json::Value::Null, None));
+            Ok(Json(json!({
+                "outcome": "ingested",
+                "name": name,
+                "chunks": chunks,
+                "id": id,
+                "metrics": metrics,
+            }))
+            .into_response())
+        }
         Ok(IngestOutcome::Skipped) => Ok(Json(json!({
             "outcome": "skipped",
             "name": name,
@@ -217,7 +233,24 @@ async fn get_document(State(state): State<Arc<AppState>>, Path(id): Path<String>
         .await
         .map_err(internal)?;
     match docs.into_iter().find(|d| d.id == id) {
-        Some(doc) => Ok(Json(doc).into_response()),
+        Some(doc) => {
+            // Augment with the live chunk count and an in-progress marker
+            // (the document row exists with a `pending:` hash while its
+            // ingest is still running) — the UI polls this during uploads.
+            let chunks = state
+                .pipeline
+                .store()
+                .count_chunks_for(&doc.id)
+                .await
+                .map_err(internal)?;
+            let processing = doc.hash.starts_with("pending:");
+            let mut body = serde_json::to_value(&doc).unwrap_or_default();
+            if let Some(obj) = body.as_object_mut() {
+                obj.insert("chunks".into(), json!(chunks));
+                obj.insert("processing".into(), json!(processing));
+            }
+            Ok(Json(body).into_response())
+        }
         None => Err(err(
             StatusCode::NOT_FOUND,
             format!("no document with id '{id}'"),
