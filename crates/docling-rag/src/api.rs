@@ -16,7 +16,7 @@
 //! | GET    | `/api/documents/{id}` | one document by id                            |
 //! | DELETE | `/api/documents/{id}` | remove the document and all its chunks        |
 //! | GET    | `/api/search`         | `?q=…&mode=hybrid&k=5` (also accepts POST)    |
-//! | POST   | `/api/search`         | `{"query", "mode?", "top_k?", "answer?"}`     |
+//! | POST   | `/api/search`         | `{"query", "mode?", "top_k?", "answer?", "extend?"}` |
 //!
 //! Search modes: `vector`, `bm25`, `hybrid`, `multi-query`, `hyde`. With
 //! `answer=true` the LLM synthesizes a grounded answer (needs `OPENROUTER_API_KEY`).
@@ -272,6 +272,45 @@ struct SearchParams {
     /// Also synthesize an LLM answer grounded in the results.
     #[serde(default)]
     answer: bool,
+    /// Extend every hit with its ordinal neighbors (one chunk before, one
+    /// after, same document) — each result gains a `context` string. Purely
+    /// presentational: scoring and the LLM answer see the original chunks.
+    #[serde(default)]
+    extend: bool,
+}
+
+/// Serialize hits, optionally widening each one to `prev + hit + next` from
+/// the store (adjacent window chunks may repeat their small overlap — that's
+/// inherent to the chunker, not stitched away here).
+async fn results_json(
+    state: &Arc<AppState>,
+    hits: &[crate::model::Scored],
+    extend: bool,
+) -> serde_json::Value {
+    if !extend {
+        return json!(hits);
+    }
+    let mut out = Vec::with_capacity(hits.len());
+    for hit in hits {
+        let context = state
+            .pipeline
+            .store()
+            .chunk_neighborhood(&hit.chunk.doc_id, hit.chunk.ordinal)
+            .await
+            .map(|n| {
+                n.iter()
+                    .map(|c| c.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n\n")
+            })
+            .unwrap_or_else(|_| hit.chunk.text.clone());
+        let mut v = json!(hit);
+        if let Some(obj) = v.as_object_mut() {
+            obj.insert("context".into(), json!(context));
+        }
+        out.push(v);
+    }
+    json!(out)
 }
 
 async fn search_get(
@@ -310,11 +349,12 @@ async fn run_search(state: Arc<AppState>, params: SearchParams) -> ApiResult {
                 RagError::Llm(_) => err(StatusCode::BAD_REQUEST, e),
                 other => internal(other),
             })?;
+        let results = results_json(&state, &a.sources, params.extend).await;
         return Ok(Json(json!({
             "query": params.query,
             "mode": mode.to_string(),
             "answer": a.text,
-            "results": a.sources,
+            "results": results,
         }))
         .into_response());
     }
@@ -327,10 +367,11 @@ async fn run_search(state: Arc<AppState>, params: SearchParams) -> ApiResult {
             RagError::Llm(_) => err(StatusCode::BAD_REQUEST, e),
             other => internal(other),
         })?;
+    let results = results_json(&state, &hits, params.extend).await;
     Ok(Json(json!({
         "query": params.query,
         "mode": mode.to_string(),
-        "results": hits,
+        "results": results,
     }))
     .into_response())
 }

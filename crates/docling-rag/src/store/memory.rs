@@ -91,6 +91,19 @@ impl VectorStore for MemoryStore {
             .count())
     }
 
+    async fn chunk_neighborhood(&self, doc_id: &str, ordinal: i64) -> Result<Vec<Chunk>> {
+        let mut out: Vec<Chunk> = self
+            .chunks
+            .read()
+            .unwrap()
+            .iter()
+            .filter(|c| c.doc_id == doc_id && (c.ordinal - ordinal).abs() <= 1)
+            .cloned()
+            .collect();
+        out.sort_by_key(|c| c.ordinal);
+        Ok(out)
+    }
+
     async fn count_documents(&self) -> Result<usize> {
         Ok(self.docs.read().unwrap().len())
     }

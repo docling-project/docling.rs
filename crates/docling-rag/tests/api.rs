@@ -326,3 +326,82 @@ async fn upload_and_delete_document() {
         .unwrap();
     assert_eq!(r.status(), 400);
 }
+
+#[tokio::test]
+async fn extend_context_widens_hits_with_neighbors() {
+    // Own server with a tiny chunk window so one document yields several
+    // ordinal-adjacent chunks.
+    let dir = std::env::temp_dir().join(format!(
+        "rag-ext-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("guide.md"),
+        "# Guide\n\nAlpha section text that fills the first window with parrots. \
+         Bravo section text about semantic vector retrieval quality here. \
+         Charlie section text closing the document with more words after.",
+    )
+    .unwrap();
+    let cfg = RagConfig {
+        db_backend: DbBackend::Memory,
+        embed_provider: EmbedProvider::Hash,
+        embed_dim: 128,
+        source: SourceKind::Folder,
+        source_path: dir.display().to_string(),
+        chunk_size: 10,
+        chunk_overlap: 0.0,
+        ..RagConfig::default()
+    };
+    let pipeline = docling_rag::Pipeline::from_config(&cfg).await.unwrap();
+    pipeline.ingest_all().await.unwrap();
+    let app = api::router(pipeline, vec!["test-key".into()]).unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    let base = format!("http://{addr}");
+    let client = reqwest::Client::new();
+
+    let body: serde_json::Value = client
+        .post(format!("{base}/api/search"))
+        .header("X-Api-Key", "test-key")
+        .json(&serde_json::json!({
+            "query": "semantic vector retrieval",
+            "mode": "bm25",
+            "top_k": 1,
+            "extend": true,
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let hit = &body["results"][0];
+    let own = hit["chunk"]["text"].as_str().unwrap();
+    let ctx = hit["context"].as_str().unwrap();
+    assert!(ctx.contains(own), "context contains the hit itself");
+    assert!(ctx.len() > own.len(), "context is wider than the hit");
+    // The middle chunk's context must pull text from a neighbor window.
+    assert!(
+        ctx.contains("parrots") || ctx.contains("closing the document"),
+        "context should include a neighboring chunk: {ctx}"
+    );
+
+    // Without extend there is no context field.
+    let body: serde_json::Value = client
+        .get(format!("{base}/api/search?q=retrieval&mode=bm25&k=1"))
+        .header("X-Api-Key", "test-key")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(body["results"][0].get("context").is_none());
+}

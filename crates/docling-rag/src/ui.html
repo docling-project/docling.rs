@@ -124,6 +124,9 @@
       <div class="check">
         <input id="answer" type="checkbox"><label for="answer" style="margin:0">LLM answer</label>
       </div>
+      <div class="check" title="Show each hit with one chunk before and one after it">
+        <input id="extend" type="checkbox"><label for="extend" style="margin:0">extend context</label>
+      </div>
       <button id="go">Search</button>
     </div>
   </form>
@@ -280,11 +283,12 @@ function render(data) {
   }
   for (const hit of data.results || []) {
     const c = hit.chunk || {};
+    const extended = hit.context != null && hit.context !== c.text;
     out.push(`<div class="card hit"><div class="meta">` +
              `<span class="score">${Number(hit.score).toFixed(4)}</span>` +
              `<span>doc ${esc(c.doc_id ?? "?")}</span>` +
-             `<span>chunk #${esc(c.ordinal ?? "?")}</span></div>` +
-             `<pre>${esc(c.text ?? "")}</pre></div>`);
+             `<span>chunk #${esc(c.ordinal ?? "?")}${extended ? " ±1" : ""}</span></div>` +
+             `<pre>${esc(hit.context ?? c.text ?? "")}</pre></div>`);
   }
   if (!out.length) out.push(`<div class="card">No results.</div>`);
   $("out").innerHTML = out.join("");
@@ -293,7 +297,8 @@ function render(data) {
 $("form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   $("error").hidden = true; $("out").innerHTML = ""; $("go").disabled = true;
-  const body = { query: $("q").value, answer: $("answer").checked };
+  const body = { query: $("q").value, answer: $("answer").checked,
+                 extend: $("extend").checked };
   if ($("mode").value) body.mode = $("mode").value;
   if ($("k").value) body.top_k = Number($("k").value);
   try {

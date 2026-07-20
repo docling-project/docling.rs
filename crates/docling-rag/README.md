@@ -75,7 +75,7 @@ data, which is why it can be public like `/health`.
 | GET    | `/api/documents/{id}` | one document by id                              |
 | DELETE | `/api/documents/{id}` | remove the document and all its chunks          |
 | GET    | `/api/search`         | `?q=…&mode=…&k=…` — mode: `vector`, `bm25`, `hybrid`, `multi-query`, `hyde` |
-| POST   | `/api/search`         | `{"query": "…", "mode": "hybrid", "top_k": 5, "answer": false}` |
+| POST   | `/api/search`         | `{"query": "…", "mode": "hybrid", "top_k": 5, "answer": false, "extend": false}` |
 
 With `"answer": true` (or `?answer=true`) the LLM synthesizes a grounded answer
 from the retrieved chunks (needs `OPENROUTER_API_KEY`; `multi-query`/`hyde` modes
@@ -84,6 +84,11 @@ protocol, so any such endpoint works — e.g. a native DeepSeek key with
 `OPENROUTER_BASE_URL=https://api.deepseek.com` and `RAG_LLM_MODEL=deepseek-chat`
 (OpenRouter keys start with `sk-or-`; a `sk-…` DeepSeek key sent to openrouter.ai
 gets 401). Responses are JSON: `{query, mode, results: [{score, chunk}], answer?}`.
+With `"extend": true` each result additionally carries a `context` string —
+the hit widened with its ordinal neighbors (one chunk before, one after,
+same document; the UI's "extend context" checkbox). Purely presentational:
+scoring and the LLM answer still see the original chunks, and adjacent
+window chunks may repeat their configured overlap.
 
 ```bash
 curl -s -H 'X-Api-Key: dev-key' \

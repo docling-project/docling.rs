@@ -49,6 +49,10 @@ pub trait VectorStore: Send + Sync {
     /// API's ingest-progress endpoint hits it every couple of seconds).
     async fn count_chunks_for(&self, doc_id: &str) -> Result<usize>;
 
+    /// The chunks at `ordinal - 1 ..= ordinal + 1` of one document, in
+    /// ordinal order — the search API's "extend context" neighborhood.
+    async fn chunk_neighborhood(&self, doc_id: &str, ordinal: i64) -> Result<Vec<Chunk>>;
+
     /// Total number of stored documents.
     async fn count_documents(&self) -> Result<usize>;
 

@@ -239,6 +239,19 @@ impl VectorStore for SqliteStore {
         Ok(row.get::<i64, _>("n") as usize)
     }
 
+    async fn chunk_neighborhood(&self, doc_id: &str, ordinal: i64) -> Result<Vec<Chunk>> {
+        let rows = sqlx::query(
+            "SELECT * FROM chunks WHERE doc_id = ? AND ordinal BETWEEN ? - 1 AND ? + 1 \
+             ORDER BY ordinal",
+        )
+        .bind(doc_id)
+        .bind(ordinal)
+        .bind(ordinal) // sqlite placeholders are positional: `?-1` and `?+1`
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter().map(row_to_chunk).collect()
+    }
+
     async fn count_documents(&self) -> Result<usize> {
         let row = sqlx::query("SELECT COUNT(*) AS n FROM documents")
             .fetch_one(&self.pool)
