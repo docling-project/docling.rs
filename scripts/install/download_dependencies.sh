@@ -39,6 +39,10 @@
 #     (CodeFormulaV2, the --enrich-code/--enrich-formula VLM, ~1.3 GB fp32 —
 #     opt-in with --enrich; release-hosted only. With int8 enabled the ~165 MB
 #     decoder_kv_int8.onnx replaces the ~655 MB fp32 decoder)
+#   models/embed/bge-m3.onnx + model.onnx.data + tokenizer.json   (bge-m3 for
+#     docling-rag's local ONNX embedder, ~2.3 GB — opt-in with --embed; from
+#     Hugging Face, matching the RAG_EMBED_ONNX_PATH/RAG_EMBED_TOKENIZER
+#     defaults)
 #
 # Also fetches the INT8-quantized CPU models when the release hosts them (see
 # docs/PDF_CONFORMANCE.md — ~2.4x faster layout inference at unchanged conformance):
@@ -62,12 +66,16 @@ BASE_URL="${DOCLING_RS_MODELS_URL:-https://github.com/docling-project/docling.rs
 # with $DOCLING_RS_ASR_MODELS_URL (e.g. to re-host alongside the other models);
 # skip entirely with --no-asr.
 ASR_BASE_URL="${DOCLING_RS_ASR_MODELS_URL:-https://huggingface.co/onnx-community/whisper-tiny/resolve/main}"
+# bge-m3 ONNX export for docling-rag's local embedder (--embed): community
+# export with a pooled `dense_vecs` output, fetched straight from HF.
+EMBED_BASE_URL="${DOCLING_RS_EMBED_MODELS_URL:-https://huggingface.co/aapot/bge-m3-onnx/resolve/main}"
 
 FORCE=false
 WITH_ASR=true
 WITH_INT8=true
 WITH_CHUNK=true
 WITH_ENRICH=false
+WITH_EMBED=false
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=true ;;
@@ -76,8 +84,9 @@ for arg in "$@"; do
     --no-int8) WITH_INT8=false ;;
     --no-chunk) WITH_CHUNK=false ;;
     --enrich) WITH_ENRICH=true ;;
+    --embed) WITH_EMBED=true ;;
     *)
-      echo "usage: download_dependencies.sh [--force] [--no-asr] [--no-int8] [--no-chunk] [--enrich]" >&2
+      echo "usage: download_dependencies.sh [--force] [--no-asr] [--no-int8] [--no-chunk] [--enrich] [--embed]" >&2
       exit 2
       ;;
   esac
@@ -189,6 +198,18 @@ if [ "$WITH_ENRICH" = true ]; then
   else
     fetch "$BASE_URL/cf_decoder_kv.onnx" models/code_formula/decoder_kv.onnx
   fi
+fi
+
+if [ "$WITH_EMBED" = true ]; then
+  # bge-m3 for docling-rag's local ONNX embedder (RAG_EMBED_PROVIDER=onnx,
+  # build with --features onnx-embed): the graph + its external-weights file
+  # (~2.3 GB) + the XLM-R tokenizer. The graph internally references
+  # `model.onnx.data` by that exact name — do not rename it. Paths match the
+  # RAG_EMBED_ONNX_PATH / RAG_EMBED_TOKENIZER defaults.
+  mkdir -p models/embed
+  fetch "$EMBED_BASE_URL/model.onnx" models/embed/bge-m3.onnx
+  fetch "$EMBED_BASE_URL/model.onnx.data" models/embed/model.onnx.data
+  fetch "$EMBED_BASE_URL/tokenizer.json" models/embed/tokenizer.json
 fi
 
 if [ "$WITH_INT8" = true ]; then

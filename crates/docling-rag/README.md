@@ -308,7 +308,19 @@ exercise end-to-end.
 
 ## Local embedding model (ONNX)
 
-Build with `--features onnx-embed` and point `RAG_EMBED_ONNX_PATH` /
-`RAG_EMBED_TOKENIZER` at a sentence-embedding encoder exported to ONNX (e.g.
-`bge-m3`, 1024-d). The mean-pooled, L2-normalized last hidden state is used as the
-embedding — the same `ort` runtime the PDF pipeline already depends on.
+Build with `--features onnx-embed` and fetch the default model (bge-m3,
+1024-d, ~2.3 GB) into the `RAG_EMBED_ONNX_PATH` / `RAG_EMBED_TOKENIZER`
+default paths:
+
+```bash
+scripts/install/download_dependencies.sh --embed
+RAG_EMBED_PROVIDER=onnx docling-rag ingest
+```
+
+The embedder adapts to the graph it loads: it feeds only the inputs the model
+declares (`token_type_ids` is optional), and uses either an already-pooled
+sentence embedding (bge-m3's `dense_vecs`) or a raw encoder's
+`last_hidden_state` mean-pooled over the attention mask — L2-normalized either
+way. So any sentence-embedding encoder exported to ONNX works; point the two
+env vars at it. Same `ort` runtime the PDF pipeline already depends on, and
+with `--features cuda` the session runs on the GPU (`DOCLING_RS_EP`).
