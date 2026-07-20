@@ -55,7 +55,15 @@ from pathlib import Path
 from . import models
 from ._native import chunk_document as _chunk_document
 
-__all__ = ["DocMeta", "DocChunk", "HierarchicalChunker", "HybridChunker", "WindowChunker"]
+__all__ = [
+    "DocMeta",
+    "DocChunk",
+    "BaseChunk",
+    "BaseChunker",
+    "HierarchicalChunker",
+    "HybridChunker",
+    "WindowChunker",
+]
 
 
 @dataclass
@@ -123,6 +131,14 @@ class _BaseChunker:
     def contextualize(self, chunk: DocChunk) -> str:
         """The text to embed: heading path + chunk body, newline-joined."""
         return chunk._contextualized
+
+
+# docling.chunking-parity aliases: docling exports its chunk type and chunker
+# base under these names too, so `from docling_rs.chunking import BaseChunk,
+# BaseChunker` works for isinstance checks and type hints after a
+# docling → docling_rs package swap.
+BaseChunk = DocChunk
+BaseChunker = _BaseChunker
 
 
 class HierarchicalChunker(_BaseChunker):

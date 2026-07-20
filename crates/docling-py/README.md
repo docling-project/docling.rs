@@ -50,25 +50,36 @@ pip install docling-rs-cuda       # converts on the GPU automatically, CPU fallb
 pip uninstall docling             # optional — only when you no longer import it
 ```
 
-**2. Rewrite the imports** — everything comes from `docling_rs` /
-`docling_rs.chunking`:
+**2. Rewrite the imports: replace `docling` with `docling_rs`** — the package
+mirrors docling's module layout one-to-one, so it's a mechanical rename
+(`sed -i 's/\bdocling\./docling_rs./g'` on the import lines does it):
 
 | Python docling import | docling.rs import |
 |---|---|
-| `from docling.document_converter import DocumentConverter, PdfFormatOption` | `from docling_rs import DocumentConverter, PdfFormatOption` |
-| `from docling.datamodel.base_models import InputFormat, DocumentStream` | `from docling_rs import InputFormat, DocumentStream` |
-| `from docling.datamodel.pipeline_options import PdfPipelineOptions, AcceleratorOptions, TableFormerMode` | `from docling_rs import PdfPipelineOptions, AcceleratorOptions, TableFormerMode` |
-| `from docling.exceptions import ConversionError` | `from docling_rs import ConversionError` |
-| `from docling.chunking import HybridChunker, HierarchicalChunker` | `from docling_rs.chunking import HybridChunker, HierarchicalChunker` |
+| `from docling.document_converter import DocumentConverter, PdfFormatOption` | `from docling_rs.document_converter import DocumentConverter, PdfFormatOption` |
+| `from docling.datamodel.base_models import InputFormat, DocumentStream` | `from docling_rs.datamodel.base_models import InputFormat, DocumentStream` |
+| `from docling.datamodel.pipeline_options import PdfPipelineOptions, AcceleratorOptions, TableFormerMode` | `from docling_rs.datamodel.pipeline_options import …` (same names) |
+| `from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions` | `from docling_rs.datamodel.accelerator_options import …` (same names) |
+| `from docling.datamodel.document import ConversionResult` | `from docling_rs.datamodel.document import ConversionResult` |
+| `from docling.exceptions import ConversionError` | `from docling_rs.exceptions import ConversionError` |
+| `from docling.chunking import HybridChunker, HierarchicalChunker, BaseChunk` | `from docling_rs.chunking import HybridChunker, HierarchicalChunker, BaseChunk` |
+| `from docling.utils.model_downloader import download_models` | `from docling_rs.utils.model_downloader import download_models` |
 | `from docling_core.types.doc import …` (types, `ImageRefMode`, serializers) | unchanged — `docling_core` stays a dependency and `result.document` is its `DoclingDocument` |
+
+Every name is *also* exported flat from the package root
+(`from docling_rs import DocumentConverter, PdfPipelineOptions, …`) — the
+submodules are aliases of the same objects, kept for drop-in parity. An import
+docling.rs has no equivalent for (e.g. `docling.backend.*`, VLM pipeline
+options) raises `ModuleNotFoundError` at the import line — the honest signal
+that the code touches a not-ported area (see step 4).
 
 A minimal script, before and after:
 
 ```python
 # before                                         # after
-from docling.document_converter import (         from docling_rs import DocumentConverter
-    DocumentConverter,
-)
+from docling.document_converter import (         from docling_rs.document_converter import (
+    DocumentConverter,                               DocumentConverter,
+)                                                )
 conv = DocumentConverter()                       conv = DocumentConverter()
 result = conv.convert("report.pdf")              result = conv.convert("report.pdf")
 md = result.document.export_to_markdown()        md = result.document.export_to_markdown()
