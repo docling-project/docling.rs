@@ -203,15 +203,24 @@ jobs:
           python3 -m pip install --user "maturin>=1.5,<2"
           cd pkg
           sed -i 's/^name = "docling-rs"$/name = "docling-rs-cuda"/' pyproject.toml
+          # Where the crate manifest sits depends on the maturin that built the
+          # sdist: at the root (older layouts) or in a subdirectory pointed at
+          # by [tool.maturin] manifest-path (1.8+ vendors the path-dependency
+          # crates as siblings — e.g. docling-py/Cargo.toml). Resolve it from
+          # pyproject.toml instead of assuming, and let cargo report the
+          # matching target directory (the crate is its own workspace, so it
+          # is NOT ./target when the manifest moved).
+          MANIFEST="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["tool"]["maturin"].get("manifest-path", "Cargo.toml"))')"
+          TARGET_DIR="$(cargo metadata --no-deps --format-version 1 --manifest-path "$MANIFEST" | python3 -c 'import json, sys; print(json.load(sys.stdin)["target_directory"])')"
           # ONNX Runtime dlopens the provider libraries by bare name; give the
           # native module an $ORIGIN rpath so the copies shipped inside the
           # wheel are found without any environment setup.
           export RUSTFLAGS='-C link-arg=-Wl,-rpath,$ORIGIN'
           # Build once so ort fetches the CUDA ONNX Runtime and copy-dylibs
-          # drops the provider libraries next to target/release...
-          cargo build --release --features cuda
-          cp target/release/libonnxruntime_providers_shared.so \
-             target/release/libonnxruntime_providers_cuda.so \
+          # drops the provider libraries next to <target>/release...
+          cargo build --release --features cuda --manifest-path "$MANIFEST"
+          cp "$TARGET_DIR/release/libonnxruntime_providers_shared.so" \
+             "$TARGET_DIR/release/libonnxruntime_providers_cuda.so" \
              python/docling_rs/
           # ...then assemble the wheel (cargo cache is warm) with the provider
           # libraries riding along as package data (pyproject include glob).

@@ -30,6 +30,72 @@ docling is required for the declarative path.
 > Cargo workspace and its crates.io publish flow. For development, build and
 > install locally as shown next.
 
+## Migrating from Python docling
+
+The package is designed so that a typical docling script moves over by
+changing **the install and the imports** — the code below the imports stays
+as-is, because `result.document` is a genuine `docling_core` `DoclingDocument`
+and all config objects are re-exported docling-shaped.
+
+**1. Swap the package.** `docling-rs` and `docling` can coexist in one
+environment (different module names), so you can A/B them during the
+transition; drop `docling` once nothing imports it. For the GPU build install
+`docling-rs-cuda` **instead of** `docling-rs` (same `docling_rs` module —
+never both):
+
+```bash
+pip install docling-rs            # CPU wheels: Linux x86-64/arm64, Windows; sdist elsewhere
+# or, with an NVIDIA GPU (Linux x86_64, CUDA 12 + cuDNN 9, glibc ≥ 2.38):
+pip install docling-rs-cuda       # converts on the GPU automatically, CPU fallback
+pip uninstall docling             # optional — only when you no longer import it
+```
+
+**2. Rewrite the imports** — everything comes from `docling_rs` /
+`docling_rs.chunking`:
+
+| Python docling import | docling.rs import |
+|---|---|
+| `from docling.document_converter import DocumentConverter, PdfFormatOption` | `from docling_rs import DocumentConverter, PdfFormatOption` |
+| `from docling.datamodel.base_models import InputFormat, DocumentStream` | `from docling_rs import InputFormat, DocumentStream` |
+| `from docling.datamodel.pipeline_options import PdfPipelineOptions, AcceleratorOptions, TableFormerMode` | `from docling_rs import PdfPipelineOptions, AcceleratorOptions, TableFormerMode` |
+| `from docling.exceptions import ConversionError` | `from docling_rs import ConversionError` |
+| `from docling.chunking import HybridChunker, HierarchicalChunker` | `from docling_rs.chunking import HybridChunker, HierarchicalChunker` |
+| `from docling_core.types.doc import …` (types, `ImageRefMode`, serializers) | unchanged — `docling_core` stays a dependency and `result.document` is its `DoclingDocument` |
+
+A minimal script, before and after:
+
+```python
+# before                                         # after
+from docling.document_converter import (         from docling_rs import DocumentConverter
+    DocumentConverter,
+)
+conv = DocumentConverter()                       conv = DocumentConverter()
+result = conv.convert("report.pdf")              result = conv.convert("report.pdf")
+md = result.document.export_to_markdown()        md = result.document.export_to_markdown()
+```
+
+**3. Fetch the models once** (PDF/image path only — declarative formats need
+none): `python -c "import docling_rs; docling_rs.download_models()"`
+(~700 MB to `~/.cache/docling.rs`, idempotent). docling's own model cache is
+not reused; torch, transformers and CUDA-for-python are no longer needed —
+the engine bundles ONNX Runtime.
+
+**4. Check the divergences** if your code goes beyond the common path:
+the full-VLM pipeline (SmolDocling) and per-format backend selection are not
+ported; some `PdfPipelineOptions` fields are accepted for compatibility but
+inert (`images_scale`, `generate_page_images`, …); inline formatting is
+rendered into the text rather than structured `formatting` fields. The
+[API surface](#api-surface-docling-shaped) table below lists what acts, and
+[`docs/MIGRATION.md`](../../docs/MIGRATION.md) §4 the documented output
+divergences. `HybridChunker(tokenizer=…)` takes a `tokenizer.json` **path**
+(no `transformers`) instead of a HF model name.
+
+**5. GPU** (`docling-rs-cuda`): no code changes — the wheel defaults to
+`auto` (GPU when usable, CPU fallback). `DOCLING_RS_EP=cpu` or
+`AcceleratorOptions(device="cpu")` forces CPU; `DOCLING_RS_EP=cuda` /
+`device="cuda"` pins the GPU and fails loudly instead of falling back. See
+[GPU wheel](#gpu-wheel-docling-rs-cuda) for the runtime requirements.
+
 ## Try it locally
 
 Needs a Rust toolchain (1.88+, the workspace MSRV) and Python ≥ 3.9.
@@ -226,7 +292,7 @@ bundled in the wheel; pdfium is fetched at runtime by `download_models()`.
 The workflow's `cuda_wheel` input additionally builds a **Linux x86_64** wheel
 published as **`docling-rs-cuda`**: the same crate compiled with
 `--features cuda`, ONNX Runtime's CUDA provider libraries bundled next to the
-native module (found via an `$ORIGIN` rpath + an import-time preload).
+native module (found via an `$ORIGIN` rpath — no import-time preload).
 It installs the same `docling_rs` module — install *either* `docling-rs` *or*
 `docling-rs-cuda`, not both:
 

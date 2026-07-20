@@ -429,9 +429,14 @@ data = result.document.export_to_dict()   # docling JSON wire format (schema 1.1
 
 Declarative formats (Markdown, HTML, DOCX, XLSX, …) work with no models; the
 PDF/image pipeline downloads pdfium + the ONNX models on first use via
-`docling_rs.download_models()`. See
-[`crates/docling-py/README.md`](./crates/docling-py/README.md) for the full API
-and local build steps.
+`docling_rs.download_models()`. On an NVIDIA machine install
+**`docling-rs-cuda`** instead (same `docling_rs` module compiled with the CUDA
+provider — GPU automatically, CPU fallback). See
+[`crates/docling-py/README.md`](./crates/docling-py/README.md) for the full
+API, local build steps, and a step-by-step
+[migration guide from Python docling](./crates/docling-py/README.md#migrating-from-python-docling)
+(swap the install, rewrite the imports, fetch the models — the code below the
+imports stays unchanged).
 
 ## Getting the ML models
 
