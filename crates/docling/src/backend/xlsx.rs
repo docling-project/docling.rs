@@ -28,7 +28,7 @@ use crate::source::SourceDocument;
 
 /// A sheet's merged regions as absolute `((start_row, start_col), (end_row,
 /// end_col))` cell spans.
-type Merges = Vec<((u32, u32), (u32, u32))>;
+pub(crate) type Merges = Vec<((u32, u32), (u32, u32))>;
 
 /// One sheet's assembled content: `(bbox in cell units, node)` items in
 /// discovery order, plus the sheet's comment lines.
@@ -525,7 +525,7 @@ const LOC_RESOLUTION: u32 = 512;
 /// Normalize a cell-index coordinate against the sheet extent and quantize it to
 /// the DocLang location grid — `clamp(round(512 * coord / page), 0, 511)`,
 /// matching docling's `_create_location_tokens_for_bbox` + `_quantize_to_resolution`.
-fn location_value(coord: usize, page: usize) -> u16 {
+pub(crate) fn location_value(coord: usize, page: usize) -> u16 {
     if page == 0 {
         return 0;
     }
@@ -535,17 +535,17 @@ fn location_value(coord: usize, page: usize) -> u16 {
 
 /// A discovered table with its cell-index bounding box (inclusive), used to
 /// compute the DocLang `<location>` provenance.
-struct FoundTable {
-    table: Table,
-    min_r: usize,
-    min_c: usize,
-    max_r: usize,
-    max_c: usize,
+pub(crate) struct FoundTable {
+    pub(crate) table: Table,
+    pub(crate) min_r: usize,
+    pub(crate) min_c: usize,
+    pub(crate) max_r: usize,
+    pub(crate) max_c: usize,
 }
 
 /// docling's default `gap_tolerance = 0`), in row-major discovery order. A cell
 /// covered by a merge counts as content even if its own value is empty.
-fn find_tables(
+pub(crate) fn find_tables(
     range: &Range<Data>,
     merge_of: &HashMap<(usize, usize), (usize, usize)>,
     height: usize,
@@ -660,7 +660,7 @@ fn find_tables(
 }
 
 /// Render one cell to match openpyxl's `str(cell.value)`.
-fn format_cell(value: &Data) -> String {
+pub(crate) fn format_cell(value: &Data) -> String {
     match value {
         Data::Empty => String::new(),
         // openpyxl reads strings through an XML parser, which normalises line

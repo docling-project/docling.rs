@@ -4,9 +4,9 @@ use std::collections::HashSet;
 
 use crate::backend::{
     is_deepseek_markdown, AsciiDocBackend, CsvBackend, DeclarativeBackend, DeepSeekBackend,
-    DoclingJsonBackend, DocxBackend, EmailBackend, EpubBackend, JatsBackend, LatexBackend,
-    MarkdownBackend, MhtmlBackend, OdfBackend, PptxBackend, UsptoBackend, WebVttBackend,
-    XbrlBackend, XlsxBackend,
+    DocBackend, DoclingJsonBackend, DocxBackend, EmailBackend, EpubBackend, JatsBackend,
+    LatexBackend, MarkdownBackend, MhtmlBackend, OdfBackend, PptBackend, PptxBackend, UsptoBackend,
+    WebVttBackend, XbrlBackend, XlsBackend, XlsxBackend,
 };
 
 /// Whether `text` begins with an XML prolog — an `<?xml …?>` declaration or a
@@ -335,6 +335,11 @@ impl DocumentConverter {
             InputFormat::Xlsx => XlsxBackend.convert(&source)?,
             InputFormat::Pptx => PptxBackend.convert(&source)?,
             InputFormat::Docx => DocxBackend.convert(&source)?,
+            // Legacy binary Office (issue #127): parsed natively — docling
+            // proper converts these through LibreOffice first (PR #3804).
+            InputFormat::Xls => XlsBackend.convert(&source)?,
+            InputFormat::Ppt => PptBackend.convert(&source)?,
+            InputFormat::Doc => DocBackend.convert(&source)?,
             InputFormat::Vtt => WebVttBackend.convert(&source)?,
             InputFormat::Email => EmailBackend.convert(&source)?,
             InputFormat::Mhtml => MhtmlBackend {

@@ -25,8 +25,10 @@ macro_rules! cached_regex {
 mod asciidoc;
 #[cfg(feature = "web-browser")]
 pub(crate) mod browser;
+mod cfb;
 mod csv;
 mod deepseek;
+mod doc;
 mod doclang;
 mod docling_json;
 mod docx;
@@ -41,17 +43,20 @@ mod mhtml;
 mod odf;
 mod omml;
 mod ooxml;
+mod ppt;
 mod pptx;
 pub(crate) mod uspto;
 mod uspto_entities;
 mod webvtt;
 pub(crate) mod xbrl;
+mod xls;
 mod xlsx;
 mod xlsx_drawings;
 
 pub use asciidoc::AsciiDocBackend;
 pub use csv::CsvBackend;
 pub use deepseek::{is_deepseek_markdown, DeepSeekBackend};
+pub use doc::DocBackend;
 pub use doclang::DoclangBackend;
 pub use docling_json::DoclingJsonBackend;
 pub use docx::DocxBackend;
@@ -65,10 +70,12 @@ pub use latex::LatexBackend;
 pub use markdown::MarkdownBackend;
 pub use mhtml::MhtmlBackend;
 pub use odf::OdfBackend;
+pub use ppt::PptBackend;
 pub use pptx::PptxBackend;
 pub use uspto::UsptoBackend;
 pub use webvtt::WebVttBackend;
 pub use xbrl::XbrlBackend;
+pub use xls::XlsBackend;
 pub use xlsx::XlsxBackend;
 
 /// A backend that converts a source straight into a [`DoclingDocument`].

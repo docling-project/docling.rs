@@ -16,7 +16,7 @@ use zip::ZipArchive;
 /// Hard cap on a single decompressed OOXML part (512 MiB). Real documents
 /// stay far below this; the limit only exists to stop a decompression-bomb
 /// part from exhausting memory. Override with `DOCLING_RS_MAX_PART_BYTES`.
-fn max_part_bytes() -> u64 {
+pub(crate) fn max_part_bytes() -> u64 {
     std::env::var("DOCLING_RS_MAX_PART_BYTES")
         .ok()
         .and_then(|v| v.parse().ok())

@@ -15,6 +15,13 @@ pub enum InputFormat {
     Md,
     Csv,
     Xlsx,
+    /// Word 97–2004 binary (`.doc`) — parsed natively (CFB + MS-DOC), no
+    /// external converter (docling shells out to LibreOffice for these).
+    Doc,
+    /// Excel 97–2004 binary (`.xls`, BIFF8) — parsed natively via calamine.
+    Xls,
+    /// PowerPoint 97–2003 binary (`.ppt`) — parsed natively (CFB + MS-PPT).
+    Ppt,
     Odt,
     Ods,
     Odp,
@@ -49,6 +56,9 @@ impl InputFormat {
             InputFormat::Md => "md",
             InputFormat::Csv => "csv",
             InputFormat::Xlsx => "xlsx",
+            InputFormat::Doc => "doc",
+            InputFormat::Xls => "xls",
+            InputFormat::Ppt => "ppt",
             InputFormat::Odt => "odt",
             InputFormat::Ods => "ods",
             InputFormat::Odp => "odp",
@@ -86,6 +96,11 @@ impl InputFormat {
             "adoc" | "asciidoc" | "asc" => InputFormat::Asciidoc,
             "csv" => InputFormat::Csv,
             "xlsx" | "xlsm" => InputFormat::Xlsx,
+            // Legacy binary Office (Word/Excel/PowerPoint 97–2003), issue #127.
+            // Extension sets mirror docling's FormatToExtensions.
+            "doc" | "dot" => InputFormat::Doc,
+            "xls" | "xlt" => InputFormat::Xls,
+            "ppt" | "pot" | "pps" => InputFormat::Ppt,
             "odt" | "ott" => InputFormat::Odt,
             "ods" | "ots" => InputFormat::Ods,
             "odp" | "otp" => InputFormat::Odp,

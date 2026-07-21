@@ -29,6 +29,11 @@ class InputFormat(str, enum.Enum):
     MD = "md"
     CSV = "csv"
     XLSX = "xlsx"
+    # Legacy binary Office (docling converts via LibreOffice; docling.rs
+    # parses natively):
+    DOC = "doc"
+    XLS = "xls"
+    PPT = "ppt"
     XML_USPTO = "xml_uspto"
     XML_JATS = "xml_jats"
     JSON_DOCLING = "json_docling"

@@ -15,8 +15,8 @@ mapping, and per-format conformance.
 ## Status
 
 The public API works end to end across **Markdown, CSV, HTML, AsciiDoc, DOCX,
-PPTX, XLSX, EPUB, ODF, WebVTT, Email, MHTML, JATS, USPTO, XBRL, LaTeX, JSON,
-PDF, images, METS and audio** — plus Markdown / docling-JSON output and image
+PPTX, XLSX, legacy DOC/XLS/PPT, EPUB, ODF, WebVTT, Email, MHTML, JATS, USPTO,
+XBRL, LaTeX, JSON, PDF, images, METS and audio** — plus Markdown / docling-JSON output and image
 extraction. MHTML is a docling.rs-only extension (docling has no MHTML
 backend): saved-webpage `.mhtml`/`.mht` archives are parsed as a MIME message
 with [`mail-parser`](https://crates.io/crates/mail-parser) (which conforms to
