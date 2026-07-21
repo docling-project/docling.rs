@@ -35,7 +35,7 @@ fetch-images = ["dep:ureq"]
 # stays pure-Rust with no browser/runtime dependency; enable with
 # `--features web-browser`. Drives the system Chromium over the DevTools
 # protocol purely from Rust (no Node/Playwright) via `headless_chrome`.
-web-browser = ["dep:headless_chrome"]
+web-browser = ["dep:headless_chrome", "dep:tempfile"]
 # Tokenization-aware chunking (docling-core's HybridChunker + HF tokenizer).
 chunking = ["docling-core/chunking"]
 # GPU execution providers for the PDF/image ML pipeline (#74) — pass-through
@@ -49,13 +49,16 @@ coreml = ["pdf", "docling-pdf/coreml"]
 calamine = { version = "0.26", features = ["dates"] }
 csv = "1.4.0"
 headless_chrome = { version = "1.0", optional = true }
+# O_EXCL temp file with an unpredictable name for the browser pre-render page
+# (avoids a predictable /tmp path a local attacker could pre-plant a symlink at).
+tempfile = { version = "3", optional = true }
 docling-asr = { path = "../docling-asr", version = "0.44.0", optional = true }
 docling-core = { path = "../docling-core", version = "0.44.0" }
 docling-pdf = { path = "../docling-pdf", version = "0.44.0", optional = true, default-features = false }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "webp"] }
 mail-parser = "0.11"
 pulldown-cmark = { version = "0.13.4", default-features = false }
-quick-xml = "0.37"
+quick-xml = "0.41"
 # Data-parallel fan-out over independent OOXML parts (XLSX sheets, PPTX
 # slides) — see the profile in the module docs of `backend/xlsx.rs`.
 rayon = "1.10"

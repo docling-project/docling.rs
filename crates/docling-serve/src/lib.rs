@@ -32,10 +32,14 @@
 //! (`--concurrency`); excess requests queue.
 //!
 //! Security: URL fetching makes the server issue outbound requests (SSRF
-//! surface) — bind to loopback (the default) or front with a policy proxy,
-//! and gate it with `--no-url-fetch` where the input should be uploads only.
+//! surface), so it is **off by default** — enable with `--allow-url-fetch`.
+//! Even when enabled, targets that resolve to a private/loopback/link-local
+//! address are refused and redirects are disabled. The server itself has no
+//! authentication: bind to loopback (the default) or front with a policy/auth
+//! proxy before exposing it.
 
 use std::io::Read;
+use std::net::ToSocketAddrs;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -64,7 +68,10 @@ pub struct ServeConfig {
     /// Load the PDF/image models at startup so `/ready` flips only when the
     /// first conversion would be fast. Off: models load lazily on first use.
     pub warmup: bool,
-    /// Allow `{"url": …}` inputs (outbound fetch — SSRF surface).
+    /// Allow `{"url": …}` inputs (outbound fetch — SSRF surface). Off by
+    /// default: even with the built-in private/loopback/link-local IP guard,
+    /// letting a caller name the fetch target is a deliberate exposure that a
+    /// deployment must opt into (`--allow-url-fetch`).
     pub allow_url_fetch: bool,
     /// Default `strict` for requests that don't set it.
     pub strict: bool,
@@ -77,7 +84,7 @@ impl Default for ServeConfig {
             concurrency: 2,
             max_body_bytes: 256 * 1024 * 1024,
             warmup: false,
-            allow_url_fetch: true,
+            allow_url_fetch: false,
             strict: false,
         }
     }
@@ -412,21 +419,94 @@ fn source_from_named_bytes(file_name: &str, bytes: Vec<u8>) -> Result<SourceDocu
     Ok(SourceDocument::from_bytes(stem, format, bytes))
 }
 
+/// Largest URL-fetch response accepted (256 MiB). Unlike the request-body
+/// limit, `read_to_end` on a fetched response is otherwise unbounded — a
+/// hostile URL streaming an endless body would exhaust memory.
+const MAX_FETCH_BYTES: u64 = 256 * 1024 * 1024;
+
+/// Reject a resolved IP that points back into the local host or infrastructure.
+/// This is the core SSRF guard: without it, `{"url": "http://169.254.169.254/…"}`
+/// or `http://127.0.0.1:…` would let a caller reach cloud metadata and internal
+/// services from the server's network position.
+fn is_blocked_ip(ip: std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+    match ip {
+        IpAddr::V4(v4) => {
+            v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                || v4.is_broadcast()
+                || v4.is_documentation()
+                // Carrier-grade NAT 100.64.0.0/10.
+                || (v4.octets()[0] == 100 && (v4.octets()[1] & 0xc0) == 64)
+        }
+        IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || v6.is_unspecified()
+                // Unique-local fc00::/7 and link-local fe80::/10.
+                || (v6.segments()[0] & 0xfe00) == 0xfc00
+                || (v6.segments()[0] & 0xffc0) == 0xfe80
+                // IPv4-mapped (::ffff:a.b.c.d): re-check the embedded v4.
+                || v6
+                    .to_ipv4_mapped()
+                    .is_some_and(|v4| is_blocked_ip(IpAddr::V4(v4)))
+        }
+    }
+}
+
 /// Fetch a URL input (blocking; run on the blocking pool). The name comes
 /// from `file_name` or the URL path's last segment.
 fn fetch_url(url: &str, file_name: Option<&str>) -> Result<SourceDocument, ApiError> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err(ApiError::Bad(format!("unsupported URL scheme in '{url}'")));
     }
-    let mut response = ureq::get(url)
+    // SSRF guard: resolve the host and reject if it maps to a private/loopback/
+    // link-local address, and forbid redirects (a public URL could 30x-bounce
+    // to an internal target, defeating this pre-check). This is a best-effort
+    // mitigation — a DNS-rebinding race between this resolution and ureq's own
+    // connect remains theoretically possible; the deployment-level control is
+    // to leave URL fetch disabled unless the network is trusted.
+    let parsed =
+        url::Url::parse(url).map_err(|e| ApiError::Bad(format!("bad URL '{url}': {e}")))?;
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| ApiError::Bad(format!("no host in URL '{url}'")))?;
+    let port = parsed.port_or_known_default().unwrap_or(80);
+    let mut resolved = (host, port)
+        .to_socket_addrs()
+        .map_err(|e| ApiError::Bad(format!("cannot resolve {host}: {e}")))?
+        .peekable();
+    if resolved.peek().is_none() {
+        return Err(ApiError::Bad(format!("cannot resolve {host}")));
+    }
+    for addr in resolved {
+        if is_blocked_ip(addr.ip()) {
+            return Err(ApiError::Bad(format!(
+                "refusing to fetch {url}: resolves to a private/loopback address"
+            )));
+        }
+    }
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .max_redirects(0)
+        .build()
+        .into();
+    let mut response = agent
+        .get(url)
         .call()
         .map_err(|e| ApiError::Bad(format!("fetching {url}: {e}")))?;
     let mut bytes = Vec::new();
     response
         .body_mut()
         .as_reader()
+        .take(MAX_FETCH_BYTES + 1)
         .read_to_end(&mut bytes)
         .map_err(|e| ApiError::Bad(format!("reading {url}: {e}")))?;
+    if bytes.len() as u64 > MAX_FETCH_BYTES {
+        return Err(ApiError::Bad(format!(
+            "response from {url} exceeds {MAX_FETCH_BYTES} bytes"
+        )));
+    }
     let name = file_name
         .map(|s| s.to_string())
         .or_else(|| {
@@ -450,7 +530,17 @@ fn convert_document(
 ) -> Result<DoclingDocument, ApiError> {
     match source.format {
         InputFormat::Pdf | InputFormat::Image => {
-            let mut guard = state.pipeline.lock().unwrap();
+            // Recover from a poisoned lock instead of propagating the panic: a
+            // single crafted PDF/image that panics inside `convert` below drops
+            // the guard mid-unwind and poisons the mutex. Without this recovery
+            // every later request would panic on `.lock().unwrap()` too, turning
+            // one bad document into a permanent outage of this endpoint. The
+            // pipeline state is rebuilt/validated by `warm_pipeline`, so reusing
+            // it after a panic is safe.
+            let mut guard = state
+                .pipeline
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             let pipeline = warm_pipeline(&mut guard, options)?;
             let doc = match source.format {
                 InputFormat::Pdf => pipeline.convert(&source.bytes, None, &source.name),
@@ -598,5 +688,56 @@ async fn stream_markdown(
 fn api_error_message(e: ApiError) -> String {
     match e {
         ApiError::Bad(m) | ApiError::Unsupported(m) | ApiError::Internal(m) => m,
+    }
+}
+
+#[cfg(test)]
+mod ssrf_tests {
+    use super::is_blocked_ip;
+    use std::net::IpAddr;
+
+    fn ip(s: &str) -> IpAddr {
+        s.parse().unwrap()
+    }
+
+    #[test]
+    fn blocks_internal_targets() {
+        // Loopback, private ranges, link-local (incl. cloud metadata),
+        // unspecified, CGNAT, and the IPv4-mapped IPv6 forms must all be
+        // refused as SSRF targets.
+        for s in [
+            "127.0.0.1",
+            "127.5.5.5",
+            "10.0.0.1",
+            "172.16.0.1",
+            "192.168.1.1",
+            "169.254.169.254", // AWS/GCP metadata
+            "0.0.0.0",
+            "100.64.0.1", // carrier-grade NAT
+            "::1",
+            "fe80::1",          // link-local
+            "fc00::1",          // unique-local
+            "::ffff:127.0.0.1", // IPv4-mapped loopback
+            "::ffff:169.254.169.254",
+        ] {
+            assert!(is_blocked_ip(ip(s)), "{s} should be blocked");
+        }
+    }
+
+    #[test]
+    fn allows_public_targets() {
+        for s in [
+            "8.8.8.8",
+            "1.1.1.1",
+            "93.184.216.34",
+            "2606:4700:4700::1111",
+        ] {
+            assert!(!is_blocked_ip(ip(s)), "{s} should be allowed");
+        }
+    }
+
+    #[test]
+    fn url_fetch_off_by_default() {
+        assert!(!super::ServeConfig::default().allow_url_fetch);
     }
 }

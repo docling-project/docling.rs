@@ -13,6 +13,16 @@ use quick_xml::events::Event;
 use quick_xml::Reader;
 use zip::ZipArchive;
 
+/// Hard cap on a single decompressed OOXML part (512 MiB). Real documents
+/// stay far below this; the limit only exists to stop a decompression-bomb
+/// part from exhausting memory. Override with `DOCLING_RS_MAX_PART_BYTES`.
+fn max_part_bytes() -> u64 {
+    std::env::var("DOCLING_RS_MAX_PART_BYTES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(512 * 1024 * 1024)
+}
+
 /// A read-only view over the parts of an OOXML package.
 ///
 /// Cloning is cheap (the file bytes are shared behind an `Arc`, the ZIP
@@ -32,17 +42,35 @@ impl Package {
 
     /// Read a part to a string, or `None` if it is absent or not valid UTF-8.
     pub fn read(&mut self, path: &str) -> Option<String> {
-        let mut file = self.zip.by_name(path).ok()?;
-        let mut out = String::new();
-        file.read_to_string(&mut out).ok()?;
-        Some(out)
+        let bytes = self.read_bytes(path)?;
+        String::from_utf8(bytes).ok()
     }
 
     /// Read a part's raw bytes (e.g. an embedded image), or `None` if absent.
+    ///
+    /// A single part is never allowed to inflate past [`max_part_bytes`]: an
+    /// OOXML file is a ZIP, and a "zip bomb" part (a few KB deflating to many
+    /// GB) would otherwise exhaust memory and abort the process. Reads stop at
+    /// the cap and the oversized part is rejected (`None`) rather than
+    /// truncated, so a partial part never reaches an XML parser.
     pub fn read_bytes(&mut self, path: &str) -> Option<Vec<u8>> {
-        let mut file = self.zip.by_name(path).ok()?;
+        self.read_bytes_capped(path, max_part_bytes())
+    }
+
+    fn read_bytes_capped(&mut self, path: &str, cap: u64) -> Option<Vec<u8>> {
+        let file = self.zip.by_name(path).ok()?;
+        // Reject up front when the central directory already advertises an
+        // oversized part; still cap the actual read in case the header lies.
+        if file.size() > cap {
+            return None;
+        }
         let mut out = Vec::new();
-        file.read_to_end(&mut out).ok()?;
+        // read_to_end on a `.take(cap + 1)` reader: if it returns cap+1 bytes,
+        // the part exceeded the cap and is rejected rather than truncated.
+        file.take(cap + 1).read_to_end(&mut out).ok()?;
+        if out.len() as u64 > cap {
+            return None;
+        }
         Some(out)
     }
 
@@ -223,4 +251,43 @@ pub fn content_type(content_types_xml: &str, part: &str) -> Option<String> {
         buf.clear();
     }
     default
+}
+
+#[cfg(test)]
+mod zip_bomb_tests {
+    use super::Package;
+    use std::io::Write;
+
+    /// A minimal in-memory OOXML-style zip with one part of `part_len` bytes.
+    fn zip_with_part(name: &str, part_len: usize) -> Vec<u8> {
+        let mut buf = std::io::Cursor::new(Vec::new());
+        {
+            let mut zw = zip::ZipWriter::new(&mut buf);
+            let opts: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+            zw.start_file(name, opts).unwrap();
+            zw.write_all(&vec![b'a'; part_len]).unwrap();
+            zw.finish().unwrap();
+        }
+        buf.into_inner()
+    }
+
+    #[test]
+    fn oversized_part_is_rejected_not_truncated() {
+        // A highly compressible 1 MiB part in a tiny zip (deflates to ~1 KB):
+        // the decompression-bomb shape. With the cap below its size, the read
+        // must return None rather than a truncated buffer.
+        let bytes = zip_with_part("word/document.xml", 1024 * 1024);
+        assert!(bytes.len() < 64 * 1024, "part should compress tiny");
+        let mut pkg = Package::open(&bytes).unwrap();
+        assert!(
+            pkg.read_bytes_capped("word/document.xml", 4096).is_none(),
+            "a part over the cap must be rejected"
+        );
+        // Under a generous cap it reads back in full.
+        let out = pkg
+            .read_bytes_capped("word/document.xml", 8 * 1024 * 1024)
+            .expect("part under the cap reads");
+        assert_eq!(out.len(), 1024 * 1024);
+    }
 }

@@ -29,6 +29,9 @@ tokio-stream = "0.1"
 # URL inputs are fetched with the same blocking client the converter already
 # uses for remote <img src> (keeps the dependency graph to a single HTTP stack).
 ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
+# Parse URL-fetch inputs to validate the host against the SSRF IP block-list
+# before connecting (already in the graph via ureq).
+url = "2"
 
 [dev-dependencies]
 http-body-util = "0.1"

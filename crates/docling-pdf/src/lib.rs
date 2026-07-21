@@ -193,6 +193,40 @@ pub(crate) fn model_path(env: &str, fp32_default: &str, int8_default: &str) -> S
     resolve_asset(fp32_default)
 }
 
+/// Decode a standalone image with hard resource limits. A crafted image can
+/// declare enormous dimensions in a few-KB file; `image::load_from_memory`
+/// then tries to allocate the full pixel buffer (e.g. 60000×60000 → ~10 GB),
+/// and allocation failure aborts the whole process, bypassing the per-request
+/// panic catch. The 256 MiB alloc / 30000-px caps below turn that into a
+/// recoverable decode error instead. `DOCLING_RS_MAX_IMAGE_PIXELS` overrides
+/// the per-side pixel cap for the rare legitimately-huge scan.
+pub(crate) fn decode_image_limited(bytes: &[u8]) -> Result<image::RgbImage, PdfError> {
+    let max_side: u32 = std::env::var("DOCLING_RS_MAX_IMAGE_PIXELS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(30_000);
+    decode_image_with_max_side(bytes, max_side)
+}
+
+fn decode_image_with_max_side(bytes: &[u8], max_side: u32) -> Result<image::RgbImage, PdfError> {
+    use image::ImageReader;
+    use std::io::Cursor;
+
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(max_side);
+    limits.max_image_height = Some(max_side);
+    limits.max_alloc = Some(256 * 1024 * 1024);
+
+    let mut reader = ImageReader::new(Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|e| PdfError::Pdfium(format!("image: {e}")))?;
+    reader.limits(limits);
+    Ok(reader
+        .decode()
+        .map_err(|e| PdfError::Pdfium(format!("image: {e}")))?
+        .into_rgb8())
+}
+
 #[cfg(feature = "ml")]
 /// One page's assembled output: typed nodes plus the page's hyperlinks, kept
 /// separate so pages processed out of order can be stitched back in page order.
@@ -1096,9 +1130,7 @@ impl Pipeline {
     /// Convert a standalone image (PNG/JPEG/TIFF/WebP/…) as a single page —
     /// docling routes images through the same layout+OCR pipeline as a PDF page.
     pub fn convert_image(&mut self, bytes: &[u8], name: &str) -> Result<DoclingDocument, PdfError> {
-        let image = image::load_from_memory(bytes)
-            .map_err(|e| PdfError::Pdfium(format!("image: {e}")))?
-            .into_rgb8();
+        let image = decode_image_limited(bytes)?;
         let (w, h) = image.dimensions();
         // The image is its own page rendered at 1 px per "point" (scale 1.0); a
         // standalone image has no text layer, so OCR supplies the cells.
@@ -1222,6 +1254,53 @@ pub fn convert_pages_with_options(
 }
 
 #[cfg(feature = "ml")]
+#[cfg(test)]
+mod image_limit_tests {
+    use super::decode_image_with_max_side;
+
+    /// A small valid PNG encoded via the `image` crate (robust vs. a hand-rolled
+    /// byte literal).
+    fn png_bytes(w: u32, h: u32) -> Vec<u8> {
+        use std::io::Cursor;
+        let img = image::RgbImage::new(w, h);
+        let mut out = Vec::new();
+        img.write_to(&mut Cursor::new(&mut out), image::ImageFormat::Png)
+            .unwrap();
+        out
+    }
+
+    #[test]
+    fn normal_image_decodes_under_the_cap() {
+        let img = decode_image_with_max_side(&png_bytes(8, 8), 30_000).expect("8x8 decodes");
+        assert_eq!(img.dimensions(), (8, 8));
+    }
+
+    #[test]
+    fn dimensions_over_the_cap_are_rejected_not_aborted() {
+        // A per-side cap below the image's declared size must yield a
+        // recoverable Err, never an allocation-abort — the mechanism that stops
+        // a crafted image declaring 60000×60000 from OOM-killing the process.
+        let r = decode_image_with_max_side(&png_bytes(8, 8), 4);
+        assert!(
+            r.is_err(),
+            "decode must fail under the pixel cap, not abort"
+        );
+    }
+}
+
+#[cfg(test)]
+mod median_tests {
+    #[test]
+    fn median_of_empty_is_zero_not_a_panic() {
+        // A crafted table can leave a row/column with zero matched cells; the
+        // even-count branch would index values[0 - 1] and panic (→ remote crash
+        // via docling-serve) without the empty guard.
+        assert_eq!(super::tf_match::median_for_test(&mut []), 0.0);
+        assert_eq!(super::tf_match::median_for_test(&mut [4.0, 2.0]), 3.0);
+        assert_eq!(super::tf_match::median_for_test(&mut [5.0, 1.0, 3.0]), 3.0);
+    }
+}
+
 #[cfg(test)]
 mod send_check {
     /// The Node bindings (`docling-node`) run a shared [`super::Pipeline`] on

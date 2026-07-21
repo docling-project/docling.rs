@@ -181,11 +181,22 @@ fn find_alignment_in_column(cells: &[TfCell]) -> Alignment {
     }
 }
 
+/// Test hook for the crate-internal [`median`] (empty-slice guard).
+#[cfg(test)]
+pub(crate) fn median_for_test(values: &mut [f64]) -> f64 {
+    median(values)
+}
+
 /// `statistics.median`: mean of the two middle values for an even count.
+/// Returns 0.0 for an empty slice — a crafted table can leave a row/column
+/// with zero matched cells, and `values[n / 2 - 1]` would otherwise underflow
+/// (`0usize - 1`) and panic, which (via docling-serve) is a remote crash.
 fn median(values: &mut [f64]) -> f64 {
     values.sort_by(|a, b| a.total_cmp(b));
     let n = values.len();
-    if n % 2 == 1 {
+    if n == 0 {
+        0.0
+    } else if n % 2 == 1 {
         values[n / 2]
     } else {
         (values[n / 2 - 1] + values[n / 2]) / 2.0

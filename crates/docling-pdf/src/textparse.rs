@@ -855,9 +855,9 @@ fn page_glyphs_cached(
     caches: &mut DocCaches,
 ) -> Vec<Glyph> {
     let mut out = Vec::new();
-    let Ok(content_bytes) = doc.get_page_content(page_id) else {
-        return out;
-    };
+    // lopdf 0.44: get_page_content returns the assembled content-stream bytes
+    // directly (an empty Vec when the page has none).
+    let content_bytes = doc.get_page_content(page_id);
     let Ok(content) = lopdf::content::Content::decode(&content_bytes) else {
         return out;
     };

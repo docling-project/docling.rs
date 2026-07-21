@@ -41,11 +41,23 @@ const STRIP_HIDDEN_JS: &str = r#"
 pub fn render_visible_html(html: &str) -> Result<String, String> {
     // Load via a temporary `file://` document rather than a `data:` URL — a large
     // page (e.g. a full Wikipedia article) blows past practical data-URL limits.
-    let path = temp_html_path();
-    std::fs::write(&path, html).map_err(|e| format!("browser: writing temp page: {e}"))?;
-    let result = render_file(&path);
-    let _ = std::fs::remove_file(&path);
-    result
+    //
+    // The file is created with an unpredictable name via `tempfile` (O_EXCL +
+    // random suffix): a fixed `<pid>-<seq>` path in a shared /tmp could be
+    // pre-planted as a symlink by a local attacker, and `fs::write` would
+    // follow it into an arbitrary-file overwrite. The handle also removes the
+    // file on drop, so an early return can't leak it.
+    use std::io::Write;
+    let mut file = tempfile::Builder::new()
+        .prefix("docling.rs-render-")
+        .suffix(".html")
+        .tempfile()
+        .map_err(|e| format!("browser: temp page: {e}"))?;
+    file.write_all(html.as_bytes())
+        .map_err(|e| format!("browser: writing temp page: {e}"))?;
+    file.flush()
+        .map_err(|e| format!("browser: writing temp page: {e}"))?;
+    render_file(file.path())
 }
 
 fn render_file(path: &Path) -> Result<String, String> {
@@ -95,22 +107,6 @@ fn locate_chrome() -> Option<PathBuf> {
         }
     }
     None
-}
-
-/// A per-process temp path for the page being rendered. A short atomic counter
-/// disambiguates concurrent conversions in one process (the environment forbids
-/// `Date::now`/random in some contexts, so avoid both).
-fn temp_html_path() -> PathBuf {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static SEQ: AtomicU64 = AtomicU64::new(0);
-    let n = SEQ.fetch_add(1, Ordering::Relaxed);
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "docling.rs-render-{}-{}.html",
-        std::process::id(),
-        n
-    ));
-    path
 }
 
 #[cfg(test)]

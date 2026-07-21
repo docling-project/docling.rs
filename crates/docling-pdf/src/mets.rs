@@ -80,9 +80,8 @@ pub fn convert_mets_gbs_with_options(
         let Some(img_bytes) = tiff.get(stem) else {
             continue;
         };
-        let image = image::load_from_memory(img_bytes)
-            .map_err(|e| PdfError::Pdfium(format!("mets image {stem}: {e}")))?
-            .into_rgb8();
+        let image = crate::decode_image_limited(img_bytes)
+            .map_err(|e| PdfError::Pdfium(format!("mets image {stem}: {e}")))?;
         let (width, height, cells) = parse_hocr(hocr, &image);
         pages.push(PdfPage {
             width,

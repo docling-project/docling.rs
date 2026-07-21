@@ -1,17 +1,20 @@
 //! `docling-serve` — standalone binary for the HTTP conversion API.
 //!
 //! Usage: docling-serve [--addr HOST:PORT] [--concurrency N] [--max-body-mb N]
-//!                      [--warmup] [--no-url-fetch] [--strict]
+//!                      [--warmup] [--allow-url-fetch] [--strict]
 //!
 //!   --addr HOST:PORT  bind address (default: 127.0.0.1:5001). Bind 0.0.0.0
-//!                     only behind a trusted proxy — /v1/convert accepts URL
-//!                     inputs (outbound fetches) unless --no-url-fetch.
+//!                     only behind a trusted proxy.
 //!   --concurrency N   max conversions in flight; excess requests queue
 //!                     (default: 2)
 //!   --max-body-mb N   request body cap for uploads, in MiB (default: 256)
 //!   --warmup          load the PDF/image models at startup; /ready returns
 //!                     503 until they are loaded
-//!   --no-url-fetch    reject {"url": …} inputs; uploads only
+//!   --allow-url-fetch accept {"url": …} inputs (outbound fetch — SSRF surface;
+//!                     off by default). A private/loopback/link-local IP guard
+//!                     applies even when enabled.
+//!   --no-url-fetch    accepted for compatibility (URL fetch is now off by
+//!                     default; this is a no-op)
 //!   --strict          default to the cleaner strict Markdown dialect
 
 use std::process::ExitCode;
@@ -36,6 +39,9 @@ fn main() -> ExitCode {
                 _ => return usage("--max-body-mb needs a positive integer"),
             },
             "--warmup" => cfg.warmup = true,
+            "--allow-url-fetch" => cfg.allow_url_fetch = true,
+            // URL fetch is off by default now; keep the old flag as a no-op so
+            // existing invocations don't break.
             "--no-url-fetch" => cfg.allow_url_fetch = false,
             "--strict" => cfg.strict = true,
             "--help" | "-h" => return usage(""),

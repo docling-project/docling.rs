@@ -74,7 +74,21 @@ pub(crate) fn append_fragment(html: &str, out: &mut Vec<Node>, images: &dyn Imag
     // Prefer <body>; fall back to the root element for fragments.
     let body = parsed.select(cached_selector!("body")).next();
     let root = body.unwrap_or_else(|| parsed.root_element());
-    walk_block(root, out, 0, Fmt::default(), images);
+    // The block/inline DOM walkers below recurse on nesting depth. A crafted
+    // document with tens of thousands of nested elements (trivial to author,
+    // also reachable through EPUB and Markdown-embedded HTML) would overflow
+    // the stack — an uncatchable abort, i.e. a remote DoS via docling-serve.
+    // Guard with a depth ceiling checked iteratively (so the check itself
+    // can't overflow); past it, fall back to the flattened text so the
+    // document still yields content without descending the pathological tree.
+    if within_depth_limit(root, MAX_DOM_DEPTH) {
+        walk_block(root, out, 0, Fmt::default(), images);
+    } else {
+        let text = normalize_ws(&root.text().collect::<String>());
+        if !text.is_empty() {
+            out.push(Node::Paragraph { text });
+        }
+    }
     // docling's `infer_furniture`: content before the first body heading is site
     // chrome (navigation/menus/sidebars) → the `furniture` layer.
     mark_leading_furniture(&mut out[start..]);
@@ -190,6 +204,35 @@ fn is_block(name: &str) -> bool {
 /// found directly between block elements is buffered and flushed as paragraphs.
 /// `base` seeds the inline formatting — table cells pass `raw` so their text is
 /// not `&<>`/`_` escaped.
+/// Deepest DOM nesting the recursive walkers will descend. Real documents sit
+/// in the low tens; 2000 is far above anything legitimate while keeping the
+/// recursion well clear of the stack limit. Override with
+/// `DOCLING_RS_MAX_HTML_DEPTH`.
+const MAX_DOM_DEPTH: usize = 2000;
+
+fn max_dom_depth() -> usize {
+    std::env::var("DOCLING_RS_MAX_HTML_DEPTH")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(MAX_DOM_DEPTH)
+}
+
+/// Whether no node under `root` nests deeper than the limit. Iterative DFS —
+/// this check must not itself recurse (it runs on the same hostile tree).
+fn within_depth_limit(root: ElementRef, _default: usize) -> bool {
+    let limit = max_dom_depth();
+    let mut stack = vec![(*root, 1usize)];
+    while let Some((node, depth)) = stack.pop() {
+        if depth > limit {
+            return false;
+        }
+        for child in node.children() {
+            stack.push((child, depth + 1));
+        }
+    }
+    true
+}
+
 fn walk_block(
     elem: ElementRef,
     nodes: &mut Vec<Node>,
@@ -1615,6 +1658,36 @@ mod tests {
     fn convert(html: &str) -> DoclingDocument {
         let src = SourceDocument::from_bytes("t", InputFormat::Html, html.as_bytes().to_vec());
         HtmlBackend.convert(&src).unwrap()
+    }
+
+    #[test]
+    fn deeply_nested_html_does_not_overflow_the_stack() {
+        // ~50k nested <div> would blow the recursive walker's stack (an
+        // uncatchable abort). The depth guard must fall back to flattened text
+        // instead of recursing. Uses the env override to keep the test cheap.
+        std::env::set_var("DOCLING_RS_MAX_HTML_DEPTH", "200");
+        let depth = 4_000;
+        let html = format!(
+            "<html><body>{}<p>deep text</p>{}</body></html>",
+            "<div>".repeat(depth),
+            "</div>".repeat(depth),
+        );
+        let doc = convert(&html); // must return, not abort
+        std::env::remove_var("DOCLING_RS_MAX_HTML_DEPTH");
+        assert!(
+            doc.export_to_markdown().contains("deep text"),
+            "flattened fallback should preserve the text content"
+        );
+    }
+
+    #[test]
+    fn shallow_html_still_walks_structurally() {
+        // A normal document stays under the limit and produces real structure,
+        // not the flattened fallback.
+        let doc = convert("<h1>Title</h1><ul><li>a</li><li>b</li></ul>");
+        let md = doc.export_to_markdown();
+        assert!(md.contains("# Title"));
+        assert!(md.contains("- a"));
     }
 
     #[test]

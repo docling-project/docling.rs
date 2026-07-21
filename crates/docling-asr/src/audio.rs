@@ -42,7 +42,16 @@ pub fn decode_to_mono_16k(bytes: &[u8], name: &str) -> Result<Vec<f32>, String> 
         .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
         .ok_or_else(|| "asr: no decodable audio track".to_string())?;
     let track_id = track.id;
-    let src_rate = track.codec_params.sample_rate.unwrap_or(SAMPLE_RATE);
+    // Clamp the header-declared sample rate to a sane range. `resample_linear`
+    // upsamples by `src_rate / 16000`, and `Vec::with_capacity` on that factor
+    // means a crafted file claiming `sample_rate = 1` would try to allocate
+    // ~16000× the sample count → OOM abort. 8 kHz…768 kHz spans every real
+    // audio rate.
+    let src_rate = track
+        .codec_params
+        .sample_rate
+        .unwrap_or(SAMPLE_RATE)
+        .clamp(8_000, 768_000);
 
     let mut decoder = symphonia::default::get_codecs()
         .make(&track.codec_params, &DecoderOptions::default())
