@@ -42,7 +42,7 @@ directml = ["docling/directml"]
 coreml = ["docling/coreml"]
 
 [dependencies]
-docling = { path = "../docling", version = "0.44.0" }
-docling-serve = { path = "../docling-serve", version = "0.44.0", optional = true, default-features = false }
+docling = { path = "../docling", version = "0.45.0" }
+docling-serve = { path = "../docling-serve", version = "0.45.0", optional = true, default-features = false }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
