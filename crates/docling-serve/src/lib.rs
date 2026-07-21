@@ -7,6 +7,7 @@
 //! |--------|---------------|----------------------------------------------------|
 //! | GET    | `/`           | API docs + an interactive test form                |
 //! | POST   | `/v1/convert` | convert an upload (multipart) or a URL (JSON body) |
+//! | GET    | `/v1/config`  | server capabilities (`{"allow_url_fetch": bool}`)  |
 //! | GET    | `/health`     | liveness probe                                     |
 //! | GET    | `/ready`      | readiness probe (200 once models are warm)         |
 //!
@@ -128,6 +129,7 @@ pub fn router(cfg: ServeConfig) -> Router {
         )
         .route("/health", get(|| async { Json(json!({"status": "ok"})) }))
         .route("/ready", get(ready))
+        .route("/v1/config", get(config))
         .route("/v1/convert", post(convert))
         .layer(DefaultBodyLimit::max(cfg.max_body_bytes))
         .with_state(state)
@@ -167,6 +169,13 @@ async fn shutdown_signal() {
         _ = term => {},
     }
     eprintln!("docling-serve: shutdown signal received, draining in-flight requests");
+}
+
+/// Capabilities the built-in UI adapts to. Currently just whether `{"url": …}`
+/// inputs are accepted (`--allow-url-fetch`) — the UI greys out the URL option
+/// and explains why when this is false, instead of letting the user hit a 422.
+async fn config(State(state): State<Arc<AppState>>) -> Response {
+    Json(json!({ "allow_url_fetch": state.cfg.allow_url_fetch })).into_response()
 }
 
 async fn ready(State(state): State<Arc<AppState>>) -> Response {
@@ -258,7 +267,9 @@ async fn convert(
             .map_err(|e| ApiError::Bad(format!("bad JSON body: {e}")))?;
         if !state.cfg.allow_url_fetch {
             return Err(ApiError::Unsupported(
-                "URL inputs are disabled (--no-url-fetch); upload the file instead".into(),
+                "URL inputs are disabled; start docling-serve with --allow-url-fetch \
+                 (SSRF surface — see docs/SECURITY.md), or upload the file instead"
+                    .into(),
             ));
         }
         let options = req.options.clone().merge_over(query);
@@ -405,18 +416,67 @@ async fn text_field(field: axum::extract::multipart::Field<'_>) -> Result<String
 
 /// Build a [`SourceDocument`] from a filename (extension → format) and bytes.
 fn source_from_named_bytes(file_name: &str, bytes: Vec<u8>) -> Result<SourceDocument, ApiError> {
+    source_from_named_bytes_ct(file_name, bytes, None)
+}
+
+/// As [`source_from_named_bytes`], with an optional response `Content-Type` used
+/// as a fallback when the name carries no usable extension — a URL like
+/// `…/help/example-domains` has no `.html`, but the server reports
+/// `text/html`, so it still converts.
+fn source_from_named_bytes_ct(
+    file_name: &str,
+    bytes: Vec<u8>,
+    content_type: Option<&str>,
+) -> Result<SourceDocument, ApiError> {
     let ext = std::path::Path::new(file_name)
         .extension()
-        .and_then(|e| e.to_str())
-        .ok_or_else(|| ApiError::Bad(format!("no extension on '{file_name}'")))?;
-    let format = InputFormat::from_extension(ext)
-        .ok_or_else(|| ApiError::Unsupported(format!("unrecognized extension '.{ext}'")))?;
+        .and_then(|e| e.to_str());
+    let format = ext
+        .and_then(InputFormat::from_extension)
+        .or_else(|| content_type.and_then(format_from_content_type))
+        .ok_or_else(|| match ext {
+            Some(e) => ApiError::Unsupported(format!("unrecognized extension '.{e}'")),
+            None => ApiError::Bad(format!(
+                "cannot determine the format of '{file_name}': no file extension \
+                 and no recognized Content-Type"
+            )),
+        })?;
     let stem = std::path::Path::new(file_name)
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("document")
         .to_string();
     Ok(SourceDocument::from_bytes(stem, format, bytes))
+}
+
+/// Map an HTTP `Content-Type` (its media-type, parameters stripped) to an input
+/// format — the common web types docling can convert. Anything else returns
+/// `None` and the caller reports an unknown-format error.
+fn format_from_content_type(content_type: &str) -> Option<InputFormat> {
+    let mime = content_type
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    Some(match mime.as_str() {
+        "text/html" | "application/xhtml+xml" => InputFormat::Html,
+        "application/pdf" => InputFormat::Pdf,
+        "text/markdown" | "text/plain" => InputFormat::Md,
+        "text/csv" => InputFormat::Csv,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => {
+            InputFormat::Docx
+        }
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation" => {
+            InputFormat::Pptx
+        }
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => InputFormat::Xlsx,
+        "application/epub+zip" => InputFormat::Epub,
+        "image/jpeg" | "image/png" | "image/tiff" | "image/bmp" | "image/webp" => {
+            InputFormat::Image
+        }
+        _ => return None,
+    })
 }
 
 /// Largest URL-fetch response accepted (256 MiB default). Unlike the
@@ -514,6 +574,12 @@ fn fetch_url(url: &str, file_name: Option<&str>) -> Result<SourceDocument, ApiEr
         .get(url)
         .call()
         .map_err(|e| ApiError::Bad(format!("fetching {url}: {e}")))?;
+    // Kept for format detection when the URL/name has no usable extension.
+    let content_type = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
     let max_fetch = max_fetch_bytes();
     let mut bytes = Vec::new();
     response
@@ -535,10 +601,8 @@ fn fetch_url(url: &str, file_name: Option<&str>) -> Result<SourceDocument, ApiEr
                 .map(|s| s.split(['?', '#']).next().unwrap_or(s).to_string())
                 .filter(|s| !s.is_empty())
         })
-        .ok_or_else(|| {
-            ApiError::Bad("cannot derive a file name from the URL; pass file_name".into())
-        })?;
-    source_from_named_bytes(&name, bytes)
+        .unwrap_or_else(|| "document".to_string());
+    source_from_named_bytes_ct(&name, bytes, content_type.as_deref())
 }
 
 /// Convert to a [`DoclingDocument`], routing PDF/image through the warm
@@ -686,7 +750,14 @@ async fn stream_markdown(
     let mut rx = rx;
     let first = rx.recv().await;
     match first {
-        None => Err(ApiError::Internal("converter produced no output".into())),
+        // No chunks means the document converted to empty Markdown (e.g. an
+        // HTML page with no extractable content) — a valid result, not a
+        // server error. Return an empty 200 body rather than a 500.
+        None => Ok((
+            [(header::CONTENT_TYPE, "text/markdown; charset=utf-8")],
+            Body::empty(),
+        )
+            .into_response()),
         Some(Err(e)) => Err(ApiError::Unsupported(e)),
         Some(Ok(first_chunk)) => {
             use tokio_stream::StreamExt;
@@ -759,6 +830,37 @@ mod ssrf_tests {
     #[test]
     fn url_fetch_off_by_default() {
         assert!(!super::ServeConfig::default().allow_url_fetch);
+    }
+
+    #[test]
+    fn content_type_maps_to_format_when_extension_missing() {
+        use super::{source_from_named_bytes_ct, ApiError, InputFormat};
+        // `ApiError` has no `Debug`, so match rather than `.expect()`.
+        let fmt = |r: Result<super::SourceDocument, ApiError>| r.ok().map(|s| s.format);
+
+        // A URL with no extension (iana example) resolves via Content-Type.
+        assert_eq!(
+            fmt(source_from_named_bytes_ct(
+                "example-domains",
+                b"<html></html>".to_vec(),
+                Some("text/html; charset=utf-8"),
+            )),
+            Some(InputFormat::Html)
+        );
+        // A usable extension still wins over the Content-Type.
+        assert_eq!(
+            fmt(source_from_named_bytes_ct(
+                "a.pdf",
+                b"%PDF".to_vec(),
+                Some("text/html"),
+            )),
+            Some(InputFormat::Pdf)
+        );
+        // Neither an extension nor a known Content-Type → a 4xx (Bad), not a 500.
+        assert!(matches!(
+            source_from_named_bytes_ct("noext", b"x".to_vec(), Some("application/octet-stream")),
+            Err(ApiError::Bad(_))
+        ));
     }
 
     #[test]

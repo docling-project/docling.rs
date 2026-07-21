@@ -47,9 +47,14 @@ convert documents to Markdown, docling JSON, DocLang archives, or chunk records.
 <div class="form">
   <div class="row">
     <label><input type="radio" name="mode" value="file" checked> Upload</label>
-    <label><input type="radio" name="mode" value="url"> URL</label>
+    <label id="url-mode"><input type="radio" name="mode" value="url"> URL</label>
     <input type="file" id="file">
     <input type="text" id="url" placeholder="https://example.com/document.pdf" style="display:none">
+  </div>
+  <div class="hint" id="url-disabled-note" style="display:none">
+    URL inputs are disabled on this server — start <code>docling-serve</code> with
+    <code>--allow-url-fetch</code> to enable them (outbound fetch is an SSRF surface;
+    see docs/SECURITY.md). Upload a file instead.
   </div>
   <div class="row">
     <label>Output:
@@ -62,6 +67,7 @@ convert documents to Markdown, docling JSON, DocLang archives, or chunk records.
     </label>
     <label><input type="checkbox" id="strict"> strict Markdown</label>
     <label><input type="checkbox" id="embed" checked> embed images</label>
+    <label title="HTML/EPUB: resolve external <img src> and embed the bytes (outbound fetch)"><input type="checkbox" id="fetch_images"> fetch images</label>
     <label><input type="checkbox" id="no_ocr"> no OCR</label>
     <label><input type="checkbox" id="no_table_former"> no TableFormer</label>
     <button id="go">Convert</button>
@@ -81,6 +87,7 @@ convert documents to Markdown, docling JSON, DocLang archives, or chunk records.
       <td>Convert an upload (<code>multipart/form-data</code>, a <code>file</code> part — the filename's
       extension selects the input format) or a URL (<code>application/json</code>:
       <code>{"url": …, "file_name"?: …}</code>).</td></tr>
+  <tr><td><code>GET</code></td><td><code>/v1/config</code></td><td>Server capabilities — currently <code>{"allow_url_fetch": bool}</code>, which this page adapts to.</td></tr>
   <tr><td><code>GET</code></td><td><code>/health</code></td><td>Liveness probe.</td></tr>
   <tr><td><code>GET</code></td><td><code>/ready</code></td><td>Readiness probe — 503 until <code>--warmup</code> finishes loading the ML models.</td></tr>
 </table>
@@ -116,6 +123,22 @@ for (const radio of document.querySelectorAll('input[name=mode]')) {
     $('url').style.display = file ? 'none' : '';
   });
 }
+
+// Reflect server capabilities: when URL fetch is disabled (--allow-url-fetch
+// off, the secure default), disable the URL radio and explain why, so the
+// option isn't a dead end that only fails with a 422 on Convert.
+(async () => {
+  try {
+    const cfg = await fetch('/v1/config').then((r) => r.json());
+    if (!cfg.allow_url_fetch) {
+      const urlRadio = document.querySelector('input[name=mode][value=url]');
+      urlRadio.disabled = true;
+      $('url-mode').style.opacity = '.5';
+      $('url-mode').title = 'Disabled — start docling-serve with --allow-url-fetch';
+      $('url-disabled-note').style.display = '';
+    }
+  } catch { /* config endpoint unavailable — leave the UI as-is */ }
+})();
 // Pull embedded pictures (data URIs) out of the Markdown / docling JSON,
 // show them as a gallery under the text, and shorten the base64 blobs in
 // the text panel so it stays readable. Markdown embeds only with the
@@ -181,6 +204,7 @@ $('go').addEventListener('click', async () => {
     to,
     strict: $('strict').checked,
     images: $('embed').checked ? 'embedded' : 'placeholder',
+    fetch_images: $('fetch_images').checked,
     no_ocr: $('no_ocr').checked,
     no_table_former: $('no_table_former').checked,
   };
