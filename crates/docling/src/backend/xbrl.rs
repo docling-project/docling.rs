@@ -25,7 +25,7 @@ impl DeclarativeBackend for XbrlBackend {
             ..Default::default()
         };
         let dom = Document::parse_with_options(xml, opts)
-            .map_err(|e| ConversionError::Parse(format!("xbrl: {e}")))?;
+            .map_err(|e| ConversionError::with_source("xbrl", e))?;
         let mut doc = DoclingDocument::new(&source.name);
 
         // Title from dei facts (last non-empty value of each, as docling's loop).

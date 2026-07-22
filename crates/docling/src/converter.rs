@@ -398,7 +398,7 @@ impl DocumentConverter {
                 self.no_ocr,
                 self.enrich,
             )
-            .map_err(|e| ConversionError::Parse(e.to_string()))?,
+            .map_err(|e| ConversionError::with_source("pdf", e))?,
             #[cfg(feature = "pdf")]
             InputFormat::Image => docling_pdf::convert_image_with_options(
                 &source.bytes,
@@ -407,7 +407,7 @@ impl DocumentConverter {
                 self.no_ocr,
                 self.enrich,
             )
-            .map_err(|e| ConversionError::Parse(e.to_string()))?,
+            .map_err(|e| ConversionError::with_source("image", e))?,
             #[cfg(feature = "pdf")]
             InputFormat::MetsGbs => docling_pdf::convert_mets_gbs_with_options(
                 &source.bytes,
@@ -416,7 +416,7 @@ impl DocumentConverter {
                 self.no_ocr,
                 self.enrich,
             )
-            .map_err(|e| ConversionError::Parse(e.to_string()))?,
+            .map_err(|e| ConversionError::with_source("mets-gbs", e))?,
             // Audio → Whisper ASR (symphonia decode + ONNX inference); each
             // transcribed segment becomes a `[time: start-end] text` paragraph.
             #[cfg(feature = "asr")]
@@ -425,7 +425,7 @@ impl DocumentConverter {
                 &source.name,
                 self.asr_model.as_deref(),
             )
-            .map_err(|e| ConversionError::Parse(e.to_string()))?,
+            .map_err(|e| ConversionError::with_source("audio", e))?,
             // Without the full ML pipeline, `pdf-text` still converts a PDF's
             // embedded text layer (pure Rust — the wasm32 path), equivalent to
             // `--no-ocr`: flat paragraphs, no headings/tables/pictures. A
@@ -434,7 +434,7 @@ impl DocumentConverter {
             #[cfg(all(feature = "pdf-text", not(feature = "pdf")))]
             InputFormat::Pdf => {
                 let doc = docling_pdf::convert_text_layer(&source.bytes, &source.name)
-                    .map_err(|e| ConversionError::Parse(e.to_string()))?;
+                    .map_err(|e| ConversionError::with_source("pdf", e))?;
                 if doc.nodes.is_empty() {
                     return Err(ConversionError::Parse(
                         "PDF has no embedded text layer (scanned/image-only?); OCR needs a \

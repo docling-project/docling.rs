@@ -82,6 +82,6 @@ impl SourceDocument {
     /// View the bytes as UTF-8 text, for text-based backends.
     pub fn text(&self) -> Result<&str, ConversionError> {
         std::str::from_utf8(&self.bytes)
-            .map_err(|e| ConversionError::Parse(format!("input is not valid UTF-8: {e}")))
+            .map_err(|e| ConversionError::with_source("input is not valid UTF-8", e))
     }
 }
