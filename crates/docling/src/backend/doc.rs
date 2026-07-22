@@ -681,12 +681,23 @@ impl Drawings {
     }
 }
 
-/// One list level's numbering: kind and start value.
-#[derive(Clone, Copy)]
+/// One piece of a level's number template (`xst`): a literal, or a
+/// placeholder for another level's counter (placeholder chars are the level
+/// index 0–8 in the raw text).
+#[derive(Clone)]
+enum LvlPart {
+    Level(u8),
+    Text(String),
+}
+
+/// One list level's numbering: kind, start value, and number template.
+#[derive(Clone, Default)]
 struct LvlInfo {
     /// Number format code (`nfc`): 0x17 = bullet, 0xFF = none, else numbered.
     nfc: u8,
     start: u32,
+    /// The `xst` template (e.g. `1.1.` as [Level(0), ".", Level(1), "."]).
+    template: Vec<LvlPart>,
 }
 
 /// The document's list tables: `ilfo` (1-based, from `sprmPIlfo`) resolves
@@ -733,8 +744,29 @@ impl ListTables {
                 let cb_papx = plflst.get(pos + 25).copied().unwrap_or(0) as usize;
                 pos += 28 + cb_papx + cb_chpx;
                 let cch = u16_at(plflst, pos).unwrap_or(0) as usize;
-                pos += 2 + cch * 2;
-                lvls.push(LvlInfo { nfc, start });
+                pos += 2;
+                // xst: UTF-16 template where a code ≤ 8 is a placeholder for
+                // that level's counter (`1.1.` = [0, '.', 1, '.']).
+                let mut template: Vec<LvlPart> = Vec::new();
+                for i in 0..cch {
+                    let Some(u) = u16_at(plflst, pos + i * 2) else {
+                        break;
+                    };
+                    if u <= 8 {
+                        template.push(LvlPart::Level(u as u8));
+                    } else if let Some(c) = char::from_u32(u as u32) {
+                        match template.last_mut() {
+                            Some(LvlPart::Text(t)) => t.push(c),
+                            _ => template.push(LvlPart::Text(c.to_string())),
+                        }
+                    }
+                }
+                pos += cch * 2;
+                lvls.push(LvlInfo {
+                    nfc,
+                    start,
+                    template,
+                });
             }
             out.lists.insert(lsid, lvls);
         }
@@ -753,7 +785,12 @@ impl ListTables {
     fn level(&self, ilfo: u16, ilvl: u8) -> Option<LvlInfo> {
         let lsid = *self.lfo_lsids.get(ilfo.checked_sub(1)? as usize)?;
         let lvls = self.lists.get(&lsid)?;
-        lvls.get(ilvl as usize).or_else(|| lvls.first()).copied()
+        lvls.get(ilvl as usize).or_else(|| lvls.first()).cloned()
+    }
+
+    /// A level's start value, for counters not yet touched in a run.
+    fn level_start(&self, ilfo: u16, ilvl: u8) -> u64 {
+        self.level(ilfo, ilvl).map(|l| l.start as u64).unwrap_or(1)
     }
 }
 
@@ -874,8 +911,13 @@ struct NodeBuilder {
     /// items do NOT break a list (docling's DOCX behavior: numbering and
     /// grouping continue across gaps); any other node kind does.
     last_ilfo: Option<u16>,
+    /// Base `ilvl` of the current contiguous list run (its first item's),
+    /// mirroring the DOCX backend's `list_run_base`.
+    run_base: Option<u8>,
     lists: ListTables,
-    /// Running ordered-list counters, keyed by `(ilfo, ilvl)`.
+    /// Running list counters, keyed by `(ilfo, ilvl)` — docling semantics:
+    /// the value is the *current* number (post-increment), deeper levels
+    /// zero on a shallower item.
     counters: std::collections::HashMap<(u16, u8), u64>,
 }
 
@@ -956,42 +998,96 @@ impl NodeBuilder {
             // Headings render without run markers (the style carries the look).
             doc.push(Node::Heading { level, text: plain });
             self.last_ilfo = None;
+            self.run_base = None;
         } else if props.ilfo != 0 {
             let lvl = self.lists.level(props.ilfo, props.ilvl);
             // Bullet (0x17) / no-number (0xFF) levels — and unresolvable
             // references — are unordered; everything else numbers.
-            let ordered = lvl.is_some_and(|l| l.nfc != 0x17 && l.nfc != 0xFF);
-            let number = if ordered {
-                let start = lvl.map(|l| l.start as u64).unwrap_or(1);
-                let counter = self
+            let numbered = lvl.as_ref().is_some_and(|l| l.nfc != 0x17 && l.nfc != 0xFF);
+            let first_in_list = self.last_ilfo != Some(props.ilfo);
+            // The run's base indent (its first item's ilvl) — nested levels
+            // indent relative to it, matching the DOCX backend's
+            // `list_run_base` (the same list restarted after body text can
+            // legitimately sit at a different Markdown depth).
+            let base = *self.run_base.get_or_insert(props.ilvl);
+            let level = props.ilvl.saturating_sub(base);
+            if numbered {
+                // docling's counter semantics: bump this level (from the
+                // level's own start), zero deeper levels of the same list.
+                let start = self.lists.level_start(props.ilfo, props.ilvl);
+                let c = self
                     .counters
                     .entry((props.ilfo, props.ilvl))
-                    .or_insert(start);
-                let n = *counter;
-                *counter += 1;
-                // A new item at this level restarts deeper levels.
-                self.counters
-                    .retain(|&(f, l), _| f != props.ilfo || l <= props.ilvl);
-                n
+                    .or_insert(start.saturating_sub(1));
+                *c += 1;
+                for ((f, l), v) in self.counters.iter_mut() {
+                    if *f == props.ilfo && *l > props.ilvl {
+                        *v = 0;
+                    }
+                }
+                let marker = self.build_marker(props.ilfo, props.ilvl, lvl.as_ref());
+                let number = marker
+                    .trim_end_matches(['.', ')'])
+                    .rsplit(['.', ')'])
+                    .next()
+                    .and_then(|s| s.trim().parse::<u64>().ok())
+                    .unwrap_or(1);
+                if cached_regex!(r"^\d+[.)]$").is_match(&marker) {
+                    // A plain `N.` marker: ordered in Markdown and DocLang.
+                    doc.push(Node::ListItem {
+                        ordered: true,
+                        number,
+                        first_in_list,
+                        text,
+                        level,
+                        marker: Some(marker),
+                        location: None,
+                        dclx: None,
+                        href: None,
+                        layer: None,
+                    });
+                } else {
+                    // A multilevel marker (`1.1.`): Markdown bullet with the
+                    // marker as a text prefix, ordered DocLang item with a
+                    // clean-text `<marker>` — same as the DOCX backend.
+                    let dclx = Some(docling_core::ListItemDclx {
+                        ordered: true,
+                        marker: Some(marker.clone()),
+                        text: text.clone(),
+                        runs: Vec::new(),
+                    });
+                    doc.push(Node::ListItem {
+                        ordered: false,
+                        number,
+                        first_in_list,
+                        text: format!("{marker} {text}"),
+                        level,
+                        marker: None,
+                        location: None,
+                        dclx,
+                        href: None,
+                        layer: None,
+                    });
+                }
             } else {
-                1
-            };
-            doc.push(Node::ListItem {
-                ordered,
-                number,
-                first_in_list: self.last_ilfo != Some(props.ilfo),
-                text,
-                level: props.ilvl,
-                marker: None,
-                location: None,
-                dclx: None,
-                href: None,
-                layer: None,
-            });
+                doc.push(Node::ListItem {
+                    ordered: false,
+                    number: 0,
+                    first_in_list,
+                    text,
+                    level,
+                    marker: None,
+                    location: None,
+                    dclx: None,
+                    href: None,
+                    layer: None,
+                });
+            }
             self.last_ilfo = Some(props.ilfo);
         } else {
             doc.push(Node::Paragraph { text });
             self.last_ilfo = None;
+            self.run_base = None;
         }
         for image in after {
             doc.push(picture_node(image));
@@ -1026,6 +1122,48 @@ impl NodeBuilder {
             cell_blocks: None,
         }));
         self.last_ilfo = None;
+        self.run_base = None;
+    }
+
+    /// Build the item's enumeration marker from the level's `xst` template —
+    /// the DOC twin of the DOCX backend's `build_enum_marker`: a template
+    /// with literal text beyond separators substitutes its placeholders;
+    /// a bare numeric template falls back to the hierarchical `1.2.` form
+    /// joining the counters of levels `0..=ilvl`.
+    fn build_marker(&self, ilfo: u16, ilvl: u8, lvl: Option<&LvlInfo>) -> String {
+        let counter_at = |l: u8| -> u64 {
+            self.counters
+                .get(&(ilfo, l))
+                .copied()
+                .unwrap_or_else(|| self.lists.level_start(ilfo, l))
+        };
+        if let Some(lvl) = lvl {
+            let literal: String = lvl
+                .template
+                .iter()
+                .filter_map(|p| match p {
+                    LvlPart::Text(t) => Some(t.as_str()),
+                    LvlPart::Level(_) => None,
+                })
+                .collect();
+            let has_levels = lvl.template.iter().any(|p| matches!(p, LvlPart::Level(_)));
+            if has_levels
+                && !literal
+                    .trim_matches(|c: char| " .)(:[]".contains(c))
+                    .is_empty()
+            {
+                return lvl
+                    .template
+                    .iter()
+                    .map(|p| match p {
+                        LvlPart::Level(l) => counter_at(*l).to_string(),
+                        LvlPart::Text(t) => t.clone(),
+                    })
+                    .collect();
+            }
+        }
+        let parts: Vec<String> = (0..=ilvl).map(|l| counter_at(l).to_string()).collect();
+        parts.join(".") + "."
     }
 }
 

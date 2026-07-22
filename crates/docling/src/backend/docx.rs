@@ -1151,13 +1151,19 @@ fn parse_table(tbl: XmlNode, ctx: &Ctx) -> Option<Table> {
 /// rendered as plain text (docling's `_collect_subtree_text` drops formatting).
 fn parse_table_with(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
     let rows: Vec<XmlNode> = tbl.children().filter(|n| n.has_tag_name("tr")).collect();
+    // A row's width in grid columns includes the leading/trailing skipped
+    // columns (`w:gridBefore`/`w:gridAfter`) — a row that starts late still
+    // spans the full grid.
     let num_cols = rows
         .iter()
         .map(|r| {
-            r.children()
-                .filter(|n| n.has_tag_name("tc"))
-                .map(|tc| grid_span(tc))
-                .sum::<usize>()
+            let (before, after) = row_grid_offsets(*r);
+            before
+                + after
+                + r.children()
+                    .filter(|n| n.has_tag_name("tc"))
+                    .map(|tc| grid_span(tc))
+                    .sum::<usize>()
         })
         .max()
         .unwrap_or(0);
@@ -1177,11 +1183,14 @@ fn parse_table_with(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
     let mut row_cont = vec![vec![false; num_cols]; rows.len()];
     let mut any_span = false;
     for (ri, row) in rows.iter().enumerate() {
-        let mut ci = 0usize;
+        // The grid cursor starts past the row's skipped leading columns
+        // (`w:gridBefore`) and advances by each cell's span — true grid
+        // coordinates, never inferred from what an earlier row left behind
+        // (upstream docling had the same positional-index conflation,
+        // fixed in docling PR #3745: cells dropped and merges broken on
+        // late-starting rows).
+        let mut ci = row_grid_offsets(*row).0;
         for tc in row.children().filter(|n| n.has_tag_name("tc")) {
-            while ci < num_cols && !grid[ri][ci].is_empty() {
-                ci += 1;
-            }
             let span = grid_span(tc);
             // A continuation cell of a vertical merge repeats the cell above.
             let v_continue = tc
@@ -1257,6 +1266,20 @@ fn grid_span(tc: XmlNode) -> usize {
         .and_then(|n| attr(n, "val"))
         .and_then(|v| v.parse().ok())
         .unwrap_or(1)
+}
+
+/// A row's skipped grid columns: `(w:gridBefore, w:gridAfter)` from its
+/// `w:trPr`, 0 when absent.
+fn row_grid_offsets(tr: XmlNode) -> (usize, usize) {
+    let read = |tag: &str| {
+        tr.children()
+            .find(|n| n.has_tag_name("trPr"))
+            .and_then(|pr| pr.children().find(|n| n.has_tag_name(tag)))
+            .and_then(|n| attr(n, "val"))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0)
+    };
+    (read("gridBefore"), read("gridAfter"))
 }
 
 /// A table cell's Markdown. A "plain" cell (one paragraph, unformatted runs, no
