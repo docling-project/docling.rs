@@ -3,7 +3,7 @@
 //! The docling.rs counterpart of `docling.cli.main`; `docling-rs serve`
 //! (with `--features serve`) starts the HTTP conversion API.
 //!
-//! Usage: docling-rs [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] <input-file>
+//! Usage: docling-rs [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--asr-model PRESET] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] <input-file>
 //!   --to md|json       output format (default: md). `json` emits docling-core's
 //!                      native DoclingDocument JSON (export_to_dict).
 //!   --images MODE      picture handling for Markdown (mirrors docling's
@@ -24,6 +24,10 @@
 //!                      geometric reconstruction from cell positions. Faster
 //!                      (no model load, no per-table inference) at the cost of
 //!                      table fidelity — helps most in streaming mode.
+//!   --asr-model NAME   Whisper preset for audio inputs: whisper_tiny_en,
+//!                      whisper_base_en, whisper_small_en, whisper_distil_small_en
+//!                      (models under models/asr/<preset>/; fetch them with
+//!                      download_dependencies.sh --asr-model=<preset>)
 //!   --no-ocr           skip layout detection, OCR, and TableFormer entirely for
 //!                      PDF/image input — no model load or inference at all.
 //!                      Emits the embedded text layer as flat paragraphs in
@@ -74,6 +78,7 @@ fn main() -> ExitCode {
     let mut no_table_former = false;
     let mut no_ocr = false;
     let mut use_web_browser = false;
+    let mut asr_model: Option<String> = None;
     let mut enrich_picture_classes = false;
     let mut enrich_code = false;
     let mut enrich_formula = false;
@@ -94,6 +99,10 @@ fn main() -> ExitCode {
             "--enrich-code" => enrich_code = true,
             "--enrich-formula" => enrich_formula = true,
             "--to" => to = args.next().unwrap_or_default(),
+            // Named Whisper preset for audio inputs (English-only /
+            // Distil-Whisper variants under models/asr/<preset>/; fetch with
+            // download_dependencies.sh --asr-model=<preset>).
+            "--asr-model" => asr_model = args.next(),
             "--images" => images = args.next().unwrap_or_default(),
             // Hidden benchmarking aid: load the PDF/image pipeline once, then time
             // N warm conversions (models already loaded), printing the avg seconds
@@ -165,6 +174,7 @@ fn main() -> ExitCode {
 
     let converter = DocumentConverter::new()
         .strict(strict)
+        .asr_model(asr_model.clone())
         .fetch_images(fetch_images)
         .no_table_former(no_table_former)
         .no_ocr(no_ocr)

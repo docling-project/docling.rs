@@ -469,6 +469,7 @@ instead — same models plus `pdfium.dll` — and see
 | PP-OCRv3 rec + dictionary | `models/ocr_rec.onnx`, `models/ppocr_keys_v1.txt` |
 | TableFormer (optional) | `models/tableformer/{encoder,decoder,bbox}.onnx` (+ `.data` sidecars where the export needs them) |
 | Whisper tiny (audio/ASR; skip with `--no-asr`) | `models/asr/{encoder_model,decoder_model}.onnx`, `models/asr/vocab.json` (+ `added_tokens.json` for language selection) |
+| Whisper presets (optional; `--asr-model=<preset>`, repeatable) | `models/asr/<preset>/…` — English-only (`whisper_tiny_en`, `whisper_base_en`, `whisper_small_en`) and Distil-Whisper (`whisper_distil_small_en`) exports, fetched from Hugging Face |
 | INT8 CPU models (fetched by default; skip with `--no-int8`) | `models/layout_heron_int8.onnx`, `models/tableformer/decoder_int8.onnx` (+ `models/code_formula/decoder_kv_int8.onnx` with `--enrich`) |
 | DocumentFigureClassifier (picture classification) | `models/picture_classifier.onnx` |
 | CodeFormulaV2 (code/formula enrichment, ~1.3 GB; fetch with `--enrich`) | `models/code_formula/{vision,embed,decoder_kv}.onnx`, `models/code_formula/tokenizer.json` |
@@ -480,6 +481,35 @@ come from Hugging Face (`$DOCLING_RS_ASR_MODELS_URL` overrides, or point
 `DOCLING_ASR_{ENCODER,DECODER,VOCAB}` at explicit files). pdfium is Linux x64
 only for now — other platforms, or building the models from source, need
 [`scripts/install/pdf_setup.sh`](#testing) instead.
+
+#### Whisper models for audio/ASR
+
+The default run already fetches **Whisper tiny** (multilingual) into
+`models/asr/` — nothing extra is needed for audio inputs:
+
+```bash
+scripts/install/download_dependencies.sh          # includes Whisper tiny
+scripts/install/download_dependencies.sh --no-asr # …or skip the ~150 MB ASR models
+```
+
+Named **model presets** (docling's English-only / Distil-Whisper ASR specs,
+the variants with public ONNX exports) are fetched on top with a repeatable
+`--asr-model=` flag, each into its own `models/asr/<preset>/` directory:
+
+```bash
+scripts/install/download_dependencies.sh --asr-model=whisper_tiny_en
+scripts/install/download_dependencies.sh --asr-model=whisper_base_en --asr-model=whisper_distil_small_en
+```
+
+Available presets: `whisper_tiny_en`, `whisper_base_en`, `whisper_small_en`,
+`whisper_distil_small_en`. Select one at run time with the CLI's
+`--asr-model <preset>`, `DocumentConverter::asr_model(...)` in Rust, the
+`asr_model` option in docling-serve requests, or `asrModel` / `asr_model` in
+the Node/Python bindings:
+
+```bash
+docling-rs --asr-model whisper_tiny_en recording.mp3
+```
 
 ### Enrichment models (picture classification, code, formulas)
 
@@ -742,6 +772,8 @@ cargo run -p docling-cli -- document.pdf
 # transcribe audio (wav/mp3/flac/ogg/aac/m4a, or an mp4/mov audio track) — the
 # Whisper models come from the same download script
 cargo run -p docling-cli -- recording.mp3
+# …with a named preset (fetch it first: download_dependencies.sh --asr-model=whisper_tiny_en)
+cargo run -p docling-cli -- --asr-model whisper_tiny_en recording.mp3
 
 # extract pictures (PDF/image inputs): embed as data URIs, or write ./artifacts/*.png
 cargo run -p docling-cli -- --images embedded   document.pdf
