@@ -94,6 +94,12 @@ pub struct SeriesSpec {
     pub cat_ref: Option<String>,
     /// Values (`c:val` / `c:yVal`) reference.
     pub val_ref: Option<String>,
+    /// Cached category/value points (`strCache`/`numCache` `c:pt` entries) —
+    /// the only data DOCX/PPTX charts carry (no workbook to resolve against).
+    pub cat_cache: Vec<String>,
+    pub val_cache: Vec<String>,
+    /// Cached series name (the `c:tx` reference's `strCache`).
+    pub name_cache: Option<String>,
 }
 
 /// docling's `_CHART_TAGNAME_TO_CLASSIFICATION`.
@@ -157,11 +163,27 @@ pub fn parse_chart(xml: &str) -> Option<ChartSpec> {
         let val_ref = child("val")
             .and_then(ref_formula)
             .or_else(|| child("yVal").and_then(ref_formula));
+        let cat_cache = child("cat")
+            .map(cache_points)
+            .filter(|v| !v.is_empty())
+            .or_else(|| child("xVal").map(cache_points))
+            .unwrap_or_default();
+        let val_cache = child("val")
+            .map(cache_points)
+            .filter(|v| !v.is_empty())
+            .or_else(|| child("yVal").map(cache_points))
+            .unwrap_or_default();
+        let name_cache = child("tx")
+            .map(cache_points)
+            .and_then(|v| v.into_iter().next());
         series.push(SeriesSpec {
             name_ref,
             name_lit,
             cat_ref,
             val_ref,
+            cat_cache,
+            val_cache,
+            name_cache,
         });
     }
     Some(ChartSpec {
@@ -169,6 +191,120 @@ pub fn parse_chart(xml: &str) -> Option<ChartSpec> {
         title,
         series,
     })
+}
+
+/// The cached points under a `c:cat`/`c:val`/`c:tx` node: every `c:pt`'s
+/// `c:v` inside its `strCache`/`numCache`, ordered by the point index.
+/// Numbers render openpyxl-style (no trailing `.0`), matching the cell
+/// formatter — DOCX/PPTX charts carry their data only in these caches.
+fn cache_points(node: XmlNode) -> Vec<String> {
+    let Some(cache) = node
+        .descendants()
+        .find(|c| matches!(c.tag_name().name(), "strCache" | "numCache"))
+    else {
+        return Vec::new();
+    };
+    let mut pts: Vec<(usize, String)> = cache
+        .children()
+        .filter(|c| c.has_tag_name("pt"))
+        .filter_map(|pt| {
+            let idx: usize = pt.attribute("idx")?.parse().ok()?;
+            let v = pt.children().find(|c| c.has_tag_name("v"))?.text()?;
+            Some((idx, format_cached_value(v)))
+        })
+        .collect();
+    pts.sort_by_key(|(i, _)| *i);
+    pts.into_iter().map(|(_, v)| v).collect()
+}
+
+/// A cached value, numbers normalized like openpyxl's `str(value)` (an
+/// integer-valued float loses its `.0`).
+fn format_cached_value(v: &str) -> String {
+    match v.trim().parse::<f64>() {
+        Ok(f) if f.is_finite() && f.fract() == 0.0 && f.abs() < 1e15 => {
+            format!("{}", f as i64)
+        }
+        Ok(f) => format!("{f}"),
+        Err(_) => v.to_string(),
+    }
+}
+
+/// docling's `_chart_to_table_data` grid from resolved series columns:
+/// categories down the first column (row headers), one column per series
+/// (column headers), the top-left cell empty. Shared by the XLSX backend
+/// (which resolves references into sheets) and the DOCX/PPTX backends
+/// (which use the embedded caches).
+pub fn chart_table_from_columns(
+    categories: Vec<String>,
+    columns: Vec<(String, Vec<String>)>,
+) -> Option<docling_core::Table> {
+    let num_data_rows = columns
+        .iter()
+        .map(|(_, v)| v.len())
+        .chain([categories.len()])
+        .max()
+        .unwrap_or(0);
+    if num_data_rows == 0 || columns.is_empty() {
+        return None;
+    }
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    let mut header = vec![String::new()];
+    header.extend(columns.iter().map(|(n, _)| n.clone()));
+    rows.push(header);
+    for i in 0..num_data_rows {
+        let mut row = vec![categories.get(i).cloned().unwrap_or_default()];
+        for (_, values) in &columns {
+            row.push(values.get(i).cloned().unwrap_or_default());
+        }
+        rows.push(row);
+    }
+    let nrows = rows.len();
+    let ncols = rows[0].len();
+    let mut header_row = vec![false; nrows];
+    header_row[0] = true;
+    let mut row_header = vec![vec![false; ncols]; nrows];
+    for r in row_header.iter_mut().skip(1) {
+        r[0] = true;
+    }
+    Some(docling_core::Table {
+        rows,
+        location: None,
+        structure: Some(docling_core::TableStructure {
+            header_row,
+            col_continuation: Vec::new(),
+            row_continuation: Vec::new(),
+            row_header,
+            col_header: Vec::new(),
+        }),
+        cell_blocks: None,
+    })
+}
+
+/// A chart's data table built purely from the embedded caches (the DOCX/PPTX
+/// path — no workbook). `None` when the chart carries no cached data.
+pub fn chart_table_from_caches(spec: &ChartSpec) -> Option<docling_core::Table> {
+    if spec.series.is_empty() {
+        return None;
+    }
+    let categories = spec
+        .series
+        .iter()
+        .map(|s| s.cat_cache.clone())
+        .find(|c| !c.is_empty())
+        .unwrap_or_default();
+    let columns: Vec<(String, Vec<String>)> = spec
+        .series
+        .iter()
+        .map(|s| {
+            let name = s
+                .name_cache
+                .clone()
+                .or_else(|| s.name_lit.clone())
+                .unwrap_or_default();
+            (name, s.val_cache.clone())
+        })
+        .collect();
+    chart_table_from_columns(categories, columns)
 }
 
 /// 0-based inclusive range bounds `(min_col, min_row, max_col, max_row)`.

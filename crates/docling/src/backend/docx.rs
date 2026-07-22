@@ -54,6 +54,7 @@ impl DeclarativeBackend for DocxBackend {
 
         // Embedded images, by relationship id (for image export).
         let images = pkg.image_rels("word/document.xml", "word");
+        let charts = chart_rels(&mut pkg, "word/document.xml");
 
         let (style_names, style_nums) = parse_styles(&styles);
         let num_levels = parse_numbering(&numbering);
@@ -66,6 +67,7 @@ impl DeclarativeBackend for DocxBackend {
             num_levels: &num_levels,
             rels: &rels,
             images: &images,
+            charts: &charts,
         };
 
         let mut doc = DoclingDocument::new(&source.name);
@@ -177,12 +179,14 @@ fn emit_header_footer_part(pkg: &mut Package, part: &str, ctx: &Ctx, doc: &mut D
         })
         .collect();
     let images = pkg.image_rels(part, "word");
+    let charts = chart_rels(pkg, part);
     let part_ctx = Ctx {
         style_names: ctx.style_names,
         style_nums: ctx.style_nums,
         num_levels: ctx.num_levels,
         rels: &rels,
         images: &images,
+        charts: &charts,
     };
     let mut sub = DoclingDocument::new("");
     let mut state = ListState::default();
@@ -251,6 +255,9 @@ struct Ctx<'a> {
     num_levels: &'a HashMap<(String, i64), NumLevel>, // (numId, ilvl) -> level props
     rels: &'a HashMap<String, String>,
     images: &'a HashMap<String, PictureImage>, // image relationship id -> extracted image
+    /// Native charts by relationship id: `(classified kind, title, data grid)`
+    /// parsed from the `word/charts/*.xml` parts (docling PR #3809).
+    charts: &'a HashMap<String, (String, Option<String>, docling_core::Table)>,
 }
 
 /// Mutable list/heading numbering state carried across the body walk.
@@ -396,6 +403,18 @@ fn handle_paragraph_inner(
             image,
             classification: None,
         });
+    }
+    // Native charts anchored in this paragraph (docling PR #3809): classified
+    // kind + cached data grid instead of a rendered-placeholder picture.
+    for c in p.descendants().filter(|n| n.has_tag_name("chart")) {
+        if let Some((kind, title, table)) = attr(c, "id").and_then(|id| ctx.charts.get(id)) {
+            doc.push(Node::Chart {
+                kind: kind.clone(),
+                table: table.clone(),
+                caption: title.clone(),
+                location: None,
+            });
+        }
     }
 
     // Equations. A paragraph whose only content is OMML becomes one or more
@@ -687,13 +706,48 @@ fn drawing_images(node: XmlNode, ctx: &Ctx, skip_textbox: bool) -> Vec<Option<Pi
     if !vml.is_empty() {
         return vml;
     }
-    if node
-        .descendants()
-        .any(|n| n.has_tag_name("drawing") && keep(n))
-    {
+    if node.descendants().any(|n| {
+        n.has_tag_name("drawing")
+            && keep(n)
+            // A drawing whose graphic is a parsed chart emits a Chart node
+            // instead of the rendered-placeholder picture.
+            && !n.descendants().any(|c| {
+                c.has_tag_name("chart")
+                    && attr(c, "id").is_some_and(|id| ctx.charts.contains_key(id))
+            })
+    }) {
         return vec![None];
     }
     Vec::new()
+}
+
+/// Parse every chart part related to `part`: relationship id →
+/// `(classified kind, title, data grid from the embedded caches)`.
+fn chart_rels(
+    pkg: &mut Package,
+    part: &str,
+) -> HashMap<String, (String, Option<String>, docling_core::Table)> {
+    let dir = part
+        .rsplit_once('/')
+        .map(|(d, _)| d)
+        .unwrap_or("")
+        .to_string();
+    let rels: Vec<(String, String)> = pkg
+        .rels_for(part)
+        .iter()
+        .filter(|r| r.rel_type.ends_with("/chart"))
+        .map(|r| (r.id.clone(), resolve(&dir, &r.target)))
+        .collect();
+    rels.into_iter()
+        .filter_map(|(id, path)| {
+            let spec = pkg
+                .read(&path)
+                .as_deref()
+                .and_then(crate::backend::xlsx_drawings::parse_chart)?;
+            let table = crate::backend::xlsx_drawings::chart_table_from_caches(&spec)?;
+            Some((id, (spec.kind.to_string(), spec.title, table)))
+        })
+        .collect()
 }
 
 fn in_textbox(n: XmlNode) -> bool {

@@ -461,46 +461,7 @@ fn chart_table(
         };
         columns.push((name, values));
     }
-    let num_data_rows = columns
-        .iter()
-        .map(|(_, v)| v.len())
-        .chain([categories.len()])
-        .max()
-        .unwrap_or(0);
-    if num_data_rows == 0 {
-        return None;
-    }
-    let mut rows: Vec<Vec<String>> = Vec::new();
-    let mut header = vec![String::new()];
-    header.extend(columns.iter().map(|(n, _)| n.clone()));
-    rows.push(header);
-    for i in 0..num_data_rows {
-        let mut row = vec![categories.get(i).cloned().unwrap_or_default()];
-        for (_, values) in &columns {
-            row.push(values.get(i).cloned().unwrap_or_default());
-        }
-        rows.push(row);
-    }
-    let nrows = rows.len();
-    let ncols = rows[0].len();
-    let mut header_row = vec![false; nrows];
-    header_row[0] = true;
-    let mut row_header = vec![vec![false; ncols]; nrows];
-    for r in row_header.iter_mut().skip(1) {
-        r[0] = true;
-    }
-    Some(Table {
-        rows,
-        location: None,
-        structure: Some(docling_core::TableStructure {
-            header_row,
-            col_continuation: Vec::new(),
-            row_continuation: Vec::new(),
-            row_header,
-            col_header: Vec::new(),
-        }),
-        cell_blocks: None,
-    })
+    xlsx_drawings::chart_table_from_columns(categories, columns)
 }
 
 /// Parse `<sheet name="…" r:id="…">` entries from `workbook.xml`, in order.

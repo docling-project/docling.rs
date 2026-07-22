@@ -15,6 +15,7 @@ use rayon::prelude::*;
 use roxmltree::{Document, Node as XmlNode};
 
 use crate::backend::ooxml::{content_type, picture_image, resolve, Package};
+use crate::backend::xlsx_drawings;
 use crate::backend::DeclarativeBackend;
 use crate::error::ConversionError;
 use crate::source::SourceDocument;
@@ -96,8 +97,20 @@ fn convert_slide(
         .to_string();
     let mut valid_imgs: HashSet<String> = HashSet::new();
     let mut images: HashMap<String, PictureImage> = HashMap::new();
+    // Native charts (docling PR #3794): each chart part parsed up front,
+    // keyed by its relationship id — kind classified from the plot area,
+    // data from the embedded caches.
+    let mut charts: HashMap<String, (String, Option<String>, docling_core::Table)> = HashMap::new();
     for r in pkg.rels_for(part) {
         let p = resolve(&dir, &r.target);
+        if r.rel_type.ends_with("/chart") {
+            if let Some(spec) = pkg.read(&p).as_deref().and_then(xlsx_drawings::parse_chart) {
+                if let Some(table) = xlsx_drawings::chart_table_from_caches(&spec) {
+                    charts.insert(r.id.clone(), (spec.kind.to_string(), spec.title, table));
+                }
+            }
+            continue;
+        }
         if !content_type(content_types, &p)
             .map(|ct| ct.starts_with("image/"))
             .unwrap_or(false)
@@ -121,6 +134,7 @@ fn convert_slide(
                 shape,
                 &valid_imgs,
                 &images,
+                &charts,
                 slide_size,
                 &phmap,
                 &mut content,
@@ -286,10 +300,12 @@ fn slide_rids(presentation: &str) -> Vec<String> {
         .collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_shape(
     shape: XmlNode,
     valid_imgs: &HashSet<String>,
     images: &HashMap<String, PictureImage>,
+    charts: &HashMap<String, (String, Option<String>, docling_core::Table)>,
     slide_size: (i64, i64),
     phmap: &PhMap,
     doc: &mut DoclingDocument,
@@ -297,7 +313,7 @@ fn handle_shape(
     match shape.tag_name().name() {
         "grpSp" => {
             for child in shape.children().filter(XmlNode::is_element) {
-                handle_shape(child, valid_imgs, images, slide_size, phmap, doc);
+                handle_shape(child, valid_imgs, images, charts, slide_size, phmap, doc);
             }
         }
         "graphicFrame" => {
@@ -309,6 +325,18 @@ fn handle_shape(
                         Node::Table(table),
                     );
                 }
+            } else if let Some((kind, title, table)) = descendant(shape, "chart")
+                .and_then(|c| c.attributes().find(|a| a.name() == "id"))
+                .and_then(|a| charts.get(a.value()))
+            {
+                // A native chart frame (docling PR #3794): classified kind +
+                // the cached data grid, chart title as the caption.
+                doc.push(Node::Chart {
+                    kind: kind.clone(),
+                    table: table.clone(),
+                    caption: title.clone(),
+                    location: Some(shape_location(shape, slide_size, phmap)),
+                });
             }
         }
         "pic" => {
@@ -684,4 +712,44 @@ fn cell_text(tc: XmlNode) -> String {
 /// First descendant element with the given local tag name.
 fn descendant<'a, 'input>(node: XmlNode<'a, 'input>, name: &str) -> Option<XmlNode<'a, 'input>> {
     node.descendants().find(|n| n.has_tag_name(name))
+}
+#[cfg(test)]
+mod chart_tests {
+    use super::*;
+    use crate::backend::DeclarativeBackend;
+    use crate::{InputFormat, SourceDocument};
+
+    /// docling PR #3794: a native chart frame becomes a classified chart with
+    /// its cached data grid and the chart title as the caption.
+    #[test]
+    fn native_chart_yields_classified_data_grid() {
+        let path = format!(
+            "{}/tests/data/pptx/sources/pptx_chart.pptx",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let bytes = std::fs::read(&path).expect("fixture exists");
+        let src = SourceDocument::from_bytes("c.pptx", InputFormat::Pptx, bytes);
+        let doc = PptxBackend.convert(&src).expect("converts");
+        let chart = doc
+            .nodes
+            .iter()
+            .find_map(|n| match n {
+                Node::Chart {
+                    kind,
+                    table,
+                    caption,
+                    ..
+                } => Some((kind.clone(), table.clone(), caption.clone())),
+                _ => None,
+            })
+            .expect("a chart node");
+        assert_eq!(chart.0, "bar_chart");
+        assert_eq!(
+            chart.2.as_deref(),
+            Some("Wild Duck Observations by Year"),
+            "chart title as caption"
+        );
+        assert_eq!(chart.1.rows[0][1], "Freshwater Ducks");
+        assert_eq!(chart.1.rows[1], vec!["2019", "120", "80"]);
+    }
 }
