@@ -443,21 +443,11 @@ fn walk_linear(
                 child_in_list = true;
             }
             "list-item" => {
-                let text = norm_text(child);
-                if !text.is_empty() {
-                    doc.push(Node::ListItem {
-                        ordered: false,
-                        number: 0,
-                        first_in_list: false,
-                        text: escape_text(&text),
-                        level: 0,
-                        marker: None,
-                        location: None,
-                        dclx: None,
-                        href: None,
-                        layer: None,
-                    });
-                }
+                // docling PR #3619: a nested <list> inside the item is real
+                // structure, not part of the item's text — the item's text
+                // comes from its non-list children only, and the nested
+                // list's items follow one level deeper (recursively).
+                add_list_item(doc, child, 0);
                 stop_walk = true;
             }
             "fig" => {
@@ -532,6 +522,50 @@ fn walk_linear(
         String::new()
     } else {
         node_text
+    }
+}
+
+/// A `<list-item>` at `level`: its text (from every child except nested
+/// `<list>` elements) becomes the item, then each nested `<list>`'s items
+/// emit one level deeper — docling PR #3619 (nested list structure was
+/// previously flattened into the parent item's text).
+fn add_list_item(doc: &mut DoclingDocument, item: XmlNode, level: u8) {
+    let mut text = String::new();
+    for part in item.children() {
+        if part.has_tag_name("list") {
+            continue;
+        }
+        let t = if part.is_text() {
+            normalize(part.text().unwrap_or(""))
+        } else {
+            norm_text(part)
+        };
+        if t.trim().is_empty() {
+            continue;
+        }
+        if !text.is_empty() {
+            text.push(' ');
+        }
+        text.push_str(t.trim());
+    }
+    if !text.is_empty() {
+        doc.push(Node::ListItem {
+            ordered: false,
+            number: 0,
+            first_in_list: false,
+            text: escape_text(&text),
+            level,
+            marker: None,
+            location: None,
+            dclx: None,
+            href: None,
+            layer: None,
+        });
+    }
+    for nested in item.children().filter(|c| c.has_tag_name("list")) {
+        for sub in nested.children().filter(|c| c.has_tag_name("list-item")) {
+            add_list_item(doc, sub, level.saturating_add(1));
+        }
     }
 }
 
@@ -949,5 +983,64 @@ mod tests {
         assert!(md.contains("| Name"), "table grid:\n{md}");
         assert!(md.contains("## References"), "refs heading:\n{md}");
         assert!(md.contains("- Doe J. A title. 2020."), "citation:\n{md}");
+    }
+
+    /// docling PR #3619: a nested <list> inside a <list-item> keeps its
+    /// structure (deeper items) instead of flattening into the parent's text.
+    #[test]
+    fn nested_lists_keep_structure() {
+        let xml = r#"<article><body><sec><title>S</title>
+            <list>
+              <list-item><p>Item 1</p>
+                <list>
+                  <list-item><p>Subitem A</p></list-item>
+                  <list-item><p>Subitem B</p></list-item>
+                </list>
+              </list-item>
+              <list-item><p>Item 2</p></list-item>
+            </list></sec></body></article>"#;
+        let src = SourceDocument::from_bytes("p", InputFormat::XmlJats, xml.as_bytes().to_vec());
+        let doc = JatsBackend.convert(&src).unwrap();
+        let items: Vec<(String, u8)> = doc
+            .nodes
+            .iter()
+            .filter_map(|n| match n {
+                Node::ListItem { text, level, .. } => Some((text.clone(), *level)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            items,
+            vec![
+                ("Item 1".to_string(), 0),
+                ("Subitem A".to_string(), 1),
+                ("Subitem B".to_string(), 1),
+                ("Item 2".to_string(), 0),
+            ],
+            "nested structure: {items:?}"
+        );
+        let md = doc.export_to_markdown();
+        assert!(
+            md.contains("- Item 1\n    - Subitem A"),
+            "markdown nesting:\n{md}"
+        );
+    }
+
+    /// docling PR #3813: an empty <disp-formula> is skipped; everything after
+    /// it survives (Python docling used to truncate the document there).
+    #[test]
+    fn empty_display_formula_does_not_truncate() {
+        let xml = r#"<article><body><sec><title>S</title>
+            <p>Before.</p>
+            <disp-formula><tex-math/></disp-formula>
+            <p>After.</p></sec></body></article>"#;
+        let src = SourceDocument::from_bytes("p", InputFormat::XmlJats, xml.as_bytes().to_vec());
+        let md = JatsBackend.convert(&src).unwrap().export_to_markdown();
+        assert!(md.contains("Before."), "got:\n{md}");
+        assert!(
+            md.contains("After."),
+            "content after the empty formula lost:\n{md}"
+        );
+        assert!(!md.contains("$$"), "no phantom formula:\n{md}");
     }
 }
