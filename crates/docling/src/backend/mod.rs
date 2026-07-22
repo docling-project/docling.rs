@@ -41,6 +41,7 @@ mod latex;
 mod markdown;
 mod mhtml;
 mod odf;
+mod officeart;
 mod omml;
 mod ooxml;
 mod ppt;

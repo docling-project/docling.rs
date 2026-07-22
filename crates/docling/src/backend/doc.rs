@@ -16,14 +16,17 @@
 //! 4. The **stylesheet** (STSH) maps `istd` to the built-in style identifier
 //!    `sti` — 1–9 are the Heading 1–9 styles, giving real headings.
 //!
-//! Scope: headings, paragraphs, list items (by list-format reference), and
-//! tables (cell/row marks). Embedded objects, images, footnotes, and
-//! headers/footers are out of scope for this native v1 (they were previously
-//! only reachable by converting the file by hand).
+//! Scope: headings, paragraphs, list items (by list-format reference),
+//! tables (cell/row marks), and embedded pictures — both inline (`0x01`
+//! anchor → `sprmCPicLocation` → PICF in the Data stream) and floating
+//! (`0x08` anchor → PlcfSpa → the drawing's shape → BLIP store, with
+//! delay-stream data in `WordDocument`), decoded via [`officeart`].
+//! Footnotes and headers/footers remain out of scope.
 
-use docling_core::{DoclingDocument, Node, Table};
+use docling_core::{DoclingDocument, Node, PictureImage, Table};
 
 use crate::backend::cfb::CompoundFile;
+use crate::backend::officeart;
 use crate::backend::DeclarativeBackend;
 use crate::error::ConversionError;
 use crate::source::SourceDocument;
@@ -85,6 +88,16 @@ impl DeclarativeBackend for DocBackend {
             table.get(fc_lfo..fc_lfo + lcb_lfo).unwrap_or(&[]),
         );
 
+        // Pictures: the Data stream holds inline PICFs; the drawing tables
+        // (fcDggInfo, in the table stream) + PlcfSpa anchor floating shapes.
+        let data = cfb.stream("Data").unwrap_or_default();
+        let fc_spa = u32_at(&word, 474).unwrap_or(0) as usize;
+        let lcb_spa = u32_at(&word, 478).unwrap_or(0) as usize;
+        let spa = parse_plcf_spa(table.get(fc_spa..fc_spa + lcb_spa).unwrap_or(&[]));
+        let fc_dgg = u32_at(&word, 554).unwrap_or(0) as usize;
+        let lcb_dgg = u32_at(&word, 558).unwrap_or(0) as usize;
+        let drawings = Drawings::parse(table.get(fc_dgg..fc_dgg + lcb_dgg).unwrap_or(&[]), &word);
+
         // Walk the main-document text paragraph by paragraph, assembling nodes.
         let mut doc = DoclingDocument::new(&source.name);
         let mut builder = NodeBuilder::new(lists);
@@ -105,6 +118,20 @@ impl DeclarativeBackend for DocBackend {
                         // the mark's own FC.
                         let props = paragraph_props(&word, bte, fc);
                         para.finish(ch, props, &stis, &mut builder, &mut doc);
+                    }
+                    // Inline picture anchor: the run's CHPX locates the PICF.
+                    '\u{0001}' => {
+                        if let Some(pic_fc) = chpx_cache.props(&word, btec, fc).pic_fc {
+                            para.add_picture(inline_picture(&data, pic_fc));
+                        }
+                    }
+                    // Floating-shape anchor: PlcfSpa maps this CP to a shape.
+                    '\u{0008}' => {
+                        if let Some(spid) = spa_shape_at(&spa, cp - 1) {
+                            for image in drawings.shape_pictures(spid, 0) {
+                                para.add_picture(image);
+                            }
+                        }
                     }
                     _ => para.push(ch, chpx_cache.props(&word, btec, fc)),
                 }
@@ -330,11 +357,15 @@ fn parse_stsh(stsh: &[u8]) -> Vec<u16> {
     stis
 }
 
-/// Character formatting of one run (the subset the Markdown output shows).
+/// Character formatting of one run (the subset the Markdown output shows),
+/// plus the picture-data offset when the run is a picture anchor.
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 struct CharFmt {
     bold: bool,
     italic: bool,
+    /// `sprmCPicLocation`: offset of the run's PICF in the Data stream (the
+    /// run's `0x01` character is an inline-picture anchor).
+    pic_fc: Option<u32>,
 }
 
 /// FC → [`CharFmt`] through the PlcfBteChpx and CHPX FKPs, memoizing the last
@@ -435,9 +466,218 @@ fn apply_chp_sprms(mut sprms: &[u8], fmt: &mut CharFmt) {
         match sprm {
             0x0835 => fmt.bold = sprms[0] == 1 || sprms[0] == 0x81, // sprmCFBold
             0x0836 => fmt.italic = sprms[0] == 1 || sprms[0] == 0x81, // sprmCFItalic
+            // sprmCPicLocation: PICF offset in the Data stream.
+            0x6A03 => {
+                fmt.pic_fc = Some(u32::from_le_bytes([sprms[0], sprms[1], sprms[2], sprms[3]]))
+            }
             _ => {}
         }
         sprms = &sprms[operand_len..];
+    }
+}
+
+/// Decode an inline picture: PICF at `pic_fc` in the Data stream — a header
+/// of `cbHeader` bytes (with the total size in `lcb`), then the OfficeArt
+/// record tree holding the BLIP. `MM_SHAPEFILE` (0x66) interposes a
+/// length-prefixed picture name.
+fn inline_picture(data: &[u8], pic_fc: u32) -> Option<PictureImage> {
+    let base = pic_fc as usize;
+    let lcb = u32::from_le_bytes(data.get(base..base + 4)?.try_into().ok()?) as usize;
+    let cb_header = u16::from_le_bytes(data.get(base + 4..base + 6)?.try_into().ok()?) as usize;
+    let mm = u16::from_le_bytes(data.get(base + 6..base + 8)?.try_into().ok()?);
+    let mut start = base + cb_header;
+    if mm == 0x0066 {
+        // MM_SHAPEFILE: cchPicName + name precede the OfficeArt data.
+        let cch = *data.get(start)? as usize;
+        start += 1 + cch;
+    }
+    let body = data.get(start..base + lcb.max(cb_header))?;
+    officeart::first_blip(body, 0)
+}
+
+/// Parse the PlcfSpa: floating-shape anchors as `(anchor CP, spid)`.
+fn parse_plcf_spa(plc: &[u8]) -> Vec<(u64, u32)> {
+    // PLC with 26-byte SPA data: n = (lcb - 4) / 30.
+    let Some(n) = plc.len().checked_sub(4).map(|l| l / 30) else {
+        return Vec::new();
+    };
+    (0..n)
+        .filter_map(|i| {
+            let cp = u32_at(plc, i * 4)? as u64;
+            let spid = u32_at(plc, (n + 1) * 4 + i * 26)?;
+            Some((cp, spid))
+        })
+        .collect()
+}
+
+/// The spid anchored exactly at `cp`, if any.
+fn spa_shape_at(spa: &[(u64, u32)], cp: u64) -> Option<u32> {
+    spa.iter()
+        .find(|(acp, _)| *acp == cp)
+        .map(|(_, spid)| *spid)
+}
+
+/// The document's OfficeArt drawing tables: shape id → BLIP index (`pib`),
+/// and the BLIP store — each entry either embeds its BLIP record or points
+/// at one in the WordDocument (delay) stream via `foDelay`.
+struct Drawings {
+    /// spid → 1-based pib.
+    shape_pib: std::collections::HashMap<u32, u32>,
+    /// Group-frame spid → member spids (an anchored group shows every
+    /// member's picture).
+    groups: std::collections::HashMap<u32, Vec<u32>>,
+    /// BStore order: decoded pictures (delay-stream ones resolved eagerly).
+    blips: Vec<Option<PictureImage>>,
+}
+
+impl Drawings {
+    fn parse(dgg: &[u8], delay_stream: &[u8]) -> Self {
+        let mut out = Self {
+            shape_pib: std::collections::HashMap::new(),
+            groups: std::collections::HashMap::new(),
+            blips: Vec::new(),
+        };
+        // The OfficeArtContent in a Word file is NOT a plain record stream:
+        // each per-drawing DgContainer is preceded by a raw byte
+        // (OfficeArtWordDrawing.dgglbl), which would desynchronize a straight
+        // record walk. Parse top-level records with a resync: a position that
+        // doesn't hold a well-formed OfficeArt header (0xF0xx type, in-bounds
+        // length) skips one byte.
+        let mut pos = 0usize;
+        while pos + 8 <= dgg.len() {
+            let rec_type = u16::from_le_bytes([dgg[pos + 2], dgg[pos + 3]]);
+            let len = u32::from_le_bytes([dgg[pos + 4], dgg[pos + 5], dgg[pos + 6], dgg[pos + 7]])
+                as usize;
+            if (rec_type & 0xFF00) == 0xF000 && pos + 8 + len <= dgg.len() {
+                out.walk(&dgg[pos..pos + 8 + len], delay_stream, 0);
+                pos += 8 + len;
+            } else {
+                pos += 1;
+            }
+        }
+        out
+    }
+
+    /// spid of an SpContainer body (its FSP record).
+    fn sp_spid(sp_body: &[u8]) -> Option<u32> {
+        officeart::Records::new(sp_body)
+            .find(|(h, _)| h.rec_type == 0xF00A)
+            .and_then(|(_, b)| {
+                b.get(..4)
+                    .map(|x| u32::from_le_bytes([x[0], x[1], x[2], x[3]]))
+            })
+    }
+
+    fn walk(&mut self, body: &[u8], delay: &[u8], depth: usize) {
+        if depth > 16 {
+            return;
+        }
+        for (h, b) in officeart::Records::new(body) {
+            match h.rec_type {
+                // OfficeArtFBSE: BLIP store entry — embedded record or foDelay.
+                0xF007 => {
+                    let embedded = b.get(36..).and_then(|tail| officeart::first_blip(tail, 0));
+                    let img = embedded.or_else(|| {
+                        let fo = u32::from_le_bytes(b.get(28..32)?.try_into().ok()?) as usize;
+                        let rec = delay.get(fo..)?;
+                        officeart::Records::new(rec)
+                            .next()
+                            .filter(|(rh, _)| officeart::is_blip(rh.rec_type))
+                            .and_then(|(rh, rb)| officeart::decode_blip(&rh, rb))
+                    });
+                    self.blips.push(img);
+                }
+                // A group: the frame shape's spid maps to the member spids.
+                0xF003 => {
+                    let mut frame = None;
+                    let mut members = Vec::new();
+                    for (h2, b2) in officeart::Records::new(b) {
+                        match h2.rec_type {
+                            0xF004 => {
+                                let spid = Self::sp_spid(b2);
+                                let is_frame = officeart::Records::new(b2)
+                                    .any(|(h3, _)| h3.rec_type == 0xF009);
+                                match (is_frame, frame) {
+                                    (true, None) => frame = spid,
+                                    _ => members.extend(spid),
+                                }
+                            }
+                            0xF003 => {
+                                // Nested group: its frame spid joins as a member.
+                                let nested_frame = officeart::Records::new(b2)
+                                    .find(|(h3, _)| h3.rec_type == 0xF004)
+                                    .and_then(|(_, b3)| Self::sp_spid(b3));
+                                members.extend(nested_frame);
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let Some(frame) = frame {
+                        self.groups.insert(frame, members);
+                    }
+                    // Fall through to the generic recursion below for pib/blip
+                    // collection inside the group.
+                    self.walk(b, delay, depth + 1);
+                }
+                // OfficeArtSpContainer: read the FSP spid + FOPT pib property.
+                0xF004 => {
+                    let mut spid = None;
+                    let mut pib = None;
+                    for (h2, b2) in officeart::Records::new(b) {
+                        match h2.rec_type {
+                            0xF00A => {
+                                spid = b2
+                                    .get(..4)
+                                    .map(|x| u32::from_le_bytes([x[0], x[1], x[2], x[3]]));
+                            }
+                            0xF00B => {
+                                // Fixed 6-byte property entries; id bits 0–13.
+                                for e in 0..h2.instance as usize {
+                                    let o = e * 6;
+                                    let Some(entry) = b2.get(o..o + 6) else { break };
+                                    let id = u16::from_le_bytes([entry[0], entry[1]]) & 0x3FFF;
+                                    if id == 260 {
+                                        pib = Some(u32::from_le_bytes([
+                                            entry[2], entry[3], entry[4], entry[5],
+                                        ]));
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let (Some(spid), Some(pib)) = (spid, pib) {
+                        self.shape_pib.insert(spid, pib);
+                    }
+                }
+                _ if h.version == 0xF => self.walk(b, delay, depth + 1),
+                _ => {}
+            }
+        }
+    }
+
+    /// The pictures behind a shape id: a picture shape yields one; a group
+    /// yields each member's, in order. `None` entries are undecodable images
+    /// (still emitted as placeholders).
+    fn shape_pictures(&self, spid: u32, depth: usize) -> Vec<Option<PictureImage>> {
+        if depth > 8 {
+            return Vec::new();
+        }
+        if let Some(pib) = self.shape_pib.get(&spid) {
+            let img = pib
+                .checked_sub(1)
+                .and_then(|ix| self.blips.get(ix as usize))
+                .cloned()
+                .flatten();
+            return vec![img];
+        }
+        match self.groups.get(&spid) {
+            Some(members) => members
+                .iter()
+                .flat_map(|&m| self.shape_pictures(m, depth + 1))
+                .collect(),
+            None => Vec::new(),
+        }
     }
 }
 
@@ -523,12 +763,21 @@ impl ListTables {
 struct ParaAccum {
     /// Consecutive same-format runs of the paragraph.
     segments: Vec<(String, CharFmt)>,
+    /// Pictures anchored in this paragraph: `(before any text, image)`.
+    pictures: Vec<(bool, Option<PictureImage>)>,
     /// Result-text state of any field (`0x13 code 0x14 result 0x15`) stack:
     /// characters inside the *code* part are dropped.
     field_stack: Vec<bool>, // true = in result part
 }
 
 impl ParaAccum {
+    /// Queue a picture anchored at the current position (`None` = a picture
+    /// whose bytes couldn't be decoded — still a placeholder node).
+    fn add_picture(&mut self, image: Option<PictureImage>) {
+        let before_text = self.segments.iter().all(|(t, _)| t.trim().is_empty());
+        self.pictures.push((before_text, image));
+    }
+
     fn push(&mut self, ch: char, fmt: CharFmt) {
         match ch {
             '\u{0013}' => self.field_stack.push(false),
@@ -605,9 +854,10 @@ impl ParaAccum {
     ) {
         let plain = self.plain();
         let markdown = self.markdown();
+        let pictures = std::mem::take(&mut self.pictures);
         self.segments.clear();
         self.field_stack.clear();
-        builder.paragraph(plain, markdown, mark, props, stis, doc);
+        builder.paragraph(plain, markdown, pictures, mark, props, stis, doc);
     }
 }
 
@@ -636,10 +886,12 @@ impl NodeBuilder {
             ..Self::default()
         }
     }
+    #[allow(clippy::too_many_arguments)]
     fn paragraph(
         &mut self,
         plain: String,
         markdown: String,
+        pictures: Vec<(bool, Option<PictureImage>)>,
         mark: char,
         props: ParaProps,
         stis: &[u16],
@@ -671,13 +923,31 @@ impl NodeBuilder {
         }
         self.flush(doc);
 
+        let picture_node = |image: Option<PictureImage>| Node::Picture {
+            caption: None,
+            image,
+            classification: None,
+        };
         let plain = plain.trim().to_string();
         let text = markdown.trim().to_string();
         if plain.is_empty() {
-            // A blank paragraph does not break a list run (docling's DOCX
-            // behavior: items of the same list continue across gaps).
+            // Pictures anchored in an otherwise-empty paragraph are blocks of
+            // their own. A blank paragraph does not break a list run
+            // (docling's DOCX behavior: items continue across gaps).
+            for (_, image) in pictures {
+                doc.push(picture_node(image));
+            }
             return;
         }
+        // Anchored pictures surround the paragraph text by anchor position.
+        for (_, image) in pictures.iter().filter(|(before, _)| *before) {
+            doc.push(picture_node(image.clone()));
+        }
+        let after: Vec<_> = pictures
+            .into_iter()
+            .filter(|(before, _)| !before)
+            .map(|(_, image)| image)
+            .collect();
         let sti = stis.get(props.istd as usize).copied().unwrap_or(0x0FFF);
         if (1..=9).contains(&sti) || sti == 62 {
             // Mirrors the DOCX backend: docling renders "heading N" at
@@ -722,6 +992,9 @@ impl NodeBuilder {
         } else {
             doc.push(Node::Paragraph { text });
             self.last_ilfo = None;
+        }
+        for image in after {
+            doc.push(picture_node(image));
         }
     }
 
@@ -852,5 +1125,29 @@ mod tests {
     fn garbage_is_an_error_not_a_panic() {
         let src = SourceDocument::from_bytes("x.doc", InputFormat::Doc, vec![0u8; 128]);
         assert!(DocBackend.convert(&src).is_err());
+    }
+
+    #[test]
+    fn extracts_inline_and_floating_images_with_bytes() {
+        let doc = DocBackend
+            .convert(&fixture("docx_grouped_images.doc"))
+            .expect("converts");
+        let images: Vec<_> = doc
+            .nodes
+            .iter()
+            .filter_map(|n| match n {
+                Node::Picture { image, .. } => Some(image),
+                _ => None,
+            })
+            .collect();
+        // 2 grouped + 2 wrapped (floating, via PlcfSpa → Escher pib → delay
+        // stream) + 2 inline (Data-stream PICF) — and every one decodable.
+        assert_eq!(images.len(), 6, "expected 6 pictures: {:?}", doc.nodes);
+        assert!(
+            images.iter().all(|i| i.is_some()),
+            "every picture should carry decoded bytes"
+        );
+        let img = images[0].as_ref().unwrap();
+        assert!(img.width > 0 && img.height > 0 && !img.data.is_empty());
     }
 }

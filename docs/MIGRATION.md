@@ -90,9 +90,9 @@ PyPI; run via `scripts/conformance/conformance.sh <fmt>`), not the committed gro
 | XLSX | `xlsx.rs` (calamine) | **9/9 exact** (incl. chart captions/classification/data grids) |
 | PPTX | `pptx.rs` (roxmltree) | **7/7 exact** |
 | DOCX | `docx.rs` (roxmltree) | **26/26 exact** |
-| DOC (Word 97–2004) | `doc.rs` (native [MS-DOC]: CFB + piece table + PAPX/CHPX/STSH) | byte-identical Markdown to the DOCX backend on fixtures converted to `.doc` (headings, ordered/bullet lists, tables, bold/italic); docling reaches these only by shelling out to LibreOffice (PR 3804) |
+| DOC (Word 97–2004) | `doc.rs` (native [MS-DOC]: CFB + piece table + PAPX/CHPX/STSH + Escher) | byte-identical Markdown to the DOCX backend on fixtures converted to `.doc` (headings, ordered/bullet lists, tables, bold/italic, and embedded pictures — inline PICF + floating shapes with decoded PNG/JPEG bytes); docling reaches these only by shelling out to LibreOffice (PR 3804) |
 | XLS (Excel 97–2004) | `xls.rs` (calamine BIFF8 + the XLSX region detection) | byte-identical to the XLSX backend on converted fixtures |
-| PPT (PowerPoint 97–2003) | `ppt.rs` (native [MS-PPT] record walker) | slide titles/body text/page breaks; drawing-table reconstruction and bullet markers out of scope (Escher geometry) |
+| PPT (PowerPoint 97–2003) | `ppt.rs` (native [MS-PPT] + OfficeArt shape walker) | **byte-identical to the PPTX backend** on the sample fixture: tables reconstructed from shape-group geometry (spans included), bullet lists (StyleTextProp) and numbered lists (PP9 autonumber), titles, z-order |
 | WebVTT | `webvtt.rs` | **4/4 exact** |
 | Email (.eml) | `email.rs` (mail-parser) | **2/2 exact** |
 | EPUB | `epub.rs` → HTML backend | **0/1** — the single fixture is 4 diff lines (heading-italic nesting + a bold-run join, the HTML inline residual) |
