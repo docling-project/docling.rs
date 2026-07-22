@@ -70,6 +70,17 @@ impl DeclarativeBackend for XlsBackend {
 
             let mut items: Vec<((usize, usize, usize, usize), Node)> = Vec::new();
             for t in find_tables(&range, &merge_of, height, width) {
+                if let Some(label) = t.label {
+                    items.push((
+                        (
+                            oc + t.min_c,
+                            or + t.min_r.saturating_sub(1),
+                            oc + t.max_c + 1,
+                            or + t.min_r,
+                        ),
+                        Node::Paragraph { text: label },
+                    ));
+                }
                 items.push((
                     (
                         oc + t.min_c,

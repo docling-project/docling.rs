@@ -286,6 +286,18 @@ fn sheet_items<F: Fn(&str, &str) -> Vec<String> + Sync>(ctx: SheetCtx<'_, F>) ->
             // range is clipped to its first non-empty row/column.
             let (or, oc) = (rs_r as usize, rs_c as usize);
             for t in find_tables(range, &merge_of, height, width) {
+                if let Some(label) = t.label {
+                    // The label row sits directly above the table's region.
+                    items.push((
+                        (
+                            oc + t.min_c,
+                            or + t.min_r.saturating_sub(1),
+                            oc + t.max_c + 1,
+                            or + t.min_r,
+                        ),
+                        Node::Paragraph { text: label },
+                    ));
+                }
                 items.push((
                     (
                         oc + t.min_c,
@@ -537,6 +549,11 @@ pub(crate) fn location_value(coord: usize, page: usize) -> u16 {
 /// compute the DocLang `<location>` provenance.
 pub(crate) struct FoundTable {
     pub(crate) table: Table,
+    /// A "section label" split off the region's first row (docling PR #3727):
+    /// a single merged cell spanning several columns directly above a real
+    /// header row is a caption, not part of the table — it emits as a
+    /// separate paragraph and the table starts at the next row.
+    pub(crate) label: Option<String>,
     pub(crate) min_r: usize,
     pub(crate) min_c: usize,
     pub(crate) max_r: usize,
@@ -577,6 +594,7 @@ pub(crate) fn find_tables(
             let mut cells: HashSet<(usize, usize)> = HashSet::new();
             cells.insert((r, c));
             let (mut min_r, mut max_r, mut min_c, mut max_c) = (r, r, c, c);
+            // (min_r may advance past a section-label row below.)
             while let Some((cr, cc)) = stack.pop() {
                 min_r = min_r.min(cr);
                 max_r = max_r.max(cr);
@@ -595,6 +613,43 @@ pub(crate) fn find_tables(
                 }
             }
             visited.extend(&cells);
+
+            // Split a leading "section label" off the region (docling's
+            // `_split_leading_section_label`, PR #3727): the region is at
+            // least 2×2, its first row holds exactly one non-empty cell that
+            // starts at the region's first column and spans >1 columns (but
+            // only 1 row), and the second row reads as a real header (≥2
+            // non-empty unmerged cells). The label becomes a separate
+            // paragraph; the table starts at the next row.
+            let mut label: Option<String> = None;
+            if max_r > min_r && max_c > min_c {
+                let first_row_cells: Vec<(usize, usize)> = (min_c..=max_c)
+                    .map(|c| merge_of.get(&(min_r, c)).copied().unwrap_or((min_r, c)))
+                    .filter(|&(r, c)| !cell_text(r, c).trim().is_empty())
+                    .collect::<std::collections::HashSet<_>>()
+                    .into_iter()
+                    .collect();
+                if let [(lr, lc)] = first_row_cells[..] {
+                    let span_cols = (min_c..=max_c)
+                        .filter(|&c| merge_of.get(&(min_r, c)) == Some(&(lr, lc)))
+                        .count();
+                    let spans_rows = merge_of.get(&(min_r + 1, lc)) == Some(&(lr, lc));
+                    let header_cells = (min_c..=max_c)
+                        .filter(|&c| {
+                            !merge_of.contains_key(&(min_r + 1, c))
+                                && !cell_text(min_r + 1, c).trim().is_empty()
+                        })
+                        .count();
+                    if (lr, lc) == (min_r, min_c)
+                        && span_cols > 1
+                        && !spans_rows
+                        && header_cells >= 2
+                    {
+                        label = Some(cell_text(lr, lc));
+                        min_r += 1;
+                    }
+                }
+            }
 
             // Materialise the region's bounding box; gaps become empty cells.
             let rows: Vec<Vec<String>> = (min_r..=max_r)
@@ -649,6 +704,7 @@ pub(crate) fn find_tables(
                     structure,
                     cell_blocks: None,
                 },
+                label,
                 min_r,
                 min_c,
                 max_r,
@@ -686,5 +742,45 @@ fn format_number(f: f64) -> String {
         format!("{}", f as i64)
     } else {
         format!("{f}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::DeclarativeBackend;
+    use crate::{InputFormat, SourceDocument};
+
+    /// docling PR #3727: a merged full-width cell directly above a real
+    /// header row is a section label — a paragraph before the table, not a
+    /// swallowed header.
+    #[test]
+    fn section_label_splits_off_the_table() {
+        let path = format!(
+            "{}/tests/data/xlsx/sources/xlsx_09_section_label_header.xlsx",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let bytes = std::fs::read(&path).expect("fixture exists");
+        let src = SourceDocument::from_bytes("x.xlsx", InputFormat::Xlsx, bytes);
+        let doc = XlsxBackend.convert(&src).expect("converts");
+        let para = doc
+            .nodes
+            .iter()
+            .position(|n| matches!(n, Node::Paragraph { text } if text == "Reading List"));
+        let table_ix = doc
+            .nodes
+            .iter()
+            .position(|n| matches!(n, Node::Table(_)))
+            .expect("a table");
+        let para = para.expect("section label emitted as a paragraph");
+        assert!(para < table_ix, "label precedes the table");
+        if let Node::Table(t) = &doc.nodes[table_ix] {
+            assert_eq!(t.rows[0][0], "#", "real header row leads the table");
+            assert!(
+                t.rows.iter().all(|r| r[0] != "Reading List"),
+                "label absorbed into the table: {:?}",
+                t.rows
+            );
+        }
     }
 }

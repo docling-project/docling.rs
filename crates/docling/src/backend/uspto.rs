@@ -69,7 +69,7 @@ impl DeclarativeBackend for UsptoBackend {
         // Dispatch on the document root, mirroring docling's `_set_parser`.
         match dom.root_element().tag_name().name() {
             "patent-application-publication" => parse_app_v1(&dom, &mut doc),
-            "PATDOC" => parse_grant_v2(&dom, &mut doc),
+            root if root.eq_ignore_ascii_case("PATDOC") => parse_grant_v2(&dom, &mut doc),
             _ => parse_ice(&dom, &mut doc), // modern us-patent-application / -grant
         }
         Ok(doc)

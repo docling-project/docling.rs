@@ -33,10 +33,13 @@ fn looks_like_xml(text: &str) -> bool {
 /// DOCTYPE / root element (the first part of the file).
 fn sniff_xml(text: &str) -> InputFormat {
     let head = &text[..text.len().min(4000)];
-    if head.contains("us-patent")
-        || head.contains("patent-application-publication")
-        || head.contains("PATDOC")
-        || head.contains("<pap-v1")
+    // Case-insensitive: USPTO DOCTYPE/root casing varies in the wild (docling
+    // PR #3801 — Grant Full Text v2.5 files were missed on casing).
+    let lower = head.to_ascii_lowercase();
+    if lower.contains("us-patent")
+        || lower.contains("patent-application-publication")
+        || lower.contains("patdoc")
+        || lower.contains("<pap-v1")
     {
         InputFormat::XmlUspto
     } else if head.contains("<doclang") {
@@ -482,5 +485,22 @@ mod tests {
         let md = result.document.export_to_markdown();
         assert!(md.contains("# Title"), "{md}");
         assert!(md.contains("**world**"), "{md}");
+    }
+
+    #[test]
+    fn sniffs_uspto_doctype_case_insensitively() {
+        // docling PR #3801: Grant Full Text v2.5 files were missed when the
+        // DOCTYPE casing differed.
+        for head in [
+            "<?xml version=\"1.0\"?><!DOCTYPE PATDOC SYSTEM \"ST32-US-Grant-025xml.dtd\"><PATDOC/>",
+            "<?xml version=\"1.0\"?><!DOCTYPE patdoc SYSTEM \"st32-us-grant-025xml.dtd\"><patdoc/>",
+            "<?xml version=\"1.0\"?><US-PATENT-GRANT-V4/>",
+        ] {
+            assert_eq!(
+                super::sniff_xml(head),
+                InputFormat::XmlUspto,
+                "head: {head}"
+            );
+        }
     }
 }
