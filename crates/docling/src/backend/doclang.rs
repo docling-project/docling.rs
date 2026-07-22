@@ -30,8 +30,7 @@ impl DeclarativeBackend for DoclangBackend {
         } else {
             source.text()?.to_string()
         };
-        let dom =
-            Document::parse(&xml).map_err(|e| ConversionError::Parse(format!("doclang: {e}")))?;
+        let dom = Document::parse(&xml).map_err(|e| ConversionError::with_source("doclang", e))?;
         let root = dom.root_element();
         if root.tag_name().name() != "doclang" {
             return Err(ConversionError::Parse(format!(

@@ -60,7 +60,7 @@ impl DeclarativeBackend for DocxBackend {
         let num_levels = parse_numbering(&numbering);
 
         let dom =
-            Document::parse(&document).map_err(|e| ConversionError::Parse(format!("docx: {e}")))?;
+            Document::parse(&document).map_err(|e| ConversionError::with_source("docx", e))?;
         let ctx = Ctx {
             style_names: &style_names,
             style_nums: &style_nums,

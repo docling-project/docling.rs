@@ -50,7 +50,7 @@ impl DeclarativeBackend for XlsxBackend {
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
         let cursor = Cursor::new(source.bytes.clone());
         let mut workbook: Xlsx<_> =
-            Xlsx::new(cursor).map_err(|e| ConversionError::Parse(format!("xlsx: {e}")))?;
+            Xlsx::new(cursor).map_err(|e| ConversionError::with_source("xlsx", e))?;
         let mut pkg = Package::open(&source.bytes)
             .ok_or_else(|| ConversionError::Parse("xlsx: bad zip".into()))?;
 

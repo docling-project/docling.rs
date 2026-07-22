@@ -39,7 +39,7 @@ impl DeclarativeBackend for JatsBackend {
             ..Default::default()
         };
         let dom = Document::parse_with_options(xml, opts)
-            .map_err(|e| ConversionError::Parse(format!("jats: {e}")))?;
+            .map_err(|e| ConversionError::with_source("jats", e))?;
         let mut doc = DoclingDocument::new(&source.name);
 
         // --- metadata -------------------------------------------------------
@@ -118,7 +118,7 @@ pub(crate) fn convert_generic(source: &SourceDocument) -> Result<DoclingDocument
         ..Default::default()
     };
     let dom = Document::parse_with_options(xml, opts)
-        .map_err(|e| ConversionError::Parse(format!("xml: {e}")))?;
+        .map_err(|e| ConversionError::with_source("xml", e))?;
     let mut doc = DoclingDocument::new(&source.name);
     walk_generic(dom.root_element(), &mut doc);
     Ok(doc)

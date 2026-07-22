@@ -102,7 +102,7 @@ impl DeclarativeBackend for OdfBackend {
         let styles_xml = pkg.read("styles.xml").unwrap_or_default();
 
         let content_dom =
-            Document::parse(&content).map_err(|e| ConversionError::Parse(format!("odf: {e}")))?;
+            Document::parse(&content).map_err(|e| ConversionError::with_source("odf", e))?;
         let styles_dom = Document::parse(&styles_xml).ok();
         let mut styles = parse_styles(&content_dom, styles_dom.as_ref());
         styles.charts = load_charts(&mut pkg, &content_dom, &styles);

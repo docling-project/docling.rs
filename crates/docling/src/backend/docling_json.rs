@@ -18,7 +18,7 @@ pub struct DoclingJsonBackend;
 impl DeclarativeBackend for DoclingJsonBackend {
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
         let root: Value = serde_json::from_str(source.text()?)
-            .map_err(|e| ConversionError::Parse(format!("docling-json: {e}")))?;
+            .map_err(|e| ConversionError::with_source("docling-json", e))?;
         let name = root["name"].as_str().unwrap_or(&source.name).to_string();
         let mut doc = DoclingDocument::new(name);
         if let Some(children) = root["body"]["children"].as_array() {

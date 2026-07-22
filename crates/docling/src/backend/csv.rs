@@ -27,7 +27,7 @@ impl DeclarativeBackend for CsvBackend {
 
         let mut rows: Vec<Vec<String>> = Vec::new();
         for record in reader.records() {
-            let record = record.map_err(|e| ConversionError::Parse(format!("csv: {e}")))?;
+            let record = record.map_err(|e| ConversionError::with_source("csv", e))?;
             // Cell escaping (newlines, pipes) happens centrally in the serializer.
             rows.push(record.iter().map(str::to_string).collect());
         }

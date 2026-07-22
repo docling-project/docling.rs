@@ -41,6 +41,11 @@ cd /d "%~dp0..\.."
 
 where curl >nul 2>nul || (echo error: curl.exe not found ^(ships with Windows 10 1803+^) & exit /b 1)
 
+rem Never hang forever on a dead mirror: cap the connect phase, abort a
+rem transfer stalled below 1 KiB/s for a minute, retry transient failures
+rem (docling proper added the same guard, issue #3784).
+set "CURL_TIMEOUTS=--connect-timeout 30 --speed-limit 1024 --speed-time 60 --retry 3 --retry-delay 2"
+
 if not exist models\tableformer mkdir models\tableformer
 if not exist models\asr mkdir models\asr
 if not exist models\chunk mkdir models\chunk
@@ -57,7 +62,7 @@ echo   = .pdfium\lib\pdfium.dll (already present)
 goto :pdfium_done
 :pdfium_dl
 echo   ^> .pdfium\lib\pdfium.dll
-curl -fsSL -o "%TEMP%\pdfium-win-x64.tgz" "%PDFIUM_URL%" || goto :fail
+curl -fsSL %CURL_TIMEOUTS% -o "%TEMP%\pdfium-win-x64.tgz" "%PDFIUM_URL%" || goto :fail
 tar -xzf "%TEMP%\pdfium-win-x64.tgz" -C .pdfium bin/pdfium.dll || goto :fail
 move /y .pdfium\bin\pdfium.dll .pdfium\lib\pdfium.dll >nul
 rmdir .pdfium\bin 2>nul
@@ -108,7 +113,7 @@ echo   = %~2 (already present)
 exit /b 0
 :fetch_dl
 echo   ^> %~2
-curl -fsSL -o "%~2" "%~1"
+curl -fsSL %CURL_TIMEOUTS% -o "%~2" "%~1"
 exit /b %errorlevel%
 
 :fetch_opt
@@ -117,7 +122,7 @@ if not exist "%~2" goto :fetch_opt_dl
 echo   = %~2 (already present)
 exit /b 0
 :fetch_opt_dl
-curl -fsSL -o "%~2" "%~1" >nul 2>nul
+curl -fsSL %CURL_TIMEOUTS% -o "%~2" "%~1" >nul 2>nul
 if %errorlevel%==0 (echo   ^> %~2) else (del "%~2" 2>nul)
 exit /b 0
 

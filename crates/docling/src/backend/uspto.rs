@@ -64,7 +64,7 @@ impl DeclarativeBackend for UsptoBackend {
             ..Default::default()
         };
         let dom = Document::parse_with_options(&xml, opts)
-            .map_err(|e| ConversionError::Parse(format!("uspto: {e}")))?;
+            .map_err(|e| ConversionError::with_source("uspto", e))?;
 
         // Dispatch on the document root, mirroring docling's `_set_parser`.
         match dom.root_element().tag_name().name() {

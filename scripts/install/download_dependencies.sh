@@ -110,13 +110,19 @@ if [ "$WITH_ASR" = true ]; then
   mkdir -p models/asr
 fi
 
+# Never hang forever on a dead mirror: cap the connect phase, abort a transfer
+# that stalls below 1 KiB/s for a minute, and retry transient failures with
+# curl's built-in backoff (docling proper added the same guard, issue #3784).
+CURL_TIMEOUTS="--connect-timeout 30 --speed-limit 1024 --speed-time 60 --retry 3 --retry-delay 2"
+
 fetch() { # <url> <dest>
   if [ "$FORCE" = false ] && [ -f "$2" ]; then
     echo "  = $2 (already present)"
     return 0
   fi
   echo "  > $2"
-  curl -fsSL -o "$2.download" "$1"
+  # shellcheck disable=SC2086 # CURL_TIMEOUTS is a flag list, splitting intended
+  curl -fsSL $CURL_TIMEOUTS -o "$2.download" "$1"
   mv "$2.download" "$2"
 }
 
@@ -124,7 +130,8 @@ fetch_optional() { # <url> <dest> — ignore a missing/failed asset (sidecar fil
   if [ "$FORCE" = false ] && [ -f "$2" ]; then
     return 0
   fi
-  if curl -fsSL -o "$2.download" "$1" 2>/dev/null; then
+  # shellcheck disable=SC2086
+  if curl -fsSL $CURL_TIMEOUTS -o "$2.download" "$1" 2>/dev/null; then
     mv "$2.download" "$2"
     echo "  > $2"
   else
