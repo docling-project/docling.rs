@@ -17,6 +17,12 @@ validated for byte-for-byte conformance against upstream Python docling.
   work.
 - Issue numbers (`#80`, `#138`, …) refer to `docling-project/docling.rs`
   issues; reference them in commit messages (`Refs #NN`).
+- **Slack notifications** (when the Slack MCP connector is available): post to
+  **#claude-code** (channel ID `C0BKAHN0BSM`) when (a) a question blocks the
+  work and needs the maintainer's answer, (b) a long task finishes — include
+  the outcome and the compare link, (c) idle/bored — the queue is empty;
+  suggest what to pick up next. Keep it to these events; don't narrate
+  routine progress there.
 
 ## Workspace map
 
