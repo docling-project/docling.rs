@@ -500,6 +500,13 @@ impl DocumentConverter {
             InputFormat::XmlDoclang | InputFormat::Dclx => {
                 crate::backend::DoclangBackend.convert(&source)?
             }
+            // Raw DocTags (VLM token markup, #152): the tolerant docling-core
+            // parser — never fails, best-effort document out.
+            InputFormat::DocTags => {
+                let mut doc = docling_core::doctags::parse(source.text()?);
+                doc.name = source.name.clone();
+                doc
+            }
             #[cfg(feature = "pdf")]
             InputFormat::Pdf => docling_pdf::convert_with_options(
                 &source.bytes,
@@ -622,6 +629,20 @@ mod tests {
         let result = DocumentConverter::new().convert(src).unwrap();
         assert_eq!(result.status, ConversionStatus::Success);
         assert_eq!(result.document.export_to_markdown(), "# Hello\n\nWorld.\n");
+    }
+
+    #[test]
+    fn doctags_input_converts() {
+        // Raw DocTags markup (#152) — the VLM token stream — as a first-class
+        // input format (.doctags/.dt), through the tolerant docling-core
+        // parser.
+        let markup = b"<doctag><section_header_level_1><loc_1><loc_2><loc_3><loc_4>Intro</section_header_level_1><text>Body.</text></doctag>"
+            .to_vec();
+        let src = SourceDocument::from_bytes("page.doctags", InputFormat::DocTags, markup);
+        let result = DocumentConverter::new().convert(src).unwrap();
+        let md = result.document.export_to_markdown();
+        assert!(md.contains("## Intro"), "{md}");
+        assert!(md.contains("Body."), "{md}");
     }
 
     #[test]

@@ -65,17 +65,32 @@ for src in tests/data/pdf/sources/*.pdf; do
   fi
   rust_md="$OUT/rust/$name.md"
   py_md="$OUT/python/$name.md"
-  # Cached across reruns (each side costs minutes of GPU time per fixture);
-  # delete target/vlm-conformance/ to force regeneration.
+  # Cached across reruns (each side costs minutes of GPU time PER PAGE —
+  # multi-page fixtures take a while; the shim's terminal shows per-page
+  # progress). Writes go through a temp file so an interrupted run never
+  # caches a half-written output; delete target/vlm-conformance/ to force
+  # regeneration.
   if [ ! -s "$rust_md" ]; then
-    ./target/release/docling-rs --pipeline vlm --no-stream \
-      --vlm-endpoint "$ENDPOINT" --vlm-model "$MODEL" "$src" > "$rust_md" \
-      || { echo "  rust side failed on $name" >&2; rm -f "$rust_md"; continue; }
+    echo "[$name] rust side converting (watch the shim terminal for per-page progress) ..." >&2
+    if ./target/release/docling-rs --pipeline vlm --no-stream \
+      --vlm-endpoint "$ENDPOINT" --vlm-model "$MODEL" "$src" > "$rust_md.tmp"; then
+      mv "$rust_md.tmp" "$rust_md"
+    else
+      echo "  rust side failed on $name" >&2
+      rm -f "$rust_md.tmp"
+      continue
+    fi
   fi
   if [ ! -s "$py_md" ]; then
-    python3 scripts/conformance/vlm_convert.py \
-      --endpoint "$ENDPOINT" --model "$MODEL" "$src" "$py_md" \
-      || { echo "  python side failed on $name" >&2; rm -f "$py_md"; continue; }
+    echo "[$name] python docling side converting ..." >&2
+    if python3 scripts/conformance/vlm_convert.py \
+      --endpoint "$ENDPOINT" --model "$MODEL" "$src" "$py_md.tmp"; then
+      mv "$py_md.tmp" "$py_md"
+    else
+      echo "  python side failed on $name" >&2
+      rm -f "$py_md.tmp"
+      continue
+    fi
   fi
   sim="$(similarity "$py_md" "$rust_md")"
   is_exact="no"

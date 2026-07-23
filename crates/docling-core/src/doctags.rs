@@ -25,7 +25,7 @@
 //! - `<page_header>`/`<page_footer>` become [`Node::PageFurniture`], which
 //!   the Markdown/JSON exports omit like every other furniture.
 
-use crate::document::{DoclingDocument, Node, Table, TableStructure};
+use crate::document::{DoclingDocument, FieldItem, Node, Table, TableStructure};
 
 /// Parse one DocTags fragment (typically one page's model output).
 pub fn parse(markup: &str) -> DoclingDocument {
@@ -163,6 +163,10 @@ fn is_block_start(name: &str) -> bool {
             | "page_header"
             | "page_footer"
             | "page_break"
+            | "checkbox_selected"
+            | "checkbox_unselected"
+            | "key_value_region"
+            | "field_region"
             | "doctag"
             | "doctags"
     ) || name.starts_with("section_header_level_")
@@ -349,6 +353,22 @@ fn parse_blocks(toks: &[Tok], i: &mut usize, out: &mut Vec<Node>, list_level: u8
                     }
                     "otsl" => parse_otsl(toks, i, out),
                     "picture" | "chart" => parse_picture(toks, i, out, name),
+                    // A form checkbox: the token precedes its label text.
+                    "checkbox_selected" | "checkbox_unselected" => {
+                        let (text, loc) = collect_inline(toks, i, name);
+                        if !text.is_empty() {
+                            out.push(located(
+                                Node::CheckboxItem {
+                                    checked: name == "checkbox_selected",
+                                    text,
+                                },
+                                loc,
+                            ));
+                        }
+                    }
+                    // A form key-value region (DocTags' key_value_region /
+                    // DocLang's field_region).
+                    "key_value_region" | "field_region" => parse_field_region(toks, i, out, name),
                     // Unknown block token: transparent (its text will surface
                     // as stray block-level text above).
                     _ => {}
@@ -604,6 +624,83 @@ fn parse_picture(toks: &[Tok], i: &mut usize, out: &mut Vec<Node>, close: &str) 
     ));
 }
 
+/// A form key-value region: tolerant over both the DocTags shape
+/// (`<key_1>…</key_1><value_1>…</value_1>` numbered pairs) and the DocLang
+/// shape (`<field_item><marker/><key/><value/></field_item>`). A `key`
+/// starts a new item; `value`/`marker` attach to the current one.
+fn parse_field_region(toks: &[Tok], i: &mut usize, out: &mut Vec<Node>, close: &str) {
+    let mut items: Vec<FieldItem> = Vec::new();
+    let mut current: Option<FieldItem> = None;
+    while *i < toks.len() {
+        match &toks[*i] {
+            Tok::Close(n) if *n == close => {
+                *i += 1;
+                break;
+            }
+            Tok::Open(n @ ("field_item" | "unmatched_value")) => {
+                let n = *n;
+                if let Some(item) = current.take() {
+                    items.push(item);
+                }
+                current = Some(FieldItem::default());
+                *i += 1;
+                // `<unmatched_value>` (a value with no key) carries its text
+                // directly rather than nested key/value children.
+                if n == "unmatched_value" {
+                    let (text, _) = collect_inline(toks, i, n);
+                    if let (Some(item), false) = (current.as_mut(), text.is_empty()) {
+                        item.value = Some(text);
+                    }
+                }
+            }
+            Tok::Close("field_item") => {
+                if let Some(item) = current.take() {
+                    items.push(item);
+                }
+                *i += 1;
+            }
+            Tok::Open(n) => {
+                let n = *n;
+                let is_key = n == "key" || n.starts_with("key_");
+                let is_value = n == "value" || n.starts_with("value_");
+                let is_marker = n == "marker";
+                if !(is_key || is_value || is_marker) {
+                    if is_block_start(n) {
+                        break;
+                    }
+                    *i += 1;
+                    continue;
+                }
+                *i += 1;
+                let (text, _) = collect_inline(toks, i, n);
+                if text.is_empty() {
+                    continue;
+                }
+                if is_key {
+                    // A key starts a new pair (numbered DocTags pairs come
+                    // key-then-value with no item wrapper).
+                    if current.as_ref().is_some_and(|c| c.key.is_some()) {
+                        items.push(current.take().unwrap_or_default());
+                    }
+                    current.get_or_insert_with(FieldItem::default).key = Some(text);
+                } else if is_value {
+                    current.get_or_insert_with(FieldItem::default).value = Some(text);
+                } else {
+                    current.get_or_insert_with(FieldItem::default).marker = Some(text);
+                }
+            }
+            _ => *i += 1,
+        }
+    }
+    if let Some(item) = current.take() {
+        items.push(item);
+    }
+    items.retain(|it| it.marker.is_some() || it.key.is_some() || it.value.is_some());
+    if !items.is_empty() {
+        out.push(Node::FieldRegion { items });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -678,6 +775,34 @@ mod tests {
         let doc = parse("<text>A &amp; B & a < b</text>");
         let md = doc.export_to_markdown();
         assert!(md.contains("A & B & a < b"), "md: {md:?}");
+    }
+
+    #[test]
+    fn checkboxes_and_key_value_regions() {
+        let doc = parse(
+            "<text><checkbox_selected>Done item</text>\
+<checkbox_unselected><loc_1><loc_2><loc_3><loc_4>Todo item\
+<key_value_region><key_1><loc_1><loc_2><loc_3><loc_4>Name</key_1><value_1>John</value_1>\
+<key_2>City</key_2><value_2>Berlin</value_2></key_value_region>",
+        );
+        // Both forms produce checkbox items (the located one sits inside a
+        // Node::Located wrapper, so assert via the Markdown rendering).
+        let md = doc.export_to_markdown();
+        assert!(md.contains("- [x] Done item"), "md: {md:?}");
+        assert!(md.contains("- [ ] Todo item"), "md: {md:?}");
+        let items = doc
+            .nodes
+            .iter()
+            .find_map(|n| match n {
+                Node::FieldRegion { items } => Some(items),
+                _ => None,
+            })
+            .expect("field region parsed");
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].key.as_deref(), Some("Name"));
+        assert_eq!(items[0].value.as_deref(), Some("John"));
+        assert_eq!(items[1].key.as_deref(), Some("City"));
+        assert_eq!(items[1].value.as_deref(), Some("Berlin"));
     }
 
     #[test]

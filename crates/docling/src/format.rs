@@ -29,6 +29,9 @@ pub enum InputFormat {
     XmlJats,
     XmlXbrl,
     XmlDoclang,
+    /// Raw DocTags markup (`.doctags`/`.dt`) — the token stream docling's
+    /// VLMs emit, parsed by `docling_core::doctags` (#152).
+    DocTags,
     /// A DocLang OPC archive (`.dclx`, the format `--to dclx` writes).
     Dclx,
     MetsGbs,
@@ -70,6 +73,7 @@ impl InputFormat {
             InputFormat::XmlJats => "xml_jats",
             InputFormat::XmlXbrl => "xml_xbrl",
             InputFormat::XmlDoclang => "xml_doclang",
+            InputFormat::DocTags => "doctags",
             InputFormat::Dclx => "dclx",
             InputFormat::MetsGbs => "mets_gbs",
             InputFormat::JsonDocling => "json_docling",
@@ -96,6 +100,7 @@ impl InputFormat {
             "html" | "htm" | "xhtml" => InputFormat::Html,
             "xml" | "nxml" => InputFormat::XmlJats,
             "dclg" => InputFormat::XmlDoclang,
+            "doctags" | "dt" => InputFormat::DocTags,
             "dclx" => InputFormat::Dclx,
             "jpg" | "jpeg" | "png" | "tif" | "tiff" | "bmp" | "webp" => InputFormat::Image,
             "adoc" | "asciidoc" | "asc" => InputFormat::Asciidoc,
