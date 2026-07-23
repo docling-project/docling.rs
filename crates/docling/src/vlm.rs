@@ -216,7 +216,7 @@ fn request_page(agent: &ureq::Agent, opts: &VlmOptions, image: &[u8]) -> Result<
         "data:image/png;base64,{}",
         docling_core::base64::encode(image)
     );
-    let body = serde_json::json!({
+    let mut body = serde_json::json!({
         "model": opts.model,
         // Deterministic-ish output: sampling noise only hurts a structured
         // markup task (docling's ApiVlmOptions ships temperature 0 too).
@@ -231,6 +231,25 @@ fn request_page(agent: &ureq::Agent, opts: &VlmOptions, image: &[u8]) -> Result<
             ],
         }],
     });
+    // DOCLING_RS_VLM_EXTRA_BODY: a JSON object merged into the request at the
+    // top level — the escape hatch for server-specific knobs the OpenAI shape
+    // doesn't cover. The motivating case: vLLM's "skip_special_tokens": false,
+    // without which servers detokenize away granite-docling's DocTags
+    // structure tokens and only loc tokens + bare text survive.
+    if let Ok(extra) = std::env::var("DOCLING_RS_VLM_EXTRA_BODY") {
+        match serde_json::from_str::<serde_json::Value>(&extra) {
+            Ok(serde_json::Value::Object(map)) => {
+                for (k, v) in map {
+                    body[k] = v;
+                }
+            }
+            _ => {
+                return Err(
+                    "DOCLING_RS_VLM_EXTRA_BODY is not a JSON object; fix or unset it".into(),
+                )
+            }
+        }
+    }
     let url = opts.url();
     let mut delay = Duration::from_secs(2);
     let mut last_err = String::new();
