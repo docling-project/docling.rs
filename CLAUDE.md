@@ -7,8 +7,8 @@ validated for byte-for-byte conformance against upstream Python docling.
 ## Workflow rules
 
 - **Every commit must be signed off by the author.** End each commit message
-  with `Signed-off-by: artiz <artem.kustikov@gmail.com>`.
-- **Never open pull requests on `artiz/docling.rs`.** Push a `claude/<topic>`
+  with `Signed-off-by: name <email>`.
+- Claude Web: **Never open pull requests on `artiz/docling.rs`.** Push a `claude/<topic>`
   branch and hand back a compare link
   (`https://github.com/docling-project/docling.rs/compare/master...artiz:docling.rs:<branch>?expand=1`);
   the maintainer opens/merges PRs themself (usually into the upstream
