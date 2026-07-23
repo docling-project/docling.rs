@@ -33,13 +33,20 @@ DEFAULT_MODEL = "ibm-granite/granite-docling-258M"
 
 def load(model_id: str, force_cpu: bool):
     import torch
-    from transformers import AutoModelForVision2Seq, AutoProcessor
+    from transformers import AutoProcessor
+
+    # transformers v5 renamed AutoModelForVision2Seq; support both names so
+    # the shim runs on whatever the venv has.
+    try:
+        from transformers import AutoModelForImageTextToText as AutoVlm
+    except ImportError:
+        from transformers import AutoModelForVision2Seq as AutoVlm
 
     device = "cpu" if force_cpu or not torch.cuda.is_available() else "cuda"
     dtype = torch.bfloat16 if device == "cuda" else torch.float32
     print(f"loading {model_id} on {device} ({dtype}) ...", flush=True)
     processor = AutoProcessor.from_pretrained(model_id)
-    model = AutoModelForVision2Seq.from_pretrained(model_id, torch_dtype=dtype).to(device)
+    model = AutoVlm.from_pretrained(model_id, torch_dtype=dtype).to(device)
     model.eval()
     print("ready", flush=True)
     return processor, model, device
