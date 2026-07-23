@@ -376,6 +376,34 @@ by a wide margin, but a scanned/image-only PDF (no embedded text layer) comes
 back empty rather than erroring, so a caller can detect that and re-convert
 without the flag.
 
+### VLM pipeline (remote endpoint)
+
+`--pipeline vlm` (issue #77) replaces the whole discriminative ML stack with a
+Vision Language Model: each PDF page is rendered (pdfium) and sent to any
+**OpenAI-compatible** vision endpoint — LM Studio, Ollama, vLLM, or a hosted
+service — with docling's page-conversion prompt; the returned DocLang markup
+is parsed by the same reader that `.dclg`/`.dclx` inputs use. An image input
+is sent as-is (it is its own page). No ONNX models load at all; local
+in-process VLM inference is a possible later enhancement.
+
+```bash
+docling-rs --pipeline vlm \
+  --vlm-endpoint http://localhost:11434/v1 \
+  --vlm-model granite-docling \
+  paper.pdf
+```
+
+`--vlm-endpoint` takes the server's `/v1` base or the full
+`…/chat/completions` URL; `DOCLING_RS_VLM_ENDPOINT` / `DOCLING_RS_VLM_MODEL` /
+`DOCLING_RS_VLM_PROMPT` / `DOCLING_RS_VLM_API_KEY` (Bearer token) are the env
+equivalents. `--pages A-B` composes (only the window's pages are rendered and
+sent), and `--to md|json|dclx|chunks` plus `--strict` work as usual. Transient
+endpoint failures (timeouts, 408/429, 5xx) retry with exponential backoff;
+a page that still fails fails the conversion — no silently dropped pages.
+Output quality is entirely the model's: conversion of the PDF corpus against
+docling's own VLM pipeline output hasn't been measured yet (it needs a live
+endpoint), so treat this as infrastructure, not a conformance claim.
+
 ### Headless-browser HTML pre-render (optional)
 
 Almost everything in the HTML backend is pure Rust, but one thing a static

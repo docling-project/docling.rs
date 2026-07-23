@@ -3,7 +3,7 @@
 //! The docling.rs counterpart of `docling.cli.main`; `docling-rs serve`
 //! (with `--features serve`) starts the HTTP conversion API.
 //!
-//! Usage: docling-rs [--strict] [--to md|json] [--pages A-B] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--ocr-lang en|ch] [--asr-model PRESET] [--video-frames N] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] <input-file>
+//! Usage: docling-rs [--strict] [--to md|json] [--pages A-B] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--ocr-lang en|ch] [--pipeline standard|vlm] [--vlm-endpoint URL] [--vlm-model NAME] [--asr-model PRESET] [--video-frames N] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] <input-file>
 //!   --to md|json       output format (default: md). `json` emits docling-core's
 //!                      native DoclingDocument JSON (export_to_dict).
 //!   --pages A-B        convert only PDF pages A through B (1-based, inclusive;
@@ -95,6 +95,9 @@ fn main() -> ExitCode {
     let mut bench_warm: Option<usize> = None;
     let mut pages: Option<(usize, usize)> = None;
     let mut ocr_lang: Option<String> = None;
+    let mut pipeline: Option<String> = None;
+    let mut vlm_endpoint: Option<String> = None;
+    let mut vlm_model: Option<String> = None;
     let mut path: Option<String> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -145,6 +148,22 @@ fn main() -> ExitCode {
                     return ExitCode::from(2);
                 }
             },
+            // Pipeline selection (#77): `standard` (default, the ML stack) or
+            // `vlm` — render pages and convert them through a remote
+            // OpenAI-compatible vision endpoint returning DocLang.
+            "--pipeline" => match args.next() {
+                Some(v) if matches!(v.trim(), "standard" | "vlm") => pipeline = Some(v),
+                Some(v) => {
+                    eprintln!("error: --pipeline {v:?} is not standard|vlm");
+                    return ExitCode::from(2);
+                }
+                None => {
+                    eprintln!("error: --pipeline needs a value (standard|vlm)");
+                    return ExitCode::from(2);
+                }
+            },
+            "--vlm-endpoint" => vlm_endpoint = args.next(),
+            "--vlm-model" => vlm_model = args.next(),
             // Hidden benchmarking aid: load the PDF/image pipeline once, then time
             // N warm conversions (models already loaded), printing the avg seconds
             // per conversion to stdout. This is the startup-excluded counterpart to
@@ -211,6 +230,29 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         };
+    }
+
+    // #77: the remote-VLM pipeline replaces the whole ML stack — convert,
+    // then fall through to the regular output selection (md/json/dclx/chunks
+    // all work; there is no page-streaming, the endpoint is the bottleneck).
+    if pipeline.as_deref() == Some("vlm") {
+        let mut opts = match docling::vlm::VlmOptions::resolve(vlm_endpoint, vlm_model) {
+            Ok(o) => o,
+            Err(e) => {
+                eprintln!("error: {e}");
+                return ExitCode::from(2);
+            }
+        };
+        opts.page_range = pages;
+        let mut document = match docling::vlm::convert_vlm(&source, &opts) {
+            Ok(doc) => doc,
+            Err(e) => {
+                eprintln!("error: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
+        document.strict_markdown = strict;
+        return output_document(document, &to, image_mode, &path);
     }
 
     let mut converter = DocumentConverter::new()
@@ -281,7 +323,17 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    output_document(document, &to, image_mode, &path)
+}
 
+/// The buffered output tail shared by the standard (non-streaming) and VLM
+/// paths: `--to` selection, image sidecars, exit code.
+fn output_document(
+    document: docling::DoclingDocument,
+    to: &str,
+    image_mode: ImageMode,
+    path: &str,
+) -> ExitCode {
     if to == "json" {
         println!("{}", document.export_to_json());
         return ExitCode::SUCCESS;

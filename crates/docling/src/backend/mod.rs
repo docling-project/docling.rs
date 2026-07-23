@@ -29,7 +29,7 @@ mod cfb;
 mod csv;
 mod deepseek;
 mod doc;
-mod doclang;
+pub(crate) mod doclang;
 mod docling_json;
 mod docx;
 mod email;

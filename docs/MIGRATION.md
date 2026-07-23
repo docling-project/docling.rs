@@ -54,7 +54,7 @@ bulk of the porting under review).
 | **Performance** | PDF ML pipeline **4.3× faster warm / 4.7× end-to-end** than Python docling at 2.3–2.6× less peak RAM (INT8 + SIMD, conformance-validated); declarative formats 20–60× warm, ~60× less RAM; XLSX sheets / PPTX slides additionally fan out over rayon (~2–3× on many-sheet/slide files, conformance byte-identical); details + methodology in [`PDF_CONFORMANCE.md`](./PDF_CONFORMANCE.md) |
 | **Models** | docling's own checkpoints (layout heron, TableFormer, PP-OCRv3, Whisper tiny), format-converted to ONNX by `scripts/install/export_*.py` — no retraining; INT8 variants are calibrated post-training quantizations (`scripts/install/quantize_models.py`) |
 | **Tracking upstream** | See [§9](#9-keeping-up-with-upstream-docling): conformance is measured against the *latest published* docling on demand, so an upstream release that changes output surfaces as a concrete per-fixture diff |
-| **Not ported (by design)** | VLM full-page pipelines (§5); inline formatting is baked into text rather than structured fields (§4). The optional enrichment models (picture classification, code, formulas) **are** ported — opt-in `do_picture_classification` / `do_code_enrichment` / `do_formula_enrichment`, ONNX like the rest of the stack |
+| **Not ported (by design)** | local in-process VLM full-page inference (§5 — the remote OpenAI-compatible VLM pipeline **is** ported, #77); inline formatting is baked into text rather than structured fields (§4). The optional enrichment models (picture classification, code, formulas) **are** ported — opt-in `do_picture_classification` / `do_code_enrichment` / `do_formula_enrichment`, ONNX like the rest of the stack |
 
 ---
 
@@ -343,8 +343,13 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
 
 **Out of scope by design:**
 
-- **VLM full-page pipelines** (SmolDocling / remote VLM). Model-bound; out of
-  scope for the discriminative port. (**Audio/ASR is now done** — see §2; the
+- **Local VLM full-page inference** (SmolDocling-class models in-process).
+  Model-bound; out of scope for the discriminative port. The **remote** VLM
+  pipeline (#77) *is* implemented: `--pipeline vlm --vlm-endpoint URL
+  --vlm-model NAME` renders pages via pdfium, converts them through any
+  OpenAI-compatible vision endpoint (LM Studio / Ollama / vLLM / hosted) and
+  parses the returned DocLang with the existing reader — see the README's
+  "VLM pipeline" section. (**Audio/ASR is now done** — see §2; the
   only container gap is AVI, which symphonia cannot demux. The **enrichment
   models are now done** too: DocumentFigureClassifier-v2.5 for
   `do_picture_classification` and CodeFormulaV2 — an Idefics3-class VLM,

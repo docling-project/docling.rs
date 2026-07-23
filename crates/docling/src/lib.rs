@@ -32,6 +32,8 @@ mod result;
 mod source;
 #[cfg(feature = "pdf")]
 mod stream;
+#[cfg(feature = "vlm")]
+pub mod vlm;
 
 pub mod backend;
 #[cfg(feature = "asr")]

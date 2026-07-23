@@ -20,7 +20,7 @@ exclude = ["tests", "benches"]
 # client are feature-sliced so `--no-default-features` leaves the pure-Rust
 # declarative converters (DOCX/HTML/MD/XLSX/PPTX/… → md/json) — a set that
 # compiles for wasm32-unknown-unknown (issue #79, see crates/docling-wasm).
-default = ["pdf", "asr", "fetch-images"]
+default = ["pdf", "asr", "fetch-images", "vlm"]
 # PDF/image/METS-GBS ML pipeline (pdfium + ONNX Runtime via docling-pdf).
 pdf = ["dep:docling-pdf", "docling-pdf/ml"]
 # Text-layer-only PDF conversion (docling-pdf's pure-Rust parser, no pdfium/
@@ -30,6 +30,11 @@ pdf-text = ["dep:docling-pdf"]
 asr = ["dep:docling-asr"]
 # Blocking HTTP fetch of remote <img src> images (DocumentConverter::fetch_images).
 fetch-images = ["dep:ureq", "dep:url"]
+# Remote VLM pipeline (#77): render PDF pages via pdfium and convert them
+# through an OpenAI-compatible vision endpoint (LM Studio / Ollama / vLLM /
+# hosted), parsing the returned DocLang with the existing reader. Rides on the
+# crate's existing blocking HTTP client; no model code compiled in.
+vlm = ["pdf", "dep:ureq"]
 # Optional headless-browser HTML pre-render (the `--use-web-browser` flag /
 # `DocumentConverter::use_web_browser`). Off by default so the standard build
 # stays pure-Rust with no browser/runtime dependency; enable with
