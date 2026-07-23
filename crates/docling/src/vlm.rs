@@ -178,7 +178,19 @@ pub fn convert_vlm(
     );
     let synthetic =
         SourceDocument::from_bytes(&source.name, InputFormat::XmlDoclang, xml.into_bytes());
-    DoclangBackend.convert(&synthetic)
+    let doc = DoclangBackend.convert(&synthetic)?;
+    if doc.nodes.is_empty() {
+        // The request loop succeeded, so this is a content problem, not a
+        // transport one: the model answered with nothing our reader keeps.
+        // An empty stdout with exit 0 buried that; say it loudly instead.
+        return Err(ConversionError::Parse(
+            "vlm: the model's responses contained no parseable DocLang/DocTags blocks \
+             (set DOCLING_RS_VLM_DEBUG=1 to print raw responses; a generic VLM may need \
+             a DOCLING_RS_VLM_PROMPT that describes the expected markup)"
+                .into(),
+        ));
+    }
+    Ok(doc)
 }
 
 fn pdf_err(e: docling_pdf::PdfError) -> ConversionError {
@@ -264,10 +276,19 @@ fn request_page(agent: &ureq::Agent, opts: &VlmOptions, image: &[u8]) -> Result<
                 }
                 let parsed: serde_json::Value = serde_json::from_str(&text)
                     .map_err(|e| format!("{url}: malformed JSON response: {e}"))?;
-                return parsed["choices"][0]["message"]["content"]
+                let content = parsed["choices"][0]["message"]["content"]
                     .as_str()
                     .map(str::to_string)
                     .ok_or_else(|| format!("{url}: no choices[0].message.content in response"));
+                if std::env::var_os("DOCLING_RS_VLM_DEBUG").is_some() {
+                    match &content {
+                        Ok(c) => {
+                            eprintln!("vlm: raw model response ({} chars):\n{c}\n---", c.len())
+                        }
+                        Err(_) => eprintln!("vlm: raw endpoint body:\n{text}\n---"),
+                    }
+                }
+                return content;
             }
             Err(e) => {
                 last_err = format!("{url}: {e} (attempt {})", attempt + 1);
@@ -287,7 +308,19 @@ fn request_page(agent: &ureq::Agent, opts: &VlmOptions, image: &[u8]) -> Result<
 /// for already-DocLang answers, load-bearing for granite-docling-class
 /// models whose raw DocTags token stream is not XML at all.
 fn doclang_fragment(response: &str) -> String {
-    doctags_to_doclang(&strip_wrappers(response))
+    let translated = doctags_to_doclang(&strip_wrappers(response));
+    // A model that ignored the markup instruction entirely (plain prose /
+    // Markdown, no tags) still carries the page text — wrap it as one
+    // paragraph per non-empty line instead of silently dropping everything.
+    if !translated.contains('<') && !translated.trim().is_empty() {
+        return translated
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| format!("<text>{}</text>", l.trim()))
+            .collect::<Vec<_>>()
+            .join("\n");
+    }
+    translated
 }
 
 /// The wrapper-stripping half of [`doclang_fragment`].
