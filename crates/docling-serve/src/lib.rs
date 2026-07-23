@@ -21,6 +21,9 @@
 //! - `strict` — cleaner Markdown instead of docling-legacy output
 //! - `images` — `placeholder` (default) | `embedded` (Markdown only)
 //! - `no_ocr`, `no_table_former` — PDF/image pipeline switches
+//! - `pages` — PDF page window `A-B` / `N` (1-based inclusive, #80)
+//! - `ocr_lang` — OCR recognition language for scanned pages: `en` (default)
+//!   | `ch` (the multilingual docling-conformance model)
 //! - `fetch_images` — resolve external `<img src>` for HTML/EPUB (outbound
 //!   fetch, so honored only under `--allow-url-fetch`)
 //!
@@ -206,6 +209,8 @@ struct ConvertOptions {
     video_frames: Option<usize>,
     /// PDF page window, `"A-B"` or a single `"N"` (1-based inclusive — #80).
     pages: Option<String>,
+    /// OCR recognition language for scanned pages: `en` (default) | `ch`.
+    ocr_lang: Option<String>,
 }
 
 impl ConvertOptions {
@@ -220,6 +225,7 @@ impl ConvertOptions {
             asr_model: self.asr_model.or(base.asr_model),
             video_frames: self.video_frames.or(base.video_frames),
             pages: self.pages.or(base.pages),
+            ocr_lang: self.ocr_lang.or(base.ocr_lang),
         }
     }
 }
@@ -401,6 +407,7 @@ async fn read_multipart(
             }
             "asr_model" => body_opts.asr_model = Some(text_field(field).await?),
             "pages" => body_opts.pages = Some(text_field(field).await?),
+            "ocr_lang" => body_opts.ocr_lang = Some(text_field(field).await?),
             "video_frames" => {
                 let v = text_field(field).await?;
                 body_opts.video_frames = Some(v.parse().map_err(|_| {
@@ -663,6 +670,9 @@ fn convert_document(
                 .transpose()
                 .map_err(|e| ApiError::Bad(format!("pages: {e}")))?;
             pipeline.set_pages(range);
+            // OCR language likewise applies per request; only a worker whose
+            // cached recognition model mismatches actually reloads anything.
+            pipeline.set_ocr_lang(parse_ocr_lang(options.ocr_lang.as_deref())?);
             let doc = match source.format {
                 InputFormat::Pdf => pipeline.convert(&source.bytes, None, &source.name),
                 _ => pipeline.convert_image(&source.bytes, &source.name),
@@ -729,7 +739,19 @@ fn request_converter(
             docling::parse_page_range(pages).map_err(|e| ApiError::Bad(format!("pages: {e}")))?;
         converter = converter.page_range(first, last);
     }
+    if parse_ocr_lang(options.ocr_lang.as_deref())?.is_some() {
+        converter = converter.ocr_lang(options.ocr_lang.clone().expect("checked above"));
+    }
     Ok(converter)
+}
+
+/// Validate a request's `ocr_lang` (None passes through — the engine default).
+fn parse_ocr_lang(raw: Option<&str>) -> Result<Option<docling::OcrLang>, ApiError> {
+    raw.map(|v| {
+        docling::OcrLang::parse(v)
+            .ok_or_else(|| ApiError::Bad(format!("ocr_lang {v:?} is not en|ch")))
+    })
+    .transpose()
 }
 
 /// Markdown response: converted through the streaming serializer, body sent

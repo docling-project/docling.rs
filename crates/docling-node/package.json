@@ -52,6 +52,7 @@
   ],
   "scripts": {
     "build": "napi build --platform --release --strip --js native.js --dts native.d.ts",
+    "build:cuda": "napi build --platform --release --strip --js native.js --dts native.d.ts --features cuda",
     "build:debug": "napi build --platform --js native.js --dts native.d.ts",
     "artifacts": "napi artifacts",
     "prepublishOnly": "napi prepublish -t npm --skip-gh-release",

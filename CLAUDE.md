@@ -72,7 +72,8 @@ cargo check -p docling --no-default-features        # pdf-text/wasm path
   `DOCLING_FFMPEG` (video frames — ffmpeg is a runtime binary, never a build
   dep), `DOCLING_RS_PDF_WORKERS/_THREADS/_INTRA`, `DOCLING_RS_FP32`,
   `DOCLING_RS_EP` (GPU execution providers), `DOCLING_RS_ASR_LANG`,
-  `DOCLING_CHUNK_TOKENIZER`.
+  `DOCLING_RS_OCR_LANG` (en default; `ch` = the docling-conformance OCR
+  model, which conformance scripts pin themselves), `DOCLING_CHUNK_TOKENIZER`.
 
 ## Conformance & fixtures
 

@@ -319,19 +319,18 @@ exercise end-to-end.
 ## OCR language (`RAG_OCR_LANG`)
 
 Scanned/image-only PDF pages go through OCR. The default recognition model is
-`ch_PP-OCRv3` (multilingual, what docling conformance is measured with) — but
-its Latin-script word spacing is weak: English-only scans come out with glued
-words (`miscellaneousAImodelsplugins`) and I/l confusions. For English
-documents fetch the English model and switch:
+`en_PP-OCRv3` (English — docling-pdf's own default; proper Latin word
+spacing). `RAG_OCR_LANG=ch` switches to the multilingual `ch_PP-OCRv3` model
+(what docling conformance is measured with) — expect glued words
+(`miscellaneousAImodelsplugins`) and I/l confusions on Latin scripts:
 
 ```bash
-scripts/install/download_dependencies.sh --ocr-en   # ~9 MB
-RAG_OCR_LANG=en docling-rag ingest
+RAG_OCR_LANG=ch docling-rag ingest
 ```
 
-This maps onto docling-pdf's `DOCLING_OCR_REC_ONNX` / `DOCLING_OCR_DICT`
-(explicit env overrides win), so the same model swap works for any docling.rs
-binary, not just the RAG pipeline. Note: OCR only runs where a page has no
+This maps onto docling-pdf's `DOCLING_RS_OCR_LANG` (explicit
+`DOCLING_OCR_REC_ONNX` / `DOCLING_OCR_DICT` env overrides win), so the same
+switch works for any docling.rs binary, not just the RAG pipeline. Note: OCR only runs where a page has no
 extractable text layer — a born-digital PDF is unaffected by this setting.
 
 ## Local embedding model (ONNX)

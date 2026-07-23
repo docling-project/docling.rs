@@ -13,7 +13,15 @@
 # `gh workflow run npm-publish.yml`, optionally `-f tag=v0.7.0`).
 #
 # Requires one repository secret: NPM_TOKEN — an npm automation token with
-# publish rights to `docling.rs` and the `docling.rs-*` platform packages.
+# publish rights to `docling.rs` and the `docling.rs-*` platform packages
+# (including `docling.rs-cuda` when the cuda input is used).
+#
+# The optional `cuda` input additionally publishes `docling.rs-cuda`
+# (issue #74, Linux x64): the CUDA addon + ONNX Runtime provider libraries are
+# far past npm's practical size limits, so the binaries go to a GitHub release
+# (`npm-cuda-v<version>`) and the npm package is a small JS shim whose
+# postinstall downloads + sha256-verifies them — the same
+# fetch-at-install-time model onnxruntime-node uses for its CUDA binaries.
 
 name: npm publish
 
@@ -28,6 +36,11 @@ on:
         description: "Override the npm version (e.g. 0.7.0). Blank = tag, or workspace version on master."
         required: false
         default: ""
+      cuda:
+        description: "Also publish docling.rs-cuda (Linux x64: binaries to a GitHub release, npm shim downloads on install)."
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: npm-publish-${{ inputs.tag || github.ref }}
@@ -199,5 +212,157 @@ jobs:
       - name: Publish
         if: steps.check.outputs.published == 'false'
         run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # docling.rs-cuda (issue #74): CUDA addon binaries → GitHub release, small
+  # npm shim with a postinstall downloader → npm. Self-contained (doesn't need
+  # the CPU matrix): build with the cuda feature, upload the gzipped .node +
+  # ONNX Runtime provider libraries + sha256 manifest to the npm-cuda-v<ver>
+  # release, then validate the packed shim by actually installing it (its
+  # postinstall pulls from that very release) and converting on the (GPU-less)
+  # runner — the auto→CPU fallback keeps that meaningful — before publishing.
+  #
+  # ubuntu-24.04, not the manylinux container: the CUDA ONNX Runtime static
+  # binaries carry glibc-2.38 symbols (same floor as the docling-rs-cuda
+  # Python wheel — see pypi-publish.yml's wheel-cuda job).
+  publish-cuda:
+    name: publish docling.rs-cuda
+    if: inputs.cuda
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # gh release create/upload
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Install Rust (stable)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-cargo-cuda-node-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-cuda-node-
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install napi CLI
+        run: npm install
+
+      # Same resolution as the publish job — the two packages must agree.
+      - name: Resolve version
+        id: ver
+        run: |
+          v="${{ inputs.version }}"
+          if [ -z "$v" ]; then
+            if [ -n "${{ inputs.tag }}" ]; then
+              v="${{ inputs.tag }}"; v="${v#v}"
+            else
+              v="$(grep -m1 '^version = ' ../../Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
+            fi
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Publishing docling.rs-cuda@$v (ref: ${{ inputs.tag || github.ref }})"
+
+      - name: Check if already published
+        id: check
+        run: |
+          v="${{ steps.ver.outputs.version }}"
+          if npm view "docling.rs-cuda@$v" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "docling.rs-cuda@$v is already on npm — skipping."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set package version
+        if: steps.check.outputs.published == 'false'
+        run: npm version "${{ steps.ver.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      # $ORIGIN rpath: ONNX Runtime dlopens the provider libraries by bare
+      # name; the rpath makes it look next to the .node, where postinstall
+      # puts them (same mechanism as the Python CUDA wheel).
+      - name: Build CUDA addon
+        if: steps.check.outputs.published == 'false'
+        run: RUSTFLAGS='-C link-arg=-Wl,-rpath,$ORIGIN' npx napi build --platform --release --strip --features cuda --js native.js --dts native.d.ts
+
+      # manifest.json carries sha256 of the UNCOMPRESSED files — postinstall
+      # verifies after gunzip, catching truncated downloads and bad mirrors.
+      # `cp -L`: ort's copy-dylibs leaves symlinks into the download cache.
+      - name: Package release assets
+        if: steps.check.outputs.published == 'false'
+        run: |
+          mkdir -p cuda/release-assets
+          cp -L ../../target/release/libonnxruntime_providers_shared.so \
+                ../../target/release/libonnxruntime_providers_cuda.so \
+                cuda/release-assets/
+          cp docling-rs.linux-x64-gnu.node cuda/release-assets/
+          cd cuda/release-assets
+          node -e '
+            const fs = require("fs"), crypto = require("crypto");
+            const m = {};
+            for (const f of fs.readdirSync(".")) {
+              m[f] = crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
+            }
+            fs.writeFileSync("manifest.json", JSON.stringify(m, null, 2));
+          '
+          gzip -9 docling-rs.linux-x64-gnu.node libonnxruntime_providers_shared.so libonnxruntime_providers_cuda.so
+          ls -la
+
+      - name: Upload to GitHub release
+        if: steps.check.outputs.published == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="npm-cuda-v${{ steps.ver.outputs.version }}"
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$TAG" cuda/release-assets/* --repo "${{ github.repository }}" --clobber
+          else
+            gh release create "$TAG" cuda/release-assets/* \
+              --repo "${{ github.repository }}" \
+              --title "docling.rs-cuda ${{ steps.ver.outputs.version }} (npm binaries)" \
+              --notes "CUDA addon binaries for the docling.rs-cuda npm package. Downloaded by its postinstall — not for direct use."
+          fi
+
+      - name: Assemble npm package
+        if: steps.check.outputs.published == 'false'
+        run: node cuda/make-package.mjs
+
+      # End-to-end validation before publish: install the packed tarball in a
+      # scratch dir (npm runs postinstall → downloads from the release just
+      # uploaded, hash-checked) and convert something. Catches a broken
+      # loader, a bad manifest, or an unpublishable release *before* npm has
+      # an unusable version.
+      - name: Validate install from release
+        if: steps.check.outputs.published == 'false'
+        run: |
+          (cd cuda/pkg && npm pack >/dev/null)
+          PKG_TGZ="$(ls "$PWD"/cuda/pkg/*.tgz)"
+          mkdir -p /tmp/cuda-install-test && cd /tmp/cuda-install-test
+          npm init -y >/dev/null
+          npm install "$PKG_TGZ"
+          node -e '
+            const m = require("docling.rs-cuda");
+            const r = m.convert({ data: Buffer.from("# GPU shim smoke"), name: "x.md" });
+            if (r.status !== "success" || !r.content.startsWith("# GPU shim smoke")) {
+              throw new Error("unexpected result: " + JSON.stringify(r));
+            }
+            console.log("docling.rs-cuda install validated:", JSON.stringify(r.content));
+          '
+
+      - name: Publish
+        if: steps.check.outputs.published == 'false'
+        run: cd cuda/pkg && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -35,3 +35,16 @@ napi-derive = "2"
 
 [build-dependencies]
 napi-build = "2"
+
+[features]
+# GPU execution providers (#74) — pass-through to the docling crate, same as
+# the CLI/serve/py surfaces. Build with `npm run build:cuda` (or
+# `napi build ... --features cuda`); which provider actually runs is chosen
+# at startup via DOCLING_RS_EP (a GPU build defaults to `auto`: GPU when
+# usable, CPU fallback). The CUDA/TensorRT provider dylibs land next to the
+# addon in target/ (ort's copy-dylibs) and must ship next to the `.node`
+# file — see README "GPU (CUDA)".
+cuda = ["docling/cuda"]
+tensorrt = ["docling/tensorrt"]
+directml = ["docling/directml"]
+coreml = ["docling/coreml"]

@@ -125,7 +125,7 @@ curl -H 'content-type: application/json' \
 ```
 
 Options per request: `to=md|json|dclx|chunks`, `strict`, `images=placeholder|embedded`,
-`no_ocr`, `no_table_former`, `fetch_images` — as query parameters, multipart
+`no_ocr`, `no_table_former`, `pages`, `ocr_lang`, `fetch_images` — as query parameters, multipart
 fields, or JSON keys (body wins). Server flags: `--addr`, `--concurrency`,
 `--max-body-mb`, `--warmup`, `--no-url-fetch`, `--strict`. A container image
 builds from [`crates/docling-serve/Dockerfile`](./crates/docling-serve/Dockerfile)
@@ -506,7 +506,8 @@ instead — same models plus `pdfium.dll` — and see
 | --- | --- |
 | pdfium (Linux x64) | `.pdfium/lib/libpdfium.so` |
 | RT-DETR layout | `models/layout_heron.onnx` |
-| PP-OCRv3 rec + dictionary | `models/ocr_rec.onnx`, `models/ppocr_keys_v1.txt` |
+| PP-OCRv3 rec + dictionary, English (the runtime default) | `models/ocr_rec_en.onnx`, `models/en_dict.txt` |
+| PP-OCRv3 rec + dictionary, multilingual `ch_` (`DOCLING_RS_OCR_LANG=ch`; the docling-conformance model — weak Latin word spacing) | `models/ocr_rec.onnx`, `models/ppocr_keys_v1.txt` |
 | TableFormer (optional) | `models/tableformer/{encoder,decoder,bbox}.onnx` (+ `.data` sidecars where the export needs them) |
 | Whisper tiny (audio/ASR; skip with `--no-asr`) | `models/asr/{encoder_model,decoder_model}.onnx`, `models/asr/vocab.json` (+ `added_tokens.json` for language selection) |
 | Whisper presets (optional; `--asr-model=<preset>`, repeatable) | `models/asr/<preset>/…` — English-only (`whisper_tiny_en`, `whisper_base_en`, `whisper_small_en`) and Distil-Whisper (`whisper_distil_small_en`) exports, fetched from Hugging Face |
@@ -652,6 +653,14 @@ CUDA 12 runtime + cuDNN 9 on the machine; the `ort` crate downloads the
 matching ONNX Runtime binaries at build time and copies the provider
 libraries next to the binary.
 
+The same features exist on every binding: the Python GPU wheel ships as
+[`docling-rs-cuda`](https://pypi.org/project/docling-rs-cuda/) on PyPI, the
+Node addon ships as [`docling.rs-cuda`](https://www.npmjs.com/package/docling.rs-cuda)
+on npm (a small shim whose postinstall downloads the binaries from a GitHub
+release — or build from source with `npm run build:cuda`, see
+`crates/docling-node/README.md`), and `docling-serve`/`docling-rag` take
+`--features cuda` like the CLI.
+
 Measured (RTX 3080 Laptop vs Ryzen 9 5900HX, cold CLI runs): **1.5–2.1×**
 end-to-end on multi-page digital PDFs (`2305.03393v1`: 13.6 s → 7.0 s) and
 **8.7×** on a 1913-page reference manual (15 min 13 s → 1 min 45 s) — the
@@ -747,6 +756,19 @@ To point at files you exported or placed elsewhere instead, set the env vars
 directly: `DOCLING_LAYOUT_ONNX`, `DOCLING_OCR_REC_ONNX`, `DOCLING_OCR_DICT`,
 `DOCLING_TABLEFORMER_{ENCODER,DECODER,BBOX}`, `PDFIUM_DYNAMIC_LIB_PATH` — an
 env var always wins over the `./models` / `./.pdfium` default.
+
+OCR recognition defaults to the **English** PP-OCRv3 model: the multilingual
+`ch_` model reads Latin text with broken word spacing (`Refactorexisting
+microservices writtenonJava`-style output on ordinary scans). The switch
+plumbs through every surface — CLI `--ocr-lang en|ch`,
+`DocumentConverter::ocr_lang` / `Pipeline::ocr_lang`, serve `ocr_lang`
+option, Python `ocr_lang=` kwarg (also mapped from docling-shaped
+`ocr_options.lang`), Node `ocrLang` option — or process-wide,
+`DOCLING_RS_OCR_LANG=ch` selects the `ch_` pair — that's the model upstream
+docling conformance is measured against, and the conformance scripts pin it
+themselves; explicit `DOCLING_OCR_REC_ONNX`+`DOCLING_OCR_DICT` (a pair — set
+both) override the language switch entirely. An install without the English
+model falls back to `ch_` with a warning.
 
 ## Testing
 

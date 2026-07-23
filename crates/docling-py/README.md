@@ -175,6 +175,11 @@ conv = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeli
 # shorthand: DocumentConverter(do_ocr=False, do_table_structure=True)
 ```
 
+For scanned pages, `ocr_lang="en"|"ch"` picks the OCR recognition model (`en`
+is the default — proper Latin word spacing; `ch` is the multilingual
+docling-conformance model). docling-shaped `ocr_options.lang` lists map onto
+the same switch (`["english"]` → `en`, `["chinese"]` → `ch`).
+
 The Rust engine acts on `do_ocr`, `do_table_structure`, the opt-in enrichment
 flags `do_picture_classification` / `do_code_enrichment` /
 `do_formula_enrichment` (the picture classifier is fetched by the default

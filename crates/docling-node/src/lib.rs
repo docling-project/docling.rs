@@ -40,6 +40,10 @@ pub struct ConverterOptions {
     /// Convert only this PDF page window: `"A-B"` or a single page `"N"`
     /// (1-based inclusive — issue #80). Other formats ignore it.
     pub pages: Option<String>,
+    /// OCR recognition language for scanned PDF/image pages: `"en"` (default;
+    /// proper Latin word spacing) or `"ch"` (the multilingual
+    /// docling-conformance model). Formats that never OCR ignore it.
+    pub ocr_lang: Option<String>,
     /// Emit cleaner, more conformant Markdown (code-fence languages preserved,
     /// no inline-run spacing artifacts) instead of docling's byte-for-byte
     /// legacy output. Markdown only. Default `false`.
@@ -80,6 +84,8 @@ pub struct ConvertOptions {
     pub video_frames: Option<u32>,
     /// PDF page window `"A-B"` (or `"N"`), 1-based inclusive (#80).
     pub pages: Option<String>,
+    /// OCR recognition language for scanned pages: `"en"` (default) | `"ch"`.
+    pub ocr_lang: Option<String>,
     pub allowed_formats: Option<Vec<String>>,
     pub to: Option<String>,
     pub image_mode: Option<String>,
@@ -135,6 +141,7 @@ struct ConvertConfig {
     asr_model: Option<String>,
     video_frames: Option<usize>,
     page_range: Option<(usize, usize)>,
+    ocr_lang: Option<String>,
     allowed_formats: Option<Vec<InputFormat>>,
     to: OutputKind,
     image_mode: ImageMode,
@@ -193,11 +200,21 @@ fn build_config(o: ConvertOptions) -> Result<ConvertConfig> {
         asr_model: o.asr_model,
         video_frames: o.video_frames.map(|n| n as usize),
         page_range: parse_pages(o.pages.as_deref())?,
+        ocr_lang: parse_ocr_lang(o.ocr_lang)?,
         allowed_formats: allowed,
         to: parse_output_kind(o.to.as_deref())?,
         image_mode: parse_image_mode(o.image_mode.as_deref())?,
         artifacts_dir: o.artifacts_dir.unwrap_or_else(|| "artifacts".to_string()),
     })
+}
+
+/// Validate an `ocrLang` option (`"en"`/`"ch"`); an unknown id is an error.
+fn parse_ocr_lang(s: Option<String>) -> Result<Option<String>> {
+    match s {
+        Some(v) if docling::OcrLang::parse(&v).is_some() => Ok(Some(v)),
+        Some(v) => Err(Error::from_reason(format!("ocrLang {v:?} is not en|ch"))),
+        None => Ok(None),
+    }
 }
 
 /// `"A-B"` / `"N"` → the converter's 1-based inclusive page window (#80).
@@ -219,8 +236,12 @@ fn build_converter(cfg: &ConvertConfig) -> RsConverter {
         Some(max) => base.video_frames(max),
         None => base,
     };
-    match cfg.page_range {
+    let base = match cfg.page_range {
         Some((first, last)) => base.page_range(first, last),
+        None => base,
+    };
+    match &cfg.ocr_lang {
+        Some(lang) => base.ocr_lang(lang.clone()),
         None => base,
     }
 }
@@ -394,6 +415,7 @@ pub struct DocumentConverter {
     asr_model: Option<String>,
     video_frames: Option<usize>,
     page_range: Option<(usize, usize)>,
+    ocr_lang: Option<String>,
     allowed_formats: Option<Vec<InputFormat>>,
 }
 
@@ -416,6 +438,7 @@ impl DocumentConverter {
             asr_model: o.asr_model.clone(),
             video_frames: o.video_frames.map(|n| n as usize),
             page_range: parse_pages(o.pages.as_deref())?,
+            ocr_lang: parse_ocr_lang(o.ocr_lang.clone())?,
             allowed_formats: allowed,
         })
     }
@@ -428,6 +451,7 @@ impl DocumentConverter {
             asr_model: self.asr_model.clone(),
             video_frames: self.video_frames,
             page_range: self.page_range,
+            ocr_lang: self.ocr_lang.clone(),
             allowed_formats: self.allowed_formats.clone(),
             to: parse_output_kind(out.to.as_deref())?,
             image_mode: parse_image_mode(out.image_mode.as_deref())?,
@@ -841,6 +865,7 @@ fn output_config(out: Option<OutputOptions>, strict: bool) -> Result<ConvertConf
         asr_model: None,
         video_frames: None,
         page_range: None,
+        ocr_lang: None,
         allowed_formats: None,
         to: parse_output_kind(out.to.as_deref())?,
         image_mode: parse_image_mode(out.image_mode.as_deref())?,

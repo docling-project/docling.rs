@@ -77,12 +77,11 @@ pub struct RagConfig {
     pub llm_model: String,
 
     // --- OCR ---
-    /// OCR recognition language (`RAG_OCR_LANG`): `ch` (default — the
-    /// conformance-validated PP-OCRv3 model, multilingual incl. Latin) or
-    /// `en` (English-only PP-OCRv3: much better Latin word spacing on
-    /// English scans; fetch it with `download_dependencies.sh --ocr-en`).
-    /// Maps onto docling-pdf's `DOCLING_OCR_REC_ONNX`/`DOCLING_OCR_DICT` —
-    /// explicit env overrides always win.
+    /// OCR recognition language (`RAG_OCR_LANG`): `en` (default — English
+    /// PP-OCRv3, docling-pdf's own default) or `ch` (the multilingual
+    /// conformance-validated model; weak Latin word spacing). Maps onto
+    /// docling-pdf's `DOCLING_RS_OCR_LANG` — explicit `DOCLING_OCR_*` env
+    /// overrides always win.
     pub ocr_lang: OcrLang,
 
     // --- chunking ---
@@ -126,17 +125,16 @@ pub struct RagConfig {
 /// OCR recognition language (`RAG_OCR_LANG`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OcrLang {
-    /// The default ch_PP-OCRv3 model (multilingual; what docling conformance
-    /// is measured with).
+    /// ch_PP-OCRv3 — multilingual; what docling conformance is measured with.
     Ch,
-    /// en_PP-OCRv3 — English-only, better Latin word spacing.
+    /// en_PP-OCRv3 (default) — English-only, proper Latin word spacing.
     En,
 }
 
 fn parse_ocr_lang(s: &str) -> Result<OcrLang> {
     match s.trim().to_ascii_lowercase().as_str() {
-        "" | "ch" => Ok(OcrLang::Ch),
-        "en" => Ok(OcrLang::En),
+        "ch" => Ok(OcrLang::Ch),
+        "" | "en" => Ok(OcrLang::En),
         other => Err(RagError::config(format!(
             "RAG_OCR_LANG={other:?} is not supported (ch|en)"
         ))),
@@ -183,7 +181,7 @@ impl Default for RagConfig {
             openrouter_api_key: None,
             openrouter_base_url: "https://openrouter.ai/api/v1".to_string(),
             llm_model: "deepseek/deepseek-chat".to_string(),
-            ocr_lang: OcrLang::Ch,
+            ocr_lang: OcrLang::En,
             chunker: ChunkerKind::Window,
             chunk_size: 300,
             chunk_overlap: 0.05,
@@ -409,7 +407,7 @@ mod tests {
 
     #[test]
     fn ocr_lang_parses_and_rejects_unknown() {
-        assert_eq!(parse_ocr_lang("").unwrap(), OcrLang::Ch);
+        assert_eq!(parse_ocr_lang("").unwrap(), OcrLang::En);
         assert_eq!(parse_ocr_lang("ch").unwrap(), OcrLang::Ch);
         assert_eq!(parse_ocr_lang(" EN ").unwrap(), OcrLang::En);
         assert!(parse_ocr_lang("de").is_err());
