@@ -98,6 +98,18 @@ bounded by these, so raising it further is a model problem, not a serialization
 one: every laid-out block kind now carries provenance, so the ±2 figure sits at
 the geometry-ignored ceiling.
 
+## VLM pipeline conformance (#153 — measurement pending)
+
+The remote-VLM pipeline (#77, `--pipeline vlm`) has its own comparison
+harness: `scripts/conformance/vlm_conformance.sh` runs the PDF corpus through
+docling.rs *and* Python docling's `VlmPipeline`, both against the same
+endpoint (`scripts/dev/granite_vlm_server.py` — the only server class that
+keeps granite-docling's DocTags tokens intact), and reports per-fixture
+whitespace-normalized similarity plus byte-exactness. Requires a GPU for
+sane runtimes; numbers land here once the corpus run happens. Known accepted
+asymmetry: each side renders pages at its own scale, so some drift is
+render-induced rather than parser-induced — triage before attributing.
+
 ## Enrichment models (opt-in)
 
 docling's optional enrichment stages are ported behind the same flags

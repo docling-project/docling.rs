@@ -133,8 +133,38 @@ def main():
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--cpu", action="store_true", help="force CPU inference")
+    ap.add_argument(
+        "--warmup",
+        action="store_true",
+        help="run one dummy generation at startup so the first real page "
+        "doesn't pay the kernel-compilation cost (useful before corpus runs)",
+    )
     args = ap.parse_args()
+    # Persist triton's JIT kernel cache across restarts — without it every
+    # server start (and on some setups every request) recompiles, which
+    # dominated per-page latency in the #77 bring-up.
+    import os
+
+    os.environ.setdefault(
+        "TRITON_CACHE_DIR",
+        os.path.expanduser("~/.cache/docling-rs/triton"),
+    )
     Handler.processor, Handler.model, Handler.device = load(args.model, args.cpu)
+    if args.warmup:
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new("RGB", (64, 64), "white").save(buf, format="PNG")
+        started = time.time()
+        generate(
+            Handler.processor,
+            Handler.model,
+            Handler.device,
+            buf.getvalue(),
+            "Convert this page to docling.",
+            8,
+        )
+        print(f"warmup done in {time.time() - started:.1f}s", flush=True)
     print(f"serving on http://127.0.0.1:{args.port}/v1/chat/completions", flush=True)
     HTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
 

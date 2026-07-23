@@ -13,6 +13,7 @@
 pub mod base64;
 pub mod chunker;
 mod doclang;
+pub mod doctags;
 mod document;
 mod json;
 mod labels;

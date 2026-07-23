@@ -149,6 +149,26 @@ fn vlm_converts_an_image_without_pdfium() {
     assert!(doc.export_to_markdown().contains("From an image."));
 }
 
+/// A granite-style DocTags answer routes through docling-core's DocTags
+/// parser end to end (image leg: no pdfium needed, runs everywhere).
+#[test]
+fn vlm_parses_doctags_answers() {
+    let (endpoint, served, handle) = mock_openai(vec![
+        "<doctag><section_header_level_1><loc_1><loc_2><loc_3><loc_4>Section</section_header_level_1>\
+<text><loc_1><loc_5><loc_3><loc_6>Body text.</text>\
+<otsl><loc_1><loc_7><loc_3><loc_9><ched>H<nl><fcel>v<nl></otsl></doctag>"
+            .into(),
+    ]);
+    let source = SourceDocument::from_bytes("page.png", InputFormat::Image, image_bytes());
+    let doc = convert_vlm(&source, &opts(endpoint)).expect("vlm conversion");
+    handle.join().expect("mock server");
+    assert_eq!(served.load(Ordering::SeqCst), 1);
+    let md = doc.export_to_markdown();
+    assert!(md.contains("## Section"), "md: {md:?}");
+    assert!(md.contains("Body text."), "md: {md:?}");
+    assert!(md.contains("| H"), "md: {md:?}");
+}
+
 #[test]
 fn vlm_rejects_non_visual_formats() {
     let source = SourceDocument::from_bytes("x.md", InputFormat::Md, b"# hi".to_vec());

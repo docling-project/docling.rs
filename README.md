@@ -17,7 +17,10 @@ mapping, and per-format conformance.
 The public API works end to end across **Markdown, CSV, HTML, AsciiDoc, DOCX,
 PPTX, XLSX, legacy DOC/XLS/PPT, EPUB, ODF, WebVTT, Email, MHTML, JATS, USPTO,
 XBRL, LaTeX, JSON, PDF, images, METS, audio and video** — plus Markdown / docling-JSON output and image
-extraction. MHTML is a docling.rs-only extension (docling has no MHTML
+extraction. Raw **DocTags** (`.doctags`/`.dt` — the token markup docling's VLMs emit) reads
+in through `docling-core`'s tolerant DocTags parser (#152), the same one the
+VLM pipeline uses for model responses.
+MHTML is a docling.rs-only extension (docling has no MHTML
 backend): saved-webpage `.mhtml`/`.mht` archives are parsed as a MIME message
 with [`mail-parser`](https://crates.io/crates/mail-parser) (which conforms to
 [RFC 2557](https://datatracker.ietf.org/doc/html/rfc2557), the MHTML spec) and

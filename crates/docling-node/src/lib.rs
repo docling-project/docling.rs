@@ -1303,6 +1303,7 @@ fn parse_format(s: &str) -> Result<InputFormat> {
         "xml_xbrl" | "xbrl" => InputFormat::XmlXbrl,
         "json_docling" => InputFormat::JsonDocling,
         "xml_doclang" | "doclang" => InputFormat::XmlDoclang,
+        "doctags" | "dt" => InputFormat::DocTags,
         "mets_gbs" => InputFormat::MetsGbs,
         "email" => InputFormat::Email,
         "latex" => InputFormat::Latex,
