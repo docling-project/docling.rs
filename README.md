@@ -506,7 +506,8 @@ instead — same models plus `pdfium.dll` — and see
 | --- | --- |
 | pdfium (Linux x64) | `.pdfium/lib/libpdfium.so` |
 | RT-DETR layout | `models/layout_heron.onnx` |
-| PP-OCRv3 rec + dictionary | `models/ocr_rec.onnx`, `models/ppocr_keys_v1.txt` |
+| PP-OCRv3 rec + dictionary, English (the runtime default) | `models/ocr_rec_en.onnx`, `models/en_dict.txt` |
+| PP-OCRv3 rec + dictionary, multilingual `ch_` (`DOCLING_RS_OCR_LANG=ch`; the docling-conformance model — weak Latin word spacing) | `models/ocr_rec.onnx`, `models/ppocr_keys_v1.txt` |
 | TableFormer (optional) | `models/tableformer/{encoder,decoder,bbox}.onnx` (+ `.data` sidecars where the export needs them) |
 | Whisper tiny (audio/ASR; skip with `--no-asr`) | `models/asr/{encoder_model,decoder_model}.onnx`, `models/asr/vocab.json` (+ `added_tokens.json` for language selection) |
 | Whisper presets (optional; `--asr-model=<preset>`, repeatable) | `models/asr/<preset>/…` — English-only (`whisper_tiny_en`, `whisper_base_en`, `whisper_small_en`) and Distil-Whisper (`whisper_distil_small_en`) exports, fetched from Hugging Face |
@@ -755,6 +756,15 @@ To point at files you exported or placed elsewhere instead, set the env vars
 directly: `DOCLING_LAYOUT_ONNX`, `DOCLING_OCR_REC_ONNX`, `DOCLING_OCR_DICT`,
 `DOCLING_TABLEFORMER_{ENCODER,DECODER,BBOX}`, `PDFIUM_DYNAMIC_LIB_PATH` — an
 env var always wins over the `./models` / `./.pdfium` default.
+
+OCR recognition defaults to the **English** PP-OCRv3 model: the multilingual
+`ch_` model reads Latin text with broken word spacing (`Refactorexisting
+microservices writtenonJava`-style output on ordinary scans).
+`DOCLING_RS_OCR_LANG=ch` selects the `ch_` pair — that's the model upstream
+docling conformance is measured against, and the conformance scripts pin it
+themselves; explicit `DOCLING_OCR_REC_ONNX`+`DOCLING_OCR_DICT` (a pair — set
+both) override the language switch entirely. An install without the English
+model falls back to `ch_` with a warning.
 
 ## Testing
 

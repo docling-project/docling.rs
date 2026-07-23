@@ -21,8 +21,10 @@
 # models-v1 by default — override the base with $DOCLING_RS_MODELS_URL):
 #   .pdfium/lib/libpdfium.so                      (Linux x64)
 #   models/layout_heron.onnx
-#   models/ocr_rec.onnx
-#   models/ppocr_keys_v1.txt
+#   models/ocr_rec_en.onnx + models/en_dict.txt   (English PP-OCRv3
+#     recognition — the runtime default; from upstream PP-OCRv3 hosting)
+#   models/ocr_rec.onnx + models/ppocr_keys_v1.txt (multilingual ch_ pair —
+#     what docling conformance is measured with; DOCLING_RS_OCR_LANG=ch)
 #   models/tableformer/encoder.onnx (+ .data, if the export needs it)
 #   models/tableformer/decoder.onnx (+ .data, if the export needs it)
 #   models/tableformer/decoder_kv.onnx (+ .data; preferred when hosted)
@@ -43,9 +45,6 @@
 #     docling-rag's local ONNX embedder, ~2.3 GB — opt-in with --embed; from
 #     Hugging Face, matching the RAG_EMBED_ONNX_PATH/RAG_EMBED_TOKENIZER
 #     defaults)
-#   models/ocr_rec_en.onnx + en_dict.txt   (English PP-OCRv3 recognition,
-#     ~9 MB — opt-in with --ocr-en; better Latin word spacing than the
-#     default ch_ model on English-only scans)
 #
 # Also fetches the INT8-quantized CPU models when the release hosts them (see
 # docs/PDF_CONFORMANCE.md — ~2.4x faster layout inference at unchanged conformance):
@@ -80,7 +79,7 @@ WITH_INT8=true
 WITH_CHUNK=true
 WITH_ENRICH=false
 WITH_EMBED=false
-WITH_OCR_EN=false
+
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=true ;;
@@ -91,9 +90,9 @@ for arg in "$@"; do
     --no-chunk) WITH_CHUNK=false ;;
     --enrich) WITH_ENRICH=true ;;
     --embed) WITH_EMBED=true ;;
-    --ocr-en) WITH_OCR_EN=true ;;
+
     *)
-      echo "usage: download_dependencies.sh [--force] [--no-asr] [--asr-model=<preset>] [--no-int8] [--no-chunk] [--enrich] [--embed] [--ocr-en]" >&2
+      echo "usage: download_dependencies.sh [--force] [--no-asr] [--asr-model=<preset>] [--no-int8] [--no-chunk] [--enrich] [--embed]" >&2
       echo "  ASR presets: whisper_tiny_en whisper_base_en whisper_small_en whisper_distil_small_en" >&2
       exit 2
       ;;
@@ -144,6 +143,11 @@ fetch "$BASE_URL/libpdfium.so" .pdfium/lib/libpdfium.so
 fetch "$BASE_URL/layout_heron.onnx" models/layout_heron.onnx
 fetch "$BASE_URL/ocr_rec.onnx" models/ocr_rec.onnx
 fetch "$BASE_URL/ppocr_keys_v1.txt" models/ppocr_keys_v1.txt
+# English PP-OCRv3 recognition pair — the runtime default (the ch_ pair above
+# stays the conformance model, selected with DOCLING_RS_OCR_LANG=ch). Fetched
+# from upstream PP-OCRv3 hosting, not the models release.
+fetch "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/en_PP-OCRv3_rec_infer.onnx" models/ocr_rec_en.onnx
+fetch "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/en_dict.txt" models/en_dict.txt
 fetch "$BASE_URL/encoder.onnx" models/tableformer/encoder.onnx
 fetch_optional "$BASE_URL/encoder.onnx.data" models/tableformer/encoder.onnx.data
 fetch "$BASE_URL/decoder.onnx" models/tableformer/decoder.onnx
@@ -247,16 +251,6 @@ if [ "$WITH_EMBED" = true ]; then
   fetch "$EMBED_BASE_URL/model.onnx" models/embed/bge-m3.onnx
   fetch "$EMBED_BASE_URL/model.onnx.data" models/embed/model.onnx.data
   fetch "$EMBED_BASE_URL/tokenizer.json" models/embed/tokenizer.json
-fi
-
-if [ "$WITH_OCR_EN" = true ]; then
-  # English PP-OCRv3 recognition model (--ocr-en, ~9 MB): the default ch_
-  # model is what docling conformance is measured with, but its Latin-script
-  # word spacing is weak (glued words on English-only scans). Select at
-  # runtime with RAG_OCR_LANG=en (docling-rag) or, for any binary,
-  #   DOCLING_OCR_REC_ONNX=models/ocr_rec_en.onnx DOCLING_OCR_DICT=models/en_dict.txt
-  fetch "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/en_PP-OCRv3_rec_infer.onnx" models/ocr_rec_en.onnx
-  fetch "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/en_dict.txt" models/en_dict.txt
 fi
 
 if [ "$WITH_INT8" = true ]; then

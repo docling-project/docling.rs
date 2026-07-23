@@ -134,7 +134,12 @@ fixtures.
 
 pdfium extracts the glyph layer and renders each page to a bitmap; an ONNX stack
 (layout detection, TableFormer, PaddleOCR) interprets it; regions are assembled in
-reading order into a `DoclingDocument`. Tables use **TableFormer** (image encoder
+reading order into a `DoclingDocument`. Note on OCR models: everything in this
+document — snapshots, groundtruth, the conformance numbers — is measured with the
+multilingual `ch_PP-OCRv3` recognition model (docling parity), which
+`scripts/conformance/pdf_*.sh` pin via `DOCLING_OCR_REC_ONNX`/`DOCLING_OCR_DICT`.
+The *runtime* default is the English `en_PP-OCRv3` pair (the `ch_` model glues
+Latin words together); `DOCLING_RS_OCR_LANG=ch` restores the conformance model. Tables use **TableFormer** (image encoder
 + autoregressive OTSL structure decoder + cell-bbox decoder, ported and exported
 to ONNX in `tableformer.rs`) on a cv2-exact preprocessed crop (`resample.rs`); the
 structure + matched cell text reproduce docling's padded GitHub tables (2305-pg9
