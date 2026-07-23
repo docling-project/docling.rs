@@ -128,26 +128,35 @@ pub fn convert_vlm(
                 }
                 None => None,
             };
-            // `for_each_page`'s error type must absorb pdfium's own errors,
-            // so page-level VLM failures travel as PdfError strings and are
-            // rewrapped once below.
-            docling_pdf::pdfium_backend::for_each_page::<docling_pdf::PdfError, _>(
+            // `for_each_page`'s error type must implement From<PdfiumError>,
+            // which ConversionError doesn't — so VLM/encode failures park
+            // their message in `vlm_err` and abort the walk with a sentinel;
+            // only genuine pdfium errors surface through PdfError itself.
+            let mut vlm_err: Option<String> = None;
+            let walk = docling_pdf::pdfium_backend::for_each_page::<docling_pdf::PdfError, _>(
                 &source.bytes,
                 None,
                 true, // render page images — they are the whole input here
                 range,
                 |i, _total, page| {
-                    let png = encode_png(&page.image).map_err(|e| {
-                        docling_pdf::PdfError::Pdfium(format!("page {}: {e}", i + 1))
-                    })?;
-                    let markup = request_page(&agent, opts, &png).map_err(|e| {
-                        docling_pdf::PdfError::Pdfium(format!("vlm: page {}: {e}", i + 1))
-                    })?;
-                    fragments.push(doclang_fragment(&markup));
-                    Ok(())
+                    let step =
+                        encode_png(&page.image).and_then(|png| request_page(&agent, opts, &png));
+                    match step {
+                        Ok(markup) => {
+                            fragments.push(doclang_fragment(&markup));
+                            Ok(())
+                        }
+                        Err(e) => {
+                            vlm_err = Some(format!("page {}: {e}", i + 1));
+                            Err(docling_pdf::PdfError::Pdfium("vlm abort".into()))
+                        }
+                    }
                 },
-            )
-            .map_err(pdf_err)?;
+            );
+            if let Some(msg) = vlm_err {
+                return Err(ConversionError::Parse(format!("vlm: {msg}")));
+            }
+            walk.map_err(pdf_err)?;
         }
         InputFormat::Image => {
             // The image file is already the page; no re-encode, no pdfium.
@@ -234,7 +243,17 @@ fn request_page(agent: &ureq::Agent, opts: &VlmOptions, image: &[u8]) -> Result<
                     .read_to_string()
                     .map_err(|e| format!("{url}: read response: {e}"))?;
                 if status == 408 || status == 429 || status >= 500 {
-                    last_err = format!("{url}: HTTP {status} (attempt {})", attempt + 1);
+                    // Keep a body snippet: for OpenAI-style servers the real
+                    // reason (insufficient_quota vs. a plain rate limit)
+                    // lives there, and hiding it made give-ups undiagnosable.
+                    last_err = format!(
+                        "{url}: HTTP {status} (attempt {}): {}",
+                        attempt + 1,
+                        text.replace(['\n', '\r'], " ")
+                            .chars()
+                            .take(300)
+                            .collect::<String>()
+                    );
                     continue;
                 }
                 if status != 200 {
@@ -263,10 +282,16 @@ fn request_page(agent: &ureq::Agent, opts: &VlmOptions, image: &[u8]) -> Result<
 ///
 /// Models wrap their answer unpredictably: Markdown code fences, a full
 /// `<doclang …>` document, a legacy `<doctag>` root, or a bare fragment of
-/// block elements. The DocLang reader is already tolerant of unknown
-/// elements/attributes, so normalization only needs to strip the wrappers —
-/// content inside an unexpected root still parses (unknown elements recurse).
+/// block elements. The wrappers strip first, then the body goes through the
+/// DocTags→DocLang lexical translation ([`doctags_to_doclang`]) — a no-op
+/// for already-DocLang answers, load-bearing for granite-docling-class
+/// models whose raw DocTags token stream is not XML at all.
 fn doclang_fragment(response: &str) -> String {
+    doctags_to_doclang(&strip_wrappers(response))
+}
+
+/// The wrapper-stripping half of [`doclang_fragment`].
+fn strip_wrappers(response: &str) -> String {
     let mut text = response.trim();
     // ```xml … ``` / ``` … ``` fences.
     if let Some(rest) = text.strip_prefix("```") {
@@ -292,6 +317,163 @@ fn doclang_fragment(response: &str) -> String {
         }
     }
     text.to_string()
+}
+
+/// Translate a legacy **DocTags** fragment (what granite-docling-class models
+/// actually emit) into well-formed DocLang the XML reader accepts.
+///
+/// DocTags is a token stream, not XML: `<loc_57>` location tokens, OTSL cell
+/// markers (`<fcel>Text<fcel>…<nl>`), picture-class and checkbox tokens are
+/// all *unclosed*. The DocLang reader already speaks OTSL — its `<table>`
+/// parser takes self-closed `<fcel/>` markers with the text between them —
+/// so the translation is purely lexical, one pass over the tags:
+///
+/// - `<loc_N>` and `<page_break>` tokens drop (the reader's geometry comes
+///   from `<location>`, which VLM output doesn't carry);
+/// - `<otsl>` → `<table>`, `<section_header_level_K>` → `<heading
+///   level="K">`, `<title>` → `<heading level="1">`, `<paragraph>` →
+///   `<text>`, `<ordered_list>`/`<unordered_list>` → `<list>`,
+///   `<list_item>` → the `<ldiv/>` item marker DocLang lists use;
+/// - `<page_header>`/`<page_footer>` → `<text>` opening with a
+///   `<layer value="furniture"/>` head, so headers/footers stay out of the
+///   Markdown body exactly like the ML pipeline's furniture;
+/// - any other tag that never sees a matching closer in the fragment —
+///   OTSL cell markers, picture classes, checkbox states, whatever a future
+///   model invents — is emitted self-closed, which the tolerant reader
+///   recurses through harmlessly;
+/// - stray `&` (not an entity) and dangling `<` escape to entities, since
+///   model text is not XML-escaped.
+///
+/// A fragment that is already DocLang passes through intact: every paired
+/// element has its closer, none of the rename names exist in DocLang, and
+/// proper entities are left alone.
+fn doctags_to_doclang(fragment: &str) -> String {
+    // Tag names that appear in closing form — those pairs are kept as-is;
+    // everything else unknown is a single marker token.
+    let mut closers: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let bytes = fragment.as_bytes();
+    let mut i = 0;
+    while let Some(off) = fragment[i..].find("</") {
+        let start = i + off + 2;
+        let end = fragment[start..]
+            .find('>')
+            .map(|e| start + e)
+            .unwrap_or(fragment.len());
+        closers.insert(fragment[start..end].trim());
+        i = end;
+    }
+
+    let mut out = String::with_capacity(fragment.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i] as char;
+        if c != '<' {
+            if c == '&' {
+                // Escape a bare ampersand; keep real entities (&amp; &#123;).
+                let rest = &fragment[i + 1..];
+                let is_entity = rest
+                    .split_once(';')
+                    .map(|(name, _)| {
+                        !name.is_empty()
+                            && name.len() <= 8
+                            && name
+                                .chars()
+                                .all(|ch| ch.is_ascii_alphanumeric() || ch == '#')
+                    })
+                    .unwrap_or(false);
+                out.push_str(if is_entity { "&" } else { "&amp;" });
+            } else {
+                out.push(c);
+            }
+            i += c.len_utf8();
+            continue;
+        }
+        // A tag candidate: `<`, optional `/`, then a name. Anything else is
+        // literal text (`a < b`) and escapes.
+        let close = bytes.get(i + 1) == Some(&b'/');
+        let name_start = i + 1 + usize::from(close);
+        let Some(end) = fragment[i..].find('>').map(|e| i + e) else {
+            out.push_str("&lt;");
+            i += 1;
+            continue;
+        };
+        let inner = fragment[name_start..end].trim();
+        let name = inner
+            .split([' ', '\t', '\n', '/'])
+            .next()
+            .unwrap_or_default();
+        if name.is_empty()
+            || !name
+                .chars()
+                .next()
+                .is_some_and(|ch| ch.is_ascii_alphabetic())
+        {
+            out.push_str("&lt;");
+            i += 1;
+            continue;
+        }
+        let self_closed = inner.ends_with('/');
+        i = end + 1;
+        // Dropped tokens.
+        if name.starts_with("loc_") || name == "page_break" || name == "doctag" || name == "doctags"
+        {
+            continue;
+        }
+        // Renames (open and close forms).
+        let level = name
+            .strip_prefix("section_header_level_")
+            .and_then(|v| v.parse::<u8>().ok());
+        if close {
+            match name {
+                _ if level.is_some() => out.push_str("</heading>"),
+                "title" => out.push_str("</heading>"),
+                "otsl" => out.push_str("</table>"),
+                // An item's text runs until the next `<ldiv/>`; the closer is
+                // structural noise in DocLang.
+                "list_item" => {}
+                "paragraph" | "page_header" | "page_footer" => out.push_str("</text>"),
+                "ordered_list" | "unordered_list" => out.push_str("</list>"),
+                _ => {
+                    out.push_str("</");
+                    out.push_str(name);
+                    out.push('>');
+                }
+            }
+            continue;
+        }
+        match name {
+            _ if level.is_some() => {
+                out.push_str(&format!(
+                    "<heading level=\"{}\">",
+                    level.unwrap().clamp(1, 6)
+                ));
+            }
+            "title" => out.push_str("<heading level=\"1\">"),
+            "otsl" => out.push_str("<table>"),
+            // DocLang list items are `<ldiv/>` markers followed by the item's
+            // text, not wrapper elements.
+            "list_item" => out.push_str("<ldiv/>"),
+            "paragraph" => out.push_str("<text>"),
+            "page_header" | "page_footer" => out.push_str("<text><layer value=\"furniture\"/>"),
+            "ordered_list" => out.push_str("<list class=\"ordered\">"),
+            "unordered_list" => out.push_str("<list>"),
+            _ if self_closed || closers.contains(name) => {
+                // A proper pair (DocLang vocabulary) or already self-closed:
+                // pass through with attributes intact.
+                out.push('<');
+                out.push_str(inner);
+                out.push('>');
+            }
+            _ => {
+                // A bare marker token with no closer anywhere — OTSL cells,
+                // picture classes, checkbox states. Self-close it.
+                out.push('<');
+                out.push_str(name);
+                out.push_str("/>");
+            }
+        }
+    }
+    out
 }
 
 /// PNG-encode a rendered page (the wire format every OpenAI-compatible
@@ -333,5 +515,45 @@ mod tests {
             doclang_fragment("Here you go:\n<doclang><heading level=\"1\">T</heading></doclang>"),
             "<heading level=\"1\">T</heading>"
         );
+    }
+
+    /// Raw granite-docling output is DocTags — loc tokens, unclosed OTSL
+    /// markers, section_header naming — and must come out as parseable
+    /// DocLang (this exact shape produced the "expected 'loc_420' tag"
+    /// failure against a live Ollama endpoint).
+    #[test]
+    fn doctags_translation() {
+        let page = "<doctag><picture><loc_15><loc_10><loc_240><loc_60><other></picture>\
+<section_header_level_1><loc_57><loc_70><loc_420><loc_78>Optimized Table Tokenization</section_header_level_1>\
+<text><loc_57><loc_84><loc_420><loc_98>Body with A &amp; B & C.</text>\
+<unordered_list><list_item><loc_60><loc_100><loc_420><loc_108>First item</list_item></unordered_list>\
+<otsl><loc_57><loc_120><loc_420><loc_160><ched>Col A<ched>Col B<nl><fcel>1<fcel>2<nl></otsl>\
+<page_footer><loc_57><loc_280><loc_420><loc_288>7</page_footer><page_break></doctag>";
+        let fragment = doclang_fragment(page);
+        let xml = format!("<doclang version=\"0.7\">{fragment}</doclang>");
+        let doc = crate::backend::DeclarativeBackend::convert(
+            &crate::backend::doclang::DoclangBackend,
+            &crate::source::SourceDocument::from_bytes(
+                "page",
+                crate::format::InputFormat::XmlDoclang,
+                xml.into_bytes(),
+            ),
+        )
+        .expect("translated DocTags must parse");
+        let md = doc.export_to_markdown();
+        assert!(md.contains("# Optimized Table Tokenization"), "md: {md:?}");
+        assert!(md.contains("Body with A & B & C."), "md: {md:?}");
+        assert!(md.contains("- First item"), "md: {md:?}");
+        assert!(md.contains("Col A |"), "md: {md:?}");
+        assert!(md.contains("1 |"), "md: {md:?}");
+        // Furniture (page footer) stays out of the Markdown body.
+        assert!(!md.contains("\n7\n"), "md: {md:?}");
+    }
+
+    /// DocLang-native fragments survive the translation byte-for-byte.
+    #[test]
+    fn doclang_passthrough() {
+        let native = "<heading level=\"2\">T</heading>\n<text>Hi &amp; bye <bold>b</bold></text>\n<table>\n<fcel/>a\n<nl/>\n</table>";
+        assert_eq!(doclang_fragment(native), native);
     }
 }
