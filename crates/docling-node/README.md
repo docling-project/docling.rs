@@ -294,6 +294,11 @@ for (const img of res.images) {
 
 JSON output always embeds extracted images as data URIs.
 
+For scanned PDFs/images, `ocrLang: 'en' | 'ch'` picks the OCR recognition
+model (`en` is the default — proper Latin word spacing; `ch` is the
+multilingual docling-conformance model), and `pages: 'A-B'` converts only that
+1-based PDF page window.
+
 ## API
 
 ### Functions

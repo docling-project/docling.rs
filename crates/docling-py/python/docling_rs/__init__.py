@@ -151,6 +151,7 @@ class DocumentConverter:
         do_formula_enrichment: bool = False,
         fetch_images: bool = False,
         use_web_browser: bool = False,
+        ocr_lang: Optional[str] = None,
         artifacts_path=None,
     ):
         ensure_env(artifacts_path)
@@ -169,6 +170,24 @@ class DocumentConverter:
             do_formula_enrichment = getattr(
                 pipeline, "do_formula_enrichment", do_formula_enrichment
             )
+            # Map docling's ocr_options.lang (a list of language ids) onto the
+            # engine's en/ch recognition-model switch. First entry wins;
+            # anything that isn't recognisably English/Chinese is ignored with
+            # a warning (the engine default — English — applies).
+            ocr_opts = getattr(pipeline, "ocr_options", None)
+            langs = list(getattr(ocr_opts, "lang", None) or [])
+            if langs:
+                head = str(langs[0]).lower()
+                if head in ("en", "english"):
+                    ocr_lang = "en"
+                elif head in ("ch", "chinese", "ch_sim", "zh"):
+                    ocr_lang = "ch"
+                else:
+                    warnings.warn(
+                        f"docling.rs OCR supports en|ch recognition models; "
+                        f"ocr_options.lang={langs!r} is ignored",
+                        stacklevel=2,
+                    )
             acc = getattr(pipeline, "accelerator_options", None)
             if acc is not None:
                 # Map docling's device to the engine's DOCLING_RS_EP (resolved
@@ -200,6 +219,7 @@ class DocumentConverter:
             do_picture_classification=do_picture_classification,
             do_code_enrichment=do_code_enrichment,
             do_formula_enrichment=do_formula_enrichment,
+            ocr_lang=ocr_lang,
             allowed_formats=(
                 [InputFormat(f).value for f in allowed_formats]
                 if allowed_formats is not None

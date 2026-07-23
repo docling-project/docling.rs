@@ -102,27 +102,58 @@ fn is_text_label(label: &str) -> bool {
     )
 }
 
-/// Resolve the recognition model + dictionary pair.
+/// OCR recognition language: which PP-OCRv3 model + dictionary pair runs.
 ///
-/// The default is the **English** PP-OCRv3 export (`models/ocr_rec_en.onnx` +
-/// `models/en_dict.txt`): the multilingual `ch_` model reads Latin scripts
-/// with badly degraded word spacing (glued words on ordinary English scans),
-/// which is the common real-world case. `DOCLING_RS_OCR_LANG=ch` selects the
-/// `ch_` pair (`models/ocr_rec.onnx` + `models/ppocr_keys_v1.txt`) — that is
-/// what upstream docling conformance is measured with, and
-/// `scripts/conformance/pdf_*.sh` pin it explicitly. An English default that
-/// isn't on disk (older model checkouts) degrades to the `ch_` pair with a
-/// warning rather than failing — the usual missing-optional-asset convention.
-/// Explicit `DOCLING_OCR_REC_ONNX` / `DOCLING_OCR_DICT` paths win over all of
-/// this; they are a pair, so set both together.
-fn resolve_rec_pair() -> (String, String) {
+/// The default is **English** (`models/ocr_rec_en.onnx` + `models/en_dict.txt`):
+/// the multilingual `ch_` model reads Latin scripts with badly degraded word
+/// spacing (glued words on ordinary English scans), which is the common
+/// real-world case. `Ch` selects the `ch_` pair (`models/ocr_rec.onnx` +
+/// `models/ppocr_keys_v1.txt`) — that is what upstream docling conformance is
+/// measured with, and `scripts/conformance/pdf_*.sh` pin it explicitly (by
+/// path, which wins over this selector).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OcrLang {
+    /// en_PP-OCRv3 — English-only, proper Latin word spacing.
+    #[default]
+    En,
+    /// ch_PP-OCRv3 — multilingual; the docling-conformance model.
+    Ch,
+}
+
+impl OcrLang {
+    /// Parse a user-supplied language id. `None` for anything but `en`/`ch`
+    /// (trimmed, case-insensitive) — callers surface their own error/warning.
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "en" => Some(Self::En),
+            "ch" => Some(Self::Ch),
+            _ => None,
+        }
+    }
+
+    /// The process-level choice from `DOCLING_RS_OCR_LANG` (empty/unset → the
+    /// English default; unknown values warn and use English).
+    pub fn from_env() -> Self {
+        let raw = std::env::var("DOCLING_RS_OCR_LANG").unwrap_or_default();
+        if raw.trim().is_empty() {
+            return Self::default();
+        }
+        Self::parse(&raw).unwrap_or_else(|| {
+            eprintln!("docling-pdf: DOCLING_RS_OCR_LANG={raw:?} is not en|ch; using en");
+            Self::default()
+        })
+    }
+}
+
+/// Resolve the recognition model + dictionary pair for `lang`. An English
+/// default that isn't on disk (older model checkouts) degrades to the `ch_`
+/// pair with a warning rather than failing — the usual missing-optional-asset
+/// convention. Explicit `DOCLING_OCR_REC_ONNX` / `DOCLING_OCR_DICT` paths win
+/// over all of this; they are a pair, so set both together.
+fn resolve_rec_pair(lang: OcrLang) -> (String, String) {
     const CH: (&str, &str) = ("models/ocr_rec.onnx", "models/ppocr_keys_v1.txt");
     const EN: (&str, &str) = ("models/ocr_rec_en.onnx", "models/en_dict.txt");
-    let lang = std::env::var("DOCLING_RS_OCR_LANG").unwrap_or_default();
-    let want_ch = lang.trim().eq_ignore_ascii_case("ch");
-    if !lang.trim().is_empty() && !want_ch && !lang.trim().eq_ignore_ascii_case("en") {
-        eprintln!("docling-pdf: DOCLING_RS_OCR_LANG={lang:?} is not en|ch; using en");
-    }
+    let want_ch = lang == OcrLang::Ch;
     let pick = if want_ch { CH } else { EN };
     let (mut rec, mut dict) = (crate::resolve_asset(pick.0), crate::resolve_asset(pick.1));
     if !want_ch && (!std::path::Path::new(&rec).exists() || !std::path::Path::new(&dict).exists()) {
@@ -143,12 +174,11 @@ fn resolve_rec_pair() -> (String, String) {
 }
 
 impl OcrModel {
-    /// Load the recognition model and its character dictionary — see
-    /// [`resolve_rec_pair`] for the selection rules (English by default,
-    /// `DOCLING_RS_OCR_LANG=ch` for the docling-conformance model, explicit
+    /// Load the recognition model and its character dictionary for `lang` —
+    /// see [`resolve_rec_pair`] for the selection rules (explicit
     /// `DOCLING_OCR_REC_ONNX`/`DOCLING_OCR_DICT` paths win).
-    pub fn load() -> Result<Self, String> {
-        let (rec_path, dict_path) = resolve_rec_pair();
+    pub fn load(lang: OcrLang) -> Result<Self, String> {
+        let (rec_path, dict_path) = resolve_rec_pair(lang);
         // Single-threaded: ORT's multi-threaded float-reduction order varies
         // across runs, which flips the CTC argmax on low-confidence characters
         // (e.g. noisy faxes) and makes the snapshot output non-deterministic. The

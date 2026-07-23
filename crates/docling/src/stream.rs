@@ -75,6 +75,7 @@ pub(crate) struct StreamSettings {
     pub no_ocr: bool,
     pub enrich: docling_pdf::EnrichmentOptions,
     pub page_range: Option<(usize, usize)>,
+    pub ocr_lang: Option<docling_pdf::OcrLang>,
     pub artifacts_dir: String,
 }
 
@@ -138,6 +139,7 @@ fn run_pdf(
     let mut pipeline = match docling_pdf::Pipeline::new().map(|p| {
         p.no_table_former(settings.no_table_former)
             .no_ocr(settings.no_ocr)
+            .ocr_lang(settings.ocr_lang)
             .enrichments(settings.enrich)
             .pages(settings.page_range)
     }) {

@@ -3,7 +3,7 @@
 //! The docling.rs counterpart of `docling.cli.main`; `docling-rs serve`
 //! (with `--features serve`) starts the HTTP conversion API.
 //!
-//! Usage: docling-rs [--strict] [--to md|json] [--pages A-B] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--asr-model PRESET] [--video-frames N] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] <input-file>
+//! Usage: docling-rs [--strict] [--to md|json] [--pages A-B] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--ocr-lang en|ch] [--asr-model PRESET] [--video-frames N] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] <input-file>
 //!   --to md|json       output format (default: md). `json` emits docling-core's
 //!                      native DoclingDocument JSON (export_to_dict).
 //!   --pages A-B        convert only PDF pages A through B (1-based, inclusive;
@@ -94,6 +94,7 @@ fn main() -> ExitCode {
     let mut enrich_formula = false;
     let mut bench_warm: Option<usize> = None;
     let mut pages: Option<(usize, usize)> = None;
+    let mut ocr_lang: Option<String> = None;
     let mut path: Option<String> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -127,6 +128,20 @@ fn main() -> ExitCode {
                 }
                 None => {
                     eprintln!("error: --pages needs a range like 1-10 (or a single page)");
+                    return ExitCode::from(2);
+                }
+            },
+            // OCR recognition language for scanned PDF/image pages: en
+            // (default; proper Latin word spacing) | ch (the multilingual
+            // docling-conformance model).
+            "--ocr-lang" => match args.next() {
+                Some(v) if matches!(v.trim(), "en" | "ch") => ocr_lang = Some(v),
+                Some(v) => {
+                    eprintln!("error: --ocr-lang {v:?} is not en|ch");
+                    return ExitCode::from(2);
+                }
+                None => {
+                    eprintln!("error: --ocr-lang needs a value (en|ch)");
                     return ExitCode::from(2);
                 }
             },
@@ -168,7 +183,7 @@ fn main() -> ExitCode {
     };
 
     let Some(path) = path else {
-        eprintln!("usage: docling-rs [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--use-web-browser] <input-file>");
+        eprintln!("usage: docling-rs [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--ocr-lang en|ch] [--use-web-browser] <input-file>");
         return ExitCode::from(2);
     };
 
@@ -213,6 +228,9 @@ fn main() -> ExitCode {
     }
     if let Some((first, last)) = pages {
         converter = converter.page_range(first, last);
+    }
+    if let Some(lang) = &ocr_lang {
+        converter = converter.ocr_lang(lang.clone());
     }
 
     // Stream Markdown by default: print each chunk as the converter produces it

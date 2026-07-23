@@ -89,6 +89,9 @@ pub struct DocumentConverter {
     enrich: crate::EnrichmentOptions,
     /// 1-based inclusive PDF page window (#80). See [`Self::page_range`].
     page_range: Option<(usize, usize)>,
+    /// OCR recognition language for scanned PDF/image pages (`en`/`ch`).
+    /// `None` = the process default (`DOCLING_RS_OCR_LANG`, else English).
+    ocr_lang: Option<String>,
     /// Directory referenced-mode streaming writes images into (#80).
     /// See [`Self::artifacts_dir`].
     artifacts_dir: String,
@@ -139,6 +142,7 @@ impl Default for DocumentConverter {
             video_frames: None,
             enrich: crate::EnrichmentOptions::default(),
             page_range: None,
+            ocr_lang: None,
             artifacts_dir: "artifacts".to_string(),
         }
     }
@@ -168,6 +172,30 @@ impl DocumentConverter {
     pub fn page_range(mut self, first: usize, last: usize) -> Self {
         self.page_range = Some((first, last));
         self
+    }
+
+    /// OCR recognition language for scanned PDF/image pages: `"en"` (the
+    /// default — English PP-OCRv3, proper Latin word spacing) or `"ch"` (the
+    /// multilingual model docling conformance is measured with — glues Latin
+    /// words). An unknown value warns at conversion time and uses the
+    /// default; explicit `DOCLING_OCR_REC_ONNX`/`DOCLING_OCR_DICT` paths win
+    /// over this switch. Formats that never OCR ignore it.
+    pub fn ocr_lang(mut self, lang: impl Into<String>) -> Self {
+        self.ocr_lang = Some(lang.into());
+        self
+    }
+
+    /// The parsed [`Self::ocr_lang`] choice for the ML call sites; a value
+    /// that parses to nothing warns here (once per conversion) rather than
+    /// erroring — same degradation the env selector applies.
+    #[cfg(feature = "pdf")]
+    fn ocr_lang_choice(&self) -> Option<docling_pdf::OcrLang> {
+        let raw = self.ocr_lang.as_deref()?;
+        let parsed = docling_pdf::OcrLang::parse(raw);
+        if parsed.is_none() {
+            eprintln!("docling: ocr_lang {raw:?} is not en|ch; using the default");
+        }
+        parsed
     }
 
     /// Where [`ImageMode::Referenced`] streaming writes image files, and the
@@ -378,6 +406,7 @@ impl DocumentConverter {
             no_ocr: self.no_ocr,
             enrich: self.enrich,
             page_range: self.page_range,
+            ocr_lang: self.ocr_lang_choice(),
             artifacts_dir: self.artifacts_dir.clone(),
         }
     }
@@ -480,6 +509,7 @@ impl DocumentConverter {
                 self.no_ocr,
                 self.enrich,
                 self.page_range,
+                self.ocr_lang_choice(),
             )
             .map_err(|e| ConversionError::with_source("pdf", e))?,
             #[cfg(feature = "pdf")]
@@ -489,6 +519,7 @@ impl DocumentConverter {
                 self.no_table_former,
                 self.no_ocr,
                 self.enrich,
+                self.ocr_lang_choice(),
             )
             .map_err(|e| ConversionError::with_source("image", e))?,
             #[cfg(feature = "pdf")]

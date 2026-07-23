@@ -102,6 +102,9 @@ impl PyDocumentConverter {
     /// * `use_web_browser` — render HTML via headless Chrome before parsing.
     /// * `page_range` — `(first, last)` 1-based inclusive PDF page window
     ///   (docling's option of the same name, #80); other formats ignore it.
+    /// * `ocr_lang` — OCR recognition language for scanned pages: `"en"`
+    ///   (default; proper Latin word spacing) or `"ch"` (the multilingual
+    ///   docling-conformance model).
     ///
     /// Markdown flavour is chosen at export time by docling-core, so there is no
     /// `strict` knob here.
@@ -117,6 +120,7 @@ impl PyDocumentConverter {
         asr_model = None,
         video_frames = None,
         page_range = None,
+        ocr_lang = None,
         allowed_formats = None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -131,6 +135,7 @@ impl PyDocumentConverter {
         asr_model: Option<String>,
         video_frames: Option<usize>,
         page_range: Option<(usize, usize)>,
+        ocr_lang: Option<String>,
         allowed_formats: Option<Vec<String>>,
     ) -> PyResult<Self> {
         // `allowed_formats` (docling's converter arg) restricts which input
@@ -162,6 +167,18 @@ impl PyDocumentConverter {
         // page window, docling's option of the same name (#80).
         let base = match page_range {
             Some((first, last)) => base.page_range(first, last),
+            None => base,
+        };
+        // `ocr_lang` — validated here so a typo raises instead of degrading.
+        let base = match ocr_lang {
+            Some(lang) => {
+                if docling::OcrLang::parse(&lang).is_none() {
+                    return Err(PyValueError::new_err(format!(
+                        "ocr_lang {lang:?} is not \"en\"|\"ch\""
+                    )));
+                }
+                base.ocr_lang(lang)
+            }
             None => base,
         };
         Ok(Self {

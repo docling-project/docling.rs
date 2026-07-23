@@ -125,7 +125,7 @@ curl -H 'content-type: application/json' \
 ```
 
 Options per request: `to=md|json|dclx|chunks`, `strict`, `images=placeholder|embedded`,
-`no_ocr`, `no_table_former`, `fetch_images` — as query parameters, multipart
+`no_ocr`, `no_table_former`, `pages`, `ocr_lang`, `fetch_images` — as query parameters, multipart
 fields, or JSON keys (body wins). Server flags: `--addr`, `--concurrency`,
 `--max-body-mb`, `--warmup`, `--no-url-fetch`, `--strict`. A container image
 builds from [`crates/docling-serve/Dockerfile`](./crates/docling-serve/Dockerfile)
@@ -759,7 +759,11 @@ env var always wins over the `./models` / `./.pdfium` default.
 
 OCR recognition defaults to the **English** PP-OCRv3 model: the multilingual
 `ch_` model reads Latin text with broken word spacing (`Refactorexisting
-microservices writtenonJava`-style output on ordinary scans).
+microservices writtenonJava`-style output on ordinary scans). The switch
+plumbs through every surface — CLI `--ocr-lang en|ch`,
+`DocumentConverter::ocr_lang` / `Pipeline::ocr_lang`, serve `ocr_lang`
+option, Python `ocr_lang=` kwarg (also mapped from docling-shaped
+`ocr_options.lang`), Node `ocrLang` option — or process-wide,
 `DOCLING_RS_OCR_LANG=ch` selects the `ch_` pair — that's the model upstream
 docling conformance is measured against, and the conformance scripts pin it
 themselves; explicit `DOCLING_OCR_REC_ONNX`+`DOCLING_OCR_DICT` (a pair — set

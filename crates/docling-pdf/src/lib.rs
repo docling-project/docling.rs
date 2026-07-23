@@ -53,6 +53,7 @@ use docling_core::Node;
 #[cfg(feature = "ml")]
 pub use mets::{convert_mets_gbs, convert_mets_gbs_with_options};
 #[cfg(feature = "ml")]
+pub use ocr::OcrLang;
 pub use pdfium_backend::PdfDocument;
 pub use pdfium_backend::{PdfPage, TextCell};
 
@@ -346,6 +347,8 @@ struct Worker {
     /// Skip layout, OCR, and TableFormer; reconstruct text purely from the PDF's
     /// embedded text layer. See [`Pipeline::no_ocr`].
     no_ocr: bool,
+    /// Which recognition model [`Self::ocr`] loads. See [`Pipeline::ocr_lang`].
+    ocr_lang: ocr::OcrLang,
 }
 
 #[cfg(feature = "ml")]
@@ -356,6 +359,7 @@ impl Worker {
         enrich_slots: (Option<SharedClassifier>, Option<SharedCodeFormula>),
         enrich: EnrichmentOptions,
         no_ocr: bool,
+        ocr_lang: ocr::OcrLang,
     ) -> Result<Self, PdfError> {
         Ok(Self {
             layout: if no_ocr {
@@ -369,6 +373,7 @@ impl Worker {
             code_formula: enrich_slots.1,
             enrich,
             no_ocr,
+            ocr_lang,
         })
     }
 
@@ -467,7 +472,7 @@ impl Worker {
         // No text layer → recognise text from the page image via OCR.
         if page.cells.is_empty() {
             if self.ocr.is_none() {
-                self.ocr = Some(ocr::OcrModel::load().map_err(PdfError::Ocr)?);
+                self.ocr = Some(ocr::OcrModel::load(self.ocr_lang).map_err(PdfError::Ocr)?);
             }
             let cells = timing::timed("ocr.page", || {
                 self.ocr
@@ -715,6 +720,8 @@ pub struct Pipeline {
     enrich: EnrichmentOptions,
     /// 1-based inclusive page window to convert. See [`Pipeline::pages`].
     page_range: Option<(usize, usize)>,
+    /// OCR recognition language. See [`Pipeline::ocr_lang`].
+    ocr_lang: ocr::OcrLang,
 }
 
 #[cfg(feature = "ml")]
@@ -735,6 +742,7 @@ impl Pipeline {
             no_ocr: false,
             enrich: EnrichmentOptions::default(),
             page_range: None,
+            ocr_lang: ocr::OcrLang::from_env(),
         })
     }
 
@@ -755,6 +763,32 @@ impl Pipeline {
     /// configuration. Set it before every conversion; it stays until changed.
     pub fn set_pages(&mut self, range: Option<(usize, usize)>) {
         self.page_range = range;
+    }
+
+    /// OCR recognition language (see [`OcrLang`]): English by default, `ch`
+    /// for the multilingual docling-conformance model. `None` keeps the
+    /// process default (`DOCLING_RS_OCR_LANG`, else English). Set before the
+    /// first conversion; for a warm pipeline use
+    /// [`set_ocr_lang`](Self::set_ocr_lang).
+    pub fn ocr_lang(mut self, lang: Option<ocr::OcrLang>) -> Self {
+        self.set_ocr_lang(lang);
+        self
+    }
+
+    /// In-place variant of [`ocr_lang`](Self::ocr_lang) for a long-lived
+    /// pipeline (docling-serve's warm instance). Unlike the page window this
+    /// is a *model* switch: any worker whose cached recognition model was
+    /// loaded for a different language drops it, to be lazily reloaded on the
+    /// next OCR-needing page (cheap — the rec models are ~10 MB).
+    pub fn set_ocr_lang(&mut self, lang: Option<ocr::OcrLang>) {
+        let lang = lang.unwrap_or_else(ocr::OcrLang::from_env);
+        self.ocr_lang = lang;
+        for worker in self.primary.iter_mut().chain(self.pool.iter_mut()) {
+            if worker.ocr_lang != lang {
+                worker.ocr_lang = lang;
+                worker.ocr = None;
+            }
+        }
     }
 
     /// Resolve the configured 1-based window against a page count into the
@@ -854,6 +888,7 @@ impl Pipeline {
                 self.enrich_slots(),
                 self.enrich,
                 self.no_ocr,
+                self.ocr_lang,
             )?);
         }
         Ok(self.primary.as_mut().unwrap())
@@ -1218,6 +1253,7 @@ impl Pipeline {
         }
         let intra = pdf_intra();
         let no_ocr = self.no_ocr;
+        let ocr_lang = self.ocr_lang;
         let enrich = self.enrich;
         let tables = self.tables_slot();
         let enrich_slots = self.enrich_slots();
@@ -1226,7 +1262,9 @@ impl Pipeline {
                 .map(|_| {
                     let tables = tables.clone();
                     let enrich_slots = enrich_slots.clone();
-                    s.spawn(move || Worker::load(intra, tables, enrich_slots, enrich, no_ocr))
+                    s.spawn(move || {
+                        Worker::load(intra, tables, enrich_slots, enrich, no_ocr, ocr_lang)
+                    })
                 })
                 .collect();
             handles.into_iter().map(|h| h.join().unwrap()).collect()
@@ -1292,6 +1330,7 @@ pub fn convert(
         false,
         EnrichmentOptions::default(),
         None,
+        None,
     )
 }
 
@@ -1300,6 +1339,10 @@ pub fn convert(
 /// [`Pipeline::no_table_former`]) and/or layout+OCR+TableFormer entirely (see
 /// [`Pipeline::no_ocr`]), and/or enables the enrichment passes (see
 /// [`Pipeline::enrichments`]).
+// One positional per pipeline switch mirrors the Pipeline builder; growing
+// past clippy's arity cap is the price of keeping this one-shot signature
+// stable-ish instead of churning callers into an options struct mid-series.
+#[allow(clippy::too_many_arguments)]
 pub fn convert_with_options(
     bytes: &[u8],
     password: Option<&str>,
@@ -1308,19 +1351,28 @@ pub fn convert_with_options(
     no_ocr: bool,
     enrich: EnrichmentOptions,
     pages: Option<(usize, usize)>,
+    ocr_lang: Option<OcrLang>,
 ) -> Result<DoclingDocument, PdfError> {
     Pipeline::new()?
         .no_table_former(no_table_former)
         .no_ocr(no_ocr)
         .enrichments(enrich)
         .pages(pages)
+        .ocr_lang(ocr_lang)
         .convert(bytes, password, name)
 }
 
 #[cfg(feature = "ml")]
 /// Convenience one-shot image conversion (loads the pipeline per call).
 pub fn convert_image(bytes: &[u8], name: &str) -> Result<DoclingDocument, PdfError> {
-    convert_image_with_options(bytes, name, false, false, EnrichmentOptions::default())
+    convert_image_with_options(
+        bytes,
+        name,
+        false,
+        false,
+        EnrichmentOptions::default(),
+        None,
+    )
 }
 
 #[cfg(feature = "ml")]
@@ -1333,11 +1385,13 @@ pub fn convert_image_with_options(
     no_table_former: bool,
     no_ocr: bool,
     enrich: EnrichmentOptions,
+    ocr_lang: Option<OcrLang>,
 ) -> Result<DoclingDocument, PdfError> {
     Pipeline::new()?
         .no_table_former(no_table_former)
         .no_ocr(no_ocr)
         .enrichments(enrich)
+        .ocr_lang(ocr_lang)
         .convert_image(bytes, name)
 }
 
