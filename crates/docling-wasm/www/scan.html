@@ -34,7 +34,16 @@
   </p>
   <div id="drop">drop a scanned PDF or image here, or click to pick</div>
   <input type="file" id="pick" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.webp,.bmp" hidden>
-  <p id="meta">loading wasm …</p>
+  <p>
+    Recognition language:
+    <select id="lang">
+      <option value="en" selected>English (en_PP-OCRv3)</option>
+      <option value="cyrillic">Cyrillic + Latin (cyrillic_PP-OCRv3)</option>
+      <option value="ch">Chinese + Latin (ch_PP-OCRv3)</option>
+    </select>
+    <span id="meta"></span>
+  </p>
+
   <div id="out"></div>
 
   <script type="module">
@@ -47,28 +56,58 @@
 
     const LAYOUT_URL =
       "https://github.com/docling-project/docling.rs/releases/download/models-v1/layout_heron_int8.onnx";
-    const REC_URL =
-      "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/en_PP-OCRv3_rec_infer.onnx";
-    const DICT_URL =
-      "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/en_dict.txt";
     const SCALE = 2.0; // px per PDF point — the native pipeline's RENDER_SCALE
 
     const meta = document.getElementById("meta");
     const out = document.getElementById("out");
+    const lang = document.getElementById("lang");
 
     await init();
-    meta.textContent = "fetching models (layout ~165 MB on first visit; browser-cached) …";
-    const [layoutModel, recModel, dict] = await Promise.all([
-      fetch(LAYOUT_URL, { cache: "force-cache" }).then((r) => r.arrayBuffer()),
-      fetch(REC_URL, { cache: "force-cache" }).then((r) => r.arrayBuffer()),
-      fetch(DICT_URL, { cache: "force-cache" }).then((r) => r.text()),
-    ]);
+    const REC_MODELS = {
+      en: {
+        model: "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/en_PP-OCRv3_rec_infer.onnx",
+        dict: "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/en_dict.txt",
+      },
+      cyrillic: {
+        model: "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/cyrillic_PP-OCRv3_rec_infer.onnx",
+        dict: "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/dict/cyrillic_dict.txt",
+      },
+      ch: {
+        model: "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/ch_PP-OCRv3_rec_infer.onnx",
+        dict: "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt",
+      },
+    };
+    const recCache = {};
+    async function recFor(lang) {
+      if (!recCache[lang]) {
+        meta.textContent = `fetching ${lang} recognition model (~10 MB, cached) ...`;
+        const spec = REC_MODELS[lang];
+        const [model, dict] = await Promise.all([
+          fetch(spec.model, { cache: "force-cache" }).then((r) => r.arrayBuffer()),
+          fetch(spec.dict, { cache: "force-cache" }).then((r) => r.text()),
+        ]);
+        const session = await ort.InferenceSession.create(model, { executionProviders: ["wasm"] });
+        recCache[lang] = {
+          dict,
+          rec: {
+            run: async (n, h, w, data) => {
+              const results = await session.run({
+                [session.inputNames[0]]: new ort.Tensor("float32", data, [n, 3, h, w]),
+              });
+              const t = results[session.outputNames[0]];
+              return { data: t.data, dims: Array.from(t.dims) };
+            },
+          },
+        };
+      }
+      return recCache[lang];
+    }
+    meta.textContent = "fetching layout model (~165 MB on first visit; browser-cached) …";
+    const layoutModel = await fetch(LAYOUT_URL, { cache: "force-cache" }).then((r) => r.arrayBuffer());
     const layoutSession = await ort.InferenceSession.create(layoutModel, {
       executionProviders: ["wasm"],
     });
-    const recSession = await ort.InferenceSession.create(recModel, {
-      executionProviders: ["wasm"],
-    });
+    await recFor(lang.value);
     meta.textContent = "ready — drop a scanned PDF or image";
 
     // Interop wrappers docling_wasm expects (see src/scanned.rs / src/ocr.rs).
@@ -81,17 +120,9 @@
         return { logits: t("logits"), boxes: t("pred_boxes") };
       },
     };
-    const rec = {
-      run: async (n, h, w, data) => {
-        const results = await recSession.run({
-          [recSession.inputNames[0]]: new ort.Tensor("float32", data, [n, 3, h, w]),
-        });
-        const t = results[recSession.outputNames[0]];
-        return { data: t.data, dims: Array.from(t.dims) };
-      },
-    };
 
     async function handlePdf(bytes, name) {
+      const { dict, rec } = await recFor(lang.value);
       const pdf = await pdfjs.getDocument({ data: bytes }).promise;
       const conv = new ScannedConverter(dict);
       const canvas = document.createElement("canvas");
@@ -114,6 +145,7 @@
       const started = performance.now();
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
+        const { dict, rec } = await recFor(lang.value);
         const md = file.name.toLowerCase().endsWith(".pdf")
           ? await handlePdf(bytes, file.name)
           : await convert_scanned_image(bytes, file.name, dict, layout, rec, "md");

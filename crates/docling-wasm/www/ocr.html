@@ -34,48 +34,75 @@
   </p>
   <div id="drop">drop a scanned image here (PNG/JPEG/TIFF/WebP) or click to pick</div>
   <input type="file" id="pick" accept=".png,.jpg,.jpeg,.tif,.tiff,.webp,.bmp" hidden>
-  <p id="meta">loading wasm + model …</p>
+  <p>
+    Recognition language:
+    <select id="lang">
+      <option value="en" selected>English (en_PP-OCRv3)</option>
+      <option value="cyrillic">Cyrillic + Latin (cyrillic_PP-OCRv3)</option>
+      <option value="ch">Chinese + Latin (ch_PP-OCRv3)</option>
+    </select>
+    <span id="meta"></span>
+  </p>
+
   <div id="out"></div>
 
   <script type="module">
     import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.mjs";
     import init, { ocr_image } from "./pkg/docling_wasm.js";
 
-    const MODEL_URL =
-      "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/en_PP-OCRv3_rec_infer.onnx";
-    const DICT_URL =
-      "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/en_dict.txt";
-
     const meta = document.getElementById("meta");
     const out = document.getElementById("out");
+    const lang = document.getElementById("lang");
 
     await init();
-    meta.textContent = "fetching recognition model (~10 MB, cached after the first load) …";
-    const [model, dict] = await Promise.all([
-      fetch(MODEL_URL, { cache: "force-cache" }).then((r) => r.arrayBuffer()),
-      fetch(DICT_URL, { cache: "force-cache" }).then((r) => r.text()),
-    ]);
-    const session = await ort.InferenceSession.create(model, {
-      executionProviders: ["wasm"],
-    });
-    meta.textContent = "ready — drop a scanned image";
-
-    // The RecSession wrapper docling_wasm.ocr_image expects: feed the CHW
-    // batch, return the (only) output tensor as { data, dims }.
-    const rec = {
-      run: async (n, h, w, data) => {
-        const feeds = { [session.inputNames[0]]: new ort.Tensor("float32", data, [n, 3, h, w]) };
-        const results = await session.run(feeds);
-        const tensor = results[session.outputNames[0]];
-        return { data: tensor.data, dims: Array.from(tensor.dims) };
+    const REC_MODELS = {
+      en: {
+        model: "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/en_PP-OCRv3_rec_infer.onnx",
+        dict: "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/en_dict.txt",
+      },
+      cyrillic: {
+        model: "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/cyrillic_PP-OCRv3_rec_infer.onnx",
+        dict: "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/dict/cyrillic_dict.txt",
+      },
+      ch: {
+        model: "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/ch_PP-OCRv3_rec_infer.onnx",
+        dict: "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt",
       },
     };
+    const recCache = {};
+    async function recFor(lang) {
+      if (!recCache[lang]) {
+        meta.textContent = `fetching ${lang} recognition model (~10 MB, cached) ...`;
+        const spec = REC_MODELS[lang];
+        const [model, dict] = await Promise.all([
+          fetch(spec.model, { cache: "force-cache" }).then((r) => r.arrayBuffer()),
+          fetch(spec.dict, { cache: "force-cache" }).then((r) => r.text()),
+        ]);
+        const session = await ort.InferenceSession.create(model, { executionProviders: ["wasm"] });
+        recCache[lang] = {
+          dict,
+          rec: {
+            run: async (n, h, w, data) => {
+              const results = await session.run({
+                [session.inputNames[0]]: new ort.Tensor("float32", data, [n, 3, h, w]),
+              });
+              const t = results[session.outputNames[0]];
+              return { data: t.data, dims: Array.from(t.dims) };
+            },
+          },
+        };
+      }
+      return recCache[lang];
+    }
+    await recFor(lang.value);
+    meta.textContent = "ready — drop a scanned image";
 
     async function handle(file) {
       out.textContent = "";
       meta.textContent = `recognizing ${file.name} …`;
       const started = performance.now();
       try {
+        const { dict, rec } = await recFor(lang.value);
         const bytes = new Uint8Array(await file.arrayBuffer());
         const md = await ocr_image(bytes, dict, rec, "md");
         out.textContent = md || "(no text found)";
