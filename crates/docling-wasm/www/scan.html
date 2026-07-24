@@ -90,12 +90,17 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
   <div id="out"></div>
 
   <script type="module">
-    // Thin UI layer. The whole pipeline (model loading, pdf.js rasterization,
-    // wasm OCR/layout) runs inside worker.js so the main thread stays
-    // responsive — the page keeps scrolling and the busy animation keeps
-    // ticking during a long conversion. If module workers or OffscreenCanvas
-    // aren't available, it falls back to running pipeline.js on this thread
-    // (functionally identical, just blocking).
+    // UI + rasterization. pdf.js rasterization runs HERE on the main thread
+    // (with a real HTMLCanvas, which produces correct pixels and uses pdf.js's
+    // own worker); the heavy wasm OCR/layout runs in worker.js, so the page
+    // stays responsive during a conversion. Ready RGBA buffers are transferred
+    // to the worker per page. If module workers aren't available it falls back
+    // to running the OCR on this thread too (functionally identical, blocking).
+    import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist/build/pdf.min.mjs";
+    pdfjs.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist/build/pdf.worker.min.mjs";
+
+    const SCALE = 2.0; // px per PDF point — the native pipeline's RENDER_SCALE
 
     const meta = document.getElementById("meta");
     const out = document.getElementById("out");
@@ -126,74 +131,97 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
       ready("layout model not found under ./models/ — see the note above");
     }
 
-    let worker = null;   // the Web Worker, when that path is used
-    let mainPipe = null; // pipeline.js instance, for the fallback / worker-failure retry
-    let pending = null;  // { resolve, reject } for the in-flight worker op
-
-    // --- main-thread fallback (also the retry target if a worker op fails) ---
-    async function ensureMainPipe() {
-      if (mainPipe) return mainPipe;
-      const { createPipeline } = await import("./pipeline.js");
-      mainPipe = createPipeline({
-        onStatus,
-        makeCanvas: () => document.createElement("canvas"),
-      });
-      return mainPipe;
-    }
-    async function bootMain() {
-      const pipe = await ensureMainPipe();
-      const kind = await pipe.boot();
-      if (!kind) return noLayout();
-      await pipe.recFor(lang.value);
-      await pipe.warmup(lang.value);
-      const { THREADS } = await import("./pipeline.js");
-      ready(`ready (${kind} layout, ${THREADS} thread${THREADS > 1 ? "s" : ""}, main) — drop a scanned PDF or image`);
-    }
-
-    // --- worker path ---
-    function bootWorker() {
-      let acked = false; // did any message arrive before onerror?
-      worker = new Worker("./worker.js", { type: "module" });
+    // --- OCR driver: either a Web Worker (RPC) or a same-thread pipeline ---
+    // Both expose the same interface: boot, rec, docStart, addPage, docFinish,
+    // convertImage. Only the OCR runs in the worker; rasterization is on this
+    // thread regardless.
+    function workerDriver() {
+      const worker = new Worker("./worker.js", { type: "module" });
+      let seq = 0;
+      const waiters = new Map();
       worker.onmessage = (e) => {
         const m = e.data;
-        acked = true;
-        switch (m.type) {
-          case "up": break;
-          case "status": onStatus(m.msg, m.spinning); break;
-          case "ready":
-            ready(`ready (${m.kind} layout, ${m.threads} thread${m.threads > 1 ? "s" : ""}) — drop a scanned PDF or image`);
-            break;
-          case "no-layout": noLayout(); break;
-          case "rec-ready": ready("ready — drop a scanned PDF or image"); break;
-          case "result":
-            out.textContent = m.md || "(no text found)";
-            if (pending) { pending.resolve(); pending = null; }
-            break;
-          case "error":
-            if (pending) { pending.reject(new Error(m.msg)); pending = null; }
-            else { out.textContent = m.msg; ready("failed"); }
-            break;
-        }
+        if (m.type === "status") return onStatus(m.msg, m.spinning);
+        if (m.type === "up") return;
+        const w = waiters.get(m.id);
+        if (!w) return;
+        waiters.delete(m.id);
+        if (m.type === "error") w.reject(new Error(m.msg));
+        else w.resolve(m);
       };
-      // If the worker itself fails to spin up (module load, etc.), degrade to
-      // the main-thread path once, before any successful message.
-      worker.onerror = () => {
-        if (acked || mainPipe) return;
-        acked = true;
-        try { worker.terminate(); } catch (e) {}
-        worker = null;
-        bootMain();
+      const rpc = (type, payload, transfer) =>
+        new Promise((resolve, reject) => {
+          const id = ++seq;
+          waiters.set(id, { resolve, reject });
+          worker.postMessage({ type, id, ...payload }, transfer || []);
+        });
+      return {
+        worker,
+        boot: (l) => rpc("boot", { lang: l }),
+        rec: (l) => rpc("rec", { lang: l }),
+        docStart: (l) => rpc("doc-start", { lang: l }),
+        addPage: (rgba, w, h, scale) => rpc("doc-page", { rgba, w, h, scale }, [rgba]),
+        docFinish: (name) => rpc("doc-finish", { name }).then((r) => r.md),
+        convertImage: (bytes, name, l) => rpc("convert-image", { bytes, name, lang: l }, [bytes]).then((r) => r.md),
       };
-      busy("loading wasm module …");
-      worker.postMessage({ type: "boot", lang: lang.value });
+    }
+    async function mainDriver() {
+      const { createOcr, THREADS } = await import("./pipeline.js");
+      const ocr = createOcr({ onStatus });
+      return {
+        boot: async (l) => {
+          const kind = await ocr.boot();
+          if (!kind) return { noLayout: true };
+          await ocr.recFor(l);
+          await ocr.warmup(l);
+          return { kind, threads: THREADS, main: true };
+        },
+        rec: async (l) => { await ocr.recFor(l); await ocr.warmup(l); return {}; },
+        docStart: (l) => ocr.startDoc(l),
+        addPage: (rgba, w, h, scale) => ocr.addPage(new Uint8Array(rgba), w, h, scale),
+        docFinish: (name) => Promise.resolve(ocr.finishDoc(name)),
+        convertImage: (bytes, name, l) => ocr.convertImage(bytes, name, l),
+      };
     }
 
-    // --- convert / language switch, routed to whichever path is live ---
-    function convertViaWorker(buf, name) {
-      return new Promise((resolve, reject) => {
-        pending = { resolve, reject };
-        worker.postMessage({ type: "convert", bytes: buf, name, lang: lang.value }, [buf]);
-      });
+    let drv = null;
+
+    // Rasterize page p+1 while the worker converts page p (main-thread raster
+    // overlaps worker-thread OCR). getImageData hands back an independent
+    // buffer, so one canvas ping-pongs across pages.
+    async function handlePdf(file) {
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjs.getDocument({ data: buf }).promise;
+      await drv.docStart(lang.value);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      async function render(p) {
+        const page = await pdf.getPage(p);
+        const viewport = page.getViewport({ scale: SCALE });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        return { rgba: img.data.buffer, w: canvas.width, h: canvas.height };
+      }
+      const t0 = performance.now();
+      let elapsed = 0;
+      let next = render(1);
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const done = p - 1;
+        const avg = done ? ` — ${(elapsed / done / 1000).toFixed(1)}s/page avg` : "";
+        status(`${file.name}: page ${p}/${pdf.numPages}${avg} …`, true);
+        const cur = await next;
+        if (p < pdf.numPages) next = render(p + 1);
+        const tp = performance.now();
+        await drv.addPage(cur.rgba, cur.w, cur.h, SCALE);
+        const dt = performance.now() - tp;
+        elapsed += dt;
+        console.log(`${file.name}: page ${p}/${pdf.numPages} — ${(dt / 1000).toFixed(1)}s convert`);
+      }
+      const wall = (performance.now() - t0) / 1000;
+      console.log(`${file.name}: ${pdf.numPages} pages in ${wall.toFixed(1)}s wall (${(wall / pdf.numPages).toFixed(1)}s/page)`);
+      return drv.docFinish(file.name);
     }
 
     async function handle(file) {
@@ -201,23 +229,10 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
       busy(`converting ${file.name} …`);
       const started = performance.now();
       try {
-        if (worker) {
-          const buf = await file.arrayBuffer();
-          try {
-            await convertViaWorker(buf, file.name);
-          } catch (workerErr) {
-            // A worker-side failure (e.g. OffscreenCanvas rasterization) — retry
-            // once on the main thread so the user still gets a result.
-            console.warn("worker convert failed, retrying on main thread:", workerErr);
-            const pipe = await ensureMainPipe();
-            if (!pipe.layoutKind) await pipe.boot();
-            const md = await pipe.convert(await file.arrayBuffer(), file.name, lang.value);
-            out.textContent = md || "(no text found)";
-          }
-        } else {
-          const md = await mainPipe.convert(await file.arrayBuffer(), file.name, lang.value);
-          out.textContent = md || "(no text found)";
-        }
+        const md = file.name.toLowerCase().endsWith(".pdf")
+          ? await handlePdf(file)
+          : await drv.convertImage(await file.arrayBuffer(), file.name, lang.value);
+        out.textContent = md || "(no text found)";
         ready(`${file.name} — ${((performance.now() - started) / 1000).toFixed(1)} s`);
       } catch (e) {
         out.textContent = String((e && e.message) || e);
@@ -225,12 +240,11 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
       }
     }
 
-    // Warm the recognition model on language switch so the first drop is fast.
     lang.addEventListener("change", async () => {
       busy(`loading ${lang.value} model …`);
       try {
-        if (worker) worker.postMessage({ type: "rec", lang: lang.value });
-        else { await mainPipe.recFor(lang.value); await mainPipe.warmup(lang.value); ready("ready — drop a scanned PDF or image"); }
+        await drv.rec(lang.value);
+        ready("ready — drop a scanned PDF or image");
       } catch (e) {
         ready(`${lang.value} model failed to load: ${e}`);
       }
@@ -246,12 +260,33 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
       });
     }
 
-    // Prefer the worker; fall back if the platform can't support it.
-    if (typeof Worker !== "undefined" && typeof OffscreenCanvas !== "undefined") {
-      try { bootWorker(); } catch (e) { bootMain(); }
-    } else {
-      bootMain();
+    // Prefer the worker; fall back to same-thread OCR if it can't be created.
+    async function boot() {
+      busy("loading wasm module …");
+      if (typeof Worker !== "undefined") {
+        try { drv = workerDriver(); } catch (e) { drv = await mainDriver(); }
+      } else {
+        drv = await mainDriver();
+      }
+      try {
+        const r = await drv.boot(lang.value);
+        if (r.noLayout) return noLayout();
+        const where = r.main ? ", main" : "";
+        ready(`ready (${r.kind} layout, ${r.threads} thread${r.threads > 1 ? "s" : ""}${where}) — drop a scanned PDF or image`);
+      } catch (e) {
+        // Worker died during boot (module load, etc.) — retry same-thread once.
+        if (drv && drv.worker) {
+          try { drv.worker.terminate(); } catch (_) {}
+          drv = await mainDriver();
+          const r = await drv.boot(lang.value);
+          if (r.noLayout) return noLayout();
+          ready(`ready (${r.kind} layout, ${r.threads} thread${r.threads > 1 ? "s" : ""}, main) — drop a scanned PDF or image`);
+        } else {
+          ready(`failed to start: ${e}`);
+        }
+      }
     }
+    boot();
   </script>
 </body>
 </html>
