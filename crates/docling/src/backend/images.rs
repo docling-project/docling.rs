@@ -54,6 +54,10 @@ impl ImageResolver for NoFetch {
 /// itself fetched from the web.
 pub(crate) struct FsImageResolver {
     base_dir: Option<PathBuf>,
+    /// Only read by the gated remote-URL resolution; without `fetch-images`
+    /// (e.g. the wasm32 build) it is stored-but-unused so `new`'s signature
+    /// stays the same across feature shapes.
+    #[cfg_attr(not(feature = "fetch-images"), allow(dead_code))]
     base_url: Option<String>,
     /// Memoized remote fetches, keyed by the resolved absolute URL: fills as
     /// [`prefetch`](Self::prefetch) warms it (concurrently) and as `resolve`
@@ -548,11 +552,4 @@ mod tests {
 
         std::env::remove_var("DOCLING_RS_ALLOW_PRIVATE_IP_FETCH");
     }
-}
-
-/// Compiled without the `fetch-images` feature (no HTTP client — e.g. the
-/// wasm32 build): remote images stay placeholders, same as a fetch failure.
-#[cfg(not(feature = "fetch-images"))]
-fn fetch_remote(_url: &str) -> Option<PictureImage> {
-    None
 }
