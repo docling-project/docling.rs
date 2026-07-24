@@ -18,7 +18,11 @@ default = ["ml"]
 # (`convert_text_layer` — lopdf content-stream parsing + the docling-parse
 # line sanitizer, the same extraction `--no-ocr` uses), which compiles for
 # wasm32-unknown-unknown.
+# The ONNX-free OCR pre/post half (`ocr_prep`) alone — what the wasm build
+# (#79 phase 2) pulls: pure Rust + the `image` crate, no ort/pdfium.
+ocr-prep = ["dep:image"]
 ml = [
+    "ocr-prep",
     "dep:pdfium-render",
     "dep:ort",
     "dep:image",

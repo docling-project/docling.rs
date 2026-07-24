@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>docling.rs — in-browser OCR (wasm + ONNX Runtime Web)</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; }
+    #drop {
+      border: 2px dashed #888; border-radius: 8px; padding: 2.5rem 1rem;
+      text-align: center; cursor: pointer; margin: 1rem 0;
+    }
+    #drop.hover { border-color: #4a90d9; background: rgba(74, 144, 217, 0.08); }
+    #out {
+      width: 100%; min-height: 20rem; white-space: pre-wrap; overflow: auto;
+      border: 1px solid #8884; border-radius: 6px; padding: 0.8rem;
+      font-family: ui-monospace, monospace; font-size: 0.85rem;
+    }
+    #meta { color: #888; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>docling.rs → wasm: OCR a scanned image in your browser</h1>
+  <p>
+    Stage 1 of <a href="https://github.com/docling-project/docling.rs/issues/157">#157</a>:
+    the PP-OCRv3 recognition model (~10&nbsp;MB) runs via
+    <a href="https://onnxruntime.ai/docs/tutorials/web/">ONNX Runtime Web</a>;
+    line segmentation and CTC decoding run in Rust/wasm — the same code as the
+    native pipeline. The image never leaves this page. The model + dictionary
+    are fetched once and cached by the browser. Single-column scans work best
+    (layout detection is stage 2).
+  </p>
+  <div id="drop">drop a scanned image here (PNG/JPEG/TIFF/WebP) or click to pick</div>
+  <input type="file" id="pick" accept=".png,.jpg,.jpeg,.tif,.tiff,.webp,.bmp" hidden>
+  <p id="meta">loading wasm + model …</p>
+  <div id="out"></div>
+
+  <script type="module">
+    import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.mjs";
+    import init, { ocr_image } from "./pkg/docling_wasm.js";
+
+    const MODEL_URL =
+      "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/en_PP-OCRv3_rec_infer.onnx";
+    const DICT_URL =
+      "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/en_dict.txt";
+
+    const meta = document.getElementById("meta");
+    const out = document.getElementById("out");
+
+    await init();
+    meta.textContent = "fetching recognition model (~10 MB, cached after the first load) …";
+    const [model, dict] = await Promise.all([
+      fetch(MODEL_URL, { cache: "force-cache" }).then((r) => r.arrayBuffer()),
+      fetch(DICT_URL, { cache: "force-cache" }).then((r) => r.text()),
+    ]);
+    const session = await ort.InferenceSession.create(model, {
+      executionProviders: ["wasm"],
+    });
+    meta.textContent = "ready — drop a scanned image";
+
+    // The RecSession wrapper docling_wasm.ocr_image expects: feed the CHW
+    // batch, return the (only) output tensor as { data, dims }.
+    const rec = {
+      run: async (n, h, w, data) => {
+        const feeds = { [session.inputNames[0]]: new ort.Tensor("float32", data, [n, 3, h, w]) };
+        const results = await session.run(feeds);
+        const tensor = results[session.outputNames[0]];
+        return { data: tensor.data, dims: Array.from(tensor.dims) };
+      },
+    };
+
+    async function handle(file) {
+      out.textContent = "";
+      meta.textContent = `recognizing ${file.name} …`;
+      const started = performance.now();
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const md = await ocr_image(bytes, dict, rec, "md");
+        out.textContent = md || "(no text found)";
+        meta.textContent = `${file.name} — ${(performance.now() - started).toFixed(0)} ms`;
+      } catch (e) {
+        out.textContent = String(e);
+        meta.textContent = `${file.name} — failed`;
+      }
+    }
+
+    const drop = document.getElementById("drop");
+    const pick = document.getElementById("pick");
+    drop.addEventListener("click", () => pick.click());
+    pick.addEventListener("change", () => pick.files[0] && handle(pick.files[0]));
+    for (const ev of ["dragover", "dragleave", "drop"]) {
+      drop.addEventListener(ev, (e) => {
+        e.preventDefault();
+        drop.classList.toggle("hover", ev === "dragover");
+        if (ev === "drop" && e.dataTransfer.files[0]) handle(e.dataTransfer.files[0]);
+      });
+    }
+  </script>
+</body>
+</html>

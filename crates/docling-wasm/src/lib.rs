@@ -19,6 +19,11 @@
 use docling::{DocumentConverter, InputFormat, SourceDocument};
 use wasm_bindgen::prelude::*;
 
+#[cfg(feature = "ocr")]
+mod ocr;
+#[cfg(feature = "ocr")]
+pub use ocr::ocr_image;
+
 #[wasm_bindgen(start)]
 fn start() {
     // Panics surface as readable messages in the browser console instead of

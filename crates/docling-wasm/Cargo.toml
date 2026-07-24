@@ -16,10 +16,30 @@ publish = false
 # wasm-bindgen needs a cdylib; rlib keeps `cargo test` runnable on the host.
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# Browser OCR (#157 stage 1): the ONNX-free half of the PP-OCRv3 recognition
+# pipeline compiled in, with inference delegated to ONNX Runtime Web on the
+# JS side. Pure Rust — the ort/pdfium native stack stays out.
+default = ["ocr"]
+ocr = [
+    "dep:docling-core",
+    "dep:docling-pdf",
+    "dep:image",
+    "dep:js-sys",
+    "dep:wasm-bindgen-futures",
+]
+
 [dependencies]
 # The pure-Rust declarative slice only: no pdfium/ONNX (pdf, asr), no HTTP
 # client (fetch-images) — exactly the set that compiles for wasm32 (#79).
 docling = { path = "../docling", version = "0.49.0", default-features = false, features = ["pdf-text"] }
+docling-core = { path = "../docling-core", version = "0.49.0", optional = true }
+# ocr_prep only: line prep + CTC decode shared with the native pipeline.
+docling-pdf = { path = "../docling-pdf", version = "0.49.0", default-features = false, features = ["ocr-prep"], optional = true }
+# Input decoding for the OCR path; codecs mirror the browser's usual suspects.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "tiff", "webp"], optional = true }
+js-sys = { version = "0.3", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
 serde_json = "1"
 wasm-bindgen = "0.2"
 # Panic messages land in the browser console instead of "unreachable executed".

@@ -27,6 +27,8 @@ pub mod layout;
 mod mets;
 #[cfg(feature = "ml")]
 mod ocr;
+#[cfg(feature = "ocr-prep")]
+pub mod ocr_prep;
 pub mod pdfium_backend;
 mod reading_order;
 #[cfg(feature = "ml")]
