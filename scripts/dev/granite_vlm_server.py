@@ -105,9 +105,14 @@ class Handler(BaseHTTPRequestHandler):
             int(req.get("max_tokens", 8192)),
         )
         print(f"page converted in {time.time() - started:.1f}s, {len(text)} chars", flush=True)
+        # id/created/usage: Python docling validates the response against a
+        # full OpenAI schema (pydantic OpenAiApiResponse) and rejects a
+        # payload without them; docling.rs only reads choices[0].
         payload = json.dumps(
             {
+                "id": f"chatcmpl-{int(time.time() * 1000)}",
                 "object": "chat.completion",
+                "created": int(time.time()),
                 "model": req.get("model", "granite-docling"),
                 "choices": [
                     {
@@ -116,6 +121,11 @@ class Handler(BaseHTTPRequestHandler):
                         "finish_reason": "stop",
                     }
                 ],
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                },
             }
         ).encode()
         self.send_response(200)
