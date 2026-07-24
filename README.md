@@ -12,6 +12,8 @@ pipeline is supported, validated byte-for-byte against live docling. See
 [`docs/MIGRATION.md`](./docs/MIGRATION.md) for the full architecture, the Python → Rust
 mapping, and per-format conformance.
 
+Developed with **Claude Code** and _[TENET](https://github.com/artiz/tenet/tree/master)_ (minimalistic spec driven design framework).
+
 ## Status
 
 The public API works end to end across **Markdown, CSV, HTML, AsciiDoc, DOCX,
