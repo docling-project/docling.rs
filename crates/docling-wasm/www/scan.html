@@ -243,8 +243,12 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
       const conv = new ScannedConverter(dict);
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      let elapsed = 0; // cumulative page time, for a running average
       for (let p = 1; p <= pdf.numPages; p++) {
-        status(`${name}: page ${p}/${pdf.numPages} …`, true);
+        const done = p - 1;
+        const avg = done ? ` — ${(elapsed / done / 1000).toFixed(1)}s/page avg` : "";
+        status(`${name}: page ${p}/${pdf.numPages}${avg} …`, true);
+        const t0 = performance.now();
         const page = await pdf.getPage(p);
         const viewport = page.getViewport({ scale: SCALE });
         canvas.width = viewport.width;
@@ -252,7 +256,13 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
         await page.render({ canvasContext: ctx, viewport }).promise;
         const rgba = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
         await conv.add_page(new Uint8Array(rgba.buffer), canvas.width, canvas.height, SCALE, layout, rec);
+        const dt = performance.now() - t0;
+        elapsed += dt;
+        // Console line per page so the whole run is inspectable afterwards.
+        console.log(`${name}: page ${p}/${pdf.numPages} — ${(dt / 1000).toFixed(1)}s`);
       }
+      const avg = pdf.numPages ? elapsed / pdf.numPages / 1000 : 0;
+      console.log(`${name}: ${pdf.numPages} pages in ${(elapsed / 1000).toFixed(1)}s (${avg.toFixed(1)}s/page)`);
       return conv.finish(name, "md");
     }
 
