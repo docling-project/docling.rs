@@ -38,6 +38,60 @@ const REC_MODELS = {
   },
 };
 
+// TableFormer graphs, loaded same-origin from ./models/tableformer/ (the same
+// files download_dependencies.sh fetches). The encoder is self-contained; the
+// decoder/bbox use ONNX external data, so their .onnx.data sidecar rides along
+// via ort-web's externalData option (path = the location stored in the .onnx).
+const TF_DIR = "./models/tableformer/";
+
+/// The stateful session the wasm TfSession interop expects (see
+/// src/tableformer.rs): `encode` runs the image encoder once and stashes the
+/// constant cross-attention K/V + enc_out and resets the KV-cache; `step` runs
+/// one decoder step feeding the stored cross + growing cache; `bbox` runs the
+/// bbox decoder. The heavy tensors stay here — only tags and logits/hidden
+/// cross the wasm boundary. Geometry: 6 layers, 8 KV heads, head_dim 64.
+class JsTfSession {
+  constructor(enc, dec, bbox) {
+    this.enc = enc;
+    this.dec = dec;
+    this.bboxSess = bbox;
+    this.cross = null;
+    this.encOut = null;
+    this.cacheK = null;
+    this.cacheV = null;
+  }
+  async encode(image) {
+    const out = await this.enc.run({ image: new ort.Tensor("float32", image, [1, 3, 448, 448]) });
+    this.cross = {};
+    for (let i = 0; i < 6; i++) {
+      this.cross["cross_kt_" + i] = out["cross_kt_" + i];
+      this.cross["cross_v_" + i] = out["cross_v_" + i];
+    }
+    this.encOut = out["enc_out"];
+    // Empty first-step KV-cache: [N_LAYERS, 1, KV_HEADS, past=0, head_dim].
+    this.cacheK = new ort.Tensor("float32", new Float32Array(0), [6, 1, 8, 0, 64]);
+    this.cacheV = new ort.Tensor("float32", new Float32Array(0), [6, 1, 8, 0, 64]);
+  }
+  async step(tag) {
+    const out = await this.dec.run({
+      tag: new ort.Tensor("int64", BigInt64Array.from([BigInt(tag)]), [1, 1]),
+      cache_k: this.cacheK,
+      cache_v: this.cacheV,
+      ...this.cross,
+    });
+    this.cacheK = out["out_cache_k"];
+    this.cacheV = out["out_cache_v"];
+    return { logits: out["logits"].data, hidden: out["hidden"].data };
+  }
+  async bbox(tagH, n) {
+    const out = await this.bboxSess.run({
+      enc_out: this.encOut,
+      tag_h: new ort.Tensor("float32", tagH, [n, 512]),
+    });
+    return { boxes: out["boxes"].data, classes: out["classes"].data };
+  }
+}
+
 export function createOcr({ onStatus }) {
   const status = (msg, spinning = true) => onStatus && onStatus(msg, spinning);
 
@@ -141,15 +195,42 @@ export function createOcr({ onStatus }) {
     }
   }
 
+  // TableFormer sessions, loaded lazily on first use (the encoder alone is
+  // ~225 MB, so this only downloads when the table profile is chosen).
+  let tf = null;
+  async function ensureTf() {
+    if (tf) return tf;
+    const load = async (name, external) => {
+      const model = await fetchProgress(TF_DIR + name + ".onnx", `tableformer ${name}`);
+      const opts = { executionProviders: ["wasm"], logSeverityLevel: 3 };
+      if (external) {
+        const data = await fetchProgress(TF_DIR + name + ".onnx.data", `tableformer ${name} data`);
+        opts.externalData = [{ path: name + ".onnx.data", data: new Uint8Array(data) }];
+      }
+      return ort.InferenceSession.create(model, opts);
+    };
+    const enc = await load("encoder", false);
+    const dec = await load("decoder_kv", true);
+    const bbox = await load("bbox", true);
+    status("starting tableformer sessions …", true);
+    tf = new JsTfSession(enc, dec, bbox);
+    return tf;
+  }
+
   // Multi-page document lifecycle: startDoc → addPage* → finishDoc. Pages come
   // in as RGBA (already rasterized on the main thread), one document at a time.
   let cur = null;
-  async function startDoc(lang) {
+  async function startDoc(lang, useTf) {
     const { dict, rec } = await recFor(lang);
-    cur = { conv: new ScannedConverter(dict), rec };
+    const tfSess = useTf ? await ensureTf() : null;
+    cur = { conv: new ScannedConverter(dict), rec, tf: tfSess };
   }
   async function addPage(rgba, w, h, scale) {
-    await cur.conv.add_page(rgba, w, h, scale, layout, cur.rec);
+    if (cur.tf) {
+      await cur.conv.addPageTf(rgba, w, h, scale, layout, cur.rec, cur.tf);
+    } else {
+      await cur.conv.add_page(rgba, w, h, scale, layout, cur.rec);
+    }
   }
   function finishDoc(name) {
     const md = cur.conv.finish(name, "md");

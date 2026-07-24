@@ -32,7 +32,7 @@ async function handle(m) {
       await ocr.warmup(m.lang);
       return {};
     case "doc-start":
-      await ocr.startDoc(m.lang);
+      await ocr.startDoc(m.lang, m.useTf);
       return {};
     case "doc-page":
       await ocr.addPage(new Uint8Array(m.rgba), m.w, m.h, m.scale);

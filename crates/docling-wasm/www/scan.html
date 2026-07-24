@@ -84,6 +84,10 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
       <option value="cyrillic">Cyrillic + Latin (cyrillic_PP-OCRv5)</option>
       <option value="ch">Chinese + Latin (ch_PP-OCRv3)</option>
     </select>
+    <label style="margin-left:1rem" title="Stage 3: real table structure via the TableFormer ONNX graphs, instead of the geometric reconstruction. Fetches ~380 MB of models (encoder/decoder/bbox) on first use, same-origin from ./models/tableformer/.">
+      <input type="checkbox" id="tf" disabled> TableFormer tables
+      <span style="color:#888">(+~380 MB models, PDFs)</span>
+    </label>
     <span id="meta"></span>
   </p>
 
@@ -118,6 +122,7 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
     const meta = document.getElementById("meta");
     const out = document.getElementById("out");
     const lang = document.getElementById("lang");
+    const tf = document.getElementById("tf");
     const drop = document.getElementById("drop");
     const pick = document.getElementById("pick");
 
@@ -128,12 +133,12 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
     }
     function busy(msg) {
       document.body.classList.add("busy");
-      pick.disabled = lang.disabled = true;
+      pick.disabled = lang.disabled = tf.disabled = true;
       status(msg, true);
     }
     function ready(msg) {
       document.body.classList.remove("busy");
-      pick.disabled = lang.disabled = false;
+      pick.disabled = lang.disabled = tf.disabled = false;
       status(msg, false);
     }
     const onStatus = (msg, spinning) => {
@@ -172,7 +177,7 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
         worker,
         boot: (l) => rpc("boot", { lang: l }),
         rec: (l) => rpc("rec", { lang: l }),
-        docStart: (l) => rpc("doc-start", { lang: l }),
+        docStart: (l, useTf) => rpc("doc-start", { lang: l, useTf }),
         addPage: (rgba, w, h, scale) => rpc("doc-page", { rgba, w, h, scale }, [rgba]),
         docFinish: (name) => rpc("doc-finish", { name }).then((r) => r.md),
         convertImage: (bytes, name, l) => rpc("convert-image", { bytes, name, lang: l }, [bytes]).then((r) => r.md),
@@ -190,7 +195,7 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
           return { kind, threads: THREADS, main: true };
         },
         rec: async (l) => { await ocr.recFor(l); await ocr.warmup(l); return {}; },
-        docStart: (l) => ocr.startDoc(l),
+        docStart: (l, useTf) => ocr.startDoc(l, useTf),
         addPage: (rgba, w, h, scale) => ocr.addPage(new Uint8Array(rgba), w, h, scale),
         docFinish: (name) => Promise.resolve(ocr.finishDoc(name)),
         convertImage: (bytes, name, l) => ocr.convertImage(bytes, name, l),
@@ -205,7 +210,7 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
     async function handlePdf(file) {
       const buf = await file.arrayBuffer();
       const pdf = await pdfjs.getDocument({ data: buf, ...PDFJS_ASSETS }).promise;
-      await drv.docStart(lang.value);
+      await drv.docStart(lang.value, tf.checked);
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
       async function render(p) {
