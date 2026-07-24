@@ -273,67 +273,6 @@ pub fn batch_input(w: usize, chunk: &[usize], lines: &[PrepLine]) -> Vec<f32> {
     data
 }
 
-/// Browser-path recognition batching: group lines of *differing* width into
-/// [`REC_BATCH`]-sized chunks (sorted by width, so a chunk spans a narrow
-/// range) and pad each chunk to its max width. The padding is the input
-/// buffer's zero value — mid-gray in the model's `[-1, 1]` space, which is
-/// exactly what PP-OCRv3 was trained/served with in batched inference, so the
-/// decode matches one-at-a-time recognition (measured: 0 diffs on a mixed
-/// Latin+Cyrillic sample). A width-ratio guard keeps padding waste ≤1.5×.
-///
-/// On a text-dense page where most lines have distinct widths this collapses
-/// N recognition calls into ≈N/[`REC_BATCH`] — a real win under ORT Web, where
-/// every `session.run` carries thread-sync overhead. Deliberately NOT used by
-/// the native path: that keeps the bit-identical exact-width [`width_batches`]
-/// so the byte-for-byte conformance baseline is untouched.
-pub fn width_batches_padded(lines: &[PrepLine]) -> Vec<(usize, Vec<usize>)> {
-    let mut order: Vec<usize> = (0..lines.len()).collect();
-    order.sort_by_key(|&i| lines[i].w);
-    let mut out: Vec<(usize, Vec<usize>)> = Vec::new();
-    let mut cur: Vec<usize> = Vec::new();
-    let mut cur_min = 0usize;
-    let flush = |cur: &mut Vec<usize>, out: &mut Vec<(usize, Vec<usize>)>| {
-        if !cur.is_empty() {
-            let mw = cur.iter().map(|&j| lines[j].w).max().unwrap_or(0);
-            out.push((mw, std::mem::take(cur)));
-        }
-    };
-    for &i in &order {
-        let w = lines[i].w;
-        // Cap padding waste: start a new chunk if this line is >1.5× the
-        // chunk's narrowest, or the chunk is already full.
-        if cur.len() == REC_BATCH || (!cur.is_empty() && w * 2 > cur_min * 3) {
-            flush(&mut cur, &mut out);
-        }
-        if cur.is_empty() {
-            cur_min = w;
-        }
-        cur.push(i);
-    }
-    flush(&mut cur, &mut out);
-    out
-}
-
-/// Pack a padded width-batch (see [`width_batches_padded`]): each line's CHW
-/// data goes into the left `line.w` columns of a zero-filled `(N, 3, H, W)`
-/// buffer, `W` = the batch's max width.
-pub fn batch_input_padded(w: usize, chunk: &[usize], lines: &[PrepLine]) -> Vec<f32> {
-    let h = REC_HEIGHT as usize;
-    let mut data = vec![0f32; chunk.len() * 3 * h * w];
-    for (i, &ix) in chunk.iter().enumerate() {
-        let lw = lines[ix].w;
-        let src = &lines[ix].data; // 3 * h * lw, CHW
-        for c in 0..3 {
-            for y in 0..h {
-                let s = c * h * lw + y * lw;
-                let d = i * 3 * h * w + c * h * w + y * w;
-                data[d..d + lw].copy_from_slice(&src[s..s + lw]);
-            }
-        }
-    }
-    data
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -401,34 +340,5 @@ mod tests {
             0.1, 0.1, 0.8, 0.0, // b (repeat collapses)
         ];
         assert_eq!(decode_row(&chars, &probs, 4), "ab");
-    }
-
-    /// Two lines of different width batch together when padded, and the padded
-    /// buffer places each line's data left-aligned with a zero tail.
-    #[test]
-    fn padded_batching_groups_and_left_aligns() {
-        // Narrow line (w=8, all 1.0) + wide line (w=10, all 2.0), within the
-        // 1.5x width-ratio guard so they share one padded batch.
-        let lines = vec![
-            PrepLine { w: 8, data: vec![1.0; 3 * REC_HEIGHT as usize * 8] },
-            PrepLine { w: 10, data: vec![2.0; 3 * REC_HEIGHT as usize * 10] },
-        ];
-        let batches = width_batches_padded(&lines);
-        assert_eq!(batches.len(), 1, "same-ratio widths share a padded batch");
-        let (w, chunk) = &batches[0];
-        assert_eq!(*w, 10, "batch width is the max in the chunk");
-        let buf = batch_input_padded(*w, chunk, &lines);
-        assert_eq!(buf.len(), chunk.len() * 3 * REC_HEIGHT as usize * 10);
-        // First row of the narrow line: 8 ones then 2 zero-pad columns.
-        let narrow_ix = chunk.iter().position(|&i| lines[i].w == 8).unwrap();
-        let row = &buf[narrow_ix * 3 * REC_HEIGHT as usize * 10..][..10];
-        assert_eq!(row, &[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0]);
-
-        // A line >1.5x the chunk minimum starts a fresh batch (bounds waste).
-        let spread = vec![
-            PrepLine { w: 8, data: vec![0.0; 3 * REC_HEIGHT as usize * 8] },
-            PrepLine { w: 40, data: vec![0.0; 3 * REC_HEIGHT as usize * 40] },
-        ];
-        assert_eq!(width_batches_padded(&spread).len(), 2);
     }
 }

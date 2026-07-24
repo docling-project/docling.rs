@@ -32,8 +32,8 @@
 
 use docling_core::{DoclingDocument, Node};
 use docling_pdf::ocr_prep::{
-    batch_input_padded, decode_row, dict_chars, normalize_polarity, prep_page_lines,
-    width_batches_padded, REC_HEIGHT,
+    batch_input, decode_row, dict_chars, normalize_polarity, prep_page_lines, width_batches,
+    REC_HEIGHT,
 };
 use wasm_bindgen::prelude::*;
 
@@ -79,11 +79,8 @@ pub async fn ocr_image(
     let lines = prep_page_lines(&img);
     let chars = dict_chars(dict);
     let mut texts = vec![String::new(); lines.len()];
-    // Browser path batches lines of differing width (padded to the batch max)
-    // — far fewer ORT calls than exact-width grouping, output-equivalent under
-    // the model's zero padding. Native keeps the bit-identical exact-width path.
-    for (w, chunk) in width_batches_padded(&lines) {
-        let input = batch_input_padded(w, &chunk, &lines);
+    for (w, chunk) in width_batches(&lines) {
+        let input = batch_input(w, &chunk, &lines);
         let out = session
             .run(
                 chunk.len() as u32,
