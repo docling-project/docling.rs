@@ -11,8 +11,24 @@
     #drop {
       border: 2px dashed #888; border-radius: 8px; padding: 2.5rem 1rem;
       text-align: center; cursor: pointer; margin: 1rem 0;
+      transition: opacity 0.2s;
     }
     #drop.hover { border-color: #4a90d9; background: rgba(74, 144, 217, 0.08); }
+    /* Busy (model loading / recognition running): controls freeze, the drop
+       zone dims and its border pulses until the work settles. */
+    body.busy #drop { opacity: 0.55; pointer-events: none; animation: working 1.2s ease-in-out infinite; }
+    body.busy select { opacity: 0.6; }
+    @keyframes working {
+      0%, 100% { border-color: #888; }
+      50% { border-color: #4a90d9; }
+    }
+    .spinner {
+      display: inline-block; width: 0.85em; height: 0.85em; margin-right: 0.45em;
+      border: 2px solid rgba(74, 144, 217, 0.25); border-top-color: #4a90d9;
+      border-radius: 50%; vertical-align: -0.1em;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
     #out {
       width: 100%; min-height: 20rem; white-space: pre-wrap; overflow: auto;
       border: 1px solid #8884; border-radius: 6px; padding: 0.8rem;
@@ -36,7 +52,7 @@
   <input type="file" id="pick" accept=".png,.jpg,.jpeg,.tif,.tiff,.webp,.bmp" hidden>
   <p>
     Recognition language:
-    <select id="lang">
+    <select id="lang" disabled>
       <option value="en" selected>English (en_PP-OCRv3)</option>
       <option value="cyrillic">Cyrillic + Latin (cyrillic_PP-OCRv5)</option>
       <option value="ch">Chinese + Latin (ch_PP-OCRv3)</option>
@@ -53,8 +69,51 @@
     const meta = document.getElementById("meta");
     const out = document.getElementById("out");
     const lang = document.getElementById("lang");
+    const drop = document.getElementById("drop");
+    const pick = document.getElementById("pick");
 
-    await init();
+    // Busy-state bookkeeping: while anything loads or runs, the drop zone and
+    // the language selector are disabled and the status line spins.
+    function status(msg, spinning) {
+      meta.textContent = "";
+      if (spinning) meta.append(Object.assign(document.createElement("span"), { className: "spinner" }));
+      meta.append(msg);
+    }
+    function busy(msg) {
+      document.body.classList.add("busy");
+      pick.disabled = lang.disabled = true;
+      status(msg, true);
+    }
+    function ready(msg) {
+      document.body.classList.remove("busy");
+      pick.disabled = lang.disabled = false;
+      status(msg, false);
+    }
+
+    // fetch() with a live "x / y MB" status line (falls back to a plain fetch
+    // when the body can't be streamed).
+    async function fetchProgress(url, label) {
+      const resp = await fetch(url, { cache: "force-cache" });
+      if (!resp.ok) throw new Error(`${label}: HTTP ${resp.status}`);
+      const total = Number(resp.headers.get("Content-Length")) || 0;
+      if (!resp.body) return resp.arrayBuffer();
+      const reader = resp.body.getReader();
+      const chunks = [];
+      let got = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        got += value.length;
+        const mb = (got / 1048576).toFixed(1);
+        status(total ? `${label} — ${mb} / ${(total / 1048576).toFixed(1)} MB` : `${label} — ${mb} MB`, true);
+      }
+      const buf = new Uint8Array(got);
+      let off = 0;
+      for (const c of chunks) { buf.set(c, off); off += c.length; }
+      return buf.buffer;
+    }
+
     const REC_MODELS = {
       en: {
         model: "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/en_PP-OCRv3_rec_infer.onnx",
@@ -75,12 +134,11 @@
     const recCache = {};
     async function recFor(lang) {
       if (!recCache[lang]) {
-        meta.textContent = `fetching ${lang} recognition model (~10 MB, cached) ...`;
-        const spec = REC_MODELS[lang];
         const [model, dict] = await Promise.all([
-          fetch(spec.model, { cache: "force-cache" }).then((r) => r.arrayBuffer()),
-          fetch(spec.dict, { cache: "force-cache" }).then((r) => r.text()),
+          fetchProgress(REC_MODELS[lang].model, `${lang} recognition model`),
+          fetch(REC_MODELS[lang].dict, { cache: "force-cache" }).then((r) => r.text()),
         ]);
+        status(`starting ${lang} recognition session …`, true);
         const session = await ort.InferenceSession.create(model, {
           executionProviders: ["wasm"],
           logSeverityLevel: 3, // silence load-time "removing unused initializer" warnings
@@ -100,27 +158,39 @@
       }
       return recCache[lang];
     }
+
+    busy("loading wasm module …");
+    await init();
     await recFor(lang.value);
-    meta.textContent = "ready — drop a scanned image";
+    ready("ready — drop a scanned image");
 
     async function handle(file) {
       out.textContent = "";
-      meta.textContent = `recognizing ${file.name} …`;
+      busy(`recognizing ${file.name} …`);
       const started = performance.now();
       try {
         const { dict, rec } = await recFor(lang.value);
         const bytes = new Uint8Array(await file.arrayBuffer());
         const md = await ocr_image(bytes, dict, rec, "md");
         out.textContent = md || "(no text found)";
-        meta.textContent = `${file.name} — ${(performance.now() - started).toFixed(0)} ms`;
+        ready(`${file.name} — ${(performance.now() - started).toFixed(0)} ms`);
       } catch (e) {
         out.textContent = String(e);
-        meta.textContent = `${file.name} — failed`;
+        ready(`${file.name} — failed`);
       }
     }
 
-    const drop = document.getElementById("drop");
-    const pick = document.getElementById("pick");
+    // Warm the model on language switch so the first drop afterwards is fast.
+    lang.addEventListener("change", async () => {
+      busy(`loading ${lang.value} model …`);
+      try {
+        await recFor(lang.value);
+        ready("ready — drop a scanned image");
+      } catch (e) {
+        ready(`${lang.value} model failed to load: ${e}`);
+      }
+    });
+
     drop.addEventListener("click", () => pick.click());
     pick.addEventListener("change", () => pick.files[0] && handle(pick.files[0]));
     for (const ev of ["dragover", "dragleave", "drop"]) {
