@@ -22,7 +22,8 @@
 
 use docling_pdf::layout::{decode_layout, layout_input, SIDE};
 use docling_pdf::ocr_prep::{
-    batch_input, decode_row, dict_chars, prep_region_lines, width_batches, REC_HEIGHT,
+    batch_input, decode_row, dict_chars, normalize_polarity, prep_region_lines, width_batches,
+    REC_HEIGHT,
 };
 use docling_pdf::pdfium_backend::{PdfPage, TextCell};
 use docling_pdf::scanned::{assemble_page, finish_document, refine_regions};
@@ -83,6 +84,9 @@ impl ScannedConverter {
         for (i, px) in img.pixels_mut().enumerate() {
             px.0 = [rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2]];
         }
+        // Dark-mode screenshots invert scan polarity; normalize before both
+        // layout and OCR (each assumes dark ink on light paper).
+        let img = normalize_polarity(img);
         let (page_w, page_h) = (px_w as f32 / scale, px_h as f32 / scale);
 
         // Layout: Rust preprocessing → JS inference → Rust decoding.

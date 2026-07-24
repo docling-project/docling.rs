@@ -212,6 +212,26 @@ pub fn prep_region_lines(
     (bboxes, lines)
 }
 
+/// Normalize an image to the scan polarity every stage assumes — dark ink
+/// on light paper (the segmentation threshold and the recognition model's
+/// training data both bake it in): a predominantly dark page (mean luma
+/// below mid-gray — a dark-mode screenshot, an inverted scan) is inverted.
+/// Browser-path helper; the native pipeline never calls it (its input is
+/// scanned paper, and the conformance baseline stays untouched).
+pub fn normalize_polarity(mut img: RgbImage) -> RgbImage {
+    let (w, h) = img.dimensions();
+    if w == 0 || h == 0 {
+        return img;
+    }
+    let mean: f32 = img.pixels().map(luma).sum::<f32>() / (w * h) as f32;
+    if mean < 128.0 {
+        for px in img.pixels_mut() {
+            px.0 = [255 - px.0[0], 255 - px.0[1], 255 - px.0[2]];
+        }
+    }
+    img
+}
+
 /// Whole-image line preparation for the browser OCR path (no layout model:
 /// the page itself is the single text region). Returns page-order prepared
 /// lines; callers that need geometry use [`segment_lines`] directly.
@@ -288,6 +308,23 @@ mod tests {
             batch_input(*w0, chunk0, &lines).len(),
             3 * REC_HEIGHT as usize * w0
         );
+    }
+
+    #[test]
+    fn dark_mode_pages_normalize_to_scan_polarity() {
+        // The same two-bar page, inverted (light text on dark) — the raw
+        // segmentation misfires (it thresholds the dark *background* as ink);
+        // polarity normalization recovers the true structure.
+        let mut dark = page();
+        for px in dark.pixels_mut() {
+            px.0 = [255 - px.0[0], 255 - px.0[1], 255 - px.0[2]];
+        }
+        assert_ne!(prep_page_lines(&dark).len(), 2);
+        let fixed = normalize_polarity(dark);
+        assert_eq!(prep_page_lines(&fixed).len(), 2);
+        // A light page passes through untouched.
+        let light = page();
+        assert_eq!(normalize_polarity(light.clone()), light);
     }
 
     #[test]

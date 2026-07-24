@@ -32,7 +32,8 @@
 
 use docling_core::{DoclingDocument, Node};
 use docling_pdf::ocr_prep::{
-    batch_input, decode_row, dict_chars, prep_page_lines, width_batches, REC_HEIGHT,
+    batch_input, decode_row, dict_chars, normalize_polarity, prep_page_lines, width_batches,
+    REC_HEIGHT,
 };
 use wasm_bindgen::prelude::*;
 
@@ -68,9 +69,13 @@ pub async fn ocr_image(
     session: &RecSession,
     to: Option<String>,
 ) -> Result<String, JsError> {
-    let img = image::load_from_memory(bytes)
-        .map_err(|e| JsError::new(&format!("decode image: {e}")))?
-        .to_rgb8();
+    // Screenshots and dark-mode captures arrive light-on-dark; the whole
+    // pipeline assumes scan polarity, so normalize first.
+    let img = normalize_polarity(
+        image::load_from_memory(bytes)
+            .map_err(|e| JsError::new(&format!("decode image: {e}")))?
+            .to_rgb8(),
+    );
     let lines = prep_page_lines(&img);
     let chars = dict_chars(dict);
     let mut texts = vec![String::new(); lines.len()];
