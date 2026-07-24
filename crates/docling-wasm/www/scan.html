@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Cross-origin isolation shim, so ORT Web can use multi-threaded wasm.
+       Must run before the module script (see coi.js); reloads once on the
+       first visit to gain isolation. -->
+  <script src="coi.js"></script>
+  <title>docling.rs — scanned PDFs in the browser (lite profile)</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; }
+    #drop {
+      border: 2px dashed #888; border-radius: 8px; padding: 2.5rem 1rem;
+      text-align: center; cursor: pointer; margin: 1rem 0;
+      transition: opacity 0.2s;
+    }
+    #drop.hover { border-color: #4a90d9; background: rgba(74, 144, 217, 0.08); }
+    /* Busy (model loading / conversion running): controls freeze, the drop
+       zone dims and its border pulses until the work settles. */
+    body.busy #drop { opacity: 0.55; pointer-events: none; animation: working 1.2s ease-in-out infinite; }
+    body.busy select { opacity: 0.6; }
+    @keyframes working {
+      0%, 100% { border-color: #888; }
+      50% { border-color: #4a90d9; }
+    }
+    .spinner {
+      display: inline-block; width: 0.85em; height: 0.85em; margin-right: 0.45em;
+      border: 2px solid rgba(74, 144, 217, 0.25); border-top-color: #4a90d9;
+      border-radius: 50%; vertical-align: -0.1em;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #out {
+      width: 100%; min-height: 20rem; white-space: pre-wrap; overflow: auto;
+      border: 1px solid #8884; border-radius: 6px; padding: 0.8rem;
+      font-family: ui-monospace, monospace; font-size: 0.85rem;
+    }
+    #meta { color: #888; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>docling.rs → wasm: scanned PDF / image, full lite profile</h1>
+  <p>
+    Stage 2 of <a href="https://github.com/docling-project/docling.rs/issues/157">#157</a>:
+    RT-DETR layout detection + PP-OCRv3 recognition via ONNX Runtime Web;
+    pdf.js rasterizes PDF pages at the native pipeline's 2&nbsp;px/point;
+    region refinement, OCR and reading-order assembly run in Rust/wasm — the
+    same code as the native pipeline. Tables come out via the geometric
+    reconstruction (TableFormer is stage 3). Nothing leaves this page.
+  </p>
+  <details id="setup">
+    <summary>The layout model is served from this page's own origin — fetch it once into <code>./models/</code></summary>
+    <p>
+      Unlike the recognition model (fetched from Hugging Face, which sends CORS
+      headers), the RT-DETR layout export lives on this repo's GitHub Release,
+      and <strong>GitHub Release assets can't be fetched cross-origin from a
+      browser</strong> (no <code>Access-Control-Allow-Origin</code>). So this
+      page loads the layout model <em>same-origin</em>, from a
+      <code>models/</code> directory next to it. Run the installer <strong>from
+      this <code>www/</code> directory</strong> — it writes <code>./models/</code>
+      relative to the current directory:
+    </p>
+    <pre>cd crates/docling-wasm/www/
+curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/install/download_dependencies.sh | sh</pre>
+    <p>
+      That populates <code>./models/</code> (this page reads
+      <code>./models/layout_heron_int8.onnx</code>, ~68&nbsp;MB, falling back to
+      <code>./models/layout_heron.onnx</code>, ~172&nbsp;MB — int8 needs a
+      release that hosts it, otherwise fp32 is fetched). These are the exact
+      conformance-validated models the native pipeline uses; both decode
+      identically here (same <code>pixel_values</code>&nbsp;→&nbsp;<code>logits</code>,&nbsp;<code>pred_boxes</code>
+      contract). The recognition model still streams from Hugging Face on demand.
+    </p>
+  </details>
+  <div id="drop">drop a scanned PDF or image here, or click to pick</div>
+  <input type="file" id="pick" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.webp,.bmp" hidden>
+  <p>
+    Recognition language:
+    <select id="lang" disabled>
+      <option value="en" selected>English (en_PP-OCRv3)</option>
+      <option value="cyrillic">Cyrillic + Latin (cyrillic_PP-OCRv5)</option>
+      <option value="ch">Chinese + Latin (ch_PP-OCRv3)</option>
+    </select>
+    <label style="margin-left:1rem" title="Stage 3: real table structure via the TableFormer ONNX graphs, instead of the geometric reconstruction. Fetches ~380 MB of models (encoder/decoder/bbox) on first use, same-origin from ./models/tableformer/.">
+      <input type="checkbox" id="tf" disabled> TableFormer tables
+      <span style="color:#888">(+~380 MB models, PDFs)</span>
+    </label>
+    <span id="meta"></span>
+  </p>
+
+  <div id="out"></div>
+
+  <script type="module">
+    // UI + rasterization. pdf.js rasterization runs HERE on the main thread
+    // (with a real HTMLCanvas, which produces correct pixels and uses pdf.js's
+    // own worker); the heavy wasm OCR/layout runs in worker.js, so the page
+    // stays responsive during a conversion. Ready RGBA buffers are transferred
+    // to the worker per page. If module workers aren't available it falls back
+    // to running the OCR on this thread too (functionally identical, blocking).
+    // Pin pdf.js so the worker and the auxiliary asset URLs below all match the
+    // loaded build (a version skew breaks the wasm/cmap resolution).
+    import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.1.200/build/pdf.min.mjs";
+    pdfjs.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.1.200/build/pdf.worker.min.mjs";
+    // pdf.js decodes JPEG2000 / JBIG2 images (common in scanned PDFs) with
+    // separate wasm modules, and CJK text with CMaps — it needs the base URLs
+    // for those or it warns "Ensure that the wasmUrl API parameter is provided"
+    // and drops the page images.
+    const PDFJS_BASE = "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.1.200/";
+    const PDFJS_ASSETS = {
+      wasmUrl: PDFJS_BASE + "wasm/",
+      cMapUrl: PDFJS_BASE + "cmaps/",
+      cMapPacked: true,
+      standardFontDataUrl: PDFJS_BASE + "standard_fonts/",
+    };
+
+    const SCALE = 2.0; // px per PDF point — the native pipeline's RENDER_SCALE
+
+    const meta = document.getElementById("meta");
+    const out = document.getElementById("out");
+    const lang = document.getElementById("lang");
+    const tf = document.getElementById("tf");
+    const drop = document.getElementById("drop");
+    const pick = document.getElementById("pick");
+
+    function status(msg, spinning) {
+      meta.textContent = "";
+      if (spinning) meta.append(Object.assign(document.createElement("span"), { className: "spinner" }));
+      meta.append(msg);
+    }
+    function busy(msg) {
+      document.body.classList.add("busy");
+      pick.disabled = lang.disabled = tf.disabled = true;
+      status(msg, true);
+    }
+    function ready(msg) {
+      document.body.classList.remove("busy");
+      pick.disabled = lang.disabled = tf.disabled = false;
+      status(msg, false);
+    }
+    const onStatus = (msg, spinning) => {
+      if (document.body.classList.contains("busy")) status(msg, spinning);
+    };
+    function noLayout() {
+      document.getElementById("setup").open = true;
+      ready("layout model not found under ./models/ — see the note above");
+    }
+
+    // --- OCR driver: either a Web Worker (RPC) or a same-thread pipeline ---
+    // Both expose the same interface: boot, rec, docStart, addPage, docFinish,
+    // convertImage. Only the OCR runs in the worker; rasterization is on this
+    // thread regardless.
+    function workerDriver() {
+      const worker = new Worker("./worker.js", { type: "module" });
+      let seq = 0;
+      const waiters = new Map();
+      worker.onmessage = (e) => {
+        const m = e.data;
+        if (m.type === "status") return onStatus(m.msg, m.spinning);
+        if (m.type === "up") return;
+        const w = waiters.get(m.id);
+        if (!w) return;
+        waiters.delete(m.id);
+        if (m.type === "error") w.reject(new Error(m.msg));
+        else w.resolve(m);
+      };
+      const rpc = (type, payload, transfer) =>
+        new Promise((resolve, reject) => {
+          const id = ++seq;
+          waiters.set(id, { resolve, reject });
+          worker.postMessage({ type, id, ...payload }, transfer || []);
+        });
+      return {
+        worker,
+        boot: (l) => rpc("boot", { lang: l }),
+        rec: (l) => rpc("rec", { lang: l }),
+        docStart: (l, useTf) => rpc("doc-start", { lang: l, useTf }),
+        addPage: (rgba, w, h, scale) => rpc("doc-page", { rgba, w, h, scale }, [rgba]),
+        docFinish: (name) => rpc("doc-finish", { name }).then((r) => r.md),
+        convertImage: (bytes, name, l) => rpc("convert-image", { bytes, name, lang: l }, [bytes]).then((r) => r.md),
+      };
+    }
+    async function mainDriver() {
+      const { createOcr, THREADS } = await import("./pipeline.js");
+      const ocr = createOcr({ onStatus });
+      return {
+        boot: async (l) => {
+          const kind = await ocr.boot();
+          if (!kind) return { noLayout: true };
+          await ocr.recFor(l);
+          await ocr.warmup(l);
+          return { kind, threads: THREADS, main: true };
+        },
+        rec: async (l) => { await ocr.recFor(l); await ocr.warmup(l); return {}; },
+        docStart: (l, useTf) => ocr.startDoc(l, useTf),
+        addPage: (rgba, w, h, scale) => ocr.addPage(new Uint8Array(rgba), w, h, scale),
+        docFinish: (name) => Promise.resolve(ocr.finishDoc(name)),
+        convertImage: (bytes, name, l) => ocr.convertImage(bytes, name, l),
+      };
+    }
+
+    let drv = null;
+
+    // Rasterize page p+1 while the worker converts page p (main-thread raster
+    // overlaps worker-thread OCR). getImageData hands back an independent
+    // buffer, so one canvas ping-pongs across pages.
+    async function handlePdf(file) {
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjs.getDocument({ data: buf, ...PDFJS_ASSETS }).promise;
+      await drv.docStart(lang.value, tf.checked);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      async function render(p) {
+        const page = await pdf.getPage(p);
+        const viewport = page.getViewport({ scale: SCALE });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        return { rgba: img.data.buffer, w: canvas.width, h: canvas.height };
+      }
+      const t0 = performance.now();
+      let elapsed = 0;
+      let next = render(1);
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const done = p - 1;
+        const avg = done ? ` — ${(elapsed / done / 1000).toFixed(1)}s/page avg` : "";
+        status(`${file.name}: page ${p}/${pdf.numPages}${avg} …`, true);
+        const cur = await next;
+        if (p < pdf.numPages) next = render(p + 1);
+        const tp = performance.now();
+        await drv.addPage(cur.rgba, cur.w, cur.h, SCALE);
+        const dt = performance.now() - tp;
+        elapsed += dt;
+        console.log(`${file.name}: page ${p}/${pdf.numPages} — ${(dt / 1000).toFixed(1)}s convert`);
+      }
+      const wall = (performance.now() - t0) / 1000;
+      console.log(`${file.name}: ${pdf.numPages} pages in ${wall.toFixed(1)}s wall (${(wall / pdf.numPages).toFixed(1)}s/page)`);
+      return drv.docFinish(file.name);
+    }
+
+    async function handle(file) {
+      out.textContent = "";
+      busy(`converting ${file.name} …`);
+      const started = performance.now();
+      try {
+        const md = file.name.toLowerCase().endsWith(".pdf")
+          ? await handlePdf(file)
+          : await drv.convertImage(await file.arrayBuffer(), file.name, lang.value);
+        out.textContent = md || "(no text found)";
+        ready(`${file.name} — ${((performance.now() - started) / 1000).toFixed(1)} s`);
+      } catch (e) {
+        out.textContent = String((e && e.message) || e);
+        ready(`${file.name} — failed`);
+      }
+    }
+
+    lang.addEventListener("change", async () => {
+      busy(`loading ${lang.value} model …`);
+      try {
+        await drv.rec(lang.value);
+        ready("ready — drop a scanned PDF or image");
+      } catch (e) {
+        ready(`${lang.value} model failed to load: ${e}`);
+      }
+    });
+
+    drop.addEventListener("click", () => pick.click());
+    pick.addEventListener("change", () => pick.files[0] && handle(pick.files[0]));
+    for (const ev of ["dragover", "dragleave", "drop"]) {
+      drop.addEventListener(ev, (e) => {
+        e.preventDefault();
+        drop.classList.toggle("hover", ev === "dragover");
+        if (ev === "drop" && e.dataTransfer.files[0]) handle(e.dataTransfer.files[0]);
+      });
+    }
+
+    // Prefer the worker; fall back to same-thread OCR if it can't be created.
+    async function boot() {
+      busy("loading wasm module …");
+      if (typeof Worker !== "undefined") {
+        try { drv = workerDriver(); } catch (e) { drv = await mainDriver(); }
+      } else {
+        drv = await mainDriver();
+      }
+      try {
+        const r = await drv.boot(lang.value);
+        if (r.noLayout) return noLayout();
+        const where = r.main ? ", main" : "";
+        ready(`ready (${r.kind} layout, ${r.threads} thread${r.threads > 1 ? "s" : ""}${where}) — drop a scanned PDF or image`);
+      } catch (e) {
+        // Worker died during boot (module load, etc.) — retry same-thread once.
+        if (drv && drv.worker) {
+          try { drv.worker.terminate(); } catch (_) {}
+          drv = await mainDriver();
+          const r = await drv.boot(lang.value);
+          if (r.noLayout) return noLayout();
+          ready(`ready (${r.kind} layout, ${r.threads} thread${r.threads > 1 ? "s" : ""}, main) — drop a scanned PDF or image`);
+        } else {
+          ready(`failed to start: ${e}`);
+        }
+      }
+    }
+    boot();
+  </script>
+</body>
+</html>

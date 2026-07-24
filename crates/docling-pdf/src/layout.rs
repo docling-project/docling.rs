@@ -47,13 +47,12 @@ pub struct Region {
     pub b: f32,
 }
 
-#[cfg(feature = "ml")]
 /// Base confidence threshold (docling-ibm-models `base_threshold`): the raw
 /// RT-DETR floor before docling's `LayoutPostprocessor` applies its stricter
 /// per-label thresholds ([`label_threshold`]).
 const THRESHOLD: f32 = 0.3;
-#[cfg(feature = "ml")]
-const SIDE: u32 = 640;
+/// RT-DETR's fixed square input side.
+pub const SIDE: u32 = 640;
 
 /// Per-label confidence threshold, ported from docling's
 /// `LayoutPostprocessor.CONFIDENCE_THRESHOLDS`. The raw predictor keeps every
@@ -222,46 +221,81 @@ impl LayoutModel {
             let logits =
                 &logits[p * num_queries * num_classes..(p + 1) * num_queries * num_classes];
             let boxes = &boxes[p * num_queries * 4..(p + 1) * num_queries * 4];
-
-            // sigmoid over every (query, class); take the top `num_queries` scores.
-            let mut scored: Vec<(f32, usize)> = (0..num_queries * num_classes)
-                .map(|idx| (sigmoid(logits[idx]), idx))
-                .collect();
-            scored.sort_unstable_by(|a, b| b.0.total_cmp(&a.0));
-            scored.truncate(num_queries);
-
-            let mut regions = Vec::new();
-            for (score, idx) in scored {
-                if score <= THRESHOLD {
-                    continue;
-                }
-                let label_id = idx % num_classes;
-                let q = idx / num_classes;
-                let cx = boxes[q * 4];
-                let cy = boxes[q * 4 + 1];
-                let w = boxes[q * 4 + 2];
-                let h = boxes[q * 4 + 3];
-                // center_to_corners, then scale normalized coords to page points.
-                let l = (cx - w / 2.0) * page_w;
-                let t = (cy - h / 2.0) * page_h;
-                let r = (cx + w / 2.0) * page_w;
-                let b = (cy + h / 2.0) * page_h;
-                regions.push(Region {
-                    label: LABELS.get(label_id).copied().unwrap_or("text"),
-                    score,
-                    l,
-                    t,
-                    r,
-                    b,
-                });
-            }
-            all.push(regions);
+            all.push(decode_layout(
+                logits,
+                boxes,
+                num_queries,
+                num_classes,
+                *page_w,
+                *page_h,
+            ));
         }
         Ok(all)
     }
 }
 
-#[cfg(feature = "ml")]
 fn sigmoid(x: f32) -> f32 {
     1.0 / (1.0 + (-x).exp())
+}
+
+/// Pack one page image into the model's `(1, 3, SIDE, SIDE)` input: resize
+/// (aspect ignored, RT-DETR convention), rescale to `[0,1]`, CHW. Shared
+/// with the browser build (#157), which delegates only the session call.
+#[cfg(feature = "ocr-prep")]
+pub fn layout_input(img: &image::RgbImage) -> Vec<f32> {
+    let n = (SIDE * SIDE) as usize;
+    let mut data = vec![0f32; 3 * n];
+    let resized = image::imageops::resize(img, SIDE, SIDE, image::imageops::FilterType::Triangle);
+    for (i, px) in resized.pixels().enumerate() {
+        data[i] = px[0] as f32 / 255.0;
+        data[n + i] = px[1] as f32 / 255.0;
+        data[2 * n + i] = px[2] as f32 / 255.0;
+    }
+    data
+}
+
+/// Decode one page's raw RT-DETR outputs into scored [`Region`]s in page
+/// points — sigmoid over every (query, class), top-`num_queries` kept, boxes
+/// converted center→corners and scaled. Shared with the browser build; the
+/// native batch path calls it per page, so both decode identically.
+pub fn decode_layout(
+    logits: &[f32],
+    boxes: &[f32],
+    num_queries: usize,
+    num_classes: usize,
+    page_w: f32,
+    page_h: f32,
+) -> Vec<Region> {
+    let mut scored: Vec<(f32, usize)> = (0..num_queries * num_classes)
+        .map(|idx| (sigmoid(logits[idx]), idx))
+        .collect();
+    scored.sort_unstable_by(|a, b| b.0.total_cmp(&a.0));
+    scored.truncate(num_queries);
+
+    let mut regions = Vec::new();
+    for (score, idx) in scored {
+        if score <= THRESHOLD {
+            continue;
+        }
+        let label_id = idx % num_classes;
+        let q = idx / num_classes;
+        let cx = boxes[q * 4];
+        let cy = boxes[q * 4 + 1];
+        let w = boxes[q * 4 + 2];
+        let h = boxes[q * 4 + 3];
+        // center_to_corners, then scale normalized coords to page points.
+        let l = (cx - w / 2.0) * page_w;
+        let t = (cy - h / 2.0) * page_h;
+        let r = (cx + w / 2.0) * page_w;
+        let b = (cy + h / 2.0) * page_h;
+        regions.push(Region {
+            label: LABELS.get(label_id).copied().unwrap_or("text"),
+            score,
+            l,
+            t,
+            r,
+            b,
+        });
+    }
+    regions
 }

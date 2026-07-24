@@ -8,6 +8,8 @@ onnxruntime_profile_*.json
 
 # wasm-bindgen output for the docling-wasm demo (built from source, see its README)
 crates/docling-wasm/www/pkg/
+# ML models the scan demo fetches same-origin (download_dependencies.sh, run in www/)
+crates/docling-wasm/www/models/
 
 # Secrets — never commit (holds CARGO_REGISTRY_TOKEN)
 .env

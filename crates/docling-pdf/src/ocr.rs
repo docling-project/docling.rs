@@ -5,101 +5,22 @@
 //! is recognised and decoded with CTC — producing [`TextCell`]s the normal
 //! layout assembly then consumes. This avoids a separate text-detection model.
 
-use std::collections::BTreeMap;
-
-use image::{imageops, imageops::FilterType, Rgb, RgbImage};
+use image::RgbImage;
 use ort::session::Session;
 use ort::value::Tensor;
 
 use crate::layout::Region;
+// The ONNX-free half (line prep, batching, CTC decode) lives in `ocr_prep`
+// so the wasm build shares it verbatim (#79 phase 2).
+use crate::ocr_prep::{
+    batch_input, decode_row, dict_chars, prep_region_lines, width_batches, PrepLine, REC_HEIGHT,
+};
 use crate::pdfium_backend::TextCell;
-
-const REC_HEIGHT: u32 = 48;
-
-/// Cap on lines per recognition run: bounds peak input-tensor memory
-/// (16 × 3 × 48 × 2400 px ≈ 22 MB f32) without costing measurable batching
-/// benefit — same-width groups are rarely larger.
-const REC_BATCH: usize = 16;
-
-/// A text-line crop prepared for recognition: resized to the fixed model
-/// height, normalised to `[-1, 1]`, laid out CHW.
-struct PrepLine {
-    /// Width after the aspect-preserving resize to `REC_HEIGHT`.
-    w: usize,
-    /// `3 * REC_HEIGHT * w` values.
-    data: Vec<f32>,
-}
-
-/// Prepare one line crop, or `None` for a degenerate (zero-sized) crop.
-fn prep_line(line: &RgbImage) -> Option<PrepLine> {
-    let (w, h) = line.dimensions();
-    if w == 0 || h == 0 {
-        return None;
-    }
-    let new_w = ((w as f32) * REC_HEIGHT as f32 / h as f32)
-        .round()
-        .clamp(8.0, 2400.0) as u32;
-    let resized = imageops::resize(line, new_w, REC_HEIGHT, FilterType::Triangle);
-    let n = (REC_HEIGHT * new_w) as usize;
-    // Normalise to [-1, 1]: (x/255 - 0.5) / 0.5.
-    let mut data = vec![0f32; 3 * n];
-    for (i, px) in resized.pixels().enumerate() {
-        data[i] = px[0] as f32 / 127.5 - 1.0;
-        data[n + i] = px[1] as f32 / 127.5 - 1.0;
-        data[2 * n + i] = px[2] as f32 / 127.5 - 1.0;
-    }
-    Some(PrepLine {
-        w: new_w as usize,
-        data,
-    })
-}
 
 pub struct OcrModel {
     rec: Session,
     /// CTC classes: index 0 = blank, 1..=6623 = dictionary, 6624 = space.
     chars: Vec<String>,
-}
-
-/// Greedy CTC decode of one row's `(T, C)` probabilities.
-fn decode_row(chars: &[String], probs: &[f32], nc: usize) -> String {
-    let mut out = String::new();
-    let mut prev = 0usize;
-    for row in probs.chunks_exact(nc) {
-        let mut best = 0usize;
-        let mut bestv = row[0];
-        for (c, &v) in row.iter().enumerate().skip(1) {
-            if v > bestv {
-                bestv = v;
-                best = c;
-            }
-        }
-        if best != prev && best != 0 {
-            if let Some(ch) = chars.get(best) {
-                out.push_str(ch);
-            }
-        }
-        prev = best;
-    }
-    out
-}
-
-fn luma(p: &Rgb<u8>) -> f32 {
-    0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32
-}
-
-/// Layout labels whose content is recognised as running text.
-fn is_text_label(label: &str) -> bool {
-    matches!(
-        label,
-        "text"
-            | "title"
-            | "section_header"
-            | "list_item"
-            | "caption"
-            | "footnote"
-            | "code"
-            | "formula"
-    )
 }
 
 /// OCR recognition language: which PP-OCRv3 model + dictionary pair runs.
@@ -194,10 +115,10 @@ impl OcrModel {
             .map_err(|e| format!("ocr: load {rec_path}: {e}"))?;
         let dict = std::fs::read_to_string(&dict_path)
             .map_err(|e| format!("ocr: read dict {dict_path}: {e}"))?;
-        let mut chars = vec![String::new()]; // blank at 0
-        chars.extend(dict.lines().map(|s| s.to_string()));
-        chars.push(" ".to_string());
-        Ok(Self { rec, chars })
+        Ok(Self {
+            rec,
+            chars: dict_chars(&dict),
+        })
     }
 
     /// Recognise a batch of prepared *same-width* lines in one session run.
@@ -208,13 +129,14 @@ impl OcrModel {
     /// the scanned corpus), whereas width-padding leaks into the real
     /// timesteps through the model's global-attention blocks and measurably
     /// changes low-confidence characters.
-    fn recognize_batch(&mut self, w: usize, batch: &[&PrepLine]) -> Result<Vec<String>, String> {
-        let n = batch.len();
-        let hw = REC_HEIGHT as usize * w;
-        let mut data = vec![0f32; n * 3 * hw];
-        for (i, pl) in batch.iter().enumerate() {
-            data[i * 3 * hw..(i + 1) * 3 * hw].copy_from_slice(&pl.data);
-        }
+    fn recognize_batch(
+        &mut self,
+        w: usize,
+        chunk: &[usize],
+        lines: &[PrepLine],
+    ) -> Result<Vec<String>, String> {
+        let n = chunk.len();
+        let data = batch_input(w, chunk, lines);
         let input = Tensor::from_array(([n, 3, REC_HEIGHT as usize, w], data))
             .map_err(|e| format!("ocr: input tensor: {e}"))?;
         let outputs = self
@@ -245,51 +167,16 @@ impl OcrModel {
         regions: &[Region],
         scale: f32,
     ) -> Result<Vec<TextCell>, String> {
-        let (iw, ih) = img.dimensions();
-        // Gather every line crop on the page first, so equal-width lines can
-        // share a recognition run regardless of which region they came from.
-        let mut bboxes: Vec<(f32, f32, f32, f32)> = Vec::new();
-        let mut lines: Vec<PrepLine> = Vec::new();
-        for region in regions {
-            if !is_text_label(region.label) {
-                continue;
-            }
-            let l = (region.l * scale).max(0.0) as u32;
-            let t = (region.t * scale).max(0.0) as u32;
-            let r = ((region.r * scale).max(0.0) as u32).min(iw);
-            let b = ((region.b * scale).max(0.0) as u32).min(ih);
-            if r <= l || b <= t {
-                continue;
-            }
-            let crop = imageops::crop_imm(img, l, t, r - l, b - t).to_image();
-            for (lx, ly, rx, ry) in segment_lines(&crop) {
-                let line = imageops::crop_imm(&crop, lx, ly, rx - lx, ry - ly).to_image();
-                let Some(pl) = prep_line(&line) else {
-                    continue;
-                };
-                bboxes.push((
-                    (l + lx) as f32 / scale,
-                    (t + ly) as f32 / scale,
-                    (l + rx) as f32 / scale,
-                    (t + ry) as f32 / scale,
-                ));
-                lines.push(pl);
-            }
-        }
+        // Gather every line crop on the page first (shared with the browser
+        // path), so equal-width lines can share a recognition run regardless
+        // of which region they came from.
+        let (bboxes, lines) = prep_region_lines(img, regions, scale);
 
-        // Group page-order line indices by exact width (BTreeMap: run order is
-        // deterministic) and recognise each group batched.
-        let mut by_width: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-        for (ix, pl) in lines.iter().enumerate() {
-            by_width.entry(pl.w).or_default().push(ix);
-        }
+        // Deterministic width-batching (shared with the wasm path).
         let mut texts = vec![String::new(); lines.len()];
-        for (w, ixs) in by_width {
-            for chunk in ixs.chunks(REC_BATCH) {
-                let batch: Vec<&PrepLine> = chunk.iter().map(|&i| &lines[i]).collect();
-                for (&i, text) in chunk.iter().zip(self.recognize_batch(w, &batch)?) {
-                    texts[i] = text;
-                }
+        for (w, chunk) in width_batches(&lines) {
+            for (&i, text) in chunk.iter().zip(self.recognize_batch(w, &chunk, &lines)?) {
+                texts[i] = text;
             }
         }
 
@@ -304,68 +191,4 @@ impl OcrModel {
         }
         Ok(cells)
     }
-}
-
-/// Split a region crop into text lines via a horizontal ink-projection profile.
-/// Returns tight `(l, t, r, b)` boxes in crop pixels.
-fn segment_lines(crop: &RgbImage) -> Vec<(u32, u32, u32, u32)> {
-    let (w, h) = crop.dimensions();
-    if w == 0 || h == 0 {
-        return Vec::new();
-    }
-    let mean: f32 = crop.pixels().map(luma).sum::<f32>() / (w * h) as f32;
-    let thresh = mean * 0.7; // ink = noticeably darker than the page average
-    let min_ink = ((w as f32) * 0.005).max(1.0) as u32;
-
-    let mut profile = vec![0u32; h as usize];
-    for y in 0..h {
-        let mut row = 0u32;
-        for x in 0..w {
-            if luma(crop.get_pixel(x, y)) < thresh {
-                row += 1;
-            }
-        }
-        profile[y as usize] = row;
-    }
-
-    // Maximal runs of text rows, separated by (near-)blank rows.
-    let mut runs: Vec<(u32, u32)> = Vec::new();
-    let mut start: Option<u32> = None;
-    for y in 0..h {
-        let text = profile[y as usize] >= min_ink;
-        if text && start.is_none() {
-            start = Some(y);
-        } else if !text {
-            if let Some(s) = start.take() {
-                if y - s >= 4 {
-                    runs.push((s, y));
-                }
-            }
-        }
-    }
-    if let Some(s) = start {
-        if h - s >= 4 {
-            runs.push((s, h));
-        }
-    }
-
-    // Tighten each line to its horizontal ink bounds.
-    runs.into_iter()
-        .map(|(t, b)| {
-            let (mut l, mut r) = (w, 0u32);
-            for y in t..b {
-                for x in 0..w {
-                    if luma(crop.get_pixel(x, y)) < thresh {
-                        l = l.min(x);
-                        r = r.max(x + 1);
-                    }
-                }
-            }
-            if l >= r {
-                (0, t, w, b)
-            } else {
-                (l, t, r, b)
-            }
-        })
-        .collect()
 }

@@ -62,6 +62,54 @@ Verified end-to-end in headless Chromium: Markdown/DOCX→md, DOCX→JSON, a
 corpus PDF→md through the text-layer path, and the scanned-PDF error path all
 exercised through the real wasm module.
 
+## In-browser OCR (#157 stage 1, experimental)
+
+With the default `ocr` feature, the module also exports `ocr_image`: OCR a
+scanned **image** entirely client-side. Line segmentation, crop preparation
+and CTC decoding run in Rust (`docling_pdf::ocr_prep` — the same code as the
+native pipeline); the PP-OCRv3 recognition inference (~10 MB model) is
+delegated to [ONNX Runtime Web](https://onnxruntime.ai/docs/tutorials/web/)
+through a small JS wrapper you construct around an `ort.InferenceSession`:
+
+```js
+const rec = {
+  run: async (n, h, w, data) => {
+    const results = await session.run({ [session.inputNames[0]]:
+      new ort.Tensor("float32", data, [n, 3, h, w]) });
+    const t = results[session.outputNames[0]];
+    return { data: t.data, dims: Array.from(t.dims) };
+  },
+};
+const markdown = await ocr_image(imageBytes, dictText, rec, "md");
+```
+
+[`www/ocr.html`](./www/ocr.html) is the recognition-only demo (model/dict
+fetched from their public hosting and browser-cached).
+
+**Stage 2 — the lite profile** (`ScannedConverter` / `convert_scanned_image`):
+RT-DETR layout detection (int8, ~165 MB from the `models-v1` release) +
+region-cropped OCR + reading-order assembly, with tables via the geometric
+reconstruction (the native `--no-table-former` path — TableFormer is
+stage 3). Scanned **PDFs** convert too: the host page rasterizes pages with
+pdf.js at `{scale: 2}` (2 px/point — the native pipeline's `RENDER_SCALE`)
+and feeds the bitmaps page by page:
+
+```js
+const conv = new ScannedConverter(dictText);
+for (let p = 1; p <= pdf.numPages; p++) {
+  const viewport = page.getViewport({ scale: 2 });
+  // … render to canvas, then:
+  await conv.add_page(rgba, canvas.width, canvas.height, 2.0, layout, rec);
+}
+const markdown = conv.finish(file.name, "md");
+```
+
+[`www/scan.html`](./www/scan.html) is the complete demo (pdf.js + both
+models). Region refinement, OCR gathering/batching/decoding and page
+assembly are the native pipeline's own functions
+(`docling_pdf::{layout, ocr_prep, scanned}`) — the wasm path adds no second
+implementation.
+
 ## Host-side tests
 
 `cargo test -p docling-wasm` runs the conversion body natively (the

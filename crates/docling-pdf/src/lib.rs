@@ -27,15 +27,25 @@ pub mod layout;
 mod mets;
 #[cfg(feature = "ml")]
 mod ocr;
+#[cfg(feature = "ocr-prep")]
+pub mod ocr_prep;
 pub mod pdfium_backend;
 mod reading_order;
-#[cfg(feature = "ml")]
+// Pure-Rust region resampling (page→1024px box-average, crop→448 bilinear) —
+// available to the browser TableFormer path (#157 stage 3), not just `ml`.
+#[cfg(feature = "ocr-prep")]
 pub mod resample;
+#[cfg(feature = "ocr-prep")]
+pub mod scanned;
 #[cfg(feature = "ml")]
 pub mod tableformer;
 pub mod textparse;
-#[cfg(feature = "ml")]
-mod tf_match;
+#[cfg(feature = "ocr-prep")]
+pub mod tf_core;
+// docling's TableFormer cell matcher — pure Rust, shared with the browser
+// TableFormer path (#157 stage 3).
+#[cfg(feature = "ocr-prep")]
+pub mod tf_match;
 pub mod timing;
 
 #[cfg(feature = "ml")]

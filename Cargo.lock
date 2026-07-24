@@ -1529,8 +1529,13 @@ version = "0.49.0"
 dependencies = [
  "console_error_panic_hook",
  "docling",
+ "docling-core",
+ "docling-pdf",
+ "image",
+ "js-sys",
  "serde_json",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
