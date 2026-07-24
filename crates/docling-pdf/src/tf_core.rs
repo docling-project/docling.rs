@@ -464,7 +464,8 @@ fn docling_match_rows(
         }
     }
 
-    let (cells_wo, final_matches) = crate::tf_match::match_and_post_process(tf_cells, &scaled_words);
+    let (cells_wo, final_matches) =
+        crate::tf_match::match_and_post_process(tf_cells, &scaled_words);
 
     // `_merge_tf_output`: group per (column, row) in ascending-pdf-id order; the
     // first word's table cell fixes the group's offsets and spans.
@@ -562,7 +563,11 @@ fn dump_match_inputs(dir: &str, tf_cells: &[TfCell], words: &[PdfWord]) {
         .map(|w| {
             format!(
                 r#"{{"id":{},"bbox":[{},{},{},{}],"text":{}}}"#,
-                w.id, w.bbox[0], w.bbox[1], w.bbox[2], w.bbox[3],
+                w.id,
+                w.bbox[0],
+                w.bbox[1],
+                w.bbox[2],
+                w.bbox[3],
                 serde_json_escape(&w.text)
             )
         })

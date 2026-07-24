@@ -39,9 +39,9 @@ pub mod resample;
 pub mod scanned;
 #[cfg(feature = "ml")]
 pub mod tableformer;
+pub mod textparse;
 #[cfg(feature = "ocr-prep")]
 pub mod tf_core;
-pub mod textparse;
 // docling's TableFormer cell matcher — pure Rust, shared with the browser
 // TableFormer path (#157 stage 3).
 #[cfg(feature = "ocr-prep")]
