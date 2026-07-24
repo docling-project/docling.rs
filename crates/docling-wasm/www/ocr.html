@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Cross-origin isolation shim, so ORT Web can use multi-threaded wasm.
+       Must run before the module script (see coi.js); reloads once on the
+       first visit to gain isolation. -->
+  <script src="coi.js"></script>
   <title>docling.rs — in-browser OCR (wasm + ONNX Runtime Web)</title>
   <style>
     :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
@@ -65,6 +69,16 @@
   <script type="module">
     import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.mjs";
     import init, { ocr_image } from "./pkg/docling_wasm.js";
+
+    // Multi-threaded wasm when the page is cross-origin isolated (coi.js);
+    // otherwise ORT falls back to a single thread. SIMD is auto-selected by
+    // the ORT bundle when the browser supports it.
+    ort.env.wasm.numThreads = self.crossOriginIsolated
+      ? Math.min(navigator.hardwareConcurrency || 4, 8)
+      : 1;
+    console.log(
+      `ort: ${ort.env.wasm.numThreads} thread(s), crossOriginIsolated=${self.crossOriginIsolated}`,
+    );
 
     const meta = document.getElementById("meta");
     const out = document.getElementById("out");

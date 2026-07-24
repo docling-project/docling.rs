@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Cross-origin isolation shim, so ORT Web can use multi-threaded wasm.
+       Must run before the module script (see coi.js); reloads once on the
+       first visit to gain isolation. -->
+  <script src="coi.js"></script>
   <title>docling.rs — scanned PDFs in the browser (lite profile)</title>
   <style>
     :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
@@ -92,6 +96,16 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
 
     pdfjs.GlobalWorkerOptions.workerSrc =
       "https://cdn.jsdelivr.net/npm/pdfjs-dist/build/pdf.worker.min.mjs";
+
+    // Multi-threaded wasm when the page is cross-origin isolated (coi.js);
+    // otherwise ORT falls back to a single thread. SIMD is auto-selected by
+    // the ORT bundle when the browser supports it.
+    ort.env.wasm.numThreads = self.crossOriginIsolated
+      ? Math.min(navigator.hardwareConcurrency || 4, 8)
+      : 1;
+    console.log(
+      `ort: ${ort.env.wasm.numThreads} thread(s), crossOriginIsolated=${self.crossOriginIsolated}`,
+    );
 
     // The layout model is loaded SAME-ORIGIN from ./models/ (see the setup note
     // above): GitHub Release assets carry no CORS header, so a browser fetch of
