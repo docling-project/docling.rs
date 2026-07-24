@@ -210,7 +210,10 @@ impl ScannedConverter {
             .push(assemble_page_with_tables(&page, regions, table_rows));
         Ok(())
     }
+}
 
+#[wasm_bindgen]
+impl ScannedConverter {
     /// Number of pages converted so far (progress display).
     pub fn page_count(&self) -> usize {
         self.pages.len()
