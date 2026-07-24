@@ -38,7 +38,7 @@
     Recognition language:
     <select id="lang">
       <option value="en" selected>English (en_PP-OCRv3)</option>
-      <option value="cyrillic">Cyrillic + Latin (cyrillic_PP-OCRv3)</option>
+      <option value="cyrillic">Cyrillic + Latin (cyrillic_PP-OCRv5)</option>
       <option value="ch">Chinese + Latin (ch_PP-OCRv3)</option>
     </select>
     <span id="meta"></span>
@@ -69,8 +69,11 @@
         dict: "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/en_dict.txt",
       },
       cyrillic: {
-        model: "https://huggingface.co/cycloneboy/cyrillic_PP-OCRv3_rec_infer/resolve/main/model.onnx",
-        dict: "https://huggingface.co/cycloneboy/cyrillic_PP-OCRv3_rec_infer/resolve/main/cyrillic_dict.txt",
+        // PP-OCRv5: markedly better Cyrillic accuracy than the v3 export
+        // (spaces and case survive); its dictionary only exists inside the
+        // repo's inference.yml, so a flattened copy ships next to this page.
+        model: "https://huggingface.co/PaddlePaddle/cyrillic_PP-OCRv5_mobile_rec_onnx/resolve/main/inference.onnx",
+        dict: "cyrillic_v5_dict.txt",
       },
       ch: {
         model: "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/ch_PP-OCRv3_rec_infer.onnx",
