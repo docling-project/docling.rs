@@ -37,6 +37,8 @@ pub mod resample;
 pub mod scanned;
 #[cfg(feature = "ml")]
 pub mod tableformer;
+#[cfg(feature = "ocr-prep")]
+pub mod tf_core;
 pub mod textparse;
 #[cfg(feature = "ml")]
 mod tf_match;

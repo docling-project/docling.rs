@@ -5,52 +5,23 @@
 //! docling runs). See docs/PDF_CONFORMANCE.md.
 
 use crate::pdfium_backend::TextCell;
+// The ONNX-free half (preprocessing, structure corrections, bbox bookkeeping,
+// span merge, OTSL→grid) lives in tf_core so the browser build (#157 stage 3)
+// runs the same logic; this file owns the three `ort` sessions and the
+// owned-value KV-cache fast path.
+use crate::tf_core::{
+    argmax, build_table_cells, correct, merge_spans, preprocess_input, BboxBook, TableCell, END,
+    MAX_STEPS, START, UCEL,
+};
 use image::RgbImage;
 use ort::session::Session;
 use ort::value::{DynValue, Tensor};
 
-const SIDE: u32 = 448;
-// Verbatim from docling's tm_config.json image_normalization (more digits than
-// f32 holds; kept exact for provenance).
-#[allow(clippy::excessive_precision)]
-const MEAN: [f32; 3] = [0.94247851, 0.94254675, 0.94292611];
-#[allow(clippy::excessive_precision)]
-const STD: [f32; 3] = [0.17910956, 0.17940403, 0.17931663];
-const MAX_STEPS: usize = 1024;
+const SIDE: usize = crate::tf_core::SIDE as usize;
+const EMBED_DIM: usize = crate::tf_core::EMBED_DIM;
 /// Decoder geometry, fixed by the exported TableModel04_rs graph: the cached
 /// decoder threads a `[N_LAYERS, past, 1, EMBED_DIM]` per-layer state cache.
 const N_LAYERS: usize = 6;
-const EMBED_DIM: usize = 512;
-
-/// OTSL structure tokens (TableModel04_rs wordmap indices).
-pub const START: i64 = 2;
-pub const END: i64 = 3;
-pub const ECEL: i64 = 4; // empty cell
-pub const FCEL: i64 = 5; // full (content) cell
-pub const LCEL: i64 = 6; // left-looking: extends the cell to its left (colspan)
-pub const UCEL: i64 = 7; // up-looking: extends the cell above (rowspan)
-pub const XCEL: i64 = 8; // cross: spans both ways
-pub const NL: i64 = 9; // new row
-pub const CHED: i64 = 10; // column header
-pub const RHED: i64 = 11; // row header
-pub const SROW: i64 = 12; // section row
-
-/// A predicted table cell: an OTSL grid position (with spans) + its box in the
-/// 448 image normalized cxcywh, the OTSL tag, and the bbox decoder's cell
-/// class (docling's `cell_class`; 2 = full, ≤1 = predicted empty).
-#[derive(Debug, Clone)]
-pub struct TableCell {
-    pub row: usize,
-    pub col: usize,
-    pub colspan: usize,
-    pub rowspan: usize,
-    pub tag: i64,
-    pub class: i64,
-    pub cx: f32,
-    pub cy: f32,
-    pub w: f32,
-    pub h: f32,
-}
 
 pub struct TableFormer {
     encoder: Session,
@@ -399,8 +370,9 @@ impl TableFormer {
     /// Predict the OTSL structure-token sequence for a table-region image.
     pub fn predict_otsl(&mut self, img: &RgbImage) -> Result<Vec<i64>, String> {
         let enc = self.encode(img)?;
-        // The two structure corrections mirror docling's `predict` exactly — note
-        // its `line_num` is never incremented, so `xcel→lcel` applies on every row.
+        // Structure corrections live in tf_core::correct (shared with the wasm
+        // path); docling's line_num is never incremented, so xcel→lcel fires on
+        // every row.
         let mut tags: Vec<i64> = vec![START];
         let mut out: Vec<i64> = Vec::new();
         let mut prev_ucel = false;
@@ -408,13 +380,7 @@ impl TableFormer {
         let empty = self.empty_cache()?;
         while out.len() < MAX_STEPS {
             let (raw, _hidden) = self.decode_step(&tags, &enc, &mut cache, &empty)?;
-            let mut tag = raw;
-            if tag == XCEL {
-                tag = LCEL;
-            }
-            if prev_ucel && tag == LCEL {
-                tag = FCEL;
-            }
+            let tag = correct(raw, prev_ucel);
             if tag == END {
                 break;
             }
@@ -433,58 +399,21 @@ impl TableFormer {
     pub fn predict_table_structure(&mut self, img: &RgbImage) -> Result<Vec<TableCell>, String> {
         let enc = self.encode(img)?;
 
-        let mut tags: Vec<i64> = vec![START];
-        let mut otsl: Vec<i64> = Vec::new();
-        let mut hiddens: Vec<f32> = Vec::new(); // flattened [n, 512]
-        let mut n = 0usize;
-        let mut prev_ucel = false;
-        let mut skip = true; // first tag after <start> is skipped
-        let mut first_lcel = true;
-        let mut bbox_ind = 0usize;
-        let mut cur_bbox_ind = 0usize;
-        let mut merge: std::collections::HashMap<usize, i64> = std::collections::HashMap::new();
+        // The autoregressive loop's bbox bookkeeping lives in tf_core::BboxBook
+        // (shared with the wasm path); this loop only steps the decoder.
+        let mut book = BboxBook::new();
         let mut cache = DecodeCache::default();
         let empty = self.empty_cache()?;
-        while otsl.len() < MAX_STEPS {
-            let (raw, hidden) = self.decode_step(&tags, &enc, &mut cache, &empty)?;
-            let mut tag = raw;
-            if tag == XCEL {
-                tag = LCEL;
-            }
-            if prev_ucel && tag == LCEL {
-                tag = FCEL;
-            }
-            if tag == END {
+        while book.otsl.len() < MAX_STEPS {
+            let (raw, hidden) = self.decode_step(&book.tags, &enc, &mut cache, &empty)?;
+            if !book.step(raw, &hidden) {
                 break;
             }
-            // docling's tag_H_buf / bboxes_to_merge bookkeeping.
-            if !skip && matches!(tag, FCEL | ECEL | CHED | RHED | SROW | NL | UCEL) {
-                hiddens.extend_from_slice(&hidden);
-                n += 1;
-                if !first_lcel {
-                    merge.insert(cur_bbox_ind, bbox_ind as i64);
-                }
-                bbox_ind += 1;
-            }
-            if tag != LCEL {
-                first_lcel = true;
-            } else if first_lcel {
-                hiddens.extend_from_slice(&hidden);
-                n += 1;
-                first_lcel = false;
-                cur_bbox_ind = bbox_ind;
-                merge.insert(cur_bbox_ind, -1);
-                bbox_ind += 1;
-            }
-            skip = matches!(tag, NL | UCEL | XCEL);
-            prev_ucel = tag == UCEL;
-            otsl.push(tag);
-            tags.push(tag);
         }
-        if n == 0 {
+        if book.n == 0 {
             return Ok(Vec::new());
         }
-        let tag_h = Tensor::from_array(([n, 512usize], hiddens))
+        let tag_h = Tensor::from_array(([book.n, EMBED_DIM], std::mem::take(&mut book.hiddens)))
             .map_err(|e| format!("tableformer: tag_h: {e}"))?;
         let bout = self
             .bbox
@@ -502,8 +431,8 @@ impl TableFormer {
             .try_extract_tensor::<f32>()
             .map_err(|e| format!("tableformer: classes: {e}"))?;
         let classes: Vec<i64> = craw.chunks_exact(3).map(|c| argmax(c) as i64).collect();
-        let (merged, merged_classes) = merge_spans(&boxes, &classes, &merge);
-        Ok(build_table_cells(&otsl, &merged, &merged_classes))
+        let (merged, merged_classes) = merge_spans(&boxes, &classes, &book.merge);
+        Ok(build_table_cells(&book.otsl, &merged, &merged_classes))
     }
 
     /// Predict a table region's Markdown grid: crop the region (docling's
@@ -884,139 +813,6 @@ fn warn_missing_once(enc: &str, dec: &str, bbx: &str) {
 /// (2,1,0), so width is the major spatial axis. The page→1024px box-average
 /// (cv2.INTER_AREA) is the caller's job.
 fn preprocess(img: &RgbImage) -> Result<Tensor<f32>, String> {
-    let nn = (SIDE * SIDE) as usize;
-    let side = SIDE as usize;
-    let (sw, sh) = (img.width() as i32, img.height() as i32);
-    let sxr = sw as f32 / SIDE as f32;
-    let syr = sh as f32 / SIDE as f32;
-    let mut data = vec![0f32; 3 * nn];
-    for h in 0..side {
-        let fy = (h as f32 + 0.5) * syr - 0.5;
-        let wy = fy - fy.floor();
-        let y0c = (fy.floor() as i32).clamp(0, sh - 1) as u32;
-        let y1c = (fy.floor() as i32 + 1).clamp(0, sh - 1) as u32;
-        for w in 0..side {
-            let fx = (w as f32 + 0.5) * sxr - 0.5;
-            let wx = fx - fx.floor();
-            let x0c = (fx.floor() as i32).clamp(0, sw - 1) as u32;
-            let x1c = (fx.floor() as i32 + 1).clamp(0, sw - 1) as u32;
-            let p00 = img.get_pixel(x0c, y0c);
-            let p01 = img.get_pixel(x1c, y0c);
-            let p10 = img.get_pixel(x0c, y1c);
-            let p11 = img.get_pixel(x1c, y1c);
-            let idx = w * side + h; // (C, W, H): c*n + w*H + h
-            for c in 0..3 {
-                let top = p00[c] as f32 * (1.0 - wx) + p01[c] as f32 * wx;
-                let bot = p10[c] as f32 * (1.0 - wx) + p11[c] as f32 * wx;
-                let v = top * (1.0 - wy) + bot * wy;
-                data[c * nn + idx] = (v / 255.0 - MEAN[c]) / STD[c];
-            }
-        }
-    }
-    Tensor::from_array(([1usize, 3, side, side], data))
+    Tensor::from_array(([1usize, 3, SIDE, SIDE], preprocess_input(img)))
         .map_err(|e| format!("tableformer: input: {e}"))
-}
-
-/// docling's `mergebboxes` (cxcywh): the union box of a horizontal span's first
-/// and last cell.
-fn mergebboxes(b1: [f32; 4], b2: [f32; 4]) -> [f32; 4] {
-    let new_w = (b2[0] + b2[2] / 2.0) - (b1[0] - b1[2] / 2.0);
-    let new_h = (b2[1] + b2[3] / 2.0) - (b1[1] - b1[3] / 2.0);
-    let new_left = b1[0] - b1[2] / 2.0;
-    let new_top = (b2[1] - b2[3] / 2.0).min(b1[1] - b1[3] / 2.0);
-    [new_left + new_w / 2.0, new_top + new_h / 2.0, new_w, new_h]
-}
-
-/// Apply docling's span merges: each merge key combines its box with the partner
-/// (`-1` → the last box); partners are dropped. The merged cell keeps the
-/// *first* box's class, matching docling's `outputs_class1.append(cls1)`.
-fn merge_spans(
-    boxes: &[[f32; 4]],
-    classes: &[i64],
-    merge: &std::collections::HashMap<usize, i64>,
-) -> (Vec<[f32; 4]>, Vec<i64>) {
-    let skip: std::collections::HashSet<usize> = merge
-        .values()
-        .filter(|&&v| v >= 0)
-        .map(|&v| v as usize)
-        .collect();
-    let mut out = Vec::new();
-    let mut out_classes = Vec::new();
-    for (i, &b) in boxes.iter().enumerate() {
-        let class = classes.get(i).copied().unwrap_or(2);
-        if let Some(&j) = merge.get(&i) {
-            let partner = if j < 0 { boxes.len() - 1 } else { j as usize };
-            out.push(mergebboxes(b, boxes[partner.min(boxes.len() - 1)]));
-            out_classes.push(class);
-        } else if !skip.contains(&i) {
-            out.push(b);
-            out_classes.push(class);
-        }
-    }
-    (out, out_classes)
-}
-
-const CELL_TAGS: [i64; 6] = [FCEL, ECEL, XCEL, CHED, RHED, SROW];
-
-/// Lay the OTSL tag stream onto a grid (docling's `_build_table_cells`, OTSL
-/// mode): cell tags create cells at (row, col); `lcel`/`ucel`/`xcel` are spans
-/// (counted toward the column index but not cells). Colspan/rowspan are read off
-/// the grid (consecutive `lcel`/`ucel` to the right/below). `boxes` are indexed
-/// by cell order and aligned with the cells.
-fn build_table_cells(otsl: &[i64], boxes: &[[f32; 4]], classes: &[i64]) -> Vec<TableCell> {
-    // 2D grid of tags (rows split on NL) for span lookups.
-    let mut grid: Vec<Vec<i64>> = vec![Vec::new()];
-    for &t in otsl {
-        if t == NL {
-            grid.push(Vec::new());
-        } else {
-            grid.last_mut().unwrap().push(t);
-        }
-    }
-    let mut cells = Vec::new();
-    let mut cell_id = 0usize;
-    for (r, row) in grid.iter().enumerate() {
-        for (c, &tag) in row.iter().enumerate() {
-            if !CELL_TAGS.contains(&tag) {
-                continue;
-            }
-            let mut colspan = 1;
-            while c + colspan < row.len() && matches!(row[c + colspan], LCEL | XCEL) {
-                colspan += 1;
-            }
-            let mut rowspan = 1;
-            while r + rowspan < grid.len()
-                && grid[r + rowspan]
-                    .get(c)
-                    .is_some_and(|&t| matches!(t, UCEL | XCEL))
-            {
-                rowspan += 1;
-            }
-            let b = boxes.get(cell_id).copied().unwrap_or([0.0; 4]);
-            // docling defaults a class-less cell to 2 (full).
-            let class = classes.get(cell_id).copied().unwrap_or(2);
-            cells.push(TableCell {
-                row: r,
-                col: c,
-                colspan,
-                rowspan,
-                tag,
-                class,
-                cx: b[0],
-                cy: b[1],
-                w: b[2],
-                h: b[3],
-            });
-            cell_id += 1;
-        }
-    }
-    cells
-}
-
-fn argmax(v: &[f32]) -> usize {
-    v.iter()
-        .enumerate()
-        .max_by(|a, b| a.1.total_cmp(b.1))
-        .map(|(i, _)| i)
-        .unwrap_or(0)
 }
