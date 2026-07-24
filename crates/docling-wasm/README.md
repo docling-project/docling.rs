@@ -83,10 +83,32 @@ const rec = {
 const markdown = await ocr_image(imageBytes, dictText, rec, "md");
 ```
 
-[`www/ocr.html`](./www/ocr.html) is the complete demo (model/dict fetched
-from their public hosting and browser-cached). Whole-image projection
-segmentation only — best on single-column scans; layout detection is
-stage 2, scanned PDFs (pdf.js rasterization) arrive with it.
+[`www/ocr.html`](./www/ocr.html) is the recognition-only demo (model/dict
+fetched from their public hosting and browser-cached).
+
+**Stage 2 — the lite profile** (`ScannedConverter` / `convert_scanned_image`):
+RT-DETR layout detection (int8, ~165 MB from the `models-v1` release) +
+region-cropped OCR + reading-order assembly, with tables via the geometric
+reconstruction (the native `--no-table-former` path — TableFormer is
+stage 3). Scanned **PDFs** convert too: the host page rasterizes pages with
+pdf.js at `{scale: 2}` (2 px/point — the native pipeline's `RENDER_SCALE`)
+and feeds the bitmaps page by page:
+
+```js
+const conv = new ScannedConverter(dictText);
+for (let p = 1; p <= pdf.numPages; p++) {
+  const viewport = page.getViewport({ scale: 2 });
+  // … render to canvas, then:
+  await conv.add_page(rgba, canvas.width, canvas.height, 2.0, layout, rec);
+}
+const markdown = conv.finish(file.name, "md");
+```
+
+[`www/scan.html`](./www/scan.html) is the complete demo (pdf.js + both
+models). Region refinement, OCR gathering/batching/decoding and page
+assembly are the native pipeline's own functions
+(`docling_pdf::{layout, ocr_prep, scanned}`) — the wasm path adds no second
+implementation.
 
 ## Host-side tests
 

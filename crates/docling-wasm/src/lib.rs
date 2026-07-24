@@ -22,7 +22,11 @@ use wasm_bindgen::prelude::*;
 #[cfg(feature = "ocr")]
 mod ocr;
 #[cfg(feature = "ocr")]
+mod scanned;
+#[cfg(feature = "ocr")]
 pub use ocr::ocr_image;
+#[cfg(feature = "ocr")]
+pub use scanned::{convert_scanned_image, ScannedConverter};
 
 #[wasm_bindgen(start)]
 fn start() {

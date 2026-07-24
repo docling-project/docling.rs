@@ -5,7 +5,7 @@
 //! is recognised and decoded with CTC — producing [`TextCell`]s the normal
 //! layout assembly then consumes. This avoids a separate text-detection model.
 
-use image::{imageops, RgbImage};
+use image::RgbImage;
 use ort::session::Session;
 use ort::value::Tensor;
 
@@ -13,8 +13,7 @@ use crate::layout::Region;
 // The ONNX-free half (line prep, batching, CTC decode) lives in `ocr_prep`
 // so the wasm build shares it verbatim (#79 phase 2).
 use crate::ocr_prep::{
-    batch_input, decode_row, dict_chars, prep_line, segment_lines, width_batches, PrepLine,
-    REC_HEIGHT,
+    batch_input, decode_row, dict_chars, prep_region_lines, width_batches, PrepLine, REC_HEIGHT,
 };
 use crate::pdfium_backend::TextCell;
 
@@ -22,21 +21,6 @@ pub struct OcrModel {
     rec: Session,
     /// CTC classes: index 0 = blank, 1..=6623 = dictionary, 6624 = space.
     chars: Vec<String>,
-}
-
-/// Layout labels whose content is recognised as running text.
-fn is_text_label(label: &str) -> bool {
-    matches!(
-        label,
-        "text"
-            | "title"
-            | "section_header"
-            | "list_item"
-            | "caption"
-            | "footnote"
-            | "code"
-            | "formula"
-    )
 }
 
 /// OCR recognition language: which PP-OCRv3 model + dictionary pair runs.
@@ -183,37 +167,10 @@ impl OcrModel {
         regions: &[Region],
         scale: f32,
     ) -> Result<Vec<TextCell>, String> {
-        let (iw, ih) = img.dimensions();
-        // Gather every line crop on the page first, so equal-width lines can
-        // share a recognition run regardless of which region they came from.
-        let mut bboxes: Vec<(f32, f32, f32, f32)> = Vec::new();
-        let mut lines: Vec<PrepLine> = Vec::new();
-        for region in regions {
-            if !is_text_label(region.label) {
-                continue;
-            }
-            let l = (region.l * scale).max(0.0) as u32;
-            let t = (region.t * scale).max(0.0) as u32;
-            let r = ((region.r * scale).max(0.0) as u32).min(iw);
-            let b = ((region.b * scale).max(0.0) as u32).min(ih);
-            if r <= l || b <= t {
-                continue;
-            }
-            let crop = imageops::crop_imm(img, l, t, r - l, b - t).to_image();
-            for (lx, ly, rx, ry) in segment_lines(&crop) {
-                let line = imageops::crop_imm(&crop, lx, ly, rx - lx, ry - ly).to_image();
-                let Some(pl) = prep_line(&line) else {
-                    continue;
-                };
-                bboxes.push((
-                    (l + lx) as f32 / scale,
-                    (t + ly) as f32 / scale,
-                    (l + rx) as f32 / scale,
-                    (t + ry) as f32 / scale,
-                ));
-                lines.push(pl);
-            }
-        }
+        // Gather every line crop on the page first (shared with the browser
+        // path), so equal-width lines can share a recognition run regardless
+        // of which region they came from.
+        let (bboxes, lines) = prep_region_lines(img, regions, scale);
 
         // Deterministic width-batching (shared with the wasm path).
         let mut texts = vec![String::new(); lines.len()];

@@ -47,7 +47,7 @@ extern "C" {
     pub type RecSession;
 
     #[wasm_bindgen(method, catch)]
-    async fn run(
+    pub async fn run(
         this: &RecSession,
         count: u32,
         height: u32,
@@ -110,8 +110,10 @@ pub async fn ocr_image(
     }
 }
 
-/// Pull `{ data: Float32Array, dims: [n, t, c] }` out of the JS result.
-fn tensor_parts(out: &JsValue) -> Result<(Vec<f32>, usize, usize), JsError> {
+/// Pull `{ data: Float32Array, dims: [..] }` out of a JS tensor object;
+/// returns `(data, dims[len-2], dims[len-1])` — the trailing two dims are
+/// what every consumer indexes by.
+pub(crate) fn tensor_parts(out: &JsValue) -> Result<(Vec<f32>, usize, usize), JsError> {
     let get = |k: &str| {
         js_sys::Reflect::get(out, &JsValue::from_str(k))
             .map_err(|_| JsError::new(&format!("session.run result has no `{k}`")))
@@ -122,13 +124,14 @@ fn tensor_parts(out: &JsValue) -> Result<(Vec<f32>, usize, usize), JsError> {
     let dims: js_sys::Array = get("dims")?
         .dyn_into()
         .map_err(|_| JsError::new("`dims` is not an array"))?;
-    if dims.length() != 3 {
-        return Err(JsError::new("`dims` must be [n, t, c]"));
+    let len = dims.length();
+    if len < 2 {
+        return Err(JsError::new("`dims` must have at least 2 entries"));
     }
-    let t_len = dims.get(1).as_f64().unwrap_or(0.0) as usize;
-    let nc = dims.get(2).as_f64().unwrap_or(0.0) as usize;
+    let t_len = dims.get(len - 2).as_f64().unwrap_or(0.0) as usize;
+    let nc = dims.get(len - 1).as_f64().unwrap_or(0.0) as usize;
     if t_len == 0 || nc == 0 {
-        return Err(JsError::new("`dims` must be [n, t, c] with t, c > 0"));
+        return Err(JsError::new("trailing `dims` entries must be > 0"));
     }
     Ok((data.to_vec(), t_len, nc))
 }

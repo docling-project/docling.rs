@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>docling.rs — scanned PDFs in the browser (lite profile)</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; }
+    #drop {
+      border: 2px dashed #888; border-radius: 8px; padding: 2.5rem 1rem;
+      text-align: center; cursor: pointer; margin: 1rem 0;
+    }
+    #drop.hover { border-color: #4a90d9; background: rgba(74, 144, 217, 0.08); }
+    #out {
+      width: 100%; min-height: 20rem; white-space: pre-wrap; overflow: auto;
+      border: 1px solid #8884; border-radius: 6px; padding: 0.8rem;
+      font-family: ui-monospace, monospace; font-size: 0.85rem;
+    }
+    #meta { color: #888; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>docling.rs → wasm: scanned PDF / image, full lite profile</h1>
+  <p>
+    Stage 2 of <a href="https://github.com/docling-project/docling.rs/issues/157">#157</a>:
+    RT-DETR layout detection (int8, ~165&nbsp;MB — cached after the first load)
+    + PP-OCRv3 recognition via ONNX Runtime Web; pdf.js rasterizes PDF pages
+    at the native pipeline's 2&nbsp;px/point; region refinement, OCR and
+    reading-order assembly run in Rust/wasm — the same code as the native
+    pipeline. Tables come out via the geometric reconstruction
+    (TableFormer is stage 3). Nothing leaves this page.
+  </p>
+  <div id="drop">drop a scanned PDF or image here, or click to pick</div>
+  <input type="file" id="pick" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.webp,.bmp" hidden>
+  <p id="meta">loading wasm …</p>
+  <div id="out"></div>
+
+  <script type="module">
+    import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.mjs";
+    import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist/build/pdf.min.mjs";
+    import init, { ScannedConverter, convert_scanned_image } from "./pkg/docling_wasm.js";
+
+    pdfjs.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist/build/pdf.worker.min.mjs";
+
+    const LAYOUT_URL =
+      "https://github.com/docling-project/docling.rs/releases/download/models-v1/layout_heron_int8.onnx";
+    const REC_URL =
+      "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/en_PP-OCRv3_rec_infer.onnx";
+    const DICT_URL =
+      "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/en_dict.txt";
+    const SCALE = 2.0; // px per PDF point — the native pipeline's RENDER_SCALE
+
+    const meta = document.getElementById("meta");
+    const out = document.getElementById("out");
+
+    await init();
+    meta.textContent = "fetching models (layout ~165 MB on first visit; browser-cached) …";
+    const [layoutModel, recModel, dict] = await Promise.all([
+      fetch(LAYOUT_URL, { cache: "force-cache" }).then((r) => r.arrayBuffer()),
+      fetch(REC_URL, { cache: "force-cache" }).then((r) => r.arrayBuffer()),
+      fetch(DICT_URL, { cache: "force-cache" }).then((r) => r.text()),
+    ]);
+    const layoutSession = await ort.InferenceSession.create(layoutModel, {
+      executionProviders: ["wasm"],
+    });
+    const recSession = await ort.InferenceSession.create(recModel, {
+      executionProviders: ["wasm"],
+    });
+    meta.textContent = "ready — drop a scanned PDF or image";
+
+    // Interop wrappers docling_wasm expects (see src/scanned.rs / src/ocr.rs).
+    const layout = {
+      run: async (data) => {
+        const results = await layoutSession.run({
+          pixel_values: new ort.Tensor("float32", data, [1, 3, 640, 640]),
+        });
+        const t = (n) => ({ data: results[n].data, dims: Array.from(results[n].dims) });
+        return { logits: t("logits"), boxes: t("pred_boxes") };
+      },
+    };
+    const rec = {
+      run: async (n, h, w, data) => {
+        const results = await recSession.run({
+          [recSession.inputNames[0]]: new ort.Tensor("float32", data, [n, 3, h, w]),
+        });
+        const t = results[recSession.outputNames[0]];
+        return { data: t.data, dims: Array.from(t.dims) };
+      },
+    };
+
+    async function handlePdf(bytes, name) {
+      const pdf = await pdfjs.getDocument({ data: bytes }).promise;
+      const conv = new ScannedConverter(dict);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      for (let p = 1; p <= pdf.numPages; p++) {
+        meta.textContent = `${name}: page ${p}/${pdf.numPages} …`;
+        const page = await pdf.getPage(p);
+        const viewport = page.getViewport({ scale: SCALE });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        const rgba = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        await conv.add_page(new Uint8Array(rgba.buffer), canvas.width, canvas.height, SCALE, layout, rec);
+      }
+      return conv.finish(name, "md");
+    }
+
+    async function handle(file) {
+      out.textContent = "";
+      const started = performance.now();
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const md = file.name.toLowerCase().endsWith(".pdf")
+          ? await handlePdf(bytes, file.name)
+          : await convert_scanned_image(bytes, file.name, dict, layout, rec, "md");
+        out.textContent = md || "(no text found)";
+        meta.textContent = `${file.name} — ${((performance.now() - started) / 1000).toFixed(1)} s`;
+      } catch (e) {
+        out.textContent = String(e);
+        meta.textContent = `${file.name} — failed`;
+      }
+    }
+
+    const drop = document.getElementById("drop");
+    const pick = document.getElementById("pick");
+    drop.addEventListener("click", () => pick.click());
+    pick.addEventListener("change", () => pick.files[0] && handle(pick.files[0]));
+    for (const ev of ["dragover", "dragleave", "drop"]) {
+      drop.addEventListener(ev, (e) => {
+        e.preventDefault();
+        drop.classList.toggle("hover", ev === "dragover");
+        if (ev === "drop" && e.dataTransfer.files[0]) handle(e.dataTransfer.files[0]);
+      });
+    }
+  </script>
+</body>
+</html>

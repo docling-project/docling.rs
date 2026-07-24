@@ -152,6 +152,66 @@ pub fn segment_lines(crop: &RgbImage) -> Vec<(u32, u32, u32, u32)> {
         .collect()
 }
 
+/// Layout labels whose content is recognised as running text.
+pub fn is_text_label(label: &str) -> bool {
+    matches!(
+        label,
+        "text"
+            | "title"
+            | "section_header"
+            | "list_item"
+            | "caption"
+            | "footnote"
+            | "code"
+            | "formula"
+    )
+}
+
+/// A line's page-point bounding box, `(l, t, r, b)`.
+pub type LineBox = (f32, f32, f32, f32);
+
+/// Gather every text-region line crop on a page, in page order: crop each
+/// text region (page points × `scale` → image px), split it into lines, prep
+/// each line, and keep the line's page-point bbox. The exact gathering the
+/// native `ocr_page` does — shared so the browser path produces the same
+/// cells given the same probabilities.
+pub fn prep_region_lines(
+    img: &RgbImage,
+    regions: &[crate::layout::Region],
+    scale: f32,
+) -> (Vec<LineBox>, Vec<PrepLine>) {
+    let (iw, ih) = img.dimensions();
+    let mut bboxes = Vec::new();
+    let mut lines = Vec::new();
+    for region in regions {
+        if !is_text_label(region.label) {
+            continue;
+        }
+        let l = (region.l * scale).max(0.0) as u32;
+        let t = (region.t * scale).max(0.0) as u32;
+        let r = ((region.r * scale).max(0.0) as u32).min(iw);
+        let b = ((region.b * scale).max(0.0) as u32).min(ih);
+        if r <= l || b <= t {
+            continue;
+        }
+        let crop = imageops::crop_imm(img, l, t, r - l, b - t).to_image();
+        for (lx, ly, rx, ry) in segment_lines(&crop) {
+            let line = imageops::crop_imm(&crop, lx, ly, rx - lx, ry - ly).to_image();
+            let Some(pl) = prep_line(&line) else {
+                continue;
+            };
+            bboxes.push((
+                (l + lx) as f32 / scale,
+                (t + ly) as f32 / scale,
+                (l + rx) as f32 / scale,
+                (t + ry) as f32 / scale,
+            ));
+            lines.push(pl);
+        }
+    }
+    (bboxes, lines)
+}
+
 /// Whole-image line preparation for the browser OCR path (no layout model:
 /// the page itself is the single text region). Returns page-order prepared
 /// lines; callers that need geometry use [`segment_lines`] directly.

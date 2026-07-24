@@ -33,6 +33,8 @@ pub mod pdfium_backend;
 mod reading_order;
 #[cfg(feature = "ml")]
 pub mod resample;
+#[cfg(feature = "ocr-prep")]
+pub mod scanned;
 #[cfg(feature = "ml")]
 pub mod tableformer;
 pub mod textparse;
