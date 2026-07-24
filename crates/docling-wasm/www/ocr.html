@@ -81,7 +81,10 @@
           fetch(spec.model, { cache: "force-cache" }).then((r) => r.arrayBuffer()),
           fetch(spec.dict, { cache: "force-cache" }).then((r) => r.text()),
         ]);
-        const session = await ort.InferenceSession.create(model, { executionProviders: ["wasm"] });
+        const session = await ort.InferenceSession.create(model, {
+          executionProviders: ["wasm"],
+          logSeverityLevel: 3, // silence load-time "removing unused initializer" warnings
+        });
         recCache[lang] = {
           dict,
           rec: {

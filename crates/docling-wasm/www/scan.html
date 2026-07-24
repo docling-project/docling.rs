@@ -89,7 +89,10 @@
           fetch(spec.model, { cache: "force-cache" }).then((r) => r.arrayBuffer()),
           fetch(spec.dict, { cache: "force-cache" }).then((r) => r.text()),
         ]);
-        const session = await ort.InferenceSession.create(model, { executionProviders: ["wasm"] });
+        const session = await ort.InferenceSession.create(model, {
+          executionProviders: ["wasm"],
+          logSeverityLevel: 3, // silence load-time "removing unused initializer" warnings
+        });
         recCache[lang] = {
           dict,
           rec: {
@@ -109,6 +112,7 @@
     const layoutModel = await fetch(LAYOUT_URL, { cache: "force-cache" }).then((r) => r.arrayBuffer());
     const layoutSession = await ort.InferenceSession.create(layoutModel, {
       executionProviders: ["wasm"],
+      logSeverityLevel: 3,
     });
     await recFor(lang.value);
     meta.textContent = "ready — drop a scanned PDF or image";
