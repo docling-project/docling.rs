@@ -199,15 +199,17 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
 
     // Load the first layout model that resolves same-origin; if none is
     // present, open the setup note and stop (the page is otherwise inert).
+    // Returns { session, kind } so the ready line can show int8 vs fp32.
     async function loadLayout() {
       for (const path of LAYOUT_PATHS) {
         try {
           const buf = await fetchProgress(path, "layout model (first load only)");
           status("starting layout session …", true);
-          return await ort.InferenceSession.create(buf, {
+          const session = await ort.InferenceSession.create(buf, {
             executionProviders: ["wasm"],
             logSeverityLevel: 3,
           });
+          return { session, kind: path.includes("int8") ? "int8" : "fp32" };
         } catch (e) {
           // 404 / decode failure → try the next candidate.
         }
@@ -217,14 +219,15 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
 
     busy("loading wasm module …");
     await init();
-    const layoutSession = await loadLayout();
-    if (!layoutSession) {
+    const loaded = await loadLayout();
+    if (!loaded) {
       document.getElementById("setup").open = true;
       ready("layout model not found under ./models/ — see the note above");
       throw new Error("no layout model available");
     }
+    const layoutSession = loaded.session;
     await recFor(lang.value);
-    ready("ready — drop a scanned PDF or image");
+    ready(`ready (${loaded.kind} layout) — drop a scanned PDF or image`);
 
     // Interop wrappers docling_wasm expects (see src/scanned.rs / src/ocr.rs).
     const layout = {
