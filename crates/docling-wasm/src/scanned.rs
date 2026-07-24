@@ -138,15 +138,7 @@ impl ScannedConverter {
             cells.push(TextCell { text, l, t, r, b });
         }
 
-        let page = PdfPage {
-            width: page_w,
-            height: page_h,
-            scale,
-            cells,
-            code_cells: Vec::new(),
-            word_cells: Vec::new(),
-            links: Vec::new(),
-        };
+        let page = PdfPage::from_cells(page_w, page_h, scale, cells);
         self.pages.push(assemble_page(&page, regions));
         Ok(())
     }

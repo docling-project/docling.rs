@@ -53,6 +53,28 @@ pub struct PdfPage {
     pub links: Vec<LinkAnnot>,
 }
 
+impl PdfPage {
+    /// A page built from recognized cells alone — the browser pipeline's
+    /// shape (#157), where the bitmap lives on the JS side. Exists so callers
+    /// compile identically with and without the `ml` feature: under a
+    /// feature-unified workspace build the struct carries the `image` field,
+    /// which a plain literal in a non-`ml` consumer can't spell.
+    #[cfg(feature = "ocr-prep")]
+    pub fn from_cells(width: f32, height: f32, scale: f32, cells: Vec<TextCell>) -> Self {
+        Self {
+            width,
+            height,
+            scale,
+            cells,
+            code_cells: Vec::new(),
+            word_cells: Vec::new(),
+            #[cfg(feature = "ml")]
+            image: RgbImage::new(0, 0),
+            links: Vec::new(),
+        }
+    }
+}
+
 /// A PDF link annotation: its rectangle (top-left page coordinates, matching
 /// [`TextCell`]) and target URI.
 #[derive(Debug, Clone)]
