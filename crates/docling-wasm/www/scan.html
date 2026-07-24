@@ -41,13 +41,31 @@
   <h1>docling.rs → wasm: scanned PDF / image, full lite profile</h1>
   <p>
     Stage 2 of <a href="https://github.com/docling-project/docling.rs/issues/157">#157</a>:
-    RT-DETR layout detection (~172&nbsp;MB — cached after the first load)
-    + PP-OCRv3 recognition via ONNX Runtime Web; pdf.js rasterizes PDF pages
-    at the native pipeline's 2&nbsp;px/point; region refinement, OCR and
-    reading-order assembly run in Rust/wasm — the same code as the native
-    pipeline. Tables come out via the geometric reconstruction
-    (TableFormer is stage 3). Nothing leaves this page.
+    RT-DETR layout detection + PP-OCRv3 recognition via ONNX Runtime Web;
+    pdf.js rasterizes PDF pages at the native pipeline's 2&nbsp;px/point;
+    region refinement, OCR and reading-order assembly run in Rust/wasm — the
+    same code as the native pipeline. Tables come out via the geometric
+    reconstruction (TableFormer is stage 3). Nothing leaves this page.
   </p>
+  <details id="setup">
+    <summary>The layout model is served from this page's own origin — fetch it once (~68&nbsp;MB int8)</summary>
+    <p>
+      Unlike the recognition model (fetched from Hugging Face, which sends CORS
+      headers), the RT-DETR layout export lives on this repo's GitHub Release,
+      and <strong>GitHub Release assets can't be fetched cross-origin from a
+      browser</strong> (no <code>Access-Control-Allow-Origin</code>). So this
+      page loads the layout model <em>same-origin</em> — put it next to this
+      file and serve the directory:
+    </p>
+    <pre>curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/install/download_dependencies.sh | sh
+cp models/layout_heron_int8.onnx crates/docling-wasm/www/   # ~68 MB int8 (or layout_heron.onnx, ~172 MB fp32)</pre>
+    <p>
+      These are the exact models the native pipeline uses. The page prefers the
+      int8 export and falls back to fp32; both decode identically here (same
+      <code>pixel_values</code>&nbsp;→&nbsp;<code>logits</code>,&nbsp;<code>pred_boxes</code>
+      contract).
+    </p>
+  </details>
   <div id="drop">drop a scanned PDF or image here, or click to pick</div>
   <input type="file" id="pick" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.webp,.bmp" hidden>
   <p>
@@ -70,11 +88,13 @@
     pdfjs.GlobalWorkerOptions.workerSrc =
       "https://cdn.jsdelivr.net/npm/pdfjs-dist/build/pdf.worker.min.mjs";
 
-    // The models-v1 release hosts only the fp32 layout export (the int8
-    // variant is produced locally by scripts/install/quantize_models.py and
-    // was never uploaded) — fetch what is actually there.
-    const LAYOUT_URL =
-      "https://github.com/docling-project/docling.rs/releases/download/models-v1/layout_heron.onnx";
+    // The layout model is loaded SAME-ORIGIN (see the setup note above): GitHub
+    // Release assets carry no CORS header, so a browser fetch of the release URL
+    // fails — the model has to sit next to this page instead. Prefer the
+    // conv-only static-INT8 export (~68 MB, a big first-load win over the
+    // ~172 MB fp32) and fall back to fp32; both share the same interop
+    // contract, so the wrapper below is unchanged.
+    const LAYOUT_PATHS = ["./layout_heron_int8.onnx", "./layout_heron.onnx"];
     const SCALE = 2.0; // px per PDF point — the native pipeline's RENDER_SCALE
 
     const meta = document.getElementById("meta");
@@ -171,14 +191,32 @@
       return recCache[lang];
     }
 
+    // Load the first layout model that resolves same-origin; if none is
+    // present, open the setup note and stop (the page is otherwise inert).
+    async function loadLayout() {
+      for (const path of LAYOUT_PATHS) {
+        try {
+          const buf = await fetchProgress(path, "layout model (first load only)");
+          status("starting layout session …", true);
+          return await ort.InferenceSession.create(buf, {
+            executionProviders: ["wasm"],
+            logSeverityLevel: 3,
+          });
+        } catch (e) {
+          // 404 / decode failure → try the next candidate.
+        }
+      }
+      return null;
+    }
+
     busy("loading wasm module …");
     await init();
-    const layoutModel = await fetchProgress(LAYOUT_URL, "layout model (first visit only)");
-    status("starting layout session …", true);
-    const layoutSession = await ort.InferenceSession.create(layoutModel, {
-      executionProviders: ["wasm"],
-      logSeverityLevel: 3,
-    });
+    const layoutSession = await loadLayout();
+    if (!layoutSession) {
+      document.getElementById("setup").open = true;
+      ready("layout model not found next to this page — see the note above");
+      throw new Error("no layout model available");
+    }
     await recFor(lang.value);
     ready("ready — drop a scanned PDF or image");
 
