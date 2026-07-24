@@ -90,32 +90,12 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
   <div id="out"></div>
 
   <script type="module">
-    import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.mjs";
-    import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist/build/pdf.min.mjs";
-    import init, { ScannedConverter, convert_scanned_image } from "./pkg/docling_wasm.js";
-
-    pdfjs.GlobalWorkerOptions.workerSrc =
-      "https://cdn.jsdelivr.net/npm/pdfjs-dist/build/pdf.worker.min.mjs";
-
-    // Multi-threaded wasm when the page is cross-origin isolated (coi.js);
-    // otherwise ORT falls back to a single thread. SIMD is auto-selected by
-    // the ORT bundle when the browser supports it.
-    ort.env.wasm.numThreads = self.crossOriginIsolated
-      ? Math.min(navigator.hardwareConcurrency || 4, 8)
-      : 1;
-    console.log(
-      `ort: ${ort.env.wasm.numThreads} thread(s), crossOriginIsolated=${self.crossOriginIsolated}`,
-    );
-
-    // The layout model is loaded SAME-ORIGIN from ./models/ (see the setup note
-    // above): GitHub Release assets carry no CORS header, so a browser fetch of
-    // the release URL fails — download_dependencies.sh, run from this www/
-    // directory, drops the models next to this page instead. Prefer the
-    // conv-only static-INT8 export (~68 MB, a big first-load win over the
-    // ~172 MB fp32) and fall back to fp32; both share the same interop
-    // contract, so the wrapper below is unchanged.
-    const LAYOUT_PATHS = ["./models/layout_heron_int8.onnx", "./models/layout_heron.onnx"];
-    const SCALE = 2.0; // px per PDF point — the native pipeline's RENDER_SCALE
+    // Thin UI layer. The whole pipeline (model loading, pdf.js rasterization,
+    // wasm OCR/layout) runs inside worker.js so the main thread stays
+    // responsive — the page keeps scrolling and the busy animation keeps
+    // ticking during a long conversion. If module workers or OffscreenCanvas
+    // aren't available, it falls back to running pipeline.js on this thread
+    // (functionally identical, just blocking).
 
     const meta = document.getElementById("meta");
     const out = document.getElementById("out");
@@ -123,8 +103,6 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
     const drop = document.getElementById("drop");
     const pick = document.getElementById("pick");
 
-    // Busy-state bookkeeping: while anything loads or runs, the drop zone and
-    // the language selector are disabled and the status line spins.
     function status(msg, spinning) {
       meta.textContent = "";
       if (spinning) meta.append(Object.assign(document.createElement("span"), { className: "spinner" }));
@@ -140,159 +118,82 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
       pick.disabled = lang.disabled = false;
       status(msg, false);
     }
-
-    // fetch() with a live "x / y MB" status line (falls back to a plain fetch
-    // when the body can't be streamed) — the 172 MB layout model would
-    // otherwise sit on a static message for minutes on a first visit.
-    async function fetchProgress(url, label) {
-      const resp = await fetch(url, { cache: "force-cache" });
-      if (!resp.ok) throw new Error(`${label}: HTTP ${resp.status}`);
-      const total = Number(resp.headers.get("Content-Length")) || 0;
-      if (!resp.body) return resp.arrayBuffer();
-      const reader = resp.body.getReader();
-      const chunks = [];
-      let got = 0;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        got += value.length;
-        const mb = (got / 1048576).toFixed(1);
-        status(total ? `${label} — ${mb} / ${(total / 1048576).toFixed(1)} MB` : `${label} — ${mb} MB`, true);
-      }
-      const buf = new Uint8Array(got);
-      let off = 0;
-      for (const c of chunks) { buf.set(c, off); off += c.length; }
-      return buf.buffer;
-    }
-
-    const REC_MODELS = {
-      en: {
-        model: "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/en_PP-OCRv3_rec_infer.onnx",
-        dict: "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/en_dict.txt",
-      },
-      cyrillic: {
-        // PP-OCRv5: markedly better Cyrillic accuracy than the v3 export
-        // (spaces and case survive); its dictionary only exists inside the
-        // repo's inference.yml, so a flattened copy ships next to this page.
-        model: "https://huggingface.co/PaddlePaddle/cyrillic_PP-OCRv5_mobile_rec_onnx/resolve/main/inference.onnx",
-        dict: "cyrillic_v5_dict.txt",
-      },
-      ch: {
-        model: "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/ch_PP-OCRv3_rec_infer.onnx",
-        dict: "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt",
-      },
+    const onStatus = (msg, spinning) => {
+      if (document.body.classList.contains("busy")) status(msg, spinning);
     };
-    const recCache = {};
-    async function recFor(lang) {
-      if (!recCache[lang]) {
-        const [model, dict] = await Promise.all([
-          fetchProgress(REC_MODELS[lang].model, `${lang} recognition model`),
-          fetch(REC_MODELS[lang].dict, { cache: "force-cache" }).then((r) => r.text()),
-        ]);
-        status(`starting ${lang} recognition session …`, true);
-        const session = await ort.InferenceSession.create(model, {
-          executionProviders: ["wasm"],
-          logSeverityLevel: 3, // silence load-time "removing unused initializer" warnings
-        });
-        recCache[lang] = {
-          dict,
-          rec: {
-            run: async (n, h, w, data) => {
-              const results = await session.run({
-                [session.inputNames[0]]: new ort.Tensor("float32", data, [n, 3, h, w]),
-              });
-              const t = results[session.outputNames[0]];
-              return { data: t.data, dims: Array.from(t.dims) };
-            },
-          },
-        };
-      }
-      return recCache[lang];
-    }
-
-    // Load the first layout model that resolves same-origin; if none is
-    // present, open the setup note and stop (the page is otherwise inert).
-    // Returns { session, kind } so the ready line can show int8 vs fp32.
-    async function loadLayout() {
-      for (const path of LAYOUT_PATHS) {
-        try {
-          const buf = await fetchProgress(path, "layout model (first load only)");
-          status("starting layout session …", true);
-          const session = await ort.InferenceSession.create(buf, {
-            executionProviders: ["wasm"],
-            logSeverityLevel: 3,
-          });
-          return { session, kind: path.includes("int8") ? "int8" : "fp32" };
-        } catch (e) {
-          // 404 / decode failure → try the next candidate.
-        }
-      }
-      return null;
-    }
-
-    busy("loading wasm module …");
-    await init();
-    const loaded = await loadLayout();
-    if (!loaded) {
+    function noLayout() {
       document.getElementById("setup").open = true;
       ready("layout model not found under ./models/ — see the note above");
-      throw new Error("no layout model available");
     }
-    const layoutSession = loaded.session;
-    await recFor(lang.value);
-    ready(`ready (${loaded.kind} layout) — drop a scanned PDF or image`);
 
-    // Interop wrappers docling_wasm expects (see src/scanned.rs / src/ocr.rs).
-    const layout = {
-      run: async (data) => {
-        const results = await layoutSession.run({
-          pixel_values: new ort.Tensor("float32", data, [1, 3, 640, 640]),
-        });
-        const t = (n) => ({ data: results[n].data, dims: Array.from(results[n].dims) });
-        return { logits: t("logits"), boxes: t("pred_boxes") };
-      },
-    };
+    let worker = null;   // the Web Worker, when that path is used
+    let mainPipe = null; // pipeline.js instance, for the fallback / worker-failure retry
+    let pending = null;  // { resolve, reject } for the in-flight worker op
 
-    async function handlePdf(bytes, name) {
-      const { dict, rec } = await recFor(lang.value);
-      const pdf = await pdfjs.getDocument({ data: bytes }).promise;
-      const conv = new ScannedConverter(dict);
-      // pdf.js rasterization is main-thread; with multi-threaded ORT (coi.js)
-      // the OCR/layout inference runs on worker threads, so rendering the NEXT
-      // page overlaps converting the CURRENT one. getImageData returns an
-      // independent buffer, so one canvas ping-pongs safely across pages.
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      async function render(p) {
-        const page = await pdf.getPage(p);
-        const viewport = page.getViewport({ scale: SCALE });
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: ctx, viewport }).promise;
-        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        return { rgba: new Uint8Array(img.data.buffer), w: canvas.width, h: canvas.height };
-      }
+    // --- main-thread fallback (also the retry target if a worker op fails) ---
+    async function ensureMainPipe() {
+      if (mainPipe) return mainPipe;
+      const { createPipeline } = await import("./pipeline.js");
+      mainPipe = createPipeline({
+        onStatus,
+        makeCanvas: () => document.createElement("canvas"),
+      });
+      return mainPipe;
+    }
+    async function bootMain() {
+      const pipe = await ensureMainPipe();
+      const kind = await pipe.boot();
+      if (!kind) return noLayout();
+      await pipe.recFor(lang.value);
+      await pipe.warmup(lang.value);
+      const { THREADS } = await import("./pipeline.js");
+      ready(`ready (${kind} layout, ${THREADS} thread${THREADS > 1 ? "s" : ""}, main) — drop a scanned PDF or image`);
+    }
 
-      const t0 = performance.now();
-      let elapsed = 0; // cumulative per-page convert time, for a running average
-      let next = render(1); // kick off the first rasterization
-      for (let p = 1; p <= pdf.numPages; p++) {
-        const done = p - 1;
-        const avg = done ? ` — ${(elapsed / done / 1000).toFixed(1)}s/page avg` : "";
-        status(`${name}: page ${p}/${pdf.numPages}${avg} …`, true);
-        const cur = await next;
-        if (p < pdf.numPages) next = render(p + 1); // rasterize p+1 while we convert p
-        const tp = performance.now();
-        await conv.add_page(cur.rgba, cur.w, cur.h, SCALE, layout, rec);
-        const dt = performance.now() - tp;
-        elapsed += dt;
-        console.log(`${name}: page ${p}/${pdf.numPages} — ${(dt / 1000).toFixed(1)}s convert`);
-      }
-      const wall = (performance.now() - t0) / 1000;
-      const avg = pdf.numPages ? wall / pdf.numPages : 0;
-      console.log(`${name}: ${pdf.numPages} pages in ${wall.toFixed(1)}s wall (${avg.toFixed(1)}s/page)`);
-      return conv.finish(name, "md");
+    // --- worker path ---
+    function bootWorker() {
+      let acked = false; // did any message arrive before onerror?
+      worker = new Worker("./worker.js", { type: "module" });
+      worker.onmessage = (e) => {
+        const m = e.data;
+        acked = true;
+        switch (m.type) {
+          case "up": break;
+          case "status": onStatus(m.msg, m.spinning); break;
+          case "ready":
+            ready(`ready (${m.kind} layout, ${m.threads} thread${m.threads > 1 ? "s" : ""}) — drop a scanned PDF or image`);
+            break;
+          case "no-layout": noLayout(); break;
+          case "rec-ready": ready("ready — drop a scanned PDF or image"); break;
+          case "result":
+            out.textContent = m.md || "(no text found)";
+            if (pending) { pending.resolve(); pending = null; }
+            break;
+          case "error":
+            if (pending) { pending.reject(new Error(m.msg)); pending = null; }
+            else { out.textContent = m.msg; ready("failed"); }
+            break;
+        }
+      };
+      // If the worker itself fails to spin up (module load, etc.), degrade to
+      // the main-thread path once, before any successful message.
+      worker.onerror = () => {
+        if (acked || mainPipe) return;
+        acked = true;
+        try { worker.terminate(); } catch (e) {}
+        worker = null;
+        bootMain();
+      };
+      busy("loading wasm module …");
+      worker.postMessage({ type: "boot", lang: lang.value });
+    }
+
+    // --- convert / language switch, routed to whichever path is live ---
+    function convertViaWorker(buf, name) {
+      return new Promise((resolve, reject) => {
+        pending = { resolve, reject };
+        worker.postMessage({ type: "convert", bytes: buf, name, lang: lang.value }, [buf]);
+      });
     }
 
     async function handle(file) {
@@ -300,25 +201,36 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
       busy(`converting ${file.name} …`);
       const started = performance.now();
       try {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        const { dict, rec } = await recFor(lang.value);
-        const md = file.name.toLowerCase().endsWith(".pdf")
-          ? await handlePdf(bytes, file.name)
-          : await convert_scanned_image(bytes, file.name, dict, layout, rec, "md");
-        out.textContent = md || "(no text found)";
+        if (worker) {
+          const buf = await file.arrayBuffer();
+          try {
+            await convertViaWorker(buf, file.name);
+          } catch (workerErr) {
+            // A worker-side failure (e.g. OffscreenCanvas rasterization) — retry
+            // once on the main thread so the user still gets a result.
+            console.warn("worker convert failed, retrying on main thread:", workerErr);
+            const pipe = await ensureMainPipe();
+            if (!pipe.layoutKind) await pipe.boot();
+            const md = await pipe.convert(await file.arrayBuffer(), file.name, lang.value);
+            out.textContent = md || "(no text found)";
+          }
+        } else {
+          const md = await mainPipe.convert(await file.arrayBuffer(), file.name, lang.value);
+          out.textContent = md || "(no text found)";
+        }
         ready(`${file.name} — ${((performance.now() - started) / 1000).toFixed(1)} s`);
       } catch (e) {
-        out.textContent = String(e);
+        out.textContent = String((e && e.message) || e);
         ready(`${file.name} — failed`);
       }
     }
 
-    // Warm the model on language switch so the first drop afterwards is fast.
+    // Warm the recognition model on language switch so the first drop is fast.
     lang.addEventListener("change", async () => {
       busy(`loading ${lang.value} model …`);
       try {
-        await recFor(lang.value);
-        ready("ready — drop a scanned PDF or image");
+        if (worker) worker.postMessage({ type: "rec", lang: lang.value });
+        else { await mainPipe.recFor(lang.value); await mainPipe.warmup(lang.value); ready("ready — drop a scanned PDF or image"); }
       } catch (e) {
         ready(`${lang.value} model failed to load: ${e}`);
       }
@@ -332,6 +244,13 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
         drop.classList.toggle("hover", ev === "dragover");
         if (ev === "drop" && e.dataTransfer.files[0]) handle(e.dataTransfer.files[0]);
       });
+    }
+
+    // Prefer the worker; fall back if the platform can't support it.
+    if (typeof Worker !== "undefined" && typeof OffscreenCanvas !== "undefined") {
+      try { bootWorker(); } catch (e) { bootMain(); }
+    } else {
+      bootMain();
     }
   </script>
 </body>
