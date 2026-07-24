@@ -258,28 +258,40 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
       const { dict, rec } = await recFor(lang.value);
       const pdf = await pdfjs.getDocument({ data: bytes }).promise;
       const conv = new ScannedConverter(dict);
+      // pdf.js rasterization is main-thread; with multi-threaded ORT (coi.js)
+      // the OCR/layout inference runs on worker threads, so rendering the NEXT
+      // page overlaps converting the CURRENT one. getImageData returns an
+      // independent buffer, so one canvas ping-pongs safely across pages.
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      let elapsed = 0; // cumulative page time, for a running average
-      for (let p = 1; p <= pdf.numPages; p++) {
-        const done = p - 1;
-        const avg = done ? ` — ${(elapsed / done / 1000).toFixed(1)}s/page avg` : "";
-        status(`${name}: page ${p}/${pdf.numPages}${avg} …`, true);
-        const t0 = performance.now();
+      async function render(p) {
         const page = await pdf.getPage(p);
         const viewport = page.getViewport({ scale: SCALE });
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         await page.render({ canvasContext: ctx, viewport }).promise;
-        const rgba = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-        await conv.add_page(new Uint8Array(rgba.buffer), canvas.width, canvas.height, SCALE, layout, rec);
-        const dt = performance.now() - t0;
-        elapsed += dt;
-        // Console line per page so the whole run is inspectable afterwards.
-        console.log(`${name}: page ${p}/${pdf.numPages} — ${(dt / 1000).toFixed(1)}s`);
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        return { rgba: new Uint8Array(img.data.buffer), w: canvas.width, h: canvas.height };
       }
-      const avg = pdf.numPages ? elapsed / pdf.numPages / 1000 : 0;
-      console.log(`${name}: ${pdf.numPages} pages in ${(elapsed / 1000).toFixed(1)}s (${avg.toFixed(1)}s/page)`);
+
+      const t0 = performance.now();
+      let elapsed = 0; // cumulative per-page convert time, for a running average
+      let next = render(1); // kick off the first rasterization
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const done = p - 1;
+        const avg = done ? ` — ${(elapsed / done / 1000).toFixed(1)}s/page avg` : "";
+        status(`${name}: page ${p}/${pdf.numPages}${avg} …`, true);
+        const cur = await next;
+        if (p < pdf.numPages) next = render(p + 1); // rasterize p+1 while we convert p
+        const tp = performance.now();
+        await conv.add_page(cur.rgba, cur.w, cur.h, SCALE, layout, rec);
+        const dt = performance.now() - tp;
+        elapsed += dt;
+        console.log(`${name}: page ${p}/${pdf.numPages} — ${(dt / 1000).toFixed(1)}s convert`);
+      }
+      const wall = (performance.now() - t0) / 1000;
+      const avg = pdf.numPages ? wall / pdf.numPages : 0;
+      console.log(`${name}: ${pdf.numPages} pages in ${wall.toFixed(1)}s wall (${avg.toFixed(1)}s/page)`);
       return conv.finish(name, "md");
     }
 
