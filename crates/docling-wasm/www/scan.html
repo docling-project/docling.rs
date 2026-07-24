@@ -96,9 +96,22 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
     // stays responsive during a conversion. Ready RGBA buffers are transferred
     // to the worker per page. If module workers aren't available it falls back
     // to running the OCR on this thread too (functionally identical, blocking).
-    import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist/build/pdf.min.mjs";
+    // Pin pdf.js so the worker and the auxiliary asset URLs below all match the
+    // loaded build (a version skew breaks the wasm/cmap resolution).
+    import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.1.200/build/pdf.min.mjs";
     pdfjs.GlobalWorkerOptions.workerSrc =
-      "https://cdn.jsdelivr.net/npm/pdfjs-dist/build/pdf.worker.min.mjs";
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.1.200/build/pdf.worker.min.mjs";
+    // pdf.js decodes JPEG2000 / JBIG2 images (common in scanned PDFs) with
+    // separate wasm modules, and CJK text with CMaps — it needs the base URLs
+    // for those or it warns "Ensure that the wasmUrl API parameter is provided"
+    // and drops the page images.
+    const PDFJS_BASE = "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.1.200/";
+    const PDFJS_ASSETS = {
+      wasmUrl: PDFJS_BASE + "wasm/",
+      cMapUrl: PDFJS_BASE + "cmaps/",
+      cMapPacked: true,
+      standardFontDataUrl: PDFJS_BASE + "standard_fonts/",
+    };
 
     const SCALE = 2.0; // px per PDF point — the native pipeline's RENDER_SCALE
 
@@ -191,7 +204,7 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
     // buffer, so one canvas ping-pongs across pages.
     async function handlePdf(file) {
       const buf = await file.arrayBuffer();
-      const pdf = await pdfjs.getDocument({ data: buf }).promise;
+      const pdf = await pdfjs.getDocument({ data: buf, ...PDFJS_ASSETS }).promise;
       await drv.docStart(lang.value);
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
