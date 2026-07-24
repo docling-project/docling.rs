@@ -26,11 +26,12 @@ use docling_pdf::ocr_prep::{
     REC_HEIGHT,
 };
 use docling_pdf::pdfium_backend::{PdfPage, TextCell};
-use docling_pdf::scanned::{assemble_page, finish_document, refine_regions};
+use docling_pdf::scanned::{assemble_page_with_tables, finish_document, refine_regions};
 use image::RgbImage;
 use wasm_bindgen::prelude::*;
 
 use crate::ocr::{tensor_parts, RecSession};
+use crate::tableformer::TfSession;
 
 #[wasm_bindgen]
 extern "C" {
@@ -65,9 +66,9 @@ impl ScannedConverter {
         }
     }
 
-    /// Convert one page: `rgba` is the rendered bitmap (canvas ImageData),
-    /// `scale` its pixels-per-PDF-point (2.0 for pdf.js `{scale: 2}`; 1.0
-    /// for a standalone image).
+    /// Convert one page (lite profile — geometric tables): `rgba` is the
+    /// rendered bitmap (canvas ImageData), `scale` its pixels-per-PDF-point
+    /// (2.0 for pdf.js `{scale: 2}`; 1.0 for a standalone image).
     pub async fn add_page(
         &mut self,
         rgba: &[u8],
@@ -76,6 +77,43 @@ impl ScannedConverter {
         scale: f32,
         layout: &LayoutSession,
         rec: &RecSession,
+    ) -> Result<(), JsError> {
+        self.add_page_impl(rgba, px_w, px_h, scale, layout, rec, None)
+            .await
+    }
+
+    /// Convert one page with TableFormer (#157 stage 3): table regions get the
+    /// ONNX table-structure model + docling's cell matcher instead of the
+    /// geometric reconstruction. `tf` is the JS-side session over the encoder /
+    /// decoder / bbox graphs.
+    #[wasm_bindgen(js_name = addPageTf)]
+    #[allow(clippy::too_many_arguments)] // wasm-bindgen entry: page bitmap + 3 sessions
+    pub async fn add_page_tf(
+        &mut self,
+        rgba: &[u8],
+        px_w: u32,
+        px_h: u32,
+        scale: f32,
+        layout: &LayoutSession,
+        rec: &RecSession,
+        tf: &TfSession,
+    ) -> Result<(), JsError> {
+        self.add_page_impl(rgba, px_w, px_h, scale, layout, rec, Some(tf))
+            .await
+    }
+}
+
+impl ScannedConverter {
+    #[allow(clippy::too_many_arguments)]
+    async fn add_page_impl(
+        &mut self,
+        rgba: &[u8],
+        px_w: u32,
+        px_h: u32,
+        scale: f32,
+        layout: &LayoutSession,
+        rec: &RecSession,
+        tf: Option<&TfSession>,
     ) -> Result<(), JsError> {
         if rgba.len() != (px_w as usize) * (px_h as usize) * 4 {
             return Err(JsError::new("rgba buffer size does not match dimensions"));
@@ -142,8 +180,34 @@ impl ScannedConverter {
             cells.push(TextCell { text, l, t, r, b });
         }
 
+        // TableFormer (opt-in): resolve each table region's structure through
+        // the ONNX graphs + shared matcher; other regions stay `None` (geometric
+        // fallback). The lite path passes no session → all geometric.
+        let table_rows = if let Some(tf) = tf {
+            let mut rows = Vec::with_capacity(regions.len());
+            for r in &regions {
+                if r.label == "table" {
+                    rows.push(
+                        crate::tableformer::predict_table_rows(
+                            tf,
+                            &img,
+                            [r.l, r.t, r.r, r.b],
+                            &cells,
+                        )
+                        .await,
+                    );
+                } else {
+                    rows.push(None);
+                }
+            }
+            rows
+        } else {
+            Vec::new() // assemble_page_with_tables resizes to all-None
+        };
+
         let page = PdfPage::from_cells(page_w, page_h, scale, cells);
-        self.pages.push(assemble_page(&page, regions));
+        self.pages
+            .push(assemble_page_with_tables(&page, regions, table_rows));
         Ok(())
     }
 

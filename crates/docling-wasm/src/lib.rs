@@ -24,6 +24,8 @@ mod ocr;
 #[cfg(feature = "ocr")]
 mod scanned;
 #[cfg(feature = "ocr")]
+mod tableformer;
+#[cfg(feature = "ocr")]
 pub use ocr::ocr_image;
 #[cfg(feature = "ocr")]
 pub use scanned::{convert_scanned_image, ScannedConverter};

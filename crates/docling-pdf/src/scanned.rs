@@ -36,7 +36,20 @@ pub fn refine_regions(
 /// Assemble one refined page — geometric tables (no TableFormer), no
 /// enrichments — into its nodes and hyperlink pairs.
 pub fn assemble_page(page: &PdfPage, regions: Vec<Region>) -> AssembledPage {
-    let table_rows = vec![None; regions.len()];
+    assemble_page_with_tables(page, regions, vec![None; 0].into_iter().collect())
+}
+
+/// Like [`assemble_page`] but with pre-computed table rows per region:
+/// `table_rows[i] = Some(rows)` for a table region whose structure the browser
+/// TableFormer path (#157 stage 3) resolved, `None` for the geometric fallback.
+/// An empty `table_rows` means "all geometric" (what [`assemble_page`] passes).
+/// Same assembly as the native pipeline.
+pub fn assemble_page_with_tables(
+    page: &PdfPage,
+    regions: Vec<Region>,
+    mut table_rows: Vec<Option<Vec<Vec<String>>>>,
+) -> AssembledPage {
+    table_rows.resize(regions.len(), None);
     let enrich = vec![None; regions.len()];
     crate::assemble::assemble_page(page, regions, &table_rows, &enrich)
 }
