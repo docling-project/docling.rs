@@ -22,8 +22,8 @@
 
 use docling_pdf::layout::{decode_layout, layout_input, SIDE};
 use docling_pdf::ocr_prep::{
-    batch_input, decode_row, dict_chars, normalize_polarity, prep_region_lines, width_batches,
-    REC_HEIGHT,
+    batch_input_padded, decode_row, dict_chars, normalize_polarity, prep_region_lines,
+    width_batches_padded, REC_HEIGHT,
 };
 use docling_pdf::pdfium_backend::{PdfPage, TextCell};
 use docling_pdf::scanned::{assemble_page, finish_document, refine_regions};
@@ -110,8 +110,10 @@ impl ScannedConverter {
         // OCR the text regions (same gather/batch/decode as native ocr_page).
         let (bboxes, lines) = prep_region_lines(&img, &regions, scale);
         let mut texts = vec![String::new(); lines.len()];
-        for (w, chunk) in width_batches(&lines) {
-            let data = batch_input(w, &chunk, &lines);
+        // Padded batching across differing widths (browser-only): far fewer ORT
+        // calls than exact-width grouping, output-equivalent under zero padding.
+        for (w, chunk) in width_batches_padded(&lines) {
+            let data = batch_input_padded(w, &chunk, &lines);
             let out = rec
                 .run(
                     chunk.len() as u32,
