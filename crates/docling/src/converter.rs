@@ -104,6 +104,42 @@ pub struct DocumentConverter {
 /// embeds the PNGs) within sane bounds.
 pub const DEFAULT_VIDEO_FRAMES: usize = 8;
 
+/// Which page regions feed the OCR — docling 2.116's `OcrOptions.mode`
+/// (docling#3710, #181). docling.rs recognition is always layout-region
+/// driven, so both non-default modes take the same path today: the embedded
+/// text layer is discarded and every layout region is OCR'd from the rendered
+/// page — exactly what `force_full_page_ocr` does. The enum exists for
+/// docling API parity (upstream deprecated its `force_full_page_ocr` flag in
+/// favor of `mode`) and as the seam where a true whole-page OCR could
+/// diverge from per-region OCR later.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OcrMode {
+    /// docling's `default` / `pdf_aware_layout_regions`: OCR only where the
+    /// text layer is absent (scanned pages, big text-less picture crops).
+    #[default]
+    Default,
+    /// docling's `full_page`: ignore the text layer and OCR everything.
+    FullPage,
+    /// docling's `layout_regions`: ignore the text layer and OCR the layout
+    /// regions — identical to [`FullPage`](Self::FullPage) here (see the
+    /// type-level docs).
+    LayoutRegions,
+}
+
+impl OcrMode {
+    /// Parse a user-supplied mode id (docling's enum values, `-`/`_`
+    /// interchangeable, case-insensitive). `None` for anything unknown —
+    /// callers surface their own error.
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().replace('-', "_").as_str() {
+            "default" | "pdf_aware_layout_regions" => Some(Self::Default),
+            "full_page" => Some(Self::FullPage),
+            "layout_regions" => Some(Self::LayoutRegions),
+            _ => None,
+        }
+    }
+}
+
 /// Parse a user-facing page-range string (issue #80's `--pages`): `"A-B"` for
 /// an inclusive 1-based window, or a single `"N"` for one page. Whitespace
 /// around the numbers is tolerated. Validation against the actual page count
@@ -307,6 +343,20 @@ impl DocumentConverter {
     /// PDFs only — standalone images are always OCR'd.
     pub fn force_full_page_ocr(mut self, force: bool) -> Self {
         self.force_full_page_ocr = force;
+        self
+    }
+
+    /// docling 2.116's `OcrOptions.mode` (#181): [`OcrMode::Default`] keeps
+    /// text-layer-aware OCR; [`OcrMode::FullPage`] and
+    /// [`OcrMode::LayoutRegions`] discard the text layer and OCR every layout
+    /// region — the same switch as
+    /// [`force_full_page_ocr`](Self::force_full_page_ocr), which stays as the
+    /// compatibility alias (upstream keeps its deprecated flag the same way:
+    /// the flag forces the mode, and `Default` never un-sets it).
+    pub fn ocr_mode(mut self, mode: OcrMode) -> Self {
+        if mode != OcrMode::Default {
+            self.force_full_page_ocr = true;
+        }
         self
     }
 
@@ -653,6 +703,34 @@ impl DocumentConverter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #181: docling 2.116's mode ids parse (`-`/`_`, any case), unknown ids
+    /// don't, and a non-default mode flips the force-OCR switch while
+    /// `Default` never un-sets an explicit `force_full_page_ocr(true)`.
+    #[test]
+    fn ocr_mode_parses_and_aliases_force_ocr() {
+        assert_eq!(OcrMode::parse("default"), Some(OcrMode::Default));
+        assert_eq!(
+            OcrMode::parse("pdf_aware_layout_regions"),
+            Some(OcrMode::Default)
+        );
+        assert_eq!(OcrMode::parse("FULL_PAGE"), Some(OcrMode::FullPage));
+        assert_eq!(OcrMode::parse("full-page"), Some(OcrMode::FullPage));
+        assert_eq!(
+            OcrMode::parse(" layout_regions "),
+            Some(OcrMode::LayoutRegions)
+        );
+        assert_eq!(OcrMode::parse("magic"), None);
+
+        let c = DocumentConverter::new().ocr_mode(OcrMode::FullPage);
+        assert!(c.force_full_page_ocr, "full_page must force-OCR");
+        let c = DocumentConverter::new().ocr_mode(OcrMode::LayoutRegions);
+        assert!(c.force_full_page_ocr, "layout_regions must force-OCR");
+        let c = DocumentConverter::new()
+            .force_full_page_ocr(true)
+            .ocr_mode(OcrMode::Default);
+        assert!(c.force_full_page_ocr, "Default must not un-set the flag");
+    }
 
     #[test]
     fn end_to_end_markdown() {

@@ -1162,8 +1162,19 @@ impl Pipeline {
     /// when [`no_ocr`](Self::no_ocr) is set, mirroring docling (there
     /// `force_full_page_ocr` is a sub-option of `do_ocr`).
     pub fn force_full_page_ocr(mut self, force: bool) -> Self {
-        self.force_full_page_ocr = force;
+        self.set_force_full_page_ocr(force);
         self
+    }
+
+    /// In-place variant of [`force_full_page_ocr`](Self::force_full_page_ocr)
+    /// for a long-lived pipeline (docling-serve's warm instance). Pure
+    /// per-page state — no model reloads: the flag only decides whether
+    /// `finish_page` discards the embedded text layer before OCR.
+    pub fn set_force_full_page_ocr(&mut self, force: bool) {
+        self.force_full_page_ocr = force;
+        for worker in self.primary.iter_mut().chain(self.pool.iter_mut()) {
+            worker.force_full_page_ocr = force;
+        }
     }
 
     /// The shared TableFormer slot handed to each worker, or `None` when the

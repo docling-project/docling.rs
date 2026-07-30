@@ -146,6 +146,7 @@ The API is described by <a href="/openapi.yaml"><code>/openapi.yaml</code></a> (
   <tr><td><code>no_ocr</code></td><td><code>true</code>/<code>false</code></td><td>PDF/image: skip layout/OCR/TableFormer entirely; emit the embedded text layer only.</td></tr>
   <tr><td><code>no_table_former</code></td><td><code>true</code>/<code>false</code></td><td>PDF/image: geometric table reconstruction instead of the TableFormer model.</td></tr>
   <tr><td><code>no_text_panels</code></td><td><code>true</code>/<code>false</code></td><td>PDF/image: keep every detected picture as a picture — disable the demotion of uncaptioned dense-text "picture" regions into paragraphs.</td></tr>
+  <tr><td><code>ocr_mode</code></td><td><code>default</code> | <code>full_page</code> | <code>layout_regions</code></td><td>docling 2.116's OCR mode: both non-default modes discard the text layer and OCR every layout region (same switch as <code>force_full_page_ocr</code>).</td></tr>
   <tr><td><code>fetch_images</code></td><td><code>true</code>/<code>false</code></td><td>HTML/EPUB: resolve external <code>&lt;img src&gt;</code> and embed the bytes. Outbound fetch — honored only when the server runs with <code>--allow-url-fetch</code>, otherwise ignored.</td></tr>
 </table>
 

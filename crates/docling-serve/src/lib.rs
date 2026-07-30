@@ -26,6 +26,8 @@
 //! - `pages` — PDF page window `A-B` / `N` (1-based inclusive, #80)
 //! - `ocr_lang` — OCR recognition language for scanned pages: `en` (default)
 //!   | `ch` (the multilingual docling-conformance model)
+//! - `ocr_mode` — docling 2.116's OCR mode: `default` | `full_page` |
+//!   `layout_regions` (both non-default modes = force-OCR, #181)
 //! - `fetch_images` — resolve external `<img src>` for HTML/EPUB (outbound
 //!   fetch, so honored only under `--allow-url-fetch`)
 //!
@@ -266,6 +268,10 @@ struct ConvertOptions {
     pages: Option<String>,
     /// OCR recognition language for scanned pages: `en` (default) | `ch`.
     ocr_lang: Option<String>,
+    /// docling 2.116's OCR mode (#181): `default` | `full_page` |
+    /// `layout_regions`. Both non-default modes discard the text layer and
+    /// OCR every layout region (`force_full_page_ocr` stays as the alias).
+    ocr_mode: Option<String>,
 }
 
 impl ConvertOptions {
@@ -283,6 +289,7 @@ impl ConvertOptions {
             video_frames: self.video_frames.or(base.video_frames),
             pages: self.pages.or(base.pages),
             ocr_lang: self.ocr_lang.or(base.ocr_lang),
+            ocr_mode: self.ocr_mode.or(base.ocr_mode),
         }
     }
 }
@@ -465,6 +472,7 @@ async fn read_multipart(
             "asr_model" => body_opts.asr_model = Some(text_field(field).await?),
             "pages" => body_opts.pages = Some(text_field(field).await?),
             "ocr_lang" => body_opts.ocr_lang = Some(text_field(field).await?),
+            "ocr_mode" => body_opts.ocr_mode = Some(text_field(field).await?),
             "video_frames" => {
                 let v = text_field(field).await?;
                 body_opts.video_frames = Some(v.parse().map_err(|_| {
@@ -737,6 +745,13 @@ fn convert_document(
             // OCR language likewise applies per request; only a worker whose
             // cached recognition model mismatches actually reloads anything.
             pipeline.set_ocr_lang(parse_ocr_lang(options.ocr_lang.as_deref())?);
+            // Force-OCR is per-request state on the shared warm pipeline too
+            // (previously it was silently dropped here): the flag, or a
+            // non-default `ocr_mode` (#181), discards the text layer.
+            let force = options.force_full_page_ocr.unwrap_or(false)
+                || parse_ocr_mode(options.ocr_mode.as_deref())?
+                    .is_some_and(|m| m != docling::OcrMode::Default);
+            pipeline.set_force_full_page_ocr(force);
             let doc = match source.format {
                 InputFormat::Pdf => pipeline.convert(&source.bytes, None, &source.name),
                 _ => pipeline.convert_image(&source.bytes, &source.name),
@@ -800,6 +815,7 @@ fn request_converter(
         )
         .no_ocr(options.no_ocr.unwrap_or(false))
         .force_full_page_ocr(options.force_full_page_ocr.unwrap_or(false))
+        .ocr_mode(parse_ocr_mode(options.ocr_mode.as_deref())?.unwrap_or_default())
         .no_table_former(options.no_table_former.unwrap_or(false))
         .no_text_panels(options.no_text_panels.unwrap_or(false));
     if let Some(pages) = &options.pages {
@@ -811,6 +827,18 @@ fn request_converter(
         converter = converter.ocr_lang(options.ocr_lang.clone().expect("checked above"));
     }
     Ok(converter)
+}
+
+/// Validate a request's `ocr_mode` (#181; None passes through — the default).
+fn parse_ocr_mode(raw: Option<&str>) -> Result<Option<docling::OcrMode>, ApiError> {
+    raw.map(|v| {
+        docling::OcrMode::parse(v).ok_or_else(|| {
+            ApiError::Bad(format!(
+                "ocr_mode {v:?} is not default|full_page|layout_regions"
+            ))
+        })
+    })
+    .transpose()
 }
 
 /// Validate a request's `ocr_lang` (None passes through — the engine default).

@@ -139,7 +139,7 @@ curl -H 'content-type: application/json' \
 ```
 
 Options per request: `to=md|json|dclx|chunks`, `strict`, `images=placeholder|embedded`,
-`no_ocr`, `no_table_former`, `no_text_panels`, `pages`, `ocr_lang`, `fetch_images` — as query parameters, multipart
+`no_ocr`, `no_table_former`, `no_text_panels`, `pages`, `ocr_lang`, `ocr_mode`, `fetch_images` — as query parameters, multipart
 fields, or JSON keys (body wins). Server flags: `--addr`, `--concurrency`,
 `--max-body-mb`, `--warmup`, `--no-url-fetch`, `--strict`. A container image
 builds from [`crates/docling-serve/Dockerfile`](./crates/docling-serve/Dockerfile)
@@ -406,7 +406,11 @@ typed-in field values). Ignored under `--no-ocr`, mirroring docling. The same
 switch is available on every surface: `force_full_page_ocr(bool)` on the
 library builder, a `force_full_page_ocr` option in docling-serve, the
 `force_full_page_ocr=` kwarg in Python, `forceFullPageOcr` in Node, and the
-"Force OCR" toggle in the wasm demo.
+"Force OCR" toggle in the wasm demo. docling 2.116 renamed this knob into an
+`OcrOptions.mode` enum; the same ids work here as `ocr_mode =
+default|full_page|layout_regions` (`--ocr-mode`, serve option, Python kwarg,
+Node `ocrMode`) — both non-default modes are the force-OCR switch, since
+recognition in docling.rs is always layout-region-driven (#181).
 
 `--no-text-panels` keeps every detected picture as a picture: it disables the
 demotion of uncaptioned dense-text "picture" regions into paragraphs (the

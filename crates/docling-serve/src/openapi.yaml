@@ -47,6 +47,7 @@ paths:
         - { $ref: "#/components/parameters/fetch_images" }
         - { $ref: "#/components/parameters/pages" }
         - { $ref: "#/components/parameters/ocr_lang" }
+        - { $ref: "#/components/parameters/ocr_mode" }
         - { $ref: "#/components/parameters/asr_model" }
         - { $ref: "#/components/parameters/video_frames" }
       requestBody:
@@ -71,6 +72,7 @@ paths:
                 fetch_images: { type: boolean }
                 pages: { type: string, examples: ["2-5"] }
                 ocr_lang: { $ref: "#/components/schemas/OcrLang" }
+                ocr_mode: { $ref: "#/components/schemas/OcrMode" }
                 asr_model: { type: string }
                 video_frames: { type: integer, minimum: 0 }
           application/json:
@@ -232,6 +234,15 @@ components:
       enum: [en, ch]
       default: en
       description: OCR recognition language for scanned pages.
+    OcrMode:
+      type: string
+      enum: [default, full_page, layout_regions]
+      default: default
+      description: >
+        docling 2.116's OCR mode. `default` OCRs only where the text layer is
+        absent; `full_page` and `layout_regions` both discard the text layer
+        and OCR every layout region (recognition here is always
+        layout-region-driven), i.e. the same switch as `force_full_page_ocr`.
     Options:
       type: object
       description: Conversion options, shared by every transport.
@@ -273,6 +284,7 @@ components:
           description: PDF page window, `A-B` or a single `N` (1-based, inclusive).
           examples: ["2-5", "3"]
         ocr_lang: { $ref: "#/components/schemas/OcrLang" }
+        ocr_mode: { $ref: "#/components/schemas/OcrMode" }
         asr_model:
           type: string
           description: Audio/video — Whisper preset directory under `models/asr/`.
@@ -333,6 +345,8 @@ components:
       { name: pages, in: query, schema: { type: string }, example: "2-5" }
     ocr_lang:
       { name: ocr_lang, in: query, schema: { $ref: "#/components/schemas/OcrLang" } }
+    ocr_mode:
+      { name: ocr_mode, in: query, schema: { $ref: "#/components/schemas/OcrMode" } }
     asr_model:
       { name: asr_model, in: query, schema: { type: string } }
     video_frames:

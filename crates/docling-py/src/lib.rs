@@ -123,6 +123,7 @@ impl PyDocumentConverter {
         force_full_page_ocr = false,
         do_table_structure = true,
         no_text_panels = false,
+        ocr_mode = None,
         use_web_browser = false,
         do_picture_classification = false,
         do_code_enrichment = false,
@@ -140,6 +141,7 @@ impl PyDocumentConverter {
         force_full_page_ocr: bool,
         do_table_structure: bool,
         no_text_panels: bool,
+        ocr_mode: Option<String>,
         use_web_browser: bool,
         do_picture_classification: bool,
         do_code_enrichment: bool,
@@ -195,6 +197,16 @@ impl PyDocumentConverter {
         };
         Ok(Self {
             inner: base
+                .ocr_mode(match ocr_mode.as_deref() {
+                    // docling 2.116's `OcrOptions.mode` (#181): full_page /
+                    // layout_regions both force-OCR; unknown ids error early.
+                    Some(m) => docling::OcrMode::parse(m).ok_or_else(|| {
+                        PyValueError::new_err(format!(
+                            "ocr_mode {m:?} is not \"default\"|\"full_page\"|\"layout_regions\""
+                        ))
+                    })?,
+                    None => docling::OcrMode::default(),
+                })
                 .fetch_images(fetch_images)
                 .asr_model(asr_model)
                 .no_ocr(!do_ocr)

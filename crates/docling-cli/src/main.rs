@@ -3,7 +3,7 @@
 //! The docling.rs counterpart of `docling.cli.main`; `docling-rs serve`
 //! (with `--features serve`) starts the HTTP conversion API.
 //!
-//! Usage: docling-rs [--strict] [--to md|json] [--pages A-B] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--force-full-page-ocr] [--no-text-panels] [--ocr-lang en|ch] [--pipeline standard|vlm] [--vlm-endpoint URL] [--vlm-model NAME] [--asr-model PRESET] [--video-frames N] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] <input-file>
+//! Usage: docling-rs [--strict] [--to md|json] [--pages A-B] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--force-full-page-ocr] [--ocr-mode default|full_page|layout_regions] [--no-text-panels] [--ocr-lang en|ch] [--pipeline standard|vlm] [--vlm-endpoint URL] [--vlm-model NAME] [--asr-model PRESET] [--video-frames N] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] <input-file>
 //!   --to md|json       output format (default: md). `json` emits docling-core's
 //!                      native DoclingDocument JSON (export_to_dict).
 //!   --pages A-B        convert only PDF pages A through B (1-based, inclusive;
@@ -104,6 +104,7 @@ fn main() -> ExitCode {
     let mut bench_warm: Option<usize> = None;
     let mut pages: Option<(usize, usize)> = None;
     let mut ocr_lang: Option<String> = None;
+    let mut ocr_mode: Option<docling::OcrMode> = None;
     let mut pipeline: Option<String> = None;
     let mut vlm_endpoint: Option<String> = None;
     let mut vlm_model: Option<String> = None;
@@ -142,6 +143,23 @@ fn main() -> ExitCode {
                 }
                 None => {
                     eprintln!("error: --pages needs a range like 1-10 (or a single page)");
+                    return ExitCode::from(2);
+                }
+            },
+            // docling 2.116's OCR mode (#181): default | full_page |
+            // layout_regions. Both non-default modes discard the text layer
+            // and OCR every layout region (--force-full-page-ocr stays as the
+            // alias).
+            "--ocr-mode" => match args.next() {
+                Some(v) if docling::OcrMode::parse(&v).is_some() => {
+                    ocr_mode = docling::OcrMode::parse(&v);
+                }
+                Some(v) => {
+                    eprintln!("error: --ocr-mode {v:?} is not default|full_page|layout_regions");
+                    return ExitCode::from(2);
+                }
+                None => {
+                    eprintln!("error: --ocr-mode needs a value (default|full_page|layout_regions)");
                     return ExitCode::from(2);
                 }
             },
@@ -213,7 +231,7 @@ fn main() -> ExitCode {
     };
 
     let Some(path) = path else {
-        eprintln!("usage: docling-rs [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--force-full-page-ocr] [--no-text-panels] [--ocr-lang en|ch] [--use-web-browser] <input-file>");
+        eprintln!("usage: docling-rs [--strict] [--to md|json] [--images MODE] [--fetch-images] [--no-stream] [--no-table-former] [--no-ocr] [--force-full-page-ocr] [--ocr-mode default|full_page|layout_regions] [--no-text-panels] [--ocr-lang en|ch] [--use-web-browser] <input-file>");
         return ExitCode::from(2);
     };
 
@@ -273,6 +291,7 @@ fn main() -> ExitCode {
         .no_table_former(no_table_former)
         .no_ocr(no_ocr)
         .force_full_page_ocr(force_full_page_ocr)
+        .ocr_mode(ocr_mode.unwrap_or_default())
         .no_text_panels(no_text_panels)
         .use_web_browser(use_web_browser)
         .do_picture_classification(enrich_picture_classes)

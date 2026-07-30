@@ -52,6 +52,10 @@ pub struct ConverterOptions {
     /// uncaptioned dense-text "picture" regions into paragraphs (the escape
     /// hatch for image-extraction workflows, #173). Default `false`.
     pub no_text_panels: Option<bool>,
+    /// docling 2.116's OCR mode (#181): `"default"` | `"full_page"` |
+    /// `"layout_regions"`. Both non-default modes discard the text layer and
+    /// OCR every layout region (`forceFullPageOcr` stays as the alias).
+    pub ocr_mode: Option<String>,
     /// Emit cleaner, more conformant Markdown (code-fence languages preserved,
     /// no inline-run spacing artifacts) instead of docling's byte-for-byte
     /// legacy output. Markdown only. Default `false`.
@@ -100,6 +104,9 @@ pub struct ConvertOptions {
     /// Keep every detected picture as a picture: disable text-panel demotion
     /// (#173). Default `false`.
     pub no_text_panels: Option<bool>,
+    /// docling 2.116's OCR mode (#181): `"default"` | `"full_page"` |
+    /// `"layout_regions"` (non-default = force-OCR).
+    pub ocr_mode: Option<String>,
     pub allowed_formats: Option<Vec<String>>,
     pub to: Option<String>,
     pub image_mode: Option<String>,
@@ -217,13 +224,27 @@ fn build_config(o: ConvertOptions) -> Result<ConvertConfig> {
         video_frames: o.video_frames.map(|n| n as usize),
         page_range: parse_pages(o.pages.as_deref())?,
         ocr_lang: parse_ocr_lang(o.ocr_lang)?,
-        force_full_page_ocr: o.force_full_page_ocr.unwrap_or(false),
+        force_full_page_ocr: o.force_full_page_ocr.unwrap_or(false)
+            || parse_ocr_mode(o.ocr_mode.as_deref())? != docling::OcrMode::Default,
         no_text_panels: o.no_text_panels.unwrap_or(false),
         allowed_formats: allowed,
         to: parse_output_kind(o.to.as_deref())?,
         image_mode: parse_image_mode(o.image_mode.as_deref())?,
         artifacts_dir: o.artifacts_dir.unwrap_or_else(|| "artifacts".to_string()),
     })
+}
+
+/// Validate an `ocrMode` option (#181); `None` is the default mode, an
+/// unknown id is an error.
+fn parse_ocr_mode(s: Option<&str>) -> Result<docling::OcrMode> {
+    match s {
+        Some(v) => docling::OcrMode::parse(v).ok_or_else(|| {
+            Error::from_reason(format!(
+                "ocrMode {v:?} is not default|full_page|layout_regions"
+            ))
+        }),
+        None => Ok(docling::OcrMode::Default),
+    }
 }
 
 /// Validate an `ocrLang` option (`"en"`/`"ch"`); an unknown id is an error.
@@ -461,7 +482,8 @@ impl DocumentConverter {
             video_frames: o.video_frames.map(|n| n as usize),
             page_range: parse_pages(o.pages.as_deref())?,
             ocr_lang: parse_ocr_lang(o.ocr_lang.clone())?,
-            force_full_page_ocr: o.force_full_page_ocr.unwrap_or(false),
+            force_full_page_ocr: o.force_full_page_ocr.unwrap_or(false)
+                || parse_ocr_mode(o.ocr_mode.as_deref())? != docling::OcrMode::Default,
             no_text_panels: o.no_text_panels.unwrap_or(false),
             allowed_formats: allowed,
         })

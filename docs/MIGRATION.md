@@ -353,8 +353,11 @@ These are deliberate or unavoidable divergences, not bugs.
    |---|---|
    | `DEFAULT` = `PDF_AWARE_LAYOUT_REGIONS` — OCR layout regions, skipping clusters made purely of PDF text cells | the default pipeline: region-scoped OCR runs only where the text layer is absent (scans, picture crops) |
    | `FULL_PAGE` — always OCR the whole page | `force_full_page_ocr` on every surface (upstream keeps its `force_full_page_ocr` flag too, as a deprecated bridge that forces `mode=FULL_PAGE`) |
-   | `LAYOUT_REGIONS` — OCR layout regions ignoring the PDF text layer | no dedicated switch; on a scanned page it is the default behavior, and on a digital page `force_full_page_ocr` covers the practical use (a lying text layer). A per-region variant can be added if a user asks. |
+   | `LAYOUT_REGIONS` — OCR layout regions ignoring the PDF text layer | `ocr_mode=layout_regions`, identical to `full_page` here: docling.rs recognition is always layout-region-driven, so both modes reduce to the force-OCR switch |
 
+   The mode ids are accepted verbatim on every surface as `ocr_mode`
+   (`--ocr-mode`, a serve option, the Python `ocr_mode=` kwarg, Node's
+   `ocrMode`), with `force_full_page_ocr` kept as the compatibility alias.
    `do_ocr=False` (`no_ocr`) and `lang` (`ocr_lang`) are untouched by the
    refactor. Upstream also dropped `bitmap_area_threshold` from `OcrOptions`;
    our picture-crop OCR keeps the classic ≥5 %-of-page gate, which is what
