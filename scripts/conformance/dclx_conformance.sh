@@ -48,7 +48,7 @@ printf "%-52s %10s %8s\n" FIXTURE DIFF-LINES SIM%
 for fmt in "${fmts[@]}"; do
   gdir=tests/data/$fmt/groundtruth_dclx
   [ -d "$gdir" ] || continue
-  case "$fmt" in pdf|scanned|tiff|webp|pdf_password) is_pdf=1 ;; *) is_pdf=0 ;; esac
+  case "$fmt" in pdf|ocr|tiff|webp|pdf_password) is_pdf=1 ;; *) is_pdf=0 ;; esac
   for ref in "$gdir"/*.dclx; do
     base=$(basename "$ref" .dclx)          # e.g. wiki.md
     src=tests/data/$fmt/sources/$base

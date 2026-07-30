@@ -344,6 +344,26 @@ These are deliberate or unavoidable divergences, not bugs.
    the optional `web-browser` feature / `--use-web-browser` flag (Rust-driven
    Chromium) — see §5.
 
+9. **docling 2.116's `OcrMode` needs no new option here** (#181, upstream
+   docling#3710). Upstream refactored region selection for OCR into an
+   explicit `OcrOptions.mode` enum; every mode maps onto behavior docling.rs
+   already has:
+
+   | docling 2.116 `OcrMode` | docling.rs |
+   |---|---|
+   | `DEFAULT` = `PDF_AWARE_LAYOUT_REGIONS` — OCR layout regions, skipping clusters made purely of PDF text cells | the default pipeline: region-scoped OCR runs only where the text layer is absent (scans, picture crops) |
+   | `FULL_PAGE` — always OCR the whole page | `force_full_page_ocr` on every surface (upstream keeps its `force_full_page_ocr` flag too, as a deprecated bridge that forces `mode=FULL_PAGE`) |
+   | `LAYOUT_REGIONS` — OCR layout regions ignoring the PDF text layer | no dedicated switch; on a scanned page it is the default behavior, and on a digital page `force_full_page_ocr` covers the practical use (a lying text layer). A per-region variant can be added if a user asks. |
+
+   `do_ocr=False` (`no_ocr`) and `lang` (`ocr_lang`) are untouched by the
+   refactor. Upstream also dropped `bitmap_area_threshold` from `OcrOptions`;
+   our picture-crop OCR keeps the classic ≥5 %-of-page gate, which is what
+   docling still applies internally. The same PR moved the OCR test corpus
+   from `tests/data/scanned/` to `tests/data/ocr/` with per-engine/per-mode
+   groundtruth (`groundtruth/<engine>/<mode>/…`); the mirror here follows that
+   layout (easyocr + nemotron_ocr — the engines previously mirrored; the
+   ocrmac/rapidocr/tesseract trees are not carried).
+
 ---
 
 ## 5. Not migrated / out of scope

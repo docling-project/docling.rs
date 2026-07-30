@@ -380,7 +380,7 @@ Per-stage wall-clock share (summed across workers):
 
 ¹ `tests/data/pdf/large/dotnet-csharp-language-reference.pdf` — 936 s wall, ~0.49 s/page.
 ² `tests/data/pdf/sources/2203.01017v2.pdf`.
-³ `tests/data/scanned/sources/ocr_test.pdf`.
+³ `tests/data/ocr/sources/ocr_test.pdf`.
 
 Two conclusions drive everything below:
 

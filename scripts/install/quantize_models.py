@@ -76,7 +76,7 @@ def calibration_pages():
         pdfs = sorted(glob.glob(f"{CALIB}/**/*.pdf", recursive=True))
     else:
         pdfs = sorted(glob.glob(f"{REPO}/tests/data/pdf/sources/*.pdf")) + sorted(
-            glob.glob(f"{REPO}/tests/data/scanned/sources/*.pdf")
+            glob.glob(f"{REPO}/tests/data/ocr/sources/*.pdf")
         )
     if not pdfs:
         sys.exit("no calibration PDFs found (set DOCLING_RS_CALIBRATION_DIR)")

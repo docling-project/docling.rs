@@ -24,7 +24,7 @@ OUT=bench-gpu
 mkdir -p "$OUT"
 
 pdfs=(tests/data/pdf/sources/*.pdf)
-[ -d tests/data/scanned/sources ] && pdfs+=(tests/data/scanned/sources/*.pdf)
+[ -d tests/data/ocr/sources ] && pdfs+=(tests/data/ocr/sources/*.pdf)
 if [ -n "${DOCLING_RS_BENCH_GLOB:-}" ]; then
   # shellcheck disable=SC2206
   pdfs+=($DOCLING_RS_BENCH_GLOB)

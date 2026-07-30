@@ -83,7 +83,7 @@ fn scanned_page_extracts_table_and_keeps_chart() {
     std::env::set_current_dir(&root).expect("chdir to repo root");
     let bytes = std::fs::read(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../tests/data/scanned/sources/scanned_chart_table.pdf"
+        "/../../tests/data/ocr/sources/scanned_chart_table.pdf"
     ))
     .expect("scanned fixture");
     let doc =
