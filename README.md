@@ -629,7 +629,11 @@ docling-rs --pipeline vlm \
 `--vlm-endpoint` takes the server's `/v1` base or the full
 `…/chat/completions` URL; `DOCLING_RS_VLM_ENDPOINT` / `DOCLING_RS_VLM_MODEL` /
 `DOCLING_RS_VLM_PROMPT` / `DOCLING_RS_VLM_API_KEY` (Bearer token) are the env
-equivalents. `--pages A-B` composes (only the window's pages are rendered and
+equivalents. The [Node bindings](./crates/docling-node) expose the same
+pipeline (#290): `pipeline: 'vlm'` plus `vlmEndpoint` / `vlmModel` /
+`vlmApiKey` / `vlmPrompt` / `vlmMaxTokens` on the convert options (explicit
+opt-in — the env vars fill in details but never switch the pipeline), with
+the dependency guard relaxed to pdfium-for-PDF only. `--pages A-B` composes (only the window's pages are rendered and
 sent), and `--to md|json|dclx|chunks` plus `--strict` work as usual. Transient
 endpoint failures (timeouts, 408/429, 5xx) retry with exponential backoff;
 a page that still fails fails the conversion — no silently dropped pages.

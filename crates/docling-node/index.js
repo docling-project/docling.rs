@@ -69,23 +69,23 @@ async function* chunkStream(start) {
 // --- guarded one-shot functions --------------------------------------------
 
 function convertFile(path, options) {
-  assertMlReady(mlFormatOf(path))
+  assertMlReady(mlFormatOf(path), undefined, options && options.pipeline)
   return native.convertFile(path, options)
 }
 
 function convert(input, options) {
-  assertMlReady(mlFormatOf(input && input.name, input && input.format))
+  assertMlReady(mlFormatOf(input && input.name, input && input.format), undefined, options && options.pipeline)
   return native.convert(input, options)
 }
 
 // async so a guard failure surfaces as a rejected promise, not a sync throw.
 async function convertFileAsync(path, options) {
-  assertMlReady(mlFormatOf(path))
+  assertMlReady(mlFormatOf(path), undefined, options && options.pipeline)
   return native.convertFileAsync(path, options)
 }
 
 async function convertAsync(input, options) {
-  assertMlReady(mlFormatOf(input && input.name, input && input.format))
+  assertMlReady(mlFormatOf(input && input.name, input && input.format), undefined, options && options.pipeline)
   return native.convertAsync(input, options)
 }
 
@@ -136,30 +136,33 @@ async function chunkDocumentAsync(documentJson, options) {
 class DocumentConverter {
   constructor(options) {
     this._inner = new native.DocumentConverter(options)
+    // #290: the ML dependency guard is pipeline-aware — VLM conversions need
+    // pdfium at most, never the layout/OCR models.
+    this._pipeline = options && options.pipeline
   }
 
   convertFile(path, options) {
-    assertMlReady(mlFormatOf(path))
+    assertMlReady(mlFormatOf(path), undefined, this._pipeline)
     return this._inner.convertFile(path, options)
   }
 
   convert(input, options) {
-    assertMlReady(mlFormatOf(input && input.name, input && input.format))
+    assertMlReady(mlFormatOf(input && input.name, input && input.format), undefined, this._pipeline)
     return this._inner.convert(input, options)
   }
 
   async convertFileAsync(path, options) {
-    assertMlReady(mlFormatOf(path))
+    assertMlReady(mlFormatOf(path), undefined, this._pipeline)
     return this._inner.convertFileAsync(path, options)
   }
 
   async convertAsync(input, options) {
-    assertMlReady(mlFormatOf(input && input.name, input && input.format))
+    assertMlReady(mlFormatOf(input && input.name, input && input.format), undefined, this._pipeline)
     return this._inner.convertAsync(input, options)
   }
 
   convertFileStreaming(path, callback, options) {
-    assertMlReady(mlFormatOf(path))
+    assertMlReady(mlFormatOf(path), undefined, this._pipeline)
     return this._inner.convertFileStreaming(path, callback, options)
   }
 }

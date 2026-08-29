@@ -190,11 +190,23 @@ function downloadGuide() {
  * the `DOCLING_*` / `PDFIUM_DYNAMIC_LIB_PATH` env vars for whatever is present,
  * so a checkout with `scripts/install/download_dependencies.sh` already run just works.
  */
-function assertMlReady(format, dir) {
+function assertMlReady(format, dir, pipeline) {
   if (!ML_FORMATS.has(format)) return
   const p = resolvePaths(dir)
   exportEnv(p)
   const status = checkDependencies({ dir })
+  if (pipeline === 'vlm') {
+    // #290: the remote VLM replaces the local ML stack — no layout/OCR
+    // models. A PDF still rasterizes its pages locally through pdfium; a
+    // standalone image is sent to the endpoint as-is and needs nothing.
+    if (format !== 'image' && !status.pdfium) {
+      throw new Error(
+        `Converting '${format}' with pipeline 'vlm' requires pdfium (page rasterization), ` +
+          `which is not installed.\n\n${downloadGuide()}`,
+      )
+    }
+    return
+  }
   // Image needs layout (+OCR), but not pdfium; PDF/METS need both.
   const needPdfium = format !== 'image'
   const missing = [!status.layout && 'layout_heron.onnx', needPdfium && !status.pdfium && 'pdfium'].filter(

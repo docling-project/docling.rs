@@ -469,7 +469,11 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
   --vlm-model NAME` renders pages via pdfium, converts them through any
   OpenAI-compatible vision endpoint (LM Studio / Ollama / vLLM / hosted) and
   parses the returned DocLang with the existing reader — see the README's
-  "VLM pipeline" section. (**Audio/ASR is now done** — see §2; Opus and AVI,
+  "VLM pipeline" section. The Node bindings expose it too (#290:
+  `pipeline: 'vlm'` + `vlmEndpoint`/`vlmModel`/`vlmApiKey`/`vlmPrompt`/
+  `vlmMaxTokens`, explicit opt-in, pipeline-aware dependency guard);
+  docling-serve and the Python bindings still don't — separate design
+  work, per the issue. (**Audio/ASR is now done** — see §2; Opus and AVI,
   which symphonia cannot decode, use the optional ffmpeg fallback. The **enrichment
   models are now done** too: DocumentFigureClassifier-v2.5 for
   `do_picture_classification` and CodeFormulaV2 — an Idefics3-class VLM,

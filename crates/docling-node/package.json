@@ -57,7 +57,7 @@
     "artifacts": "napi artifacts",
     "prepublishOnly": "napi prepublish -t npm --skip-gh-release",
     "version": "napi version",
-    "test": "node test/smoke.mjs",
+    "test": "node test/smoke.mjs && node test/vlm.mjs",
     "example": "npm --prefix examples install && node examples/node-basic.mjs",
     "example:bun": "npm --prefix examples install && bun run examples/bun-basic.ts"
   },

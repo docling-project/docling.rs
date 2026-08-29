@@ -92,6 +92,30 @@ pub struct ConverterOptions {
     /// Restrict the converter to these formats (ids like `"md"`, `"pdf"`, or
     /// extensions like `".html"`); anything else is rejected. Default: accept all.
     pub allowed_formats: Option<Vec<String>>,
+    /// Which pipeline converts PDF/image input (#290): `"standard"` (default —
+    /// the local ML stack) or `"vlm"` — render pages and convert them through
+    /// a remote OpenAI-compatible vision endpoint returning DocLang (#77).
+    /// Explicit opt-in only: the `DOCLING_RS_VLM_*` env vars fill in
+    /// connection details but never switch the pipeline by themselves.
+    pub pipeline: Option<String>,
+    /// VLM: base URL of the OpenAI-compatible server (e.g.
+    /// `http://localhost:11434/v1`) or the full `…/chat/completions` URL;
+    /// falls back to `DOCLING_RS_VLM_ENDPOINT`. Required (with that fallback)
+    /// when `pipeline` is `"vlm"`.
+    pub vlm_endpoint: Option<String>,
+    /// VLM: model name as the server knows it (e.g. `"granite-docling"`);
+    /// falls back to `DOCLING_RS_VLM_MODEL`. Required (with that fallback)
+    /// when `pipeline` is `"vlm"`.
+    pub vlm_model: Option<String>,
+    /// VLM: bearer token, if the endpoint wants one (local servers don't);
+    /// falls back to `DOCLING_RS_VLM_API_KEY`.
+    pub vlm_api_key: Option<String>,
+    /// VLM: the per-page instruction; falls back to `DOCLING_RS_VLM_PROMPT`,
+    /// else docling's DocLang-eliciting default prompt.
+    pub vlm_prompt: Option<String>,
+    /// VLM: `max_tokens` per page completion. Default 8192 — a dense DocLang
+    /// page runs long.
+    pub vlm_max_tokens: Option<u32>,
 }
 
 /// Per-call output options (how to render the converted document).
@@ -155,6 +179,20 @@ pub struct ConvertOptions {
     /// (#173). Default `false`.
     pub no_text_panels: Option<bool>,
     pub allowed_formats: Option<Vec<String>>,
+    /// Which pipeline converts PDF/image input (#290): `"standard"` (default)
+    /// or `"vlm"` (remote OpenAI-compatible vision endpoint, #77). Explicit
+    /// opt-in only — env vars never switch the pipeline by themselves.
+    pub pipeline: Option<String>,
+    /// VLM: endpoint base URL; falls back to `DOCLING_RS_VLM_ENDPOINT`.
+    pub vlm_endpoint: Option<String>,
+    /// VLM: model name; falls back to `DOCLING_RS_VLM_MODEL`.
+    pub vlm_model: Option<String>,
+    /// VLM: bearer token; falls back to `DOCLING_RS_VLM_API_KEY`.
+    pub vlm_api_key: Option<String>,
+    /// VLM: per-page instruction; falls back to `DOCLING_RS_VLM_PROMPT`.
+    pub vlm_prompt: Option<String>,
+    /// VLM: `max_tokens` per page completion (default 8192).
+    pub vlm_max_tokens: Option<u32>,
     pub to: Option<String>,
     pub image_mode: Option<String>,
     pub artifacts_dir: Option<String>,
@@ -221,6 +259,9 @@ struct ConvertConfig {
     force_full_page_ocr: bool,
     no_text_panels: bool,
     allowed_formats: Option<Vec<InputFormat>>,
+    /// `Some` = the remote-VLM pipeline replaces the whole ML stack for
+    /// PDF/image input (#290, #77). Resolved once by [`build_vlm`].
+    vlm: Option<docling::vlm::VlmOptions>,
     to: OutputKind,
     image_mode: ImageMode,
     artifacts_dir: String,
@@ -272,13 +313,23 @@ fn build_config(o: ConvertOptions) -> Result<ConvertConfig> {
         ),
         None => None,
     };
+    let page_range = parse_pages(o.pages.as_deref())?;
+    let vlm = build_vlm(
+        o.pipeline.as_deref(),
+        o.vlm_endpoint,
+        o.vlm_model,
+        o.vlm_api_key,
+        o.vlm_prompt,
+        o.vlm_max_tokens,
+        page_range,
+    )?;
     Ok(ConvertConfig {
         strict: o.strict.unwrap_or(false),
         fetch_images: o.fetch_images.unwrap_or(false),
         asr_model: o.asr_model,
         asr_lang: o.asr_lang,
         video_frames: o.video_frames.map(|n| n as usize),
-        page_range: parse_pages(o.pages.as_deref())?,
+        page_range,
         ocr_lang: parse_ocr_lang(o.ocr_lang)?,
         ocr_mode: parse_ocr_mode(o.ocr_mode)?,
         ocr_scale: parse_ocr_scale(o.ocr_scale)?,
@@ -290,10 +341,68 @@ fn build_config(o: ConvertOptions) -> Result<ConvertConfig> {
         force_full_page_ocr: o.force_full_page_ocr.unwrap_or(false),
         no_text_panels: o.no_text_panels.unwrap_or(false),
         allowed_formats: allowed,
+        vlm,
         to: parse_output_kind(o.to.as_deref())?,
         image_mode: parse_image_mode(o.image_mode.as_deref())?,
         artifacts_dir: o.artifacts_dir.unwrap_or_else(|| "artifacts".to_string()),
     })
+}
+
+/// Resolve the `pipeline` / `vlm*` options into [`docling::vlm::VlmOptions`]
+/// (#290). `None` unless `pipeline: "vlm"` is explicitly selected — the
+/// `DOCLING_RS_VLM_*` env vars fill in connection details (endpoint, model,
+/// prompt, api key) but never auto-switch the pipeline. Conversely, `vlm*`
+/// options without the pipeline selection are a configuration error, not
+/// silently dead weight.
+fn build_vlm(
+    pipeline: Option<&str>,
+    endpoint: Option<String>,
+    model: Option<String>,
+    api_key: Option<String>,
+    prompt: Option<String>,
+    max_tokens: Option<u32>,
+    page_range: Option<(usize, usize)>,
+) -> Result<Option<docling::vlm::VlmOptions>> {
+    let selected = match pipeline {
+        None | Some("standard") => false,
+        Some("vlm") => true,
+        Some(other) => {
+            return Err(Error::from_reason(format!(
+                "pipeline {other:?} is not standard|vlm"
+            )))
+        }
+    };
+    if !selected {
+        if endpoint.is_some()
+            || model.is_some()
+            || api_key.is_some()
+            || prompt.is_some()
+            || max_tokens.is_some()
+        {
+            return Err(Error::from_reason(
+                "vlmEndpoint/vlmModel/vlmApiKey/vlmPrompt/vlmMaxTokens are set but `pipeline` \
+                 is not \"vlm\" — select the pipeline explicitly (env vars never switch it)",
+            ));
+        }
+        return Ok(None);
+    }
+    let mut opts = docling::vlm::VlmOptions::resolve(endpoint, model)
+        .map_err(|e| Error::from_reason(e.to_string()))?;
+    // Explicit options outrank the env-var fallbacks `resolve` filled in.
+    if prompt.is_some() {
+        opts.prompt = prompt;
+    }
+    if api_key.is_some() {
+        opts.api_key = api_key;
+    }
+    if let Some(m) = max_tokens {
+        if m == 0 {
+            return Err(Error::from_reason("vlmMaxTokens must be positive"));
+        }
+        opts.max_tokens = m as usize;
+    }
+    opts.page_range = page_range;
+    Ok(Some(opts))
 }
 
 /// Validate an `ocrLang` option (`"en"`/`"ch"`); an unknown id is an error.
@@ -400,6 +509,30 @@ fn render_doc(
 /// Run a buffered conversion and render it per the config. Runs off the JS
 /// thread for the async path, so it must stay free of napi/JS types.
 fn run_convert(source: SourceDocument, cfg: &ConvertConfig) -> Result<RawResult> {
+    // #290: the remote-VLM pipeline replaces the whole ML stack (#77);
+    // output rendering below is shared with the standard path. `allowedFormats`
+    // still applies — the pipeline choice must not widen what converts.
+    if let Some(vlm) = &cfg.vlm {
+        if let Some(allowed) = &cfg.allowed_formats {
+            if !allowed.contains(&source.format) {
+                return Err(Error::from_reason(format!(
+                    "format {:?} is not in allowedFormats",
+                    source.format.as_str()
+                )));
+            }
+        }
+        let format = source.format.as_str().to_string();
+        let input_name = source.name.clone();
+        let mut document = docling::vlm::convert_vlm(&source, vlm).map_err(convert_err)?;
+        document.strict_markdown = cfg.strict;
+        return Ok(render_doc(
+            document,
+            cfg,
+            input_name,
+            format,
+            "success".to_string(),
+        ));
+    }
     let converter = build_converter(cfg);
     let result = converter.convert(source).map_err(convert_err)?;
     let format = result.format.as_str().to_string();
@@ -553,6 +686,7 @@ pub struct DocumentConverter {
     force_full_page_ocr: bool,
     no_text_panels: bool,
     allowed_formats: Option<Vec<InputFormat>>,
+    vlm: Option<docling::vlm::VlmOptions>,
 }
 
 #[napi]
@@ -568,13 +702,24 @@ impl DocumentConverter {
             ),
             None => None,
         };
+        let page_range = parse_pages(o.pages.as_deref())?;
+        let vlm = build_vlm(
+            o.pipeline.as_deref(),
+            o.vlm_endpoint.clone(),
+            o.vlm_model.clone(),
+            o.vlm_api_key.clone(),
+            o.vlm_prompt.clone(),
+            o.vlm_max_tokens,
+            page_range,
+        )?;
         Ok(Self {
             strict: o.strict.unwrap_or(false),
             fetch_images: o.fetch_images.unwrap_or(false),
             asr_model: o.asr_model.clone(),
             asr_lang: o.asr_lang.clone(),
             video_frames: o.video_frames.map(|n| n as usize),
-            page_range: parse_pages(o.pages.as_deref())?,
+            page_range,
+            vlm,
             ocr_lang: parse_ocr_lang(o.ocr_lang.clone())?,
             ocr_mode: parse_ocr_mode(o.ocr_mode.clone())?,
             ocr_scale: parse_ocr_scale(o.ocr_scale)?,
@@ -609,6 +754,7 @@ impl DocumentConverter {
             force_full_page_ocr: self.force_full_page_ocr,
             no_text_panels: self.no_text_panels,
             allowed_formats: self.allowed_formats.clone(),
+            vlm: self.vlm.clone(),
             to: parse_output_kind(out.to.as_deref())?,
             image_mode: parse_image_mode(out.image_mode.as_deref())?,
             artifacts_dir: out.artifacts_dir.unwrap_or_else(|| "artifacts".to_string()),
@@ -680,6 +826,13 @@ impl DocumentConverter {
         callback: ThreadsafeFunction<Option<String>, ErrorStrategy::CalleeHandled>,
         options: Option<OutputOptions>,
     ) -> Result<()> {
+        // #290: no page streaming for the VLM pipeline — the remote endpoint
+        // is the bottleneck (same as the CLI); the buffered paths cover it.
+        if self.vlm.is_some() {
+            return Err(Error::from_reason(
+                "pipeline \"vlm\" has no streaming path — use convertFile/convertFileAsync",
+            ));
+        }
         let cfg = self.config(options)?;
         let converter = build_converter(&cfg);
         let image_mode = cfg.image_mode;
@@ -748,6 +901,15 @@ impl Pipeline {
     /// `fetchImages` / `allowedFormats` don't apply to the PDF/image pipeline.
     #[napi(constructor)]
     pub fn new(options: Option<ConverterOptions>) -> Result<Self> {
+        // #290: this class exists to keep warm ONNX models across calls — the
+        // remote VLM pipeline has none, so selecting it here is a mistake, not
+        // a no-op.
+        if options.as_ref().and_then(|o| o.pipeline.as_deref()) == Some("vlm") {
+            return Err(Error::from_reason(
+                "Pipeline keeps warm ONNX models, which the remote VLM pipeline doesn't use — \
+                 convert with pipeline: \"vlm\" through convertFile/DocumentConverter instead",
+            ));
+        }
         let strict = options.and_then(|o| o.strict).unwrap_or(false);
         Ok(Self {
             inner: Arc::new(Mutex::new(RsPipeline::new().map_err(convert_err)?)),
@@ -1033,6 +1195,7 @@ fn output_config(out: Option<OutputOptions>, strict: bool) -> Result<ConvertConf
         ocr_mode: None,
         ocr_scale: None,
         allowed_formats: None,
+        vlm: None,
         to: parse_output_kind(out.to.as_deref())?,
         image_mode: parse_image_mode(out.image_mode.as_deref())?,
         artifacts_dir: out.artifacts_dir.unwrap_or_else(|| "artifacts".to_string()),

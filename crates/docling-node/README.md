@@ -350,6 +350,30 @@ then `convert` / `convertFile` / `convertFileAsync` / `convertAsync` /
   (`"auto"` default) for audio/video sources.
 - `videoFrames`: max frames sampled from a video input as timestamped pictures
   (`0` = transcript only; default 8, needs ffmpeg at runtime).
+- `pipeline`: `"standard"` (default) or `"vlm"` (#290) — convert PDF/image
+  input through a remote **OpenAI-compatible** vision endpoint returning
+  DocLang (issue #77) instead of the local ML stack. Explicit opt-in only:
+  the `DOCLING_RS_VLM_*` env vars fill in connection details but never
+  switch the pipeline by themselves. No ONNX models are needed (a PDF still
+  rasterizes locally through pdfium; an image is sent as-is); prefer the
+  async API — the endpoint round-trips dominate — and note there is no
+  streaming for this pipeline.
+- `vlmEndpoint` / `vlmModel`: the server's `/v1` base (or full
+  `…/chat/completions`) URL and model name; env fallbacks
+  `DOCLING_RS_VLM_ENDPOINT` / `DOCLING_RS_VLM_MODEL`. Required (with those
+  fallbacks) when `pipeline: "vlm"`.
+- `vlmApiKey` / `vlmPrompt` / `vlmMaxTokens`: Bearer token, per-page
+  instruction, and per-page `max_tokens` (default 8192); env fallbacks
+  `DOCLING_RS_VLM_API_KEY` / `DOCLING_RS_VLM_PROMPT`.
+
+```js
+const res = await convertFileAsync('paper.pdf', {
+  to: 'markdown',
+  pipeline: 'vlm',
+  vlmEndpoint: 'http://localhost:11434/v1',
+  vlmModel: 'granite-docling',
+})
+```
 
 ### `ConvertResult`
 
