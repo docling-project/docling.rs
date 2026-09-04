@@ -32,10 +32,10 @@ ocr = [
 [dependencies]
 # The pure-Rust declarative slice only: no pdfium/ONNX (pdf, asr), no HTTP
 # client (fetch-images) — exactly the set that compiles for wasm32 (#79).
-docling = { path = "../docling", version = "1.35.0", default-features = false, features = ["pdf-text"] }
-docling-core = { path = "../docling-core", version = "1.35.0", optional = true }
+docling = { path = "../docling", version = "1.36.0", default-features = false, features = ["pdf-text"] }
+docling-core = { path = "../docling-core", version = "1.36.0", optional = true }
 # ocr_prep only: line prep + CTC decode shared with the native pipeline.
-docling-pdf = { path = "../docling-pdf", version = "1.35.0", default-features = false, features = ["ocr-prep"], optional = true }
+docling-pdf = { path = "../docling-pdf", version = "1.36.0", default-features = false, features = ["ocr-prep"], optional = true }
 # Input decoding for the OCR path; codecs mirror the browser's usual suspects.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "tiff", "webp", "gif"], optional = true }
 js-sys = { version = "0.3", optional = true }

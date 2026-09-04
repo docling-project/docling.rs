@@ -29,7 +29,7 @@ coreml = ["ort/coreml", "ort/copy-dylibs"]
 xnnpack = ["ort/xnnpack"]
 
 [dependencies]
-docling-core = { path = "../docling-core", version = "1.35.0" }
+docling-core = { path = "../docling-core", version = "1.36.0" }
 # Same ort build as docling-pdf/docling-asr so the workspace keeps a single
 # ONNX Runtime.
 ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "download-binaries", "tls-rustls"] }

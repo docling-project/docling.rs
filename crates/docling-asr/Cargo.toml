@@ -23,10 +23,10 @@ coreml = ["docling-onnx/coreml"]
 xnnpack = ["docling-onnx/xnnpack"]
 
 [dependencies]
-docling-core = { path = "../docling-core", version = "1.35.0" }
+docling-core = { path = "../docling-core", version = "1.36.0" }
 # Shared ONNX execution-provider selection (DOCLING_RS_EP, #288) — routes the
 # Whisper encoder/decoder sessions through the same switch as docling-pdf.
-docling-onnx = { path = "../docling-onnx", version = "1.35.0" }
+docling-onnx = { path = "../docling-onnx", version = "1.36.0" }
 # Same ort as docling-pdf so the workspace keeps a single ONNX runtime.
 ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "download-binaries", "tls-rustls"] }
 serde_json = "1"

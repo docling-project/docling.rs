@@ -40,8 +40,8 @@ otel = [
 
 [dependencies]
 axum = { version = "0.8", features = ["multipart"] }
-docling = { path = "../docling", version = "1.35.0" }
-docling-core = { path = "../docling-core", version = "1.35.0" }
+docling = { path = "../docling", version = "1.36.0" }
+docling-core = { path = "../docling-core", version = "1.36.0" }
 # malloc_trim after conversions (#263): glibc's allocator otherwise keeps
 # freed page-bitmap heap mapped forever, ratcheting a warm server's RSS.
 libc = "0.2"

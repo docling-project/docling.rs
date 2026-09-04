@@ -57,10 +57,10 @@ xnnpack = ["ml", "docling-onnx/xnnpack"]
 # what current LTS distros ship (Ubuntu 24.04 = 1.17). Newer libheif-rs
 # requires libheif >= 1.18 and can be selected once baselines move.
 libheif-rs = { version = "~1.0", default-features = false, optional = true }
-docling-core = { path = "../docling-core", version = "1.35.0" }
+docling-core = { path = "../docling-core", version = "1.36.0" }
 # Shared ONNX execution-provider selection (DOCLING_RS_EP, #74/#288);
 # re-exported as `docling_pdf::ep`.
-docling-onnx = { path = "../docling-onnx", version = "1.35.0", optional = true }
+docling-onnx = { path = "../docling-onnx", version = "1.36.0", optional = true }
 pdfium-render = { version = "0.8", optional = true }
 ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "download-binaries", "tls-rustls"], optional = true }
 image = { version = "0.25", optional = true }

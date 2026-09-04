@@ -32,7 +32,7 @@ crate-type = ["cdylib"]
 # on top of the crate's defaults — `vlm` is listed explicitly because this
 # binding exposes it as a public option, so it must not silently disappear if
 # the library's default set ever changes.
-docling = { path = "../docling", version = "1.35.0", features = ["chunking", "vlm"] }
+docling = { path = "../docling", version = "1.36.0", features = ["chunking", "vlm"] }
 # Node-API bindings. `napi4` enables threadsafe functions, used for streaming.
 napi = { version = "2", default-features = false, features = ["napi4"] }
 napi-derive = "2"

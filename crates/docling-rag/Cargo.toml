@@ -48,14 +48,14 @@ redis = ["dep:redis", "dep:futures-lite"]
 # break this branch's merge-ref build. Post-merge, release.sh rewrites these
 # to exact pins automatically (its sed matches any quoted version here).
 # `chunking` enables the HF-tokenizer-backed HybridChunker (RAG_CHUNKER=hybrid).
-docling = { path = "../docling", version = "1.35.0", features = ["chunking"] }
-docling-core = { path = "../docling-core", version = "1.35.0" }
+docling = { path = "../docling", version = "1.36.0", features = ["chunking"] }
+docling-core = { path = "../docling-core", version = "1.36.0" }
 # Direct dep only for pdfium_backend::page_count (PDF page metrics); already in
 # the graph via docling.rs, so this adds no compile cost.
-docling-pdf = { path = "../docling-pdf", version = "1.35.0" }
+docling-pdf = { path = "../docling-pdf", version = "1.36.0" }
 # Shared ONNX execution-provider selection - routes the local embedder's 
 # session through the same switch as the rest of the stack.
-docling-onnx = { path = "../docling-onnx", version = "1.35.0" }
+docling-onnx = { path = "../docling-onnx", version = "1.36.0" }
 # Counting slides/sheets in OOXML containers for page metrics (names only).
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
 
