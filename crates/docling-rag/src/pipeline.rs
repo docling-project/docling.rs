@@ -22,6 +22,8 @@ pub struct Pipeline {
     store: Arc<dyn VectorStore>,
     chat: Option<Arc<dyn ChatModel>>,
     chunker: Chunker,
+    /// Keyword index shared by every retriever this pipeline hands out.
+    bm25_cache: Arc<crate::retrieve::bm25::Bm25Cache>,
 }
 
 /// What happened to one document during ingestion.
@@ -112,6 +114,7 @@ impl Pipeline {
             store,
             chat,
             chunker,
+            bm25_cache: Arc::new(crate::retrieve::bm25::Bm25Cache::new()),
         })
     }
 
@@ -126,10 +129,24 @@ impl Pipeline {
     }
 
     /// A retriever over this pipeline's store/embedder/LLM.
+    ///
+    /// Every retriever shares this pipeline's keyword index, so the BM25 corpus
+    /// is tokenized once and reused across searches (and across API requests)
+    /// until an ingest invalidates it.
     pub fn retriever(&self) -> Retriever {
         Retriever::new(self.store.clone(), self.embedder.clone(), self.chat.clone())
             .with_rrf_k(self.cfg.rrf_k)
             .with_multiquery_n(self.cfg.multiquery_n)
+            .with_bm25_params(crate::retrieve::bm25::Bm25Params {
+                k1: self.cfg.bm25_k1,
+                b: self.cfg.bm25_b,
+            })
+            .with_bm25_cache(self.bm25_cache.clone())
+    }
+
+    /// Drop the cached BM25 index — the corpus changed under it.
+    pub fn invalidate_keyword_index(&self) {
+        self.bm25_cache.invalidate();
     }
 
     /// Ingest a single document reference. Deduplicates on content hash, and
@@ -178,6 +195,11 @@ impl Pipeline {
         // Remove stale rows for this source first: leftovers from interrupted
         // runs, or previous versions of a file whose content changed.
         self.store.delete_documents_by_source(&r.uri).await?;
+        // Everything below rewrites the corpus, so the keyword index built from
+        // it is stale from here on — including the case where a re-ingested
+        // document happens to produce exactly as many chunks as it replaced,
+        // which the cache's count fingerprint alone would not notice.
+        self.invalidate_keyword_index();
 
         // The document row must exist before its chunks (FK). It is inserted
         // with a sentinel hash — the real hash is written only on success, so an

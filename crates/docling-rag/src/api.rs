@@ -305,6 +305,8 @@ async fn delete_document(State(state): State<Arc<AppState>>, Path(id): Path<Stri
         .delete_document(&id)
         .await
         .map_err(internal)?;
+    // The keyword index still holds this document's chunks.
+    state.pipeline.invalidate_keyword_index();
     Ok(Json(json!({"deleted": id})).into_response())
 }
 

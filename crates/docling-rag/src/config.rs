@@ -98,6 +98,10 @@ pub struct RagConfig {
     pub top_k: usize,
     pub rrf_k: f32,
     pub multiquery_n: usize,
+    /// BM25 term-frequency saturation (`RAG_BM25_K1`, default 1.2).
+    pub bm25_k1: f32,
+    /// BM25 length normalization (`RAG_BM25_B`, default 0.75).
+    pub bm25_b: f32,
 
     // --- sources ---
     pub source: SourceKind,
@@ -191,6 +195,8 @@ impl Default for RagConfig {
             top_k: 5,
             rrf_k: 60.0,
             multiquery_n: 4,
+            bm25_k1: 1.2,
+            bm25_b: 0.75,
             source: SourceKind::Folder,
             source_path: "./input".to_string(),
             source_url: None,
@@ -262,6 +268,8 @@ impl RagConfig {
             top_k: env_parse("RAG_TOP_K", d.top_k)?,
             rrf_k: env_parse("RAG_RRF_K", d.rrf_k)?,
             multiquery_n: env_parse("RAG_MULTIQUERY_N", d.multiquery_n)?,
+            bm25_k1: env_parse("RAG_BM25_K1", d.bm25_k1)?,
+            bm25_b: env_parse("RAG_BM25_B", d.bm25_b)?,
             source: match env_str("RAG_SOURCE") {
                 Some(s) => parse_source_kind(&s)?,
                 None => d.source,

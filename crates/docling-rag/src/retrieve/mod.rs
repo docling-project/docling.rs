@@ -7,6 +7,7 @@ pub mod fusion;
 use crate::embed::Embedder;
 use crate::llm::ChatModel;
 use crate::model::{RetrievalMode, Scored};
+use crate::retrieve::bm25::{Bm25Cache, Bm25Params};
 use crate::store::VectorStore;
 use crate::{RagError, Result};
 use std::sync::Arc;
@@ -20,6 +21,10 @@ pub struct Retriever {
     chat: Option<Arc<dyn ChatModel>>,
     rrf_k: f32,
     multiquery_n: usize,
+    bm25_params: Bm25Params,
+    /// The keyword index, built once and reused across queries. Private to this
+    /// retriever unless [`Retriever::with_bm25_cache`] shares one.
+    bm25_cache: Arc<Bm25Cache>,
 }
 
 impl Retriever {
@@ -35,6 +40,8 @@ impl Retriever {
             chat,
             rrf_k: fusion::DEFAULT_RRF_K,
             multiquery_n: 4,
+            bm25_params: Bm25Params::default(),
+            bm25_cache: Arc::new(Bm25Cache::new()),
         }
     }
 
@@ -47,6 +54,20 @@ impl Retriever {
     /// Override the number of Multi-Query rewrites (default 4).
     pub fn with_multiquery_n(mut self, n: usize) -> Self {
         self.multiquery_n = n.max(1);
+        self
+    }
+
+    /// Override the BM25 parameters (default k1 = 1.2, b = 0.75).
+    pub fn with_bm25_params(mut self, params: Bm25Params) -> Self {
+        self.bm25_params = params;
+        self
+    }
+
+    /// Share a keyword index with other retrievers over the same store — how
+    /// [`crate::Pipeline`] keeps one index alive across API requests instead of
+    /// rebuilding it per retriever.
+    pub fn with_bm25_cache(mut self, cache: Arc<Bm25Cache>) -> Self {
+        self.bm25_cache = cache;
         self
     }
 
@@ -72,10 +93,10 @@ impl Retriever {
         self.store.vector_search(&emb, k).await
     }
 
-    /// Sparse BM25 keyword search over the whole chunk corpus.
+    /// Sparse BM25 keyword search over the whole chunk corpus. The index is
+    /// built on first use and reused while the corpus is unchanged.
     pub async fn bm25(&self, query: &str, k: usize) -> Result<Vec<Scored>> {
-        let chunks = self.store.all_chunks().await?;
-        let index = bm25::Bm25Index::build(chunks);
+        let index = self.bm25_cache.index(&self.store, self.bm25_params).await?;
         Ok(index.search(query, k))
     }
 
