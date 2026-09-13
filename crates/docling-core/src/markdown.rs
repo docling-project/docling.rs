@@ -393,6 +393,15 @@ fn render_list_run(items: &[Node], blocks: &mut Vec<String>, strict: bool) {
     // docx_list_blank_spacer: `- 1.2. Sub two` directly followed by
     // `2. Second section`, no blank line).
     let mut prev_projected = false;
+    // Whether a deeper-level item has been rendered since the previous
+    // top-level one. docling's AsciiDoc shape hangs a nested list off the
+    // *group* rather than off the preceding item, so the nested group occupies
+    // a position in the parent group and the next top-level item is numbered
+    // past it (`3.` … `5.`). That gap is one list, not two, so it must not
+    // trigger the new-sibling-list blank line below. Backends whose nested
+    // lists hang off the item (HTML, DOCX, Markdown) number contiguously and
+    // are unaffected.
+    let mut nested_since_top = false;
 
     for item in items {
         let Node::ListItem {
@@ -438,12 +447,16 @@ fn render_list_run(items: &[Node], blocks: &mut Vec<String>, strict: bool) {
                 let same_word_list = prev_projected && eff_ordered;
                 let new_list = *first_in_list
                     || (!same_word_list
-                        && (prev_ordered != *ordered || (*ordered && *number != prev_number + 1)));
+                        && (prev_ordered != *ordered
+                            || (*ordered && !nested_since_top && *number != prev_number + 1)));
                 if new_list {
                     lines.push(String::new());
                 }
             }
             prev_projected = eff_ordered && !*ordered;
+            nested_since_top = false;
+        } else {
+            nested_since_top = true;
         }
 
         let indent = "    ".repeat(level);
@@ -473,21 +486,39 @@ fn render_list_run(items: &[Node], blocks: &mut Vec<String>, strict: bool) {
 fn list_item_text(text: &str, strict: bool) -> String {
     let escaped = strict_text(text, strict);
     if let Some((own, tail)) = escaped.split_once('\n') {
-        if is_folded_picture_tail(tail) {
+        if is_folded_child_tail(tail) {
             return format!("{}\n{tail}", md_line_breaks(own));
         }
     }
     md_line_breaks(&escaped)
 }
 
-fn is_folded_picture_tail(tail: &str) -> bool {
+/// Whether everything after a list item's own first line is a folded *child*
+/// block rather than a continuation of the item's text: an image marker
+/// (optionally preceded by its caption/alt line) or a fenced code block. The
+/// AsciiDoc backend indents such a block to the item's own depth (as
+/// docling-core's list serializer does for each part it emits), so a leading
+/// indent is ignored here.
+fn is_folded_child_tail(tail: &str) -> bool {
     const MARKER: &str = "<!-- image -->";
+    const FENCE: &str = "```";
     let mut lines = tail.split('\n').peekable();
     let mut any = false;
     while let Some(line) = lines.next() {
+        let line = line.trim_start();
         if line == MARKER {
             any = true;
-        } else if lines.next() == Some(MARKER) {
+        } else if line == FENCE {
+            // Skip the block's body; an unclosed fence is not a folded child.
+            loop {
+                match lines.next() {
+                    Some(l) if l.trim_start() == FENCE => break,
+                    Some(_) => {}
+                    None => return false,
+                }
+            }
+            any = true;
+        } else if lines.next().map(str::trim_start) == Some(MARKER) {
             any = true; // an alt caption line, then its marker
         } else {
             return false;
