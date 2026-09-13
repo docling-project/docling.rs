@@ -33,16 +33,16 @@
         "$ref": "#/texts/4"
       },
       {
+        "$ref": "#/texts/5"
+      },
+      {
         "$ref": "#/groups/0"
       },
       {
-        "$ref": "#/pictures/0"
+        "$ref": "#/texts/10"
       },
       {
-        "$ref": "#/pictures/1"
-      },
-      {
-        "$ref": "#/pictures/2"
+        "$ref": "#/groups/1"
       }
     ],
     "content_layer": "body",
@@ -57,7 +57,30 @@
       },
       "children": [
         {
-          "$ref": "#/texts/5"
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        },
+        {
+          "$ref": "#/texts/8"
+        },
+        {
+          "$ref": "#/texts/9"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/11"
         }
       ],
       "content_layer": "body",
@@ -129,110 +152,99 @@
     {
       "self_ref": "#/texts/5",
       "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [],
+      "orig": "Procedure",
+      "text": "Procedure"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
         "$ref": "#/groups/0"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "Check that the side bar lists the bookmark under the new name.",
-      "text": "Check that the side bar lists the bookmark under the new name.",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/6",
-      "parent": {
-        "$ref": "#/pictures/0"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "caption",
-      "prov": [],
-      "orig": "Procedure . Right-click the bookmark in the side bar. . Select *Rename…*. +",
-      "text": "Procedure . Right-click the bookmark in the side bar. . Select *Rename…*. +"
+      "orig": "Right-click the bookmark in the side bar.",
+      "text": "Right-click the bookmark in the side bar.",
+      "enumerated": true,
+      "marker": "1."
     },
     {
       "self_ref": "#/texts/7",
       "parent": {
-        "$ref": "#/pictures/1"
+        "$ref": "#/groups/0"
       },
       "children": [],
       "content_layer": "body",
-      "label": "caption",
+      "label": "list_item",
       "prov": [],
-      "orig": " In the *Name* field, enter the new name for the bookmark. +",
-      "text": " In the *Name* field, enter the new name for the bookmark. +"
+      "orig": "Select *Rename…*.\n<!-- image -->",
+      "text": "Select *Rename…*.\n<!-- image -->",
+      "enumerated": true,
+      "marker": "2."
     },
     {
       "self_ref": "#/texts/8",
       "parent": {
-        "$ref": "#/pictures/2"
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "In the *Name* field, enter the new name for the bookmark.\n<!-- image -->",
+      "text": "In the *Name* field, enter the new name for the bookmark.\n<!-- image -->",
+      "enumerated": true,
+      "marker": "3."
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Click btn:[Rename].",
+      "text": "Click btn:[Rename].",
+      "enumerated": true,
+      "marker": "4."
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
       },
       "children": [],
       "content_layer": "body",
       "label": "caption",
       "prov": [],
-      "orig": " Click btn:[Rename]. .Verification",
-      "text": " Click btn:[Rename]. .Verification"
-    }
-  ],
-  "pictures": [
-    {
-      "self_ref": "#/pictures/0",
-      "parent": {
-        "$ref": "#/body"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "picture",
-      "prov": [],
-      "captions": [
-        {
-          "$ref": "#/texts/6"
-        }
-      ],
-      "references": [],
-      "footnotes": [],
-      "annotations": []
+      "orig": "Verification",
+      "text": "Verification"
     },
     {
-      "self_ref": "#/pictures/1",
+      "self_ref": "#/texts/11",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
       },
       "children": [],
       "content_layer": "body",
-      "label": "picture",
+      "label": "list_item",
       "prov": [],
-      "captions": [
-        {
-          "$ref": "#/texts/7"
-        }
-      ],
-      "references": [],
-      "footnotes": [],
-      "annotations": []
-    },
-    {
-      "self_ref": "#/pictures/2",
-      "parent": {
-        "$ref": "#/body"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "picture",
-      "prov": [],
-      "captions": [
-        {
-          "$ref": "#/texts/8"
-        }
-      ],
-      "references": [],
-      "footnotes": [],
-      "annotations": []
+      "orig": "Check that the side bar lists the bookmark under the new name.\n<!-- image -->",
+      "text": "Check that the side bar lists the bookmark under the new name.\n<!-- image -->",
+      "enumerated": false,
+      "marker": "-"
     }
   ],
+  "pictures": [],
   "tables": [],
   "key_value_items": [],
   "form_items": [],

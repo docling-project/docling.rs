@@ -308,8 +308,8 @@
       "prov": [],
       "orig": "Nested ordered item 1",
       "text": "Nested ordered item 1",
-      "enumerated": false,
-      "marker": "-"
+      "enumerated": true,
+      "marker": "1."
     },
     {
       "self_ref": "#/texts/8",
@@ -326,8 +326,8 @@
       "prov": [],
       "orig": "Nested ordered item 2",
       "text": "Nested ordered item 2",
-      "enumerated": false,
-      "marker": "-"
+      "enumerated": true,
+      "marker": "2."
     },
     {
       "self_ref": "#/texts/9",
@@ -372,8 +372,8 @@
       "prov": [],
       "orig": "Nested ordered item 1",
       "text": "Nested ordered item 1",
-      "enumerated": false,
-      "marker": "-"
+      "enumerated": true,
+      "marker": "1."
     },
     {
       "self_ref": "#/texts/12",
@@ -390,8 +390,8 @@
       "prov": [],
       "orig": "Nested ordered item 2",
       "text": "Nested ordered item 2",
-      "enumerated": false,
-      "marker": "-"
+      "enumerated": true,
+      "marker": "2."
     },
     {
       "self_ref": "#/texts/13",
@@ -418,8 +418,8 @@
       "prov": [],
       "orig": "Nested ordered item 2",
       "text": "Nested ordered item 2",
-      "enumerated": false,
-      "marker": "-"
+      "enumerated": true,
+      "marker": "3."
     },
     {
       "self_ref": "#/texts/15",

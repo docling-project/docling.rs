@@ -703,7 +703,10 @@ impl DocumentConverter {
                     crate::backend::convert_html(&source.name, &html, &crate::backend::NoFetch)
                 }
             }
-            InputFormat::Asciidoc => AsciiDocBackend.convert(&source)?,
+            InputFormat::Asciidoc => AsciiDocBackend {
+                fetch_images: self.fetch_images,
+            }
+            .convert(&source)?,
             InputFormat::Xlsx => XlsxBackend {
                 skip_empty: self.skip_empty_cells,
             }
