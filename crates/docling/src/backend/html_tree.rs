@@ -313,7 +313,7 @@ fn cell_spans(cell: ElementRef) -> (usize, usize) {
 /// gains its `/`), anything else through `pathlib.Path`, which drops a
 /// trailing slash and `.` segments and collapses repeated slashes (keeping a
 /// protocol-relative `//host`).
-fn docling_href(href: &str) -> String {
+pub(super) fn docling_href(href: &str) -> String {
     let has_scheme = href.split_once(':').is_some_and(|(scheme, _)| {
         scheme.starts_with(|c: char| c.is_ascii_alphabetic())
             && scheme
@@ -948,6 +948,7 @@ impl<'a> Walker<'a> {
                         captions: Vec::new(),
                         image: None,
                         classification: Some(class_name),
+                        chart: None,
                     },
                 );
                 let mut raw = String::new();
@@ -1597,6 +1598,7 @@ impl<'a> Walker<'a> {
                 captions,
                 image,
                 classification: None,
+                chart: None,
             },
         )
     }

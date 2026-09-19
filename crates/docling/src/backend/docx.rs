@@ -67,6 +67,7 @@ impl DeclarativeBackend for DocxBackend {
             style_based: &sm.based,
             style_fonts: &sm.fonts,
             style_outline: &sm.outlines,
+            style_bold: &sm.bolds,
             num_levels: &num_levels,
             rels: &rels,
             images: &images,
@@ -121,6 +122,15 @@ impl DeclarativeBackend for DocxBackend {
         // body as `comment_section` groups: Markdown/LaTeX drop them, JSON
         // emits the group plus its notes text (and the `comments` back-refs on
         // the annotated items), DocLang the flat `<layer value="notes"/>` item.
+        // The JSON takes docling's item tree, built by a call-for-call port of
+        // upstream's walk ([`super::docx_tree`]) so the JSON structure —
+        // heading nesting, inline groups of formatting runs, list groups,
+        // rich-cell groups, textbox/header/footer sections, comment
+        // back-refs — is upstream's; the flat nodes above stay the source for
+        // Markdown / DocLang / LaTeX.
+        doc.tree = Some(super::docx_tree::build_tree(
+            &mut pkg, body, &ctx, &comments,
+        ));
         for (id, text) in comments {
             doc.nodes.push(Node::CommentSection {
                 name: format!("comment-{id}"),
@@ -145,6 +155,15 @@ impl DeclarativeBackend for DocxBackend {
 /// header/footer, since both are actually used — headers first, then footers,
 /// first-page before regular within each.
 fn add_header_footer(pkg: &mut Package, body: XmlNode, ctx: &Ctx, doc: &mut DoclingDocument) {
+    for (_, part) in header_footer_parts(body, ctx) {
+        emit_header_footer_part(pkg, &part, ctx, doc);
+    }
+}
+
+/// The header/footer parts a document uses, in docling's emission order —
+/// `(kind, part name)` with `kind` = `"page header"` / `"page footer"`, each
+/// part once (see [`add_header_footer`]).
+pub(super) fn header_footer_parts(body: XmlNode, ctx: &Ctx) -> Vec<(&'static str, String)> {
     let doc_rels = ctx.rels;
     let sect_prs: Vec<XmlNode> = body
         .descendants()
@@ -152,6 +171,7 @@ fn add_header_footer(pkg: &mut Package, body: XmlNode, ctx: &Ctx, doc: &mut Docl
         .collect();
     let mut effective: HashMap<(&str, String), String> = HashMap::new();
     let mut emitted: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut out = Vec::new();
     for sect in sect_prs.iter() {
         for r in sect.children().filter(XmlNode::is_element) {
             let kind = match r.tag_name().name() {
@@ -185,10 +205,16 @@ fn add_header_footer(pkg: &mut Package, body: XmlNode, ctx: &Ctx, doc: &mut Docl
                 if !emitted.insert(part.clone()) {
                     continue;
                 }
-                emit_header_footer_part(pkg, part, ctx, doc);
+                let name = if kind == "hdr" {
+                    "page header"
+                } else {
+                    "page footer"
+                };
+                out.push((name, part.clone()));
             }
         }
     }
+    out
 }
 
 /// Walk one header/footer part and append its blocks wrapped in the furniture
@@ -214,32 +240,10 @@ fn emit_header_footer_part(pkg: &mut Package, part: &str, ctx: &Ctx, doc: &mut D
     if !has_content {
         return;
     }
-    let rels: HashMap<String, String> = pkg
-        .rels_for(part)
-        .iter()
-        .map(|r| {
-            let t = if r.rel_type.ends_with("/hyperlink") {
-                r.target.clone()
-            } else {
-                resolve("word", &r.target)
-            };
-            (r.id.clone(), t)
-        })
-        .collect();
+    let rels = part_rels(pkg, part);
     let images = pkg.image_rels(part, "word");
     let charts = chart_rels(pkg, part);
-    let part_ctx = Ctx {
-        style_names: ctx.style_names,
-        style_nums: ctx.style_nums,
-        style_based: ctx.style_based,
-        style_fonts: ctx.style_fonts,
-        style_outline: ctx.style_outline,
-        num_levels: ctx.num_levels,
-        rels: &rels,
-        images: &images,
-        charts: &charts,
-        table_depth: std::cell::Cell::new(0),
-    };
+    let part_ctx = ctx.for_part(&rels, &images, &charts);
     let mut sub = DoclingDocument::new("");
     let mut state = ListState::default();
     for node in root.children().filter(XmlNode::is_element) {
@@ -253,10 +257,26 @@ fn emit_header_footer_part(pkg: &mut Package, part: &str, ctx: &Ctx, doc: &mut D
     }
 }
 
+/// A part's relationship id → target map: hyperlink targets verbatim, every
+/// other target resolved against `word/`.
+pub(super) fn part_rels(pkg: &mut Package, part: &str) -> HashMap<String, String> {
+    pkg.rels_for(part)
+        .iter()
+        .map(|r| {
+            let t = if r.rel_type.ends_with("/hyperlink") {
+                r.target.clone()
+            } else {
+                resolve("word", &r.target)
+            };
+            (r.id.clone(), t)
+        })
+        .collect()
+}
+
 /// Parse `word/comments.xml` into `(w:id, note)` pairs, the note being
 /// docling's `[author: {author} ({initials}), time: {iso}]: {text}` (the
 /// author/initials parts drop out when absent). Empty when the part is missing.
-fn parse_comments(pkg: &mut Package) -> Vec<(String, String)> {
+pub(super) fn parse_comments(pkg: &mut Package) -> Vec<(String, String)> {
     let Some(xml) = pkg.read("word/comments.xml") else {
         return Vec::new();
     };
@@ -340,30 +360,59 @@ fn format_comment_date(raw: &str) -> String {
     }
 }
 
-struct Ctx<'a> {
-    style_names: &'a HashMap<String, String>,
+pub(super) struct Ctx<'a> {
+    pub(super) style_names: &'a HashMap<String, String>,
     /// styleId -> the style's *own* `numPr` parts (`numId`, `ilvl`), each
     /// optional — resolved through `basedOn` by [`style_numbering`].
-    style_nums: &'a HashMap<String, (Option<String>, Option<i64>)>,
-    style_based: &'a HashMap<String, String>, // styleId -> basedOn styleId
-    style_fonts: &'a HashMap<String, String>, // styleId -> lowercased ascii font
-    style_outline: &'a HashMap<String, u8>,   // styleId -> 1-indexed outlineLvl
-    num_levels: &'a HashMap<(String, i64), NumLevel>, // (numId, ilvl) -> level props
-    rels: &'a HashMap<String, String>,
-    images: &'a HashMap<String, PictureImage>, // image relationship id -> extracted image
+    pub(super) style_nums: &'a HashMap<String, (Option<String>, Option<i64>)>,
+    pub(super) style_based: &'a HashMap<String, String>, // styleId -> basedOn styleId
+    pub(super) style_fonts: &'a HashMap<String, String>, // styleId -> lowercased ascii font
+    pub(super) style_outline: &'a HashMap<String, u8>,   // styleId -> 1-indexed outlineLvl
+    /// styleId → the style's *own* `w:rPr/w:b` as python-docx's `font.bold`
+    /// reads it (`true`/`false`; absent = not set) — the item tree's
+    /// `_get_format_from_run` climbs the paragraph style chain for bold.
+    pub(super) style_bold: &'a HashMap<String, bool>,
+    pub(super) num_levels: &'a HashMap<(String, i64), NumLevel>, // (numId, ilvl) -> level props
+    pub(super) rels: &'a HashMap<String, String>,
+    pub(super) images: &'a HashMap<String, PictureImage>, // image relationship id -> extracted image
     /// Native charts by relationship id: `(classified kind, title, data grid)`
     /// parsed from the `word/charts/*.xml` parts (docling PR #3809).
-    charts: &'a HashMap<String, (String, Option<String>, docling_core::Table)>,
+    pub(super) charts: &'a HashMap<String, (String, Option<String>, docling_core::Table)>,
     /// Nesting depth of the table being parsed (a table inside a cell inside a
     /// table …), bounded by [`MAX_TABLE_DEPTH`]: `parse_table_with` recurses
     /// per level, and a 35 KB file with 2 000 tables nested one inside the next
     /// overflowed the stack — an abort, not an error.
-    table_depth: std::cell::Cell<u32>,
+    pub(super) table_depth: std::cell::Cell<u32>,
+}
+
+impl<'a> Ctx<'a> {
+    /// The context for a header/footer part: the document's style and
+    /// numbering maps with the part's own relationships, images and charts.
+    pub(super) fn for_part(
+        &self,
+        rels: &'a HashMap<String, String>,
+        images: &'a HashMap<String, PictureImage>,
+        charts: &'a HashMap<String, (String, Option<String>, docling_core::Table)>,
+    ) -> Ctx<'a> {
+        Ctx {
+            style_names: self.style_names,
+            style_nums: self.style_nums,
+            style_based: self.style_based,
+            style_fonts: self.style_fonts,
+            style_outline: self.style_outline,
+            style_bold: self.style_bold,
+            num_levels: self.num_levels,
+            rels,
+            images,
+            charts,
+            table_depth: std::cell::Cell::new(0),
+        }
+    }
 }
 
 /// Deepest table nesting parsed; anything deeper is dropped. Word itself
 /// renders a handful of levels — real documents stop at two or three.
-const MAX_TABLE_DEPTH: u32 = 64;
+pub(super) const MAX_TABLE_DEPTH: u32 = 64;
 
 /// Mutable list/heading numbering state carried across the body walk.
 #[derive(Default)]
@@ -912,7 +961,7 @@ fn drawing_images(node: XmlNode, ctx: &Ctx, skip_textbox: bool) -> Vec<Option<Pi
 
 /// Parse every chart part related to `part`: relationship id →
 /// `(classified kind, title, data grid from the embedded caches)`.
-fn chart_rels(
+pub(super) fn chart_rels(
     pkg: &mut Package,
     part: &str,
 ) -> HashMap<String, (String, Option<String>, docling_core::Table)> {
@@ -939,14 +988,14 @@ fn chart_rels(
         .collect()
 }
 
-fn in_textbox(n: XmlNode) -> bool {
+pub(super) fn in_textbox(n: XmlNode) -> bool {
     n.ancestors()
         .any(|a| a.has_tag_name("txbxContent") || a.has_tag_name("textbox"))
 }
 
 /// An attribute by *local* name, ignoring its namespace (OOXML attributes are
 /// namespaced, e.g. `w:val`, which roxmltree's bare `attribute()` won't match).
-fn attr<'a>(node: XmlNode<'a, '_>, name: &str) -> Option<&'a str> {
+pub(super) fn attr<'a>(node: XmlNode<'a, '_>, name: &str) -> Option<&'a str> {
     node.attributes()
         .find(|a| a.name() == name)
         .map(|a| a.value())
@@ -957,7 +1006,11 @@ fn attr<'a>(node: XmlNode<'a, '_>, name: &str) -> Option<&'a str> {
 /// Mirrors docling's `_add_heading` numbering: bump this level, zero deeper
 /// consecutive levels, then walk up prefixing each ancestor's counter (filling a
 /// skipped `0` ancestor with `1`, the "no empty sublevels" rule).
-fn numbered_heading_text(headers: &mut HashMap<u8, u64>, level: u8, text: &str) -> String {
+pub(super) fn numbered_heading_text(
+    headers: &mut HashMap<u8, u64>,
+    level: u8,
+    text: &str,
+) -> String {
     *headers.entry(level).or_insert(0) += 1;
     let mut out = format!("{} {}", headers[&level], text);
 
@@ -1079,7 +1132,7 @@ fn num_pr_parts(style: XmlNode) -> Option<(Option<String>, Option<i64>)> {
 /// after ten ancestors (a malformed/cyclic chain); a `numId` of 0 found on
 /// the way means "no list", like a paragraph's own `numId` 0; `ilvl`
 /// defaults to 0 when only `numId` was found.
-fn style_numbering(style_id: &str, ctx: &Ctx) -> Option<(String, i64)> {
+pub(super) fn style_numbering(style_id: &str, ctx: &Ctx) -> Option<(String, i64)> {
     let (mut num_id, mut ilvl): (Option<String>, Option<i64>) = (None, None);
     let mut cur = Some(style_id.to_string());
     let mut depth = 0;
@@ -1110,7 +1163,7 @@ fn style_numbering(style_id: &str, ctx: &Ctx) -> Option<(String, i64)> {
 
 /// `(numId, ilvl)` for an element carrying explicit list numbering. A `numId`
 /// of 0 means "no list" in OOXML and yields `None`.
-fn num_pr(p: XmlNode) -> Option<(String, i64)> {
+pub(super) fn num_pr(p: XmlNode) -> Option<(String, i64)> {
     let num_pr = p.descendants().find(|n| n.has_tag_name("numPr"))?;
     let num_id_node = num_pr.children().find(|n| n.has_tag_name("numId"))?;
     let num_id = attr(num_id_node, "val")?.to_string();
@@ -1137,12 +1190,12 @@ fn paragraph_markdown(p: XmlNode, ctx: &Ctx) -> String {
 }
 
 /// All element children of a node.
-fn child_elements<'a, 'i>(n: XmlNode<'a, 'i>) -> impl Iterator<Item = XmlNode<'a, 'i>> {
+pub(super) fn child_elements<'a, 'i>(n: XmlNode<'a, 'i>) -> impl Iterator<Item = XmlNode<'a, 'i>> {
     n.children().filter(XmlNode::is_element)
 }
 
 /// Strip a leading checkbox glyph (matches docling's `_clean_checkbox_symbols`).
-fn clean_checkbox_symbols(text: &str) -> String {
+pub(super) fn clean_checkbox_symbols(text: &str) -> String {
     let t = text.trim();
     for sym in ['☐', '☑', '☒', '□', '■', '▪', '▫'] {
         if let Some(rest) = t.strip_prefix(sym) {
@@ -1628,7 +1681,7 @@ fn parse_table_inner(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
     })
 }
 
-fn grid_span(tc: XmlNode) -> usize {
+pub(super) fn grid_span(tc: XmlNode) -> usize {
     tc.descendants()
         .find(|n| n.has_tag_name("gridSpan"))
         .and_then(|n| attr(n, "val"))
@@ -1640,7 +1693,7 @@ fn grid_span(tc: XmlNode) -> usize {
 /// is where docling's paragraph text comes from, so this is the parity target.
 /// Anything not in its `w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:tab`
 /// set contributes nothing.
-fn run_child_text(n: XmlNode) -> String {
+pub(super) fn run_child_text(n: XmlNode) -> String {
     match n.tag_name().name() {
         "t" => n.text().unwrap_or("").to_string(),
         // A *line* break is a newline; a page or column break has no text
@@ -1663,7 +1716,7 @@ fn run_child_text(n: XmlNode) -> String {
 /// Only `w:t` and `w:noBreakHyphen` are safe to pick up that way — `w:tab` and
 /// `w:br` also appear in paragraph *properties* (`w:pPr/w:tabs/w:tab`), which
 /// carry no text; `collect_run_tuples` handles those from the run itself.
-fn flat_text<'a, 'i>(n: XmlNode<'a, 'i>) -> Option<&'a str> {
+pub(super) fn flat_text<'a, 'i>(n: XmlNode<'a, 'i>) -> Option<&'a str> {
     match n.tag_name().name() {
         "t" => Some(n.text().unwrap_or("")),
         "noBreakHyphen" => Some("-"),
@@ -1679,7 +1732,7 @@ fn flat_text<'a, 'i>(n: XmlNode<'a, 'i>) -> Option<&'a str> {
 /// grid cursor advances only per emitted cell, so every later cell in the row
 /// slides left under the wrong header, and a 1×1 layout table loses its only
 /// cell — and with it all of its content.
-fn row_cells<'a, 'i>(tr: XmlNode<'a, 'i>) -> Vec<XmlNode<'a, 'i>> {
+pub(super) fn row_cells<'a, 'i>(tr: XmlNode<'a, 'i>) -> Vec<XmlNode<'a, 'i>> {
     let mut out = Vec::new();
     for child in tr.children().filter(XmlNode::is_element) {
         if child.has_tag_name("tc") {
@@ -1695,7 +1748,7 @@ fn row_cells<'a, 'i>(tr: XmlNode<'a, 'i>) -> Vec<XmlNode<'a, 'i>> {
 
 /// A row's skipped grid columns: `(w:gridBefore, w:gridAfter)` from its
 /// `w:trPr`, 0 when absent.
-fn row_grid_offsets(tr: XmlNode) -> (usize, usize) {
+pub(super) fn row_grid_offsets(tr: XmlNode) -> (usize, usize) {
     let read = |tag: &str| {
         tr.children()
             .find(|n| n.has_tag_name("trPr"))
@@ -1931,7 +1984,7 @@ const MAX_STYLE_DEPTH: usize = 10;
 /// Whether a style marks its paragraphs as code: the style itself or any
 /// ancestor in its `basedOn` chain carries a code style name/id (docling's
 /// `_is_code_style`).
-fn is_code_style(style_id: &str, ctx: &Ctx) -> bool {
+pub(super) fn is_code_style(style_id: &str, ctx: &Ctx) -> bool {
     let mut sid = style_id;
     for _ in 0..MAX_STYLE_DEPTH {
         if sid.is_empty() {
@@ -1959,7 +2012,7 @@ fn is_code_style(style_id: &str, ctx: &Ctx) -> bool {
 /// name, and their `basedOn` counterparts (docling#3961, #270). A title-ish
 /// style ("Title", "Subtitle") is never promoted to a heading by its
 /// `w:outlineLvl`; it keeps reaching its own branch.
-fn is_title_style(style_id: &str, style_name: &str, ctx: &Ctx) -> bool {
+pub(super) fn is_title_style(style_id: &str, style_name: &str, ctx: &Ctx) -> bool {
     let has_title = |s: &str| s.to_ascii_lowercase().contains("title");
     if has_title(style_id) || has_title(style_name) {
         return true;
@@ -1993,7 +2046,7 @@ fn style_font(style_id: &str, ctx: &Ctx) -> String {
 /// code (docling's `_is_code_by_font`): (nearly) every character must resolve to
 /// a monospaced font and the text must carry a code signal, or be an indented
 /// line continuing a code block.
-fn is_code_by_font(p: XmlNode, style_id: &str, ctx: &Ctx, prev_is_code: bool) -> bool {
+pub(super) fn is_code_by_font(p: XmlNode, style_id: &str, ctx: &Ctx, prev_is_code: bool) -> bool {
     // A caption/figure/table/label style is never code.
     let style_lc = ctx
         .style_names
@@ -2071,7 +2124,7 @@ fn monospaced_char_counts(p: XmlNode, style_font: &str) -> (usize, usize) {
 /// Best-effort code language for a fenced block (docling's `detect_code_language`,
 /// the conservative markers used for DOCX). Returns `None` (→ `unknown`) unless a
 /// distinctive marker is present.
-fn detect_code_language(text: &str) -> Option<String> {
+pub(super) fn detect_code_language(text: &str) -> Option<String> {
     let lang = |l: &str| Some(l.to_string());
     if cached_regex!(r"(?m)^[ \t]*(?:def|elif)\b|\b__name__\b|^[ \t]*from\s+\S+\s+import\b")
         .is_match(text)
@@ -2100,6 +2153,9 @@ struct StyleMaps {
     /// *own* definition only, no `basedOn` inheritance — mirroring docling's
     /// `_get_outline_level_from_style` (docling#3961, #270).
     outlines: HashMap<String, u8>,
+    /// styleId → the style's own `w:rPr/w:b` (python-docx `font.bold`:
+    /// `true`/`false` when the element is present). See [`Ctx::style_bold`].
+    bolds: HashMap<String, bool>,
 }
 fn parse_styles(styles_xml: &str) -> StyleMaps {
     let mut names = HashMap::new();
@@ -2107,6 +2163,7 @@ fn parse_styles(styles_xml: &str) -> StyleMaps {
     let mut based = HashMap::new();
     let mut fonts = HashMap::new();
     let mut outlines = HashMap::new();
+    let mut bolds = HashMap::new();
     let Ok(dom) = Document::parse(styles_xml) else {
         return StyleMaps {
             names,
@@ -2114,6 +2171,7 @@ fn parse_styles(styles_xml: &str) -> StyleMaps {
             based,
             fonts,
             outlines,
+            bolds,
         };
     };
     for style in dom.descendants().filter(|n| n.has_tag_name("style")) {
@@ -2154,6 +2212,13 @@ fn parse_styles(styles_xml: &str) -> StyleMaps {
         {
             outlines.insert(id.to_string(), lvl.saturating_add(1));
         }
+        if let Some(b) = style
+            .children()
+            .find(|n| n.has_tag_name("rPr"))
+            .and_then(|pr| pr.children().find(|n| n.has_tag_name("b")))
+        {
+            bolds.insert(id.to_string(), on_off(attr(b, "val")));
+        }
     }
     StyleMaps {
         names,
@@ -2161,19 +2226,25 @@ fn parse_styles(styles_xml: &str) -> StyleMaps {
         based,
         fonts,
         outlines,
+        bolds,
     }
+}
+
+/// python-docx's `ST_OnOff`: an absent `w:val` is on; `0`/`false`/`off` is off.
+pub(super) fn on_off(val: Option<&str>) -> bool {
+    !matches!(val, Some("0" | "false" | "off"))
 }
 
 /// One numbering level's properties (resolved `num` → `abstractNum` → `lvl`).
 #[derive(Clone, Default)]
-struct NumLevel {
-    numbered: bool,
+pub(super) struct NumLevel {
+    pub(super) numbered: bool,
     /// Whether the level's `numFmt` renders a visible marker (docling's
     /// `_VISIBLE_NUMBERING_FORMATS`, docling#3760): `decimal`, roman, letter,
     /// `decimalZero`. `none` (and the exotic formats) is invisible — a heading
     /// on such a level carries a `numPr` for outline structure only, so it
     /// gets no computed `1.2` prefix.
-    visible: bool,
+    pub(super) visible: bool,
     /// The level's raw `numFmt` (`decimal`, `lowerLetter`, `upperRoman`, …);
     /// `None` when the level declares none.
     num_fmt: Option<String>,
@@ -2325,7 +2396,11 @@ fn format_enum_counter(counter: i64, num_fmt: Option<&str>) -> String {
 }
 
 /// The `start` value for `(numId, ilvl)`, defaulting to 1.
-fn level_start(num_levels: &HashMap<(String, i64), NumLevel>, num_id: &str, ilvl: i64) -> i64 {
+pub(super) fn level_start(
+    num_levels: &HashMap<(String, i64), NumLevel>,
+    num_id: &str,
+    ilvl: i64,
+) -> i64 {
     num_levels
         .get(&(num_id.to_string(), ilvl))
         .map(|l| l.start)
@@ -2334,7 +2409,7 @@ fn level_start(num_levels: &HashMap<(String, i64), NumLevel>, num_id: &str, ilvl
 
 /// Increment the counter for `(numId, ilvl)` (seeding from its `start`) and reset
 /// all deeper levels — docling's `_get_list_counter`.
-fn get_list_counter(
+pub(super) fn get_list_counter(
     counters: &mut HashMap<(String, i64), i64>,
     num_levels: &HashMap<(String, i64), NumLevel>,
     num_id: &str,
@@ -2360,7 +2435,7 @@ fn get_list_counter(
 /// to `1.a.`). A bare numeric template (`%1.%2.`) on a decimal level falls
 /// back to the hierarchical `1.2.` form joining `counter[0..=ilvl]`; every
 /// counter is rendered with its own level's `numFmt`.
-fn build_enum_marker(
+pub(super) fn build_enum_marker(
     counters: &HashMap<(String, i64), i64>,
     num_levels: &HashMap<(String, i64), NumLevel>,
     num_id: &str,

@@ -40,7 +40,14 @@
       "label": "text",
       "prov": [],
       "orig": "A subtitle-ish line",
-      "text": "A subtitle-ish line"
+      "text": "A subtitle-ish line",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/1",
@@ -52,7 +59,14 @@
       "label": "text",
       "prov": [],
       "orig": "Body.",
-      "text": "Body."
+      "text": "Body.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     }
   ],
   "pictures": [],

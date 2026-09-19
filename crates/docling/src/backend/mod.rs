@@ -34,6 +34,7 @@ mod doc;
 pub(crate) mod doclang;
 mod docling_json;
 mod docx;
+mod docx_tree;
 mod ebcdic;
 mod email;
 mod epub;

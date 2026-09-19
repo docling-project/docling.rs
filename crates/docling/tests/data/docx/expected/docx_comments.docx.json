@@ -21,18 +21,6 @@
         "$ref": "#/texts/0"
       },
       {
-        "$ref": "#/texts/1"
-      },
-      {
-        "$ref": "#/texts/2"
-      },
-      {
-        "$ref": "#/texts/3"
-      },
-      {
-        "$ref": "#/texts/4"
-      },
-      {
         "$ref": "#/groups/0"
       },
       {
@@ -96,7 +84,20 @@
       "parent": {
         "$ref": "#/body"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/1"
+        },
+        {
+          "$ref": "#/texts/2"
+        },
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/4"
+        }
+      ],
       "content_layer": "body",
       "label": "title",
       "prov": [],
@@ -106,7 +107,7 @@
     {
       "self_ref": "#/texts/1",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
@@ -118,12 +119,19 @@
         }
       ],
       "orig": "This is the first paragraph that has a comment attached to it.",
-      "text": "This is the first paragraph that has a comment attached to it."
+      "text": "This is the first paragraph that has a comment attached to it.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/2",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
@@ -135,24 +143,38 @@
         }
       ],
       "orig": "This second paragraph also has a reviewer annotation.",
-      "text": "This second paragraph also has a reviewer annotation."
+      "text": "This second paragraph also has a reviewer annotation.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/3",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "This third paragraph has no comments attached to it.",
-      "text": "This third paragraph has no comments attached to it."
+      "text": "This third paragraph has no comments attached to it.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/4",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
@@ -164,7 +186,14 @@
         }
       ],
       "orig": "This paragraph has an anonymous comment.",
-      "text": "This paragraph has an anonymous comment."
+      "text": "This paragraph has an anonymous comment.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/5",

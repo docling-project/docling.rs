@@ -22,57 +22,6 @@
       },
       {
         "$ref": "#/texts/1"
-      },
-      {
-        "$ref": "#/texts/2"
-      },
-      {
-        "$ref": "#/pictures/0"
-      },
-      {
-        "$ref": "#/texts/3"
-      },
-      {
-        "$ref": "#/texts/4"
-      },
-      {
-        "$ref": "#/texts/5"
-      },
-      {
-        "$ref": "#/groups/0"
-      },
-      {
-        "$ref": "#/texts/9"
-      },
-      {
-        "$ref": "#/groups/1"
-      },
-      {
-        "$ref": "#/texts/13"
-      },
-      {
-        "$ref": "#/texts/14"
-      },
-      {
-        "$ref": "#/texts/15"
-      },
-      {
-        "$ref": "#/texts/16"
-      },
-      {
-        "$ref": "#/texts/17"
-      },
-      {
-        "$ref": "#/tables/0"
-      },
-      {
-        "$ref": "#/texts/18"
-      },
-      {
-        "$ref": "#/texts/19"
-      },
-      {
-        "$ref": "#/groups/2"
       }
     ],
     "content_layer": "body",
@@ -83,7 +32,7 @@
     {
       "self_ref": "#/groups/0",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/4"
       },
       "children": [
         {
@@ -103,7 +52,7 @@
     {
       "self_ref": "#/groups/1",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/4"
       },
       "children": [
         {
@@ -123,7 +72,7 @@
     {
       "self_ref": "#/groups/2",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/14"
       },
       "children": [
         {
@@ -152,14 +101,34 @@
       "label": "text",
       "prov": [],
       "orig": "Summer activities",
-      "text": "Summer activities"
+      "text": "Summer activities",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/1",
       "parent": {
         "$ref": "#/body"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/2"
+        },
+        {
+          "$ref": "#/pictures/0"
+        },
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/4"
+        }
+      ],
       "content_layer": "body",
       "label": "title",
       "prov": [],
@@ -169,33 +138,66 @@
     {
       "self_ref": "#/texts/2",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/1"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "Duck",
-      "text": "Duck"
+      "text": "Duck",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/3",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/1"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "Figure 1: This is a cute duckling",
-      "text": "Figure 1: This is a cute duckling"
+      "text": "Figure 1: This is a cute duckling",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/4",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/1"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/5"
+        },
+        {
+          "$ref": "#/groups/0"
+        },
+        {
+          "$ref": "#/texts/9"
+        },
+        {
+          "$ref": "#/groups/1"
+        },
+        {
+          "$ref": "#/texts/13"
+        },
+        {
+          "$ref": "#/texts/14"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -206,14 +208,21 @@
     {
       "self_ref": "#/texts/5",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/4"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "To get started with swimming, first lay down in a water and try not to drown:",
-      "text": "To get started with swimming, first lay down in a water and try not to drown:"
+      "text": "To get started with swimming, first lay down in a water and try not to drown:",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/6",
@@ -226,8 +235,15 @@
       "prov": [],
       "orig": "You can relax and look around",
       "text": "You can relax and look around",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/7",
@@ -240,8 +256,15 @@
       "prov": [],
       "orig": "Paddle about",
       "text": "Paddle about",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/8",
@@ -254,20 +277,34 @@
       "prov": [],
       "orig": "Enjoy summer warmth",
       "text": "Enjoy summer warmth",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/9",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/4"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "Also, don’t forget:",
-      "text": "Also, don’t forget:"
+      "text": "Also, don’t forget:",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/10",
@@ -280,6 +317,13 @@
       "prov": [],
       "orig": "Wear sunglasses",
       "text": "Wear sunglasses",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "1."
     },
@@ -294,6 +338,13 @@
       "prov": [],
       "orig": "Don’t forget to drink water",
       "text": "Don’t forget to drink water",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "2."
     },
@@ -308,27 +359,63 @@
       "prov": [],
       "orig": "Use sun cream",
       "text": "Use sun cream",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "3."
     },
     {
       "self_ref": "#/texts/13",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/4"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "Hmm, what else…",
-      "text": "Hmm, what else…"
+      "text": "Hmm, what else…",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/14",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/4"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/15"
+        },
+        {
+          "$ref": "#/texts/16"
+        },
+        {
+          "$ref": "#/texts/17"
+        },
+        {
+          "$ref": "#/tables/0"
+        },
+        {
+          "$ref": "#/texts/18"
+        },
+        {
+          "$ref": "#/texts/19"
+        },
+        {
+          "$ref": "#/groups/2"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -339,43 +426,64 @@
     {
       "self_ref": "#/texts/15",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/14"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "After we had a good day of swimming in the lake, it’s important to eat something nice",
-      "text": "After we had a good day of swimming in the lake, it’s important to eat something nice"
+      "text": "After we had a good day of swimming in the lake, it’s important to eat something nice",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/16",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/14"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "I like to eat leaves",
-      "text": "I like to eat leaves"
+      "text": "I like to eat leaves",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/17",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/14"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "Here are some interesting things a respectful duck could eat:",
-      "text": "Here are some interesting things a respectful duck could eat:"
+      "text": "Here are some interesting things a respectful duck could eat:",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/18",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/14"
       },
       "children": [],
       "content_layer": "body",
@@ -387,14 +495,21 @@
     {
       "self_ref": "#/texts/19",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/14"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "And let’s add another list in the end:",
-      "text": "And let’s add another list in the end:"
+      "text": "And let’s add another list in the end:",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/20",
@@ -407,6 +522,13 @@
       "prov": [],
       "orig": "Leaves",
       "text": "Leaves",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "1."
     },
@@ -421,6 +543,13 @@
       "prov": [],
       "orig": "Berries",
       "text": "Berries",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "2."
     },
@@ -435,6 +564,13 @@
       "prov": [],
       "orig": "Grain",
       "text": "Grain",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "3."
     }
@@ -443,7 +579,7 @@
     {
       "self_ref": "#/pictures/0",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/1"
       },
       "children": [],
       "content_layer": "body",
@@ -468,7 +604,7 @@
     {
       "self_ref": "#/tables/0",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/14"
       },
       "children": [],
       "content_layer": "body",

@@ -18,33 +18,49 @@
     "self_ref": "#/body",
     "children": [
       {
-        "$ref": "#/texts/0"
-      },
-      {
-        "$ref": "#/texts/1"
-      },
-      {
-        "$ref": "#/texts/2"
-      },
-      {
-        "$ref": "#/texts/3"
-      },
-      {
-        "$ref": "#/texts/4"
+        "$ref": "#/groups/0"
       }
     ],
     "content_layer": "body",
     "name": "_root_",
     "label": "unspecified"
   },
-  "groups": [],
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/0"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-0",
+      "label": "section"
+    }
+  ],
   "texts": [
     {
       "self_ref": "#/texts/0",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/1"
+        },
+        {
+          "$ref": "#/texts/2"
+        },
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/4"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -55,19 +71,26 @@
     {
       "self_ref": "#/texts/1",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "The paragraph below contains three separate <m:oMath> elements.\nExpected: three separate $$ blocks ($$a = b$$, $$c = d$$, $$e = f$$)\nDocling produces: one $$ block with all equations concatenated.\n\nAll three <m:oMath> elements are siblings inside a single <w:p>.",
-      "text": "The paragraph below contains three separate <m:oMath> elements.\nExpected: three separate $$ blocks ($$a = b$$, $$c = d$$, $$e = f$$)\nDocling produces: one $$ block with all equations concatenated.\n\nAll three <m:oMath> elements are siblings inside a single <w:p>."
+      "text": "The paragraph below contains three separate <m:oMath> elements.\nExpected: three separate $$ blocks ($$a = b$$, $$c = d$$, $$e = f$$)\nDocling produces: one $$ block with all equations concatenated.\n\nAll three <m:oMath> elements are siblings inside a single <w:p>.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/2",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
@@ -79,7 +102,7 @@
     {
       "self_ref": "#/texts/3",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
@@ -91,7 +114,7 @@
     {
       "self_ref": "#/texts/4",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",

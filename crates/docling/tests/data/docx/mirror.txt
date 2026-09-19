@@ -1,3 +1,5 @@
+Strict.docx
+Transitional.docx
 content_control_with_picture.docx
 docx_bold_tail.docx
 docx_checkboxes.docx

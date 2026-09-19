@@ -18,69 +18,61 @@
     "self_ref": "#/body",
     "children": [
       {
-        "$ref": "#/texts/0"
-      },
-      {
-        "$ref": "#/texts/1"
-      },
-      {
-        "$ref": "#/texts/2"
-      },
-      {
-        "$ref": "#/texts/3"
-      },
-      {
-        "$ref": "#/texts/4"
-      },
-      {
-        "$ref": "#/texts/5"
-      },
-      {
-        "$ref": "#/texts/6"
-      },
-      {
-        "$ref": "#/texts/7"
-      },
-      {
-        "$ref": "#/texts/8"
-      },
-      {
-        "$ref": "#/texts/9"
-      },
-      {
-        "$ref": "#/texts/10"
-      },
-      {
-        "$ref": "#/texts/11"
-      },
-      {
-        "$ref": "#/texts/12"
-      },
-      {
-        "$ref": "#/texts/13"
-      },
-      {
-        "$ref": "#/texts/14"
-      },
-      {
-        "$ref": "#/texts/15"
-      },
-      {
-        "$ref": "#/texts/16"
+        "$ref": "#/groups/0"
       }
     ],
     "content_layer": "body",
     "name": "_root_",
     "label": "unspecified"
   },
-  "groups": [],
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/0"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-0",
+      "label": "section"
+    }
+  ],
   "texts": [
     {
       "self_ref": "#/texts/0",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/1"
+        },
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/5"
+        },
+        {
+          "$ref": "#/texts/7"
+        },
+        {
+          "$ref": "#/texts/9"
+        },
+        {
+          "$ref": "#/texts/11"
+        },
+        {
+          "$ref": "#/texts/13"
+        },
+        {
+          "$ref": "#/texts/15"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -91,9 +83,13 @@
     {
       "self_ref": "#/texts/1",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/2"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -104,21 +100,32 @@
     {
       "self_ref": "#/texts/2",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/1"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "This is an ordinary paragraph of prose describing how the parser works. It uses the default body font and must remain a plain text item.",
-      "text": "This is an ordinary paragraph of prose describing how the parser works. It uses the default body font and must remain a plain text item."
+      "text": "This is an ordinary paragraph of prose describing how the parser works. It uses the default body font and must remain a plain text item.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/3",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/4"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -129,21 +136,32 @@
     {
       "self_ref": "#/texts/4",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/3"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "Call the printf function to print formatted output to standard out.",
-      "text": "Call the printf function to print formatted output to standard out."
+      "text": "Call the printf function to print formatted output to standard out.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/5",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/6"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -154,7 +172,7 @@
     {
       "self_ref": "#/texts/6",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/5"
       },
       "children": [],
       "content_layer": "body",
@@ -170,9 +188,13 @@
     {
       "self_ref": "#/texts/7",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/8"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -183,7 +205,7 @@
     {
       "self_ref": "#/texts/8",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/7"
       },
       "children": [],
       "content_layer": "body",
@@ -199,9 +221,13 @@
     {
       "self_ref": "#/texts/9",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/10"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -212,7 +238,7 @@
     {
       "self_ref": "#/texts/10",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/9"
       },
       "children": [],
       "content_layer": "body",
@@ -228,9 +254,13 @@
     {
       "self_ref": "#/texts/11",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/12"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -241,21 +271,32 @@
     {
       "self_ref": "#/texts/12",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/11"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "See the original source for details.",
-      "text": "See the original source for details."
+      "text": "See the original source for details.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/13",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/14"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -266,21 +307,32 @@
     {
       "self_ref": "#/texts/14",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/13"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "Listing 3.2",
-      "text": "Listing 3.2"
+      "text": "Listing 3.2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/15",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/16"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -291,14 +343,21 @@
     {
       "self_ref": "#/texts/16",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/15"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "This memo is set in a typewriter face for a vintage look and feel throughout.",
-      "text": "This memo is set in a typewriter face for a vintage look and feel throughout."
+      "text": "This memo is set in a typewriter face for a vintage look and feel throughout.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     }
   ],
   "pictures": [],

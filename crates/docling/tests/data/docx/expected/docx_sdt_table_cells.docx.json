@@ -49,7 +49,14 @@
       "label": "text",
       "prov": [],
       "orig": "before",
-      "text": "before"
+      "text": "before",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/1",
@@ -61,7 +68,14 @@
       "label": "text",
       "prov": [],
       "orig": "Cover value",
-      "text": "Cover value"
+      "text": "Cover value",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/2",
@@ -73,7 +87,14 @@
       "label": "text",
       "prov": [],
       "orig": "between",
-      "text": "between"
+      "text": "between",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/3",
@@ -85,7 +106,14 @@
       "label": "text",
       "prov": [],
       "orig": "after",
-      "text": "after"
+      "text": "after",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     }
   ],
   "pictures": [],

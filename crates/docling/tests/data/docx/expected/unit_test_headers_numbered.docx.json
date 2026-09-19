@@ -21,12 +21,6 @@
         "$ref": "#/texts/0"
       },
       {
-        "$ref": "#/texts/1"
-      },
-      {
-        "$ref": "#/texts/2"
-      },
-      {
         "$ref": "#/texts/3"
       },
       {
@@ -42,7 +36,7 @@
         "$ref": "#/texts/7"
       },
       {
-        "$ref": "#/texts/8"
+        "$ref": "#/groups/0"
       },
       {
         "$ref": "#/texts/9"
@@ -60,7 +54,7 @@
         "$ref": "#/texts/13"
       },
       {
-        "$ref": "#/texts/14"
+        "$ref": "#/groups/2"
       },
       {
         "$ref": "#/texts/15"
@@ -78,7 +72,7 @@
         "$ref": "#/texts/19"
       },
       {
-        "$ref": "#/texts/20"
+        "$ref": "#/groups/4"
       },
       {
         "$ref": "#/texts/21"
@@ -99,7 +93,7 @@
         "$ref": "#/texts/26"
       },
       {
-        "$ref": "#/texts/27"
+        "$ref": "#/groups/7"
       },
       {
         "$ref": "#/texts/28"
@@ -117,7 +111,7 @@
         "$ref": "#/texts/32"
       },
       {
-        "$ref": "#/texts/33"
+        "$ref": "#/groups/8"
       },
       {
         "$ref": "#/texts/34"
@@ -135,7 +129,7 @@
         "$ref": "#/texts/38"
       },
       {
-        "$ref": "#/texts/39"
+        "$ref": "#/groups/11"
       },
       {
         "$ref": "#/texts/40"
@@ -159,7 +153,7 @@
         "$ref": "#/texts/46"
       },
       {
-        "$ref": "#/groups/0"
+        "$ref": "#/groups/13"
       },
       {
         "$ref": "#/texts/61"
@@ -168,7 +162,7 @@
         "$ref": "#/texts/62"
       },
       {
-        "$ref": "#/texts/63"
+        "$ref": "#/groups/18"
       },
       {
         "$ref": "#/texts/64"
@@ -177,7 +171,7 @@
         "$ref": "#/texts/65"
       },
       {
-        "$ref": "#/texts/66"
+        "$ref": "#/groups/20"
       }
     ],
     "content_layer": "body",
@@ -192,21 +186,192 @@
       },
       "children": [
         {
-          "$ref": "#/texts/47"
+          "$ref": "#/groups/1"
         }
       ],
       "content_layer": "body",
-      "name": "list",
-      "label": "list"
+      "name": "header-0",
+      "label": "section"
     },
     {
       "self_ref": "#/groups/1",
       "parent": {
-        "$ref": "#/texts/47"
+        "$ref": "#/groups/0"
       },
       "children": [
         {
-          "$ref": "#/texts/48"
+          "$ref": "#/texts/8"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-1",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/groups/3"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-0",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/3",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/14"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-1",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/groups/5"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-0",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/5",
+      "parent": {
+        "$ref": "#/groups/4"
+      },
+      "children": [
+        {
+          "$ref": "#/groups/6"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-1",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/6",
+      "parent": {
+        "$ref": "#/groups/5"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/20"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-2",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/27"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-0",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/groups/9"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-0",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/9",
+      "parent": {
+        "$ref": "#/groups/8"
+      },
+      "children": [
+        {
+          "$ref": "#/groups/10"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-1",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/10",
+      "parent": {
+        "$ref": "#/groups/9"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/33"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-2",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/groups/12"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-0",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/12",
+      "parent": {
+        "$ref": "#/groups/11"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/39"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-1",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/13",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/47"
+        },
+        {
+          "$ref": "#/groups/14"
         }
       ],
       "content_layer": "body",
@@ -214,9 +379,29 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/2",
+      "self_ref": "#/groups/14",
       "parent": {
-        "$ref": "#/texts/48"
+        "$ref": "#/groups/13"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/48"
+        },
+        {
+          "$ref": "#/groups/15"
+        },
+        {
+          "$ref": "#/groups/16"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/15",
+      "parent": {
+        "$ref": "#/groups/14"
       },
       "children": [
         {
@@ -228,9 +413,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/3",
+      "self_ref": "#/groups/16",
       "parent": {
-        "$ref": "#/texts/48"
+        "$ref": "#/groups/14"
       },
       "children": [
         {
@@ -256,6 +441,9 @@
         },
         {
           "$ref": "#/texts/57"
+        },
+        {
+          "$ref": "#/groups/17"
         }
       ],
       "content_layer": "body",
@@ -263,9 +451,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/4",
+      "self_ref": "#/groups/17",
       "parent": {
-        "$ref": "#/texts/57"
+        "$ref": "#/groups/16"
       },
       "children": [
         {
@@ -281,6 +469,62 @@
       "content_layer": "body",
       "name": "list",
       "label": "list"
+    },
+    {
+      "self_ref": "#/groups/18",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/groups/19"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-0",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/19",
+      "parent": {
+        "$ref": "#/groups/18"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/63"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-1",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/20",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/groups/21"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-0",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/21",
+      "parent": {
+        "$ref": "#/groups/20"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/66"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-1",
+      "label": "section"
     }
   ],
   "texts": [
@@ -289,7 +533,14 @@
       "parent": {
         "$ref": "#/body"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/1"
+        },
+        {
+          "$ref": "#/texts/2"
+        }
+      ],
       "content_layer": "body",
       "label": "title",
       "prov": [],
@@ -299,7 +550,7 @@
     {
       "self_ref": "#/texts/1",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
@@ -311,7 +562,7 @@
     {
       "self_ref": "#/texts/2",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
@@ -343,7 +594,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 1.1",
-      "text": "Paragraph 1.1"
+      "text": "Paragraph 1.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/5",
@@ -367,7 +625,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 1.2",
-      "text": "Paragraph 1.2"
+      "text": "Paragraph 1.2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/7",
@@ -384,7 +649,7 @@
     {
       "self_ref": "#/texts/8",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
       },
       "children": [],
       "content_layer": "body",
@@ -416,7 +681,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 1.1.1",
-      "text": "Paragraph 1.1.1"
+      "text": "Paragraph 1.1.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/11",
@@ -440,7 +712,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 1.1.2",
-      "text": "Paragraph 1.1.2"
+      "text": "Paragraph 1.1.2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/13",
@@ -457,7 +736,7 @@
     {
       "self_ref": "#/texts/14",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/3"
       },
       "children": [],
       "content_layer": "body",
@@ -489,7 +768,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 1.1.1",
-      "text": "Paragraph 1.1.1"
+      "text": "Paragraph 1.1.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/17",
@@ -513,7 +799,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 1.1.2",
-      "text": "Paragraph 1.1.2"
+      "text": "Paragraph 1.1.2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/19",
@@ -530,7 +823,7 @@
     {
       "self_ref": "#/texts/20",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/6"
       },
       "children": [],
       "content_layer": "body",
@@ -562,7 +855,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 1.2.3.1",
-      "text": "Paragraph 1.2.3.1"
+      "text": "Paragraph 1.2.3.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/23",
@@ -586,7 +886,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 1.2.3.1",
-      "text": "Paragraph 1.2.3.1"
+      "text": "Paragraph 1.2.3.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/25",
@@ -615,7 +922,7 @@
     {
       "self_ref": "#/texts/27",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/7"
       },
       "children": [],
       "content_layer": "body",
@@ -647,7 +954,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 2.1",
-      "text": "Paragraph 2.1"
+      "text": "Paragraph 2.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/30",
@@ -671,7 +985,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 2.2",
-      "text": "Paragraph 2.2"
+      "text": "Paragraph 2.2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/32",
@@ -688,7 +1009,7 @@
     {
       "self_ref": "#/texts/33",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/10"
       },
       "children": [],
       "content_layer": "body",
@@ -720,7 +1041,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 2.1.1.1",
-      "text": "Paragraph 2.1.1.1"
+      "text": "Paragraph 2.1.1.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/36",
@@ -744,7 +1072,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 2.1.1.1",
-      "text": "Paragraph 2.1.1.1"
+      "text": "Paragraph 2.1.1.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/38",
@@ -761,7 +1096,7 @@
     {
       "self_ref": "#/texts/39",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/12"
       },
       "children": [],
       "content_layer": "body",
@@ -793,7 +1128,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 2.1.1",
-      "text": "Paragraph 2.1.1"
+      "text": "Paragraph 2.1.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/42",
@@ -817,7 +1159,14 @@
       "label": "text",
       "prov": [],
       "orig": "Paragraph 2.1.2",
-      "text": "Paragraph 2.1.2"
+      "text": "Paragraph 2.1.2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/44",
@@ -858,213 +1207,296 @@
     {
       "self_ref": "#/texts/47",
       "parent": {
-        "$ref": "#/groups/0"
+        "$ref": "#/groups/13"
       },
-      "children": [
-        {
-          "$ref": "#/groups/1"
-        }
-      ],
+      "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
       "orig": "Appendix A: Glossary",
       "text": "Appendix A: Glossary",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "1."
     },
     {
       "self_ref": "#/texts/48",
       "parent": {
-        "$ref": "#/groups/1"
+        "$ref": "#/groups/14"
       },
-      "children": [
-        {
-          "$ref": "#/groups/2"
-        },
-        {
-          "$ref": "#/groups/3"
-        }
-      ],
+      "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "1.1. Section A.1",
-      "text": "1.1. Section A.1",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Section A.1",
+      "text": "Section A.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "1.1."
     },
     {
       "self_ref": "#/texts/49",
       "parent": {
-        "$ref": "#/groups/2"
+        "$ref": "#/groups/15"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "1.1.1. Detail A.1.1",
-      "text": "1.1.1. Detail A.1.1",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Detail A.1.1",
+      "text": "Detail A.1.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "1.1.1."
     },
     {
       "self_ref": "#/texts/50",
       "parent": {
-        "$ref": "#/groups/3"
+        "$ref": "#/groups/16"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "2.3.1. Hardware Constraints – Egde Case",
-      "text": "2.3.1. Hardware Constraints – Egde Case",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Hardware Constraints – Egde Case",
+      "text": "Hardware Constraints – Egde Case",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2.3.1."
     },
     {
       "self_ref": "#/texts/51",
       "parent": {
-        "$ref": "#/groups/3"
+        "$ref": "#/groups/16"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "2.3.2. Software Constraints",
-      "text": "2.3.2. Software Constraints",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Software Constraints",
+      "text": "Software Constraints",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2.3.2."
     },
     {
       "self_ref": "#/texts/52",
       "parent": {
-        "$ref": "#/groups/3"
+        "$ref": "#/groups/16"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "2.3.3. Network Constraints",
-      "text": "2.3.3. Network Constraints",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Network Constraints",
+      "text": "Network Constraints",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2.3.3."
     },
     {
       "self_ref": "#/texts/53",
       "parent": {
-        "$ref": "#/groups/3"
+        "$ref": "#/groups/16"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "2.3.4. Environmental Constraints",
-      "text": "2.3.4. Environmental Constraints",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Environmental Constraints",
+      "text": "Environmental Constraints",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2.3.4."
     },
     {
       "self_ref": "#/texts/54",
       "parent": {
-        "$ref": "#/groups/3"
+        "$ref": "#/groups/16"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "2.3.5. Regulatory Constraints",
-      "text": "2.3.5. Regulatory Constraints",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Regulatory Constraints",
+      "text": "Regulatory Constraints",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2.3.5."
     },
     {
       "self_ref": "#/texts/55",
       "parent": {
-        "$ref": "#/groups/3"
+        "$ref": "#/groups/16"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "2.3.6. Budget Constraints",
-      "text": "2.3.6. Budget Constraints",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Budget Constraints",
+      "text": "Budget Constraints",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2.3.6."
     },
     {
       "self_ref": "#/texts/56",
       "parent": {
-        "$ref": "#/groups/3"
+        "$ref": "#/groups/16"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "2.3.7. Timeline Constraints",
-      "text": "2.3.7. Timeline Constraints",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Timeline Constraints",
+      "text": "Timeline Constraints",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2.3.7."
     },
     {
       "self_ref": "#/texts/57",
       "parent": {
-        "$ref": "#/groups/3"
+        "$ref": "#/groups/16"
       },
-      "children": [
-        {
-          "$ref": "#/groups/4"
-        }
-      ],
+      "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "2.3.8. Resource Constraints",
-      "text": "2.3.8. Resource Constraints",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Resource Constraints",
+      "text": "Resource Constraints",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2.3.8."
     },
     {
       "self_ref": "#/texts/58",
       "parent": {
-        "$ref": "#/groups/4"
+        "$ref": "#/groups/17"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "2.3.8.1. First sub-item at this level",
-      "text": "2.3.8.1. First sub-item at this level",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "First sub-item at this level",
+      "text": "First sub-item at this level",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2.3.8.1."
     },
     {
       "self_ref": "#/texts/59",
       "parent": {
-        "$ref": "#/groups/4"
+        "$ref": "#/groups/17"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "2.3.8.2. Second sub-item at this level",
-      "text": "2.3.8.2. Second sub-item at this level",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Second sub-item at this level",
+      "text": "Second sub-item at this level",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2.3.8.2."
     },
     {
       "self_ref": "#/texts/60",
       "parent": {
-        "$ref": "#/groups/4"
+        "$ref": "#/groups/17"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "2.3.8.3. Third sub-item at this level",
-      "text": "2.3.8.3. Third sub-item at this level",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Third sub-item at this level",
+      "text": "Third sub-item at this level",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2.3.8.3."
     },
     {
       "self_ref": "#/texts/61",
@@ -1093,7 +1525,7 @@
     {
       "self_ref": "#/texts/63",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/19"
       },
       "children": [],
       "content_layer": "body",
@@ -1113,7 +1545,14 @@
       "label": "text",
       "prov": [],
       "orig": "This is the first reference.",
-      "text": "This is the first reference."
+      "text": "This is the first reference.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/65",
@@ -1125,12 +1564,19 @@
       "label": "text",
       "prov": [],
       "orig": "This is the second reference.",
-      "text": "This is the second reference."
+      "text": "This is the second reference.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/66",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/21"
       },
       "children": [],
       "content_layer": "body",

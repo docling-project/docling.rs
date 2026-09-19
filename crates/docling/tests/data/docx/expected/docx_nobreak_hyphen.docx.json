@@ -46,7 +46,14 @@
       "label": "text",
       "prov": [],
       "orig": "In-Transit",
-      "text": "In-Transit"
+      "text": "In-Transit",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/1",
@@ -58,7 +65,14 @@
       "label": "text",
       "prov": [],
       "orig": "on-hand",
-      "text": "on-hand"
+      "text": "on-hand",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/2",
@@ -70,7 +84,14 @@
       "label": "text",
       "prov": [],
       "orig": "high-frequency",
-      "text": "high-frequency"
+      "text": "high-frequency",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/3",
@@ -82,7 +103,14 @@
       "label": "text",
       "prov": [],
       "orig": "co-op",
-      "text": "co-op"
+      "text": "co-op",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     }
   ],
   "pictures": [],

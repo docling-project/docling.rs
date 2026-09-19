@@ -18,19 +18,7 @@
     "self_ref": "#/body",
     "children": [
       {
-        "$ref": "#/texts/0"
-      },
-      {
         "$ref": "#/groups/0"
-      },
-      {
-        "$ref": "#/texts/3"
-      },
-      {
-        "$ref": "#/texts/4"
-      },
-      {
-        "$ref": "#/groups/2"
       }
     ],
     "content_layer": "body",
@@ -45,7 +33,24 @@
       },
       "children": [
         {
+          "$ref": "#/texts/0"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-0",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/texts/0"
+      },
+      "children": [
+        {
           "$ref": "#/texts/1"
+        },
+        {
+          "$ref": "#/groups/2"
         }
       ],
       "content_layer": "body",
@@ -53,9 +58,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/1",
+      "self_ref": "#/groups/2",
       "parent": {
-        "$ref": "#/texts/1"
+        "$ref": "#/groups/1"
       },
       "children": [
         {
@@ -67,9 +72,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/2",
+      "self_ref": "#/groups/3",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [
         {
@@ -88,9 +93,22 @@
     {
       "self_ref": "#/texts/0",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/groups/1"
+        },
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/4"
+        },
+        {
+          "$ref": "#/groups/3"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -101,39 +119,49 @@
     {
       "self_ref": "#/texts/1",
       "parent": {
-        "$ref": "#/groups/0"
-      },
-      "children": [
-        {
-          "$ref": "#/groups/1"
-        }
-      ],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "First section",
-      "text": "First section",
-      "enumerated": true,
-      "marker": "1."
-    },
-    {
-      "self_ref": "#/texts/2",
-      "parent": {
         "$ref": "#/groups/1"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "1.1. Sub one",
-      "text": "1.1. Sub one",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "First section",
+      "text": "First section",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "1."
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Sub one",
+      "text": "Sub one",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "1.1."
     },
     {
       "self_ref": "#/texts/3",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
@@ -145,33 +173,47 @@
     {
       "self_ref": "#/texts/4",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "Prose that belongs under Sub one.",
-      "text": "Prose that belongs under Sub one."
+      "text": "Prose that belongs under Sub one.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/5",
       "parent": {
-        "$ref": "#/groups/2"
+        "$ref": "#/groups/3"
       },
       "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "1.2. Sub two",
-      "text": "1.2. Sub two",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Sub two",
+      "text": "Sub two",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "1.2."
     },
     {
       "self_ref": "#/texts/6",
       "parent": {
-        "$ref": "#/groups/2"
+        "$ref": "#/groups/3"
       },
       "children": [],
       "content_layer": "body",
@@ -179,6 +221,13 @@
       "prov": [],
       "orig": "Second section",
       "text": "Second section",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "2."
     }

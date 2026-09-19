@@ -43,7 +43,14 @@
       "label": "text",
       "prov": [],
       "orig": "COVER TITLE INSIDE SDT",
-      "text": "COVER TITLE INSIDE SDT"
+      "text": "COVER TITLE INSIDE SDT",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/1",
@@ -55,7 +62,14 @@
       "label": "text",
       "prov": [],
       "orig": "BODY TEXT OUTSIDE SDT",
-      "text": "BODY TEXT OUTSIDE SDT"
+      "text": "BODY TEXT OUTSIDE SDT",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     }
   ],
   "pictures": [

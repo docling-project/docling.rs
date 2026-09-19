@@ -39,7 +39,7 @@ validated for byte-for-byte conformance against upstream Python docling.
 
 | Crate | What it is |
 | --- | --- |
-| `crates/docling-core` | `DoclingDocument` model, Markdown/JSON/DCLX serializers, `MarkdownStreamer`, chunkers; `tree::ItemTree` — docling's item tree a backend can hand the JSON export when the flat nodes cannot express upstream's structure (HTML does, via `html_tree.rs`) |
+| `crates/docling-core` | `DoclingDocument` model, Markdown/JSON/DCLX serializers, `MarkdownStreamer`, chunkers; `tree::ItemTree` — docling's item tree a backend can hand the JSON export when the flat nodes cannot express upstream's structure (HTML via `html_tree.rs`, DOCX via `docx_tree.rs`) |
 | `crates/docling` | `DocumentConverter` (format routing), declarative backends (`src/backend/`), streaming (`src/stream.rs`), video (`src/video.rs`) |
 | `crates/docling-pdf` | ML pipeline: pdfium + RT-DETR layout + TableFormer + PP-OCRv3 + enrichment (`ml` feature); pure-Rust text-layer path compiles for wasm without it |
 | `crates/docling-onnx` | Shared ONNX Runtime execution-provider selection (`DOCLING_RS_EP`, `cuda`/`tensorrt`/`directml`/`coreml`/`xnnpack` features) for docling-pdf/docling-asr/docling-rag |

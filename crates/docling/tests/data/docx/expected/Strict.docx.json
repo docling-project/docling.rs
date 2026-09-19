@@ -1,11 +1,11 @@
 {
   "schema_name": "DoclingDocument",
   "version": "1.10.0",
-  "name": "docx_code_breaks",
+  "name": "Strict",
   "origin": {
     "mimetype": "text/plain",
-    "binary_hash": 3275648128189232234,
-    "filename": "docx_code_breaks"
+    "binary_hash": 6394760644330245332,
+    "filename": "Strict"
   },
   "furniture": {
     "self_ref": "#/furniture",
@@ -19,9 +19,6 @@
     "children": [
       {
         "$ref": "#/texts/0"
-      },
-      {
-        "$ref": "#/texts/1"
       }
     ],
     "content_layer": "body",
@@ -37,26 +34,10 @@
       },
       "children": [],
       "content_layer": "body",
-      "label": "code",
-      "prov": [],
-      "orig": "total = a + b\nprint(total)\n# done\nx = 1\ny = 2\nz = x + y",
-      "text": "total = a + b\nprint(total)\n# done\nx = 1\ny = 2\nz = x + y",
-      "captions": [],
-      "references": [],
-      "footnotes": [],
-      "code_language": "unknown"
-    },
-    {
-      "self_ref": "#/texts/1",
-      "parent": {
-        "$ref": "#/body"
-      },
-      "children": [],
-      "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Plain line one\nplain line two.",
-      "text": "Plain line one\nplain line two.",
+      "orig": "Some text",
+      "text": "Some text",
       "formatting": {
         "bold": false,
         "italic": false,

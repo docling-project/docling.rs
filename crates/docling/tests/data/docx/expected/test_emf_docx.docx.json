@@ -55,7 +55,14 @@
       "label": "text",
       "prov": [],
       "orig": "Test with three images in unusual formats",
-      "text": "Test with three images in unusual formats"
+      "text": "Test with three images in unusual formats",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/1",
@@ -67,7 +74,14 @@
       "label": "text",
       "prov": [],
       "orig": "Raster in emf:",
-      "text": "Raster in emf:"
+      "text": "Raster in emf:",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/2",
@@ -79,7 +93,14 @@
       "label": "text",
       "prov": [],
       "orig": "Vector in emf:",
-      "text": "Vector in emf:"
+      "text": "Vector in emf:",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/3",
@@ -91,7 +112,14 @@
       "label": "text",
       "prov": [],
       "orig": "Raster in webp:",
-      "text": "Raster in webp:"
+      "text": "Raster in webp:",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     }
   ],
   "pictures": [

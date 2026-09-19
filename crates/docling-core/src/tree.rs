@@ -11,7 +11,8 @@
 //! item per formatting run, parents a rich table cell's content to a group
 //! under the table, keeps site chrome on the `furniture` layer… and numbers
 //! every item in the order it *creates* them. A backend that ports those
-//! rules call-for-call records the result here — an arena of items in
+//! rules call-for-call (HTML's `html_tree.rs`, DOCX's `docx_tree.rs`) records
+//! the result here — an arena of items in
 //! creation order, each with its parent and children — and the JSON export
 //! ([`DoclingDocument::export_to_json`](crate::DoclingDocument::export_to_json))
 //! serializes this tree instead of deriving one from the nodes. Every other
@@ -90,6 +91,9 @@ pub enum TreeKind {
         captions: Vec<usize>,
         image: Option<PictureImage>,
         classification: Option<String>,
+        /// A native chart's data grid (docling's `meta.tabular_chart.chart_data`,
+        /// the series reconstructed as a `TableData`), for a DOCX chart drawing.
+        chart: Option<Table>,
     },
     /// A form key-value region (`field_regions` / `field_items`).
     FieldRegion { items: Vec<FieldItem> },
@@ -105,6 +109,14 @@ pub struct TreeItem {
     /// The content layer; `None` = `body`.
     pub layer: Option<ContentLayer>,
     pub kind: TreeKind,
+    /// docling's `DocItem.comments`: the `comment_section` groups (or note
+    /// text items) annotating this item, as item indices — written after
+    /// `prov` when non-empty.
+    pub comments: Vec<usize>,
+    /// Removed by [`ItemTree::delete`] (docling's `delete_items`): the slot
+    /// stays so every other index keeps its meaning, but the item is not
+    /// numbered or written.
+    pub deleted: bool,
 }
 
 /// docling's item tree in creation order (see the [module docs](self)).
@@ -132,6 +144,8 @@ impl ItemTree {
             children: Vec::new(),
             layer,
             kind,
+            comments: Vec::new(),
+            deleted: false,
         });
         match parent {
             Some(p) => self.items[p].children.push(id),
@@ -157,6 +171,26 @@ impl ItemTree {
         }
     }
 
+    /// Remove `id` from the tree — docling's `delete_items`, which the DOCX
+    /// backend uses to drop the empty text item a blank spacer paragraph left
+    /// between two items of a resumed list. The item leaves its parent's
+    /// children and is neither numbered nor written; its slot stays so the
+    /// indices held elsewhere stay valid.
+    pub fn delete(&mut self, id: usize) {
+        match self.items[id].parent {
+            Some(p) => self.items[p].children.retain(|&c| c != id),
+            None => self.body.retain(|&c| c != id),
+        }
+        self.items[id].deleted = true;
+    }
+
+    /// The last live text-bucket item (docling's `doc.texts[-1]`).
+    pub fn last_text(&self) -> Option<usize> {
+        self.items.iter().rposition(|it| {
+            !it.deleted && matches!(it.kind, TreeKind::Text { .. } | TreeKind::Code { .. })
+        })
+    }
+
     /// How many items of a bucket precede `id` — its `#/{bucket}/N` index.
     pub fn bucket_index(&self, id: usize) -> usize {
         let same = |k: &TreeKind| {
@@ -167,14 +201,17 @@ impl ItemTree {
                         | (TreeKind::Code { .. }, TreeKind::Text { .. })
                 )
         };
-        self.items[..id].iter().filter(|it| same(&it.kind)).count()
+        self.items[..id]
+            .iter()
+            .filter(|it| !it.deleted && same(&it.kind))
+            .count()
     }
 
     /// The number of tables created so far (docling's `len(doc.tables)`).
     pub fn table_count(&self) -> usize {
         self.items
             .iter()
-            .filter(|it| matches!(it.kind, TreeKind::Table { .. }))
+            .filter(|it| !it.deleted && matches!(it.kind, TreeKind::Table { .. }))
             .count()
     }
 }

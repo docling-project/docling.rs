@@ -33,25 +33,37 @@
         "$ref": "#/texts/4"
       },
       {
-        "$ref": "#/texts/5"
-      },
-      {
-        "$ref": "#/texts/6"
-      },
-      {
         "$ref": "#/groups/0"
       },
       {
         "$ref": "#/texts/12"
       },
       {
-        "$ref": "#/texts/13"
+        "$ref": "#/groups/1"
       },
       {
-        "$ref": "#/texts/14"
+        "$ref": "#/texts/25"
       },
       {
-        "$ref": "#/texts/15"
+        "$ref": "#/texts/26"
+      },
+      {
+        "$ref": "#/texts/27"
+      },
+      {
+        "$ref": "#/texts/28"
+      },
+      {
+        "$ref": "#/groups/5"
+      },
+      {
+        "$ref": "#/groups/6"
+      },
+      {
+        "$ref": "#/groups/7"
+      },
+      {
+        "$ref": "#/groups/9"
       }
     ],
     "content_layer": "body",
@@ -66,6 +78,12 @@
       },
       "children": [
         {
+          "$ref": "#/texts/5"
+        },
+        {
+          "$ref": "#/texts/6"
+        },
+        {
           "$ref": "#/texts/7"
         },
         {
@@ -76,6 +94,35 @@
         },
         {
           "$ref": "#/texts/10"
+        },
+        {
+          "$ref": "#/texts/11"
+        }
+      ],
+      "content_layer": "body",
+      "name": "group",
+      "label": "inline"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/13"
+        },
+        {
+          "$ref": "#/texts/14"
+        },
+        {
+          "$ref": "#/texts/15"
+        },
+        {
+          "$ref": "#/texts/16"
+        },
+        {
+          "$ref": "#/groups/3"
         }
       ],
       "content_layer": "body",
@@ -83,18 +130,149 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/1",
+      "self_ref": "#/groups/2",
       "parent": {
-        "$ref": "#/texts/10"
+        "$ref": "#/texts/16"
       },
       "children": [
         {
-          "$ref": "#/texts/11"
+          "$ref": "#/texts/17"
+        },
+        {
+          "$ref": "#/texts/18"
+        },
+        {
+          "$ref": "#/texts/19"
+        },
+        {
+          "$ref": "#/texts/20"
+        }
+      ],
+      "content_layer": "body",
+      "name": "group",
+      "label": "inline"
+    },
+    {
+      "self_ref": "#/groups/3",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/21"
         }
       ],
       "content_layer": "body",
       "name": "list",
       "label": "list"
+    },
+    {
+      "self_ref": "#/groups/4",
+      "parent": {
+        "$ref": "#/texts/21"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/22"
+        },
+        {
+          "$ref": "#/texts/23"
+        },
+        {
+          "$ref": "#/texts/24"
+        }
+      ],
+      "content_layer": "body",
+      "name": "group",
+      "label": "inline"
+    },
+    {
+      "self_ref": "#/groups/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/29"
+        }
+      ],
+      "content_layer": "furniture",
+      "name": "page header",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/30"
+        }
+      ],
+      "content_layer": "furniture",
+      "name": "page footer",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/groups/8"
+        },
+        {
+          "$ref": "#/texts/34"
+        }
+      ],
+      "content_layer": "furniture",
+      "name": "page header",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/8",
+      "parent": {
+        "$ref": "#/groups/7"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/31"
+        },
+        {
+          "$ref": "#/texts/32"
+        },
+        {
+          "$ref": "#/texts/33"
+        }
+      ],
+      "content_layer": "furniture",
+      "name": "group",
+      "label": "inline"
+    },
+    {
+      "self_ref": "#/groups/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/35"
+        },
+        {
+          "$ref": "#/texts/36"
+        },
+        {
+          "$ref": "#/pictures/0"
+        },
+        {
+          "$ref": "#/texts/37"
+        }
+      ],
+      "content_layer": "furniture",
+      "name": "page footer",
+      "label": "section"
     }
   ],
   "texts": [
@@ -107,8 +285,15 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "*italic*",
-      "text": "*italic*"
+      "orig": "italic",
+      "text": "italic",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/1",
@@ -119,8 +304,15 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "**bold**",
-      "text": "**bold**"
+      "orig": "bold",
+      "text": "bold",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/2",
@@ -132,7 +324,14 @@
       "label": "text",
       "prov": [],
       "orig": "underline",
-      "text": "underline"
+      "text": "underline",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": true,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/3",
@@ -143,8 +342,16 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "[hyperlink](https://github.com/DS4SD/docling)",
-      "text": "[hyperlink](https://github.com/DS4SD/docling)"
+      "orig": "hyperlink",
+      "text": "hyperlink",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "hyperlink": "https://github.com/DS4SD/docling"
     },
     {
       "self_ref": "#/texts/4",
@@ -155,32 +362,54 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "[***italic and bold hyperlink***](https://github.com/DS4SD/docling)",
-      "text": "[***italic and bold hyperlink***](https://github.com/DS4SD/docling)"
+      "orig": "italic and bold hyperlink",
+      "text": "italic and bold hyperlink",
+      "formatting": {
+        "bold": true,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "hyperlink": "https://github.com/DS4SD/docling"
     },
     {
       "self_ref": "#/texts/5",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/0"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Normal *italic* **bold** underline and [hyperlink](https://github.com/DS4SD/docling) on the same line",
-      "text": "Normal *italic* **bold** underline and [hyperlink](https://github.com/DS4SD/docling) on the same line"
+      "orig": "Normal",
+      "text": "Normal",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/6",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/0"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "",
-      "text": ""
+      "orig": "italic",
+      "text": "italic",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/7",
@@ -189,12 +418,17 @@
       },
       "children": [],
       "content_layer": "body",
-      "label": "list_item",
+      "label": "text",
       "prov": [],
-      "orig": "*Italic bullet 1*",
-      "text": "*Italic bullet 1*",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "bold",
+      "text": "bold",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/8",
@@ -203,12 +437,17 @@
       },
       "children": [],
       "content_layer": "body",
-      "label": "list_item",
+      "label": "text",
       "prov": [],
-      "orig": "**Bold bullet 2**",
-      "text": "**Bold bullet 2**",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "underline",
+      "text": "underline",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": true,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/9",
@@ -217,44 +456,56 @@
       },
       "children": [],
       "content_layer": "body",
-      "label": "list_item",
+      "label": "text",
       "prov": [],
-      "orig": "Underline bullet 3",
-      "text": "Underline bullet 3",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "and",
+      "text": "and",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/10",
       "parent": {
         "$ref": "#/groups/0"
       },
-      "children": [
-        {
-          "$ref": "#/groups/1"
-        }
-      ],
+      "children": [],
       "content_layer": "body",
-      "label": "list_item",
+      "label": "text",
       "prov": [],
-      "orig": "Some *italic* **bold** underline",
-      "text": "Some *italic* **bold** underline",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "hyperlink",
+      "text": "hyperlink",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "hyperlink": "https://github.com/DS4SD/docling"
     },
     {
       "self_ref": "#/texts/11",
       "parent": {
-        "$ref": "#/groups/1"
+        "$ref": "#/groups/0"
       },
       "children": [],
       "content_layer": "body",
-      "label": "list_item",
+      "label": "text",
       "prov": [],
-      "orig": "Nested *italic* **bold**",
-      "text": "Nested *italic* **bold**",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "on the same line",
+      "text": "on the same line",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/12",
@@ -271,17 +522,237 @@
     {
       "self_ref": "#/texts/13",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Italic bullet 1",
+      "text": "Italic bullet 1",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Bold bullet 2",
+      "text": "Bold bullet 2",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Underline bullet 3",
+      "text": "Underline bullet 3",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": true,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [
+        {
+          "$ref": "#/groups/2"
+        }
+      ],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "",
+      "text": "",
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/groups/2"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "The second page of the document with same header and footer",
-      "text": "The second page of the document with same header and footer"
+      "orig": "Some",
+      "text": "Some",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
-      "self_ref": "#/texts/14",
+      "self_ref": "#/texts/18",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "italic",
+      "text": "italic",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/19",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "bold",
+      "text": "bold",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/20",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "underline",
+      "text": "underline",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": true,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/21",
+      "parent": {
+        "$ref": "#/groups/3"
+      },
+      "children": [
+        {
+          "$ref": "#/groups/4"
+        }
+      ],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "",
+      "text": "",
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/22",
+      "parent": {
+        "$ref": "#/groups/4"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Nested",
+      "text": "Nested",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/23",
+      "parent": {
+        "$ref": "#/groups/4"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "italic",
+      "text": "italic",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/24",
+      "parent": {
+        "$ref": "#/groups/4"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "bold",
+      "text": "bold",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/25",
       "parent": {
         "$ref": "#/body"
       },
@@ -293,7 +764,38 @@
       "text": ""
     },
     {
-      "self_ref": "#/texts/15",
+      "self_ref": "#/texts/26",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "The second page of the document with same header and footer",
+      "text": "The second page of the document with same header and footer",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/27",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/28",
       "parent": {
         "$ref": "#/body"
       },
@@ -302,10 +804,212 @@
       "label": "text",
       "prov": [],
       "orig": "The third page of the document with different header and footer",
-      "text": "The third page of the document with different header and footer"
+      "text": "The third page of the document with different header and footer",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/29",
+      "parent": {
+        "$ref": "#/groups/5"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "text",
+      "prov": [],
+      "orig": "This is a header",
+      "text": "This is a header",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/30",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "text",
+      "prov": [],
+      "orig": "This is a footer",
+      "text": "This is a footer",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/31",
+      "parent": {
+        "$ref": "#/groups/8"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "text",
+      "prov": [],
+      "orig": "Another",
+      "text": "Another",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/32",
+      "parent": {
+        "$ref": "#/groups/8"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "text",
+      "prov": [],
+      "orig": "header",
+      "text": "header",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/33",
+      "parent": {
+        "$ref": "#/groups/8"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "text",
+      "prov": [],
+      "orig": "in bold",
+      "text": "in bold",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/34",
+      "parent": {
+        "$ref": "#/groups/7"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "text",
+      "prov": [],
+      "orig": "With 2 paragraphs",
+      "text": "With 2 paragraphs",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/35",
+      "parent": {
+        "$ref": "#/groups/9"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "text",
+      "prov": [],
+      "orig": "Another footer",
+      "text": "Another footer",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/36",
+      "parent": {
+        "$ref": "#/groups/9"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "text",
+      "prov": [],
+      "orig": "With",
+      "text": "With",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/37",
+      "parent": {
+        "$ref": "#/groups/9"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "text",
+      "prov": [],
+      "orig": "3 paragraphs and a picture",
+      "text": "3 paragraphs and a picture",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     }
   ],
-  "pictures": [],
+  "pictures": [
+    {
+      "self_ref": "#/pictures/0",
+      "parent": {
+        "$ref": "#/groups/9"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "picture",
+      "prov": [],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "image": {
+        "mimetype": "image/png",
+        "dpi": 72,
+        "size": {
+          "width": 48.0,
+          "height": 48.0
+        },
+        "uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAASsklEQVR4nMR5CVhU1/n37965szAz7CBDkGXYVBQQBXGJcWu0ahrQJKL9II1WjbZqqsbU+uhna76YNolJbOWrxthq9dHWRiFG45KKorFgVIhLNECDFGRfBhgYh9ne7znnMgNoviZN/f//7/Oc58zce885v3d/zzkKPGIyGo2P6fV6TWdnp+VRz/11JD2qiWJjYyMPHjy4Ly0tbZLL5XK+/vrr/7umpqZ+1KhRKSEhISG1tbW1eXl5RwsKCj51uVyPatn/nGJjY8PXr1+/ura2tqq6upo2b95MJSUlxMjhcFB3dzf1J5vNZikuLj6/adOmdcOGDTP+j4AWRRHPPPPMrIKCghMMJwPW1dVFUVFRFDVISSNHjqTs7Gzy8vIiABQfH0+5ubnkdDrpAXJeunTpbHZ29jOSJAn/LeCfe+65p8rLy296EDiddOnSJVqwYAGlx2vp8rsJHPSPngyifxydTu0fjqON84L5M61WS+np6fTzn/+cioqKBnBSVVVVxhj5LwNuMBgC8/PzD7oXZBLfvn07RUdHc3CsPZniQ3RxJm14Nogc575Hto9SaeFUP1JJgueb/i0uLo7PYTabPYycOnUqb/DgwSGPFPy0adMmtLW1NfbaMG3bto18fHwGgBkSpqKXfhBIbX9OJjo1luhvE+X2yeNEp9LJfDiRCl8z0sbngml4uHrAWF9fX86I3W7nTHR2drZlZGTMeCTgly1blmO3261s4vLyckpJSRmw+JREHZ37P9FEZ58g+iyT6GYO0a3niUqziL74UV9jzz6fT3RpJmfo09eNNGes94C50tLSqLKy0q0Mx4YNG1Z9E75/mQfWrFmz9Le//e0fRFGU8vPzMX36dNTU1PB3vloRe1aEYdvicERF+gMuB+ATCDRVA01VABGg1gJtDUDLPUBSAV56QKMDfIMQERmMrLEa/GCkGlcq7qOh3YG6ujrs2bMHycnJiI+PF6dNmzYTQFdhYWHRv83AggULMnfu3LlPEATx0KFD7D9sNht/lxylRuFr0Zg4XAeQC7D3AE470NkK2O73TdJWD9w3A04nIApAcw1gauxjxDsAj4Xo8cJ4CXUtPSi9a+VrHD58mDGAESNGYPLkyd+rr6+vvHbt2o1vzcCoUaOGHz9+/LQkSSomkYULF8KdfDLGeOPk5igE+XxNDmRSdxNjqP//nvuAywlISqC7U2bO0gn4DoIUGIKMEYBOcuKT6918raNHj2Lw4MEMizBr1qynzp07d6q6urruwSUfir06nU5TWlp6NS4ubvj58+eZA3vAT03U4dTmKCgfVcj2DgB8gwFRIZtYXQV+tqMC24+38deSJIFhmDBhAu7du1eZlJSUbDKZuvpPIT4451tvvfUaA19bW4tnn33WA354uBr5GyIeHXhG5jbgXhlQfRswtwJhcdi2zIgpiVr+2uFwYO7cuWhoaGDaiP7d7373zoNTDEAzZMiQqFu3bpUx05k9ezY+/vhjmUsBKHk7BslRmoFDH2Xu9PIG/A3cxL66ch1Dl5fB0VsyzZkzh5sUAFdqamrStWvXvnAPG6CBLVu2/JKBP3PmjAc8o+XT/ZEcpgLsLsBBgJM1l9xcJDfq374DA8zZ6yqAjmbEJERi6YwAz6u8vDwUFhZyvG+++eZb/Yd5ZBgdHR1WVlZWyRhIT0/HZ599xp+rFEDlu9EI81fKXwu9knePFISHf/f/jwf13O97Iri4hh9QpXcAKitbELv0ticOPP7447h48SL/PXbs2JGXL1++jv4aWLVq1Uq39N3gGc1P90aYTpSlz5rNib0FJiStq4T3j8oQurQcP3mvHu0dDsDu7P3G1fe9uzF76NXclzVWfP9XVfCadxuqZ75AwooKHL7U0ac5cxuiQzWYPFwLnVrgJvzpp5+6tYAVK1ascOMTZUEJyM7OzmG/d+3axV9oVbJUskbrBgBZd6gZvzyjwYysVQg0RKChw4nf/60dE375T5mJ/uBtzoFM2Fy4dfc+Jm6sxrBJizFt+ixuhXfu9SDrzRq8+1FLn1naejAjRQ9LD2GkUfY9N7Y5c+Y8q1Kp+uJ4WlpaIsvdFouF1Gq5TkkMVfK+++0Ioh1RRLlRdO0Xj/Fn7kqyuLh4QCmwfLIP0fsxRHti5faHWKI/xhHt7W374mhcrIaWL1/uKd5CQkI84yUFqGFXHNGfhxL9ZRgVbI7gz3Oe8OW9RqMhq5VXNcTqM48GpkyZMoX1TEU9PT1QikCot4hBehE8oPVK8MhVOQS7ywl376YP2PsHTYeZVa9WOs0OXP7KisrKSv59S0sLzGazZ7zDCZy6ZvaMNQbIQg73V0CpAKxWq8cPJk+ePNnDQGpq6hjWX7hwgb8cYZBgsRGCtGKfTdtcaOxwIigoiJcVKSkpmD9//gAGmrvc3zoHmI37t6nDwa3j9OnTiIyMRExMDCyWvq1zcHAwWrkvyYz7KeXnPT0uJA5W89/nzp1zW80YDwNDhw4dyvrr17ljY2igBIFHRBogzWg/ESxCOZ1OfP7557zvT1H+iq/RgMvj3I9pBWh6Lbe6uhqdnZ0DxrO544P65nDa5EQgEjDUIHNTUlKC/pg5A5GRkRGsr6io4C8jfUT4qYDGrr7FXTYXNAL/lhdaDxJL+8vTZYe/22hHzoEWjHijHolv1mPJoVbUtdqhdBIWjtFBqVQ+NH7q1KlQSiKs1j7NNbfZ+TtftYBIf5nzsrIy3oeFhUUqFApIbDIfHx+eNVjKZhSkEhDhLeKj+4R2sxN+GoHH6mfiVMg4sgfP/3QT2tvbucmxSbRaLcLMN7E6XcT5ivtY+Tcz3n4tB/umzwY5LDiefwDf21qAvZl+eOP7vmhxKtDplwCTyQS1Ws3rrdbWVtw79z5mjQ2UzU6QoxOjwT4iWrtlbdTX17sFpvb19dUJer1eaTabeZ3MNuvMbHKnaqGSBCw5041DT+kxf5jak4BYKP/oKxv+3qaDclAMrKYGjNE1IWu4BtebHcj+2IxPto+GIZQBqQBY7aSLwz+rK/HUigoce84fkX4K/OXmfVRQOFQ6H1DzPzAzxoWRj6kGJMtVH7Zjz2ddOL10EG422PGTIyYO3m63c42HhoYGSQ5WMfUSyweMAZeDkBAgIlgj4I83rJgf05eFFQKQGSUh02gDhDtAJBupQsk9G54/acbh1cF4e99tvPa//KFUi4BSgK3zDnYcasPuDaGY82odDs/1w4IENSA0M9cHohlgSTad3nUcRDh604L0cBUkF4EcD58lsV2bxOKq1Wrt0Gg0vnq9njtWd48LolPEnGgJ79224+/37BhvUAwsDQQB5e1OHPnKjquNDtRaCfmL/DBIdKGxwQah3Q6oZAYUCgH192wY6idg3wYD5r3VhKFaASNDJMwfrkGUn6KvxOhtB65bUdvpwtrxap7Fu+7LDHh5eXHpsx2HyWQyi712xY0/JEQ+DOjpTf3PRkrQS8CqQgscPQMjy32rE7PyzJDsDqwdrURxtjdiBw+DT1AS9i1NgyRFAkI4IEZCIcXgwCtPwC8wFcnGGFx7IxRLMnxgMdvx5H6THG3sfaG32+LExrNmRPiIGBMi8QKy2SxHPIPBwPu2trYmm83m4qyUl5eXGY3GIXFxcTwS1Zld0PYWJusTldhYasdLn95H7ji1xz5FlyzgqjYXVHYb7rc6MLjiGjT+gZACH4Pk4w9BrQGLx2S3wNndCHtHAyztnahssOOLRieXsJ5ZZz/TYXJedNzMMeQ+qYPCKVe7LV0yA0OGDIEbM9xno6WlpaUzZsx4euTIkbyMLm524Y1kwu0ewrRgARVGEf/3SwfPDdvTVFCIAHPrizO9sPWGDW80DoK+W4/utmboemoRpK6FjyRAEuXqmgm4005osQuwagPhGxjBQ2k0vsCFuTqIvQywSn1JgQWHy2z4aZIaKYEKbgnBOhHXG2VXHTVqlDsflHoYKCwsLFy/fj1Lz9i6dSuutxMcNhdCJaDeCrxoVPC9e26ZA1eanchNUyI1QESgCGSGiSgZFI+cnBy3Y6G7u5s3lvpZmGWhUqfTQaPRyMkRwJdffommY19Ax2RuF3Cu3oHVl6y43urCiwlKZMcpOXhWzvsKAj5vkjXAQq4bs9sdWRxXmUymdpfL5eXv788X3p0sYlGkiFtmgsUpq7eg2YXflLvQ6QDGBQposwHeSiBi8hysWbPGswliSZIBZjXPiRMneNhjZQJTP9Nybm4uLl26xJkZrBUQ7CWgtNWFQDXwi2QVJhgkjzMnBCjwQaUdPz5v5fmG5Q5JkpwhISGBLS0tHVwDFovFdvLkyQ8zMjLms63kkSNH8Pu7LiwOA4ZpgJtmwEaEKf7AZ0ECzrYLmDk1AGPDVTh+xYyDFy5g586dHCQDxlpVVRVnYtasWXxT7uvrizt37vDvxLYSVL8fD4OfhFMlZmz7sAVCqwXLhigxIUiU9w6CgChvAT5E2HlLPs7JzMyESqViCfQsA4/+G5rdu3fvZv2SJUtkG+sECpqJ1yHcs1zAkToXLlsVuLw1Cpu+7wehx4nVaV68qmR10d69e3mhxhh5+eWX8c4773CpHzt2DK+++ipPlOfPFeDgjwchREmQXC48Ndob5141Yt9LYdhe7sCHVQ7ZGRwueINwvtaOKy1yCF28eDHv9+7d+0dP7uqfGEpKSopSUlLGjhkzBleuXMFIb+BEqoBqq4B6K2HBdULhliiks5zQaYepqQcT3mvGlybiZsekg94ym5W9RUVFnDlWwU6cOBFJSUlIHD4Mqx7X4+kkLSYN1wFqhbxvVYm4UtWDJzZUInekAgm+InxVAnKK7bhmIowfP55rtqam5qvY2NghNpvN+VBmy8jImM42C5988olnk/GKEVQ0TqR5BlDmaL28YXk7goqXBNIrY7zoh3FKGjt2LF29epUOHz5MdXV1D94BUFNTEx05coRqamooLCyM0gwKqlkVSCeeDyD6TRjRuxFEvzfyDdBL0/1oYiCoaJJEvxgienCcP3+ez7Vo0aIFDwHvTxcuXDjNPszMzJR3SQJo9wiB/CXQ6ZdCibaFE202EK0OoP2TNfybAwcO8OP206dP06ZNm/hdQU5ODj/Frq2tHcDMBx98QDqlQMEa0L0XfIjWBhBtCCb6lYHo12F0Y52Br7k3WSC1KIOfN28eH8ssRHjgAOChk52EhISYq1evft7R0aFPTk5GU1MTfCXAQkDn1sHQWOy4U2XF6rNdUBKhyj+B5RHuO2w3N2zYMO60o0eP5qUvi2pr167F7du3uZkxAI2NjdALdrySIOFGB+H9yV7Q6iRuTg6VCM2vm6FXAGxvExoayvcpfn5+PePHj0+9evXqrX+pAUYvvvhiNuO4sLCQRFFWo7+XQA1rg4l+5k+0SE9bExX8+cWLF+ns2bOUl5dHJpOJ7t69S3/605+Yqmnx4sX8WXx8PL8vc1N9fb3nYuT1oQJRpkSUpSZ6XkuNOXpS9kpeoVDw2x9G69at++k3Au9Pf/3rX/exgbt27SJBkG9Y4vxEqnxOS9a5KkrxBb3wwgt88ubmZtq/fz8tXbqUsrKy6NixYx6w+fn53KQYmc1m2rJlC9/IJyUlySAF0PZhIJopUtU0keL1fYcEO3fu5ONOnjx59EHT+UZSqVTSqVOnjrIJmETdmvCRQBP8wR3XYrE85LDUezvJqKGhgUv/+PHjtGbNGg583LhxtGzZMt73P9HIGATylfokzwTCiPmkVqtV/3voe0mj0SjPnDmT75akXq+Xj1wSE6m1tfVrwfeXfHh4OHl7e1NERATNmjWLXn75ZX4Nu3XrVgoODv7aezMfHx/OMKOioqICvV7v9a8wfqNemOoOHTq0JysraxHLdayxkqGtrY3fqLA4z/YQ7D9zTlY+sCzMyoSYmBheVvj5+fF6iOUJVsuzrei+ffseWos5/6FDhxAeHo733nvv3ZUrV66z2WyO7yR9NzEJVFVVlTNH1Wg0/GaRaSAwMPAh6TFf8ff3p0GDBvF4HxMTw2194sSJ9PTTT9PChQv5/TEzkf7j2FzM3pnpdXZ2ti1atCjrPwLdnzZu3LiWqZOplTmn2+5Zn5ubS0aj8WtN4ds0xuCOHTs8t/n5+fkHDQZD4CMDz2jHjh1vuq8+T5w4cWTlypVLZ8+ePYX9djqddqfTycPt6tWradSoUaRUKv+/gNm70aNHc4dm4bf35t5ZUFDw8aRJk8Z8F3zf6AOiKAoBAQHeJpOpy+l0DthZh4WFBWdnZ/9w7ty5c1NTU8eLoiix0pn5RX19Pbq6urgveHt784TEaqLeMyFXaWnp5by8vLz9+/cfqKqqqv8u4L8VA9+WgoKCfNLT09MSExOTjEaj0WAwGLy8vHRMAN3d3d3Nzc1NVVVVVTdu3LhRXFx8uampqf1RrPv/AgAA//+EaeAIpwDFqAAAAABJRU5ErkJggg=="
+      },
+      "annotations": []
+    }
+  ],
   "tables": [],
   "key_value_items": [],
   "form_items": [],

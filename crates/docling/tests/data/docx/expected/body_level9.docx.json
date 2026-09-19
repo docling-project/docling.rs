@@ -37,7 +37,14 @@
       "label": "text",
       "prov": [],
       "orig": "Not a heading at all",
-      "text": "Not a heading at all"
+      "text": "Not a heading at all",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     }
   ],
   "pictures": [],

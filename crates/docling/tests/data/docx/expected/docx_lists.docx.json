@@ -18,145 +18,7 @@
     "self_ref": "#/body",
     "children": [
       {
-        "$ref": "#/texts/0"
-      },
-      {
-        "$ref": "#/texts/1"
-      },
-      {
-        "$ref": "#/texts/2"
-      },
-      {
-        "$ref": "#/texts/3"
-      },
-      {
-        "$ref": "#/texts/4"
-      },
-      {
-        "$ref": "#/texts/5"
-      },
-      {
-        "$ref": "#/texts/6"
-      },
-      {
-        "$ref": "#/texts/7"
-      },
-      {
         "$ref": "#/groups/0"
-      },
-      {
-        "$ref": "#/texts/11"
-      },
-      {
-        "$ref": "#/texts/12"
-      },
-      {
-        "$ref": "#/groups/1"
-      },
-      {
-        "$ref": "#/texts/16"
-      },
-      {
-        "$ref": "#/texts/17"
-      },
-      {
-        "$ref": "#/groups/2"
-      },
-      {
-        "$ref": "#/texts/24"
-      },
-      {
-        "$ref": "#/texts/25"
-      },
-      {
-        "$ref": "#/groups/4"
-      },
-      {
-        "$ref": "#/texts/29"
-      },
-      {
-        "$ref": "#/texts/30"
-      },
-      {
-        "$ref": "#/groups/6"
-      },
-      {
-        "$ref": "#/texts/35"
-      },
-      {
-        "$ref": "#/texts/36"
-      },
-      {
-        "$ref": "#/groups/9"
-      },
-      {
-        "$ref": "#/texts/43"
-      },
-      {
-        "$ref": "#/texts/44"
-      },
-      {
-        "$ref": "#/texts/45"
-      },
-      {
-        "$ref": "#/groups/12"
-      },
-      {
-        "$ref": "#/groups/13"
-      },
-      {
-        "$ref": "#/groups/14"
-      },
-      {
-        "$ref": "#/texts/52"
-      },
-      {
-        "$ref": "#/texts/53"
-      },
-      {
-        "$ref": "#/texts/54"
-      },
-      {
-        "$ref": "#/groups/15"
-      },
-      {
-        "$ref": "#/texts/61"
-      },
-      {
-        "$ref": "#/texts/62"
-      },
-      {
-        "$ref": "#/texts/63"
-      },
-      {
-        "$ref": "#/groups/17"
-      },
-      {
-        "$ref": "#/texts/66"
-      },
-      {
-        "$ref": "#/texts/67"
-      },
-      {
-        "$ref": "#/groups/19"
-      },
-      {
-        "$ref": "#/texts/69"
-      },
-      {
-        "$ref": "#/groups/20"
-      },
-      {
-        "$ref": "#/texts/78"
-      },
-      {
-        "$ref": "#/texts/79"
-      },
-      {
-        "$ref": "#/texts/80"
-      },
-      {
-        "$ref": "#/groups/24"
       }
     ],
     "content_layer": "body",
@@ -168,6 +30,58 @@
       "self_ref": "#/groups/0",
       "parent": {
         "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/0"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-0",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/texts/0"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/7"
+        },
+        {
+          "$ref": "#/texts/12"
+        },
+        {
+          "$ref": "#/texts/17"
+        },
+        {
+          "$ref": "#/texts/25"
+        },
+        {
+          "$ref": "#/texts/30"
+        },
+        {
+          "$ref": "#/texts/36"
+        },
+        {
+          "$ref": "#/texts/45"
+        },
+        {
+          "$ref": "#/texts/55"
+        },
+        {
+          "$ref": "#/texts/64"
+        }
+      ],
+      "content_layer": "body",
+      "name": "header-2",
+      "label": "section"
+    },
+    {
+      "self_ref": "#/groups/2",
+      "parent": {
+        "$ref": "#/texts/7"
       },
       "children": [
         {
@@ -185,9 +99,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/1",
+      "self_ref": "#/groups/3",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/12"
       },
       "children": [
         {
@@ -205,9 +119,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/2",
+      "self_ref": "#/groups/4",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/17"
       },
       "children": [
         {
@@ -215,6 +129,9 @@
         },
         {
           "$ref": "#/texts/19"
+        },
+        {
+          "$ref": "#/groups/5"
         },
         {
           "$ref": "#/texts/23"
@@ -225,9 +142,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/3",
+      "self_ref": "#/groups/5",
       "parent": {
-        "$ref": "#/texts/19"
+        "$ref": "#/groups/4"
       },
       "children": [
         {
@@ -245,13 +162,16 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/4",
+      "self_ref": "#/groups/6",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/25"
       },
       "children": [
         {
           "$ref": "#/texts/26"
+        },
+        {
+          "$ref": "#/groups/7"
         },
         {
           "$ref": "#/texts/28"
@@ -262,9 +182,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/5",
+      "self_ref": "#/groups/7",
       "parent": {
-        "$ref": "#/texts/26"
+        "$ref": "#/groups/6"
       },
       "children": [
         {
@@ -276,13 +196,16 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/6",
+      "self_ref": "#/groups/8",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/30"
       },
       "children": [
         {
           "$ref": "#/texts/31"
+        },
+        {
+          "$ref": "#/groups/9"
         },
         {
           "$ref": "#/texts/34"
@@ -293,13 +216,16 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/7",
+      "self_ref": "#/groups/9",
       "parent": {
-        "$ref": "#/texts/31"
+        "$ref": "#/groups/8"
       },
       "children": [
         {
           "$ref": "#/texts/32"
+        },
+        {
+          "$ref": "#/groups/10"
         }
       ],
       "content_layer": "body",
@@ -307,9 +233,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/8",
+      "self_ref": "#/groups/10",
       "parent": {
-        "$ref": "#/texts/32"
+        "$ref": "#/groups/9"
       },
       "children": [
         {
@@ -321,9 +247,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/9",
+      "self_ref": "#/groups/11",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/36"
       },
       "children": [
         {
@@ -331,6 +257,9 @@
         },
         {
           "$ref": "#/texts/38"
+        },
+        {
+          "$ref": "#/groups/12"
         },
         {
           "$ref": "#/texts/42"
@@ -341,9 +270,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/10",
+      "self_ref": "#/groups/12",
       "parent": {
-        "$ref": "#/texts/38"
+        "$ref": "#/groups/11"
       },
       "children": [
         {
@@ -351,6 +280,9 @@
         },
         {
           "$ref": "#/texts/40"
+        },
+        {
+          "$ref": "#/groups/13"
         }
       ],
       "content_layer": "body",
@@ -358,9 +290,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/11",
+      "self_ref": "#/groups/13",
       "parent": {
-        "$ref": "#/texts/40"
+        "$ref": "#/groups/12"
       },
       "children": [
         {
@@ -372,9 +304,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/12",
+      "self_ref": "#/groups/14",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/45"
       },
       "children": [
         {
@@ -395,23 +327,9 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/13",
+      "self_ref": "#/groups/15",
       "parent": {
-        "$ref": "#/body"
-      },
-      "children": [
-        {
-          "$ref": "#/texts/50"
-        }
-      ],
-      "content_layer": "body",
-      "name": "list",
-      "label": "list"
-    },
-    {
-      "self_ref": "#/groups/14",
-      "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/45"
       },
       "children": [
         {
@@ -423,39 +341,13 @@
       "label": "list"
     },
     {
-      "self_ref": "#/groups/15",
-      "parent": {
-        "$ref": "#/body"
-      },
-      "children": [
-        {
-          "$ref": "#/texts/55"
-        },
-        {
-          "$ref": "#/texts/56"
-        },
-        {
-          "$ref": "#/texts/57"
-        },
-        {
-          "$ref": "#/texts/60"
-        }
-      ],
-      "content_layer": "body",
-      "name": "list",
-      "label": "list"
-    },
-    {
       "self_ref": "#/groups/16",
       "parent": {
-        "$ref": "#/texts/57"
+        "$ref": "#/texts/45"
       },
       "children": [
         {
-          "$ref": "#/texts/58"
-        },
-        {
-          "$ref": "#/texts/59"
+          "$ref": "#/texts/53"
         }
       ],
       "content_layer": "body",
@@ -465,11 +357,23 @@
     {
       "self_ref": "#/groups/17",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/55"
       },
       "children": [
         {
-          "$ref": "#/texts/64"
+          "$ref": "#/texts/57"
+        },
+        {
+          "$ref": "#/texts/58"
+        },
+        {
+          "$ref": "#/texts/59"
+        },
+        {
+          "$ref": "#/groups/18"
+        },
+        {
+          "$ref": "#/texts/62"
         }
       ],
       "content_layer": "body",
@@ -479,11 +383,14 @@
     {
       "self_ref": "#/groups/18",
       "parent": {
-        "$ref": "#/texts/64"
+        "$ref": "#/groups/17"
       },
       "children": [
         {
-          "$ref": "#/texts/65"
+          "$ref": "#/texts/60"
+        },
+        {
+          "$ref": "#/texts/61"
         }
       ],
       "content_layer": "body",
@@ -493,11 +400,14 @@
     {
       "self_ref": "#/groups/19",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/64"
       },
       "children": [
         {
-          "$ref": "#/texts/68"
+          "$ref": "#/texts/66"
+        },
+        {
+          "$ref": "#/groups/20"
         }
       ],
       "content_layer": "body",
@@ -507,14 +417,11 @@
     {
       "self_ref": "#/groups/20",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/19"
       },
       "children": [
         {
-          "$ref": "#/texts/70"
-        },
-        {
-          "$ref": "#/texts/76"
+          "$ref": "#/texts/67"
         }
       ],
       "content_layer": "body",
@@ -524,14 +431,11 @@
     {
       "self_ref": "#/groups/21",
       "parent": {
-        "$ref": "#/texts/70"
+        "$ref": "#/texts/64"
       },
       "children": [
         {
-          "$ref": "#/texts/71"
-        },
-        {
-          "$ref": "#/texts/75"
+          "$ref": "#/texts/70"
         }
       ],
       "content_layer": "body",
@@ -541,17 +445,20 @@
     {
       "self_ref": "#/groups/22",
       "parent": {
-        "$ref": "#/texts/71"
+        "$ref": "#/texts/64"
       },
       "children": [
         {
           "$ref": "#/texts/72"
         },
         {
-          "$ref": "#/texts/73"
+          "$ref": "#/groups/23"
         },
         {
-          "$ref": "#/texts/74"
+          "$ref": "#/texts/78"
+        },
+        {
+          "$ref": "#/groups/25"
         }
       ],
       "content_layer": "body",
@@ -561,9 +468,15 @@
     {
       "self_ref": "#/groups/23",
       "parent": {
-        "$ref": "#/texts/76"
+        "$ref": "#/groups/22"
       },
       "children": [
+        {
+          "$ref": "#/texts/73"
+        },
+        {
+          "$ref": "#/groups/24"
+        },
         {
           "$ref": "#/texts/77"
         }
@@ -575,14 +488,17 @@
     {
       "self_ref": "#/groups/24",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/23"
       },
       "children": [
         {
-          "$ref": "#/texts/81"
+          "$ref": "#/texts/74"
         },
         {
-          "$ref": "#/texts/84"
+          "$ref": "#/texts/75"
+        },
+        {
+          "$ref": "#/texts/76"
         }
       ],
       "content_layer": "body",
@@ -592,14 +508,48 @@
     {
       "self_ref": "#/groups/25",
       "parent": {
-        "$ref": "#/texts/81"
+        "$ref": "#/groups/22"
       },
       "children": [
         {
-          "$ref": "#/texts/82"
-        },
+          "$ref": "#/texts/79"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/26",
+      "parent": {
+        "$ref": "#/texts/82"
+      },
+      "children": [
         {
           "$ref": "#/texts/83"
+        },
+        {
+          "$ref": "#/groups/27"
+        },
+        {
+          "$ref": "#/texts/86"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/27",
+      "parent": {
+        "$ref": "#/groups/26"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/84"
+        },
+        {
+          "$ref": "#/texts/85"
         }
       ],
       "content_layer": "body",
@@ -611,9 +561,31 @@
     {
       "self_ref": "#/texts/0",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/1"
+        },
+        {
+          "$ref": "#/texts/2"
+        },
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/4"
+        },
+        {
+          "$ref": "#/texts/5"
+        },
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/groups/1"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -624,7 +596,7 @@
     {
       "self_ref": "#/texts/1",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
@@ -636,7 +608,7 @@
     {
       "self_ref": "#/texts/2",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
@@ -648,19 +620,26 @@
     {
       "self_ref": "#/texts/3",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "Paragraph 2.1.1",
-      "text": "Paragraph 2.1.1"
+      "text": "Paragraph 2.1.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/4",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
@@ -672,19 +651,26 @@
     {
       "self_ref": "#/texts/5",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "Paragraph 2.1.2",
-      "text": "Paragraph 2.1.2"
+      "text": "Paragraph 2.1.2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/6",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/0"
       },
       "children": [],
       "content_layer": "body",
@@ -696,9 +682,16 @@
     {
       "self_ref": "#/texts/7",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/groups/2"
+        },
+        {
+          "$ref": "#/texts/11"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -709,7 +702,7 @@
     {
       "self_ref": "#/texts/8",
       "parent": {
-        "$ref": "#/groups/0"
+        "$ref": "#/groups/2"
       },
       "children": [],
       "content_layer": "body",
@@ -717,13 +710,20 @@
       "prov": [],
       "orig": "List item 1",
       "text": "List item 1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/9",
       "parent": {
-        "$ref": "#/groups/0"
+        "$ref": "#/groups/2"
       },
       "children": [],
       "content_layer": "body",
@@ -731,13 +731,20 @@
       "prov": [],
       "orig": "List item 2",
       "text": "List item 2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/10",
       "parent": {
-        "$ref": "#/groups/0"
+        "$ref": "#/groups/2"
       },
       "children": [],
       "content_layer": "body",
@@ -745,13 +752,20 @@
       "prov": [],
       "orig": "List item 3",
       "text": "List item 3",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/11",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/7"
       },
       "children": [],
       "content_layer": "body",
@@ -763,9 +777,16 @@
     {
       "self_ref": "#/texts/12",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/groups/3"
+        },
+        {
+          "$ref": "#/texts/16"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -776,7 +797,7 @@
     {
       "self_ref": "#/texts/13",
       "parent": {
-        "$ref": "#/groups/1"
+        "$ref": "#/groups/3"
       },
       "children": [],
       "content_layer": "body",
@@ -784,13 +805,20 @@
       "prov": [],
       "orig": "List item a",
       "text": "List item a",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "1."
     },
     {
       "self_ref": "#/texts/14",
       "parent": {
-        "$ref": "#/groups/1"
+        "$ref": "#/groups/3"
       },
       "children": [],
       "content_layer": "body",
@@ -798,13 +826,20 @@
       "prov": [],
       "orig": "List item b",
       "text": "List item b",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "2."
     },
     {
       "self_ref": "#/texts/15",
       "parent": {
-        "$ref": "#/groups/1"
+        "$ref": "#/groups/3"
       },
       "children": [],
       "content_layer": "body",
@@ -812,13 +847,20 @@
       "prov": [],
       "orig": "List item c",
       "text": "List item c",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "3."
     },
     {
       "self_ref": "#/texts/16",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/12"
       },
       "children": [],
       "content_layer": "body",
@@ -830,9 +872,16 @@
     {
       "self_ref": "#/texts/17",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/groups/4"
+        },
+        {
+          "$ref": "#/texts/24"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -843,7 +892,7 @@
     {
       "self_ref": "#/texts/18",
       "parent": {
-        "$ref": "#/groups/2"
+        "$ref": "#/groups/4"
       },
       "children": [],
       "content_layer": "body",
@@ -851,31 +900,41 @@
       "prov": [],
       "orig": "List item 1",
       "text": "List item 1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/19",
       "parent": {
-        "$ref": "#/groups/2"
+        "$ref": "#/groups/4"
       },
-      "children": [
-        {
-          "$ref": "#/groups/3"
-        }
-      ],
+      "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
       "orig": "List item 2",
       "text": "List item 2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/20",
       "parent": {
-        "$ref": "#/groups/3"
+        "$ref": "#/groups/5"
       },
       "children": [],
       "content_layer": "body",
@@ -883,13 +942,20 @@
       "prov": [],
       "orig": "List item 1.1",
       "text": "List item 1.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/21",
       "parent": {
-        "$ref": "#/groups/3"
+        "$ref": "#/groups/5"
       },
       "children": [],
       "content_layer": "body",
@@ -897,13 +963,20 @@
       "prov": [],
       "orig": "List item 1.2",
       "text": "List item 1.2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/22",
       "parent": {
-        "$ref": "#/groups/3"
+        "$ref": "#/groups/5"
       },
       "children": [],
       "content_layer": "body",
@@ -911,13 +984,20 @@
       "prov": [],
       "orig": "List item 1.3",
       "text": "List item 1.3",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/23",
       "parent": {
-        "$ref": "#/groups/2"
+        "$ref": "#/groups/4"
       },
       "children": [],
       "content_layer": "body",
@@ -925,13 +1005,20 @@
       "prov": [],
       "orig": "List item 3",
       "text": "List item 3",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/24",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/17"
       },
       "children": [],
       "content_layer": "body",
@@ -943,9 +1030,16 @@
     {
       "self_ref": "#/texts/25",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/groups/6"
+        },
+        {
+          "$ref": "#/texts/29"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -956,25 +1050,28 @@
     {
       "self_ref": "#/texts/26",
       "parent": {
-        "$ref": "#/groups/4"
+        "$ref": "#/groups/6"
       },
-      "children": [
-        {
-          "$ref": "#/groups/5"
-        }
-      ],
+      "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
       "orig": "List item 1",
       "text": "List item 1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/27",
       "parent": {
-        "$ref": "#/groups/5"
+        "$ref": "#/groups/7"
       },
       "children": [],
       "content_layer": "body",
@@ -982,13 +1079,20 @@
       "prov": [],
       "orig": "List item 1.1",
       "text": "List item 1.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/28",
       "parent": {
-        "$ref": "#/groups/4"
+        "$ref": "#/groups/6"
       },
       "children": [],
       "content_layer": "body",
@@ -996,13 +1100,20 @@
       "prov": [],
       "orig": "List item 2",
       "text": "List item 2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/29",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/25"
       },
       "children": [],
       "content_layer": "body",
@@ -1014,9 +1125,16 @@
     {
       "self_ref": "#/texts/30",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/groups/8"
+        },
+        {
+          "$ref": "#/texts/35"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -1027,43 +1145,49 @@
     {
       "self_ref": "#/texts/31",
       "parent": {
-        "$ref": "#/groups/6"
+        "$ref": "#/groups/8"
       },
-      "children": [
-        {
-          "$ref": "#/groups/7"
-        }
-      ],
+      "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
       "orig": "List item 1",
       "text": "List item 1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/32",
       "parent": {
-        "$ref": "#/groups/7"
+        "$ref": "#/groups/9"
       },
-      "children": [
-        {
-          "$ref": "#/groups/8"
-        }
-      ],
+      "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
       "orig": "List item 1.1",
       "text": "List item 1.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/33",
       "parent": {
-        "$ref": "#/groups/8"
+        "$ref": "#/groups/10"
       },
       "children": [],
       "content_layer": "body",
@@ -1071,13 +1195,20 @@
       "prov": [],
       "orig": "List item 1.1.1",
       "text": "List item 1.1.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/34",
       "parent": {
-        "$ref": "#/groups/6"
+        "$ref": "#/groups/8"
       },
       "children": [],
       "content_layer": "body",
@@ -1085,13 +1216,20 @@
       "prov": [],
       "orig": "List item 3",
       "text": "List item 3",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/35",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/30"
       },
       "children": [],
       "content_layer": "body",
@@ -1103,9 +1241,19 @@
     {
       "self_ref": "#/texts/36",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/groups/11"
+        },
+        {
+          "$ref": "#/texts/43"
+        },
+        {
+          "$ref": "#/texts/44"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -1116,7 +1264,7 @@
     {
       "self_ref": "#/texts/37",
       "parent": {
-        "$ref": "#/groups/9"
+        "$ref": "#/groups/11"
       },
       "children": [],
       "content_layer": "body",
@@ -1124,61 +1272,18 @@
       "prov": [],
       "orig": "List item 1",
       "text": "List item 1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/38",
-      "parent": {
-        "$ref": "#/groups/9"
-      },
-      "children": [
-        {
-          "$ref": "#/groups/10"
-        }
-      ],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "List item 2",
-      "text": "List item 2",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/39",
-      "parent": {
-        "$ref": "#/groups/10"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "List item 1.1",
-      "text": "List item 1.1",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/40",
-      "parent": {
-        "$ref": "#/groups/10"
-      },
-      "children": [
-        {
-          "$ref": "#/groups/11"
-        }
-      ],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "List item 1.2",
-      "text": "List item 1.2",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/41",
       "parent": {
         "$ref": "#/groups/11"
       },
@@ -1186,15 +1291,85 @@
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
+      "orig": "List item 2",
+      "text": "List item 2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/39",
+      "parent": {
+        "$ref": "#/groups/12"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "List item 1.1",
+      "text": "List item 1.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/40",
+      "parent": {
+        "$ref": "#/groups/12"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "List item 1.2",
+      "text": "List item 1.2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/41",
+      "parent": {
+        "$ref": "#/groups/13"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
       "orig": "List item 1.2.1",
       "text": "List item 1.2.1",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/42",
       "parent": {
-        "$ref": "#/groups/9"
+        "$ref": "#/groups/11"
       },
       "children": [],
       "content_layer": "body",
@@ -1202,13 +1377,20 @@
       "prov": [],
       "orig": "List item 3",
       "text": "List item 3",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/43",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/36"
       },
       "children": [],
       "content_layer": "body",
@@ -1220,7 +1402,7 @@
     {
       "self_ref": "#/texts/44",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/36"
       },
       "children": [],
       "content_layer": "body",
@@ -1232,9 +1414,28 @@
     {
       "self_ref": "#/texts/45",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/groups/14"
+        },
+        {
+          "$ref": "#/texts/50"
+        },
+        {
+          "$ref": "#/groups/15"
+        },
+        {
+          "$ref": "#/texts/52"
+        },
+        {
+          "$ref": "#/groups/16"
+        },
+        {
+          "$ref": "#/texts/54"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -1245,7 +1446,7 @@
     {
       "self_ref": "#/texts/46",
       "parent": {
-        "$ref": "#/groups/12"
+        "$ref": "#/groups/14"
       },
       "children": [],
       "content_layer": "body",
@@ -1253,67 +1454,18 @@
       "prov": [],
       "orig": "First item with numId 2",
       "text": "First item with numId 2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "1."
     },
     {
       "self_ref": "#/texts/47",
-      "parent": {
-        "$ref": "#/groups/12"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "Second item with numId 2",
-      "text": "Second item with numId 2",
-      "enumerated": true,
-      "marker": "2."
-    },
-    {
-      "self_ref": "#/texts/48",
-      "parent": {
-        "$ref": "#/groups/12"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "Third item with numId 2",
-      "text": "Third item with numId 2",
-      "enumerated": true,
-      "marker": "3."
-    },
-    {
-      "self_ref": "#/texts/49",
-      "parent": {
-        "$ref": "#/groups/12"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "Fourth item with numId 2",
-      "text": "Fourth item with numId 2",
-      "enumerated": true,
-      "marker": "4."
-    },
-    {
-      "self_ref": "#/texts/50",
-      "parent": {
-        "$ref": "#/groups/13"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "Single item of a new list",
-      "text": "Single item of a new list",
-      "enumerated": true,
-      "marker": "1."
-    },
-    {
-      "self_ref": "#/texts/51",
       "parent": {
         "$ref": "#/groups/14"
       },
@@ -1321,15 +1473,97 @@
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
+      "orig": "Second item with numId 2",
+      "text": "Second item with numId 2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2."
+    },
+    {
+      "self_ref": "#/texts/48",
+      "parent": {
+        "$ref": "#/groups/14"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Third item with numId 2",
+      "text": "Third item with numId 2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "3."
+    },
+    {
+      "self_ref": "#/texts/49",
+      "parent": {
+        "$ref": "#/groups/14"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Fourth item with numId 2",
+      "text": "Fourth item with numId 2",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "4."
+    },
+    {
+      "self_ref": "#/texts/50",
+      "parent": {
+        "$ref": "#/texts/45"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/51",
+      "parent": {
+        "$ref": "#/groups/15"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
       "orig": "Single item of a new list",
       "text": "Single item of a new list",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "1."
     },
     {
       "self_ref": "#/texts/52",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/45"
       },
       "children": [],
       "content_layer": "body",
@@ -1341,120 +1575,28 @@
     {
       "self_ref": "#/texts/53",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/16"
       },
       "children": [],
       "content_layer": "body",
-      "label": "section_header",
+      "label": "list_item",
       "prov": [],
-      "orig": "Test 8: Style-based lists:",
-      "text": "Test 8: Style-based lists:",
-      "level": 3
+      "orig": "Single item of a new list",
+      "text": "Single item of a new list",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "1."
     },
     {
       "self_ref": "#/texts/54",
       "parent": {
-        "$ref": "#/body"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "text",
-      "prov": [],
-      "orig": "*Docling should extract the list format when the formatting comes from the styles:*",
-      "text": "*Docling should extract the list format when the formatting comes from the styles:*"
-    },
-    {
-      "self_ref": "#/texts/55",
-      "parent": {
-        "$ref": "#/groups/15"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "*First item*",
-      "text": "*First item*",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/56",
-      "parent": {
-        "$ref": "#/groups/15"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "*Second item*",
-      "text": "*Second item*",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/57",
-      "parent": {
-        "$ref": "#/groups/15"
-      },
-      "children": [
-        {
-          "$ref": "#/groups/16"
-        }
-      ],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "*Third item*",
-      "text": "*Third item*",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/58",
-      "parent": {
-        "$ref": "#/groups/16"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "*Sub-item A*",
-      "text": "*Sub-item A*",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/59",
-      "parent": {
-        "$ref": "#/groups/16"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "*Sub-item B*",
-      "text": "*Sub-item B*",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/60",
-      "parent": {
-        "$ref": "#/groups/15"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "*Fourth item*",
-      "text": "*Fourth item*",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/61",
-      "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/45"
       },
       "children": [],
       "content_layer": "body",
@@ -1464,22 +1606,177 @@
       "text": ""
     },
     {
-      "self_ref": "#/texts/62",
+      "self_ref": "#/texts/55",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/56"
+        },
+        {
+          "$ref": "#/groups/17"
+        },
+        {
+          "$ref": "#/texts/63"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
-      "orig": "Test 9: List continuity with non-empty text",
-      "text": "Test 9: List continuity with non-empty text",
+      "orig": "Test 8: Style-based lists:",
+      "text": "Test 8: Style-based lists:",
       "level": 3
+    },
+    {
+      "self_ref": "#/texts/56",
+      "parent": {
+        "$ref": "#/texts/55"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Docling should extract the list format when the formatting comes from the styles:",
+      "text": "Docling should extract the list format when the formatting comes from the styles:",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/57",
+      "parent": {
+        "$ref": "#/groups/17"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "First item",
+      "text": "First item",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/58",
+      "parent": {
+        "$ref": "#/groups/17"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Second item",
+      "text": "Second item",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/59",
+      "parent": {
+        "$ref": "#/groups/17"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Third item",
+      "text": "Third item",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/60",
+      "parent": {
+        "$ref": "#/groups/18"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Sub-item A",
+      "text": "Sub-item A",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/61",
+      "parent": {
+        "$ref": "#/groups/18"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Sub-item B",
+      "text": "Sub-item B",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/62",
+      "parent": {
+        "$ref": "#/groups/17"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Fourth item",
+      "text": "Fourth item",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": false,
+      "marker": ""
     },
     {
       "self_ref": "#/texts/63",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/55"
       },
       "children": [],
       "content_layer": "body",
@@ -1491,61 +1788,61 @@
     {
       "self_ref": "#/texts/64",
       "parent": {
-        "$ref": "#/groups/17"
+        "$ref": "#/groups/1"
       },
       "children": [
         {
-          "$ref": "#/groups/18"
+          "$ref": "#/texts/65"
+        },
+        {
+          "$ref": "#/groups/19"
+        },
+        {
+          "$ref": "#/texts/68"
+        },
+        {
+          "$ref": "#/texts/69"
+        },
+        {
+          "$ref": "#/groups/21"
+        },
+        {
+          "$ref": "#/texts/71"
+        },
+        {
+          "$ref": "#/groups/22"
+        },
+        {
+          "$ref": "#/texts/80"
+        },
+        {
+          "$ref": "#/texts/81"
+        },
+        {
+          "$ref": "#/texts/82"
         }
       ],
       "content_layer": "body",
-      "label": "list_item",
+      "label": "section_header",
       "prov": [],
-      "orig": "ORCHARD MAP AND GARDEN NOTES",
-      "text": "ORCHARD MAP AND GARDEN NOTES",
-      "enumerated": true,
-      "marker": "1."
+      "orig": "Test 9: List continuity with non-empty text",
+      "text": "Test 9: List continuity with non-empty text",
+      "level": 3
     },
     {
       "self_ref": "#/texts/65",
       "parent": {
-        "$ref": "#/groups/18"
+        "$ref": "#/texts/64"
       },
       "children": [],
       "content_layer": "body",
-      "label": "list_item",
+      "label": "text",
       "prov": [],
-      "orig": "1.1. Morning Walk",
-      "text": "1.1. Morning Walk",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "",
+      "text": ""
     },
     {
       "self_ref": "#/texts/66",
-      "parent": {
-        "$ref": "#/body"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "text",
-      "prov": [],
-      "orig": "The gravel path bent around a quiet pond where ducks drifted in slow circles.",
-      "text": "The gravel path bent around a quiet pond where ducks drifted in slow circles."
-    },
-    {
-      "self_ref": "#/texts/67",
-      "parent": {
-        "$ref": "#/body"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "text",
-      "prov": [],
-      "orig": "A wooden bench near the willow still held last week's newspaper under a stone.",
-      "text": "A wooden bench near the willow still held last week's newspaper under a stone."
-    },
-    {
-      "self_ref": "#/texts/68",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -1553,58 +1850,116 @@
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "1.2. Greenhouse Shelves",
-      "text": "1.2. Greenhouse Shelves",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "ORCHARD MAP AND GARDEN NOTES",
+      "text": "ORCHARD MAP AND GARDEN NOTES",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "1."
+    },
+    {
+      "self_ref": "#/texts/67",
+      "parent": {
+        "$ref": "#/groups/20"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Morning Walk",
+      "text": "Morning Walk",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "1.1."
+    },
+    {
+      "self_ref": "#/texts/68",
+      "parent": {
+        "$ref": "#/texts/64"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "The gravel path bent around a quiet pond where ducks drifted in slow circles.",
+      "text": "The gravel path bent around a quiet pond where ducks drifted in slow circles.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/69",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/64"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "A wooden bench near the willow still held last week's newspaper under a stone.",
+      "text": "A wooden bench near the willow still held last week's newspaper under a stone.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/70",
+      "parent": {
+        "$ref": "#/groups/21"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Greenhouse Shelves",
+      "text": "Greenhouse Shelves",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "1.2."
+    },
+    {
+      "self_ref": "#/texts/71",
+      "parent": {
+        "$ref": "#/texts/64"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "Tomato seedlings leaned toward the glass as afternoon light warmed the trays.",
-      "text": "Tomato seedlings leaned toward the glass as afternoon light warmed the trays."
-    },
-    {
-      "self_ref": "#/texts/70",
-      "parent": {
-        "$ref": "#/groups/20"
-      },
-      "children": [
-        {
-          "$ref": "#/groups/21"
-        }
-      ],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "WEEKEND ERRAND LIST",
-      "text": "WEEKEND ERRAND LIST",
-      "enumerated": true,
-      "marker": "2."
-    },
-    {
-      "self_ref": "#/texts/71",
-      "parent": {
-        "$ref": "#/groups/21"
-      },
-      "children": [
-        {
-          "$ref": "#/groups/22"
-        }
-      ],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "2.1. Market Stops",
-      "text": "2.1. Market Stops",
-      "enumerated": false,
-      "marker": "-"
+      "text": "Tomato seedlings leaned toward the glass as afternoon light warmed the trays.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/72",
@@ -1615,15 +1970,64 @@
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "Buy fresh bread from the corner bakery",
-      "text": "Buy fresh bread from the corner bakery",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "WEEKEND ERRAND LIST",
+      "text": "WEEKEND ERRAND LIST",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2."
     },
     {
       "self_ref": "#/texts/73",
       "parent": {
-        "$ref": "#/groups/22"
+        "$ref": "#/groups/23"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Market Stops",
+      "text": "Market Stops",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2.1."
+    },
+    {
+      "self_ref": "#/texts/74",
+      "parent": {
+        "$ref": "#/groups/24"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Buy fresh bread from the corner bakery",
+      "text": "Buy fresh bread from the corner bakery",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": false,
+      "marker": ""
+    },
+    {
+      "self_ref": "#/texts/75",
+      "parent": {
+        "$ref": "#/groups/24"
       },
       "children": [],
       "content_layer": "body",
@@ -1631,13 +2035,20 @@
       "prov": [],
       "orig": "Pick up citrus and green onions",
       "text": "Pick up citrus and green onions",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
-      "self_ref": "#/texts/74",
+      "self_ref": "#/texts/76",
       "parent": {
-        "$ref": "#/groups/22"
+        "$ref": "#/groups/24"
       },
       "children": [],
       "content_layer": "body",
@@ -1645,40 +2056,15 @@
       "prov": [],
       "orig": "Return the borrowed library novels",
       "text": "Return the borrowed library novels",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/75",
-      "parent": {
-        "$ref": "#/groups/21"
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
       },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "2.2. Kitchen Tasks",
-      "text": "2.2. Kitchen Tasks",
       "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/76",
-      "parent": {
-        "$ref": "#/groups/20"
-      },
-      "children": [
-        {
-          "$ref": "#/groups/23"
-        }
-      ],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "WORKSHOP AND TOOL SHED",
-      "text": "WORKSHOP AND TOOL SHED",
-      "enumerated": true,
-      "marker": "3."
+      "marker": ""
     },
     {
       "self_ref": "#/texts/77",
@@ -1689,27 +2075,83 @@
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "3.1. Bench Setup",
-      "text": "3.1. Bench Setup",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Kitchen Tasks",
+      "text": "Kitchen Tasks",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "2.2."
     },
     {
       "self_ref": "#/texts/78",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/22"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "WORKSHOP AND TOOL SHED",
+      "text": "WORKSHOP AND TOOL SHED",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "3."
+    },
+    {
+      "self_ref": "#/texts/79",
+      "parent": {
+        "$ref": "#/groups/25"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Bench Setup",
+      "text": "Bench Setup",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "3.1."
+    },
+    {
+      "self_ref": "#/texts/80",
+      "parent": {
+        "$ref": "#/texts/64"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
       "orig": "The spare clamps were sorted into labeled tins along the lower shelf.",
-      "text": "The spare clamps were sorted into labeled tins along the lower shelf."
+      "text": "The spare clamps were sorted into labeled tins along the lower shelf.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
-      "self_ref": "#/texts/79",
+      "self_ref": "#/texts/81",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/64"
       },
       "children": [],
       "content_layer": "body",
@@ -1719,11 +2161,15 @@
       "text": ""
     },
     {
-      "self_ref": "#/texts/80",
+      "self_ref": "#/texts/82",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/texts/64"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/groups/26"
+        }
+      ],
       "content_layer": "body",
       "label": "section_header",
       "prov": [],
@@ -1732,55 +2178,72 @@
       "level": 4
     },
     {
-      "self_ref": "#/texts/81",
+      "self_ref": "#/texts/83",
       "parent": {
-        "$ref": "#/groups/24"
+        "$ref": "#/groups/26"
       },
-      "children": [
-        {
-          "$ref": "#/groups/25"
-        }
-      ],
+      "children": [],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
       "orig": "Parent decimal item",
       "text": "Parent decimal item",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "1."
     },
     {
-      "self_ref": "#/texts/82",
-      "parent": {
-        "$ref": "#/groups/25"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "a) Child lettered first",
-      "text": "a) Child lettered first",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
-      "self_ref": "#/texts/83",
-      "parent": {
-        "$ref": "#/groups/25"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "list_item",
-      "prov": [],
-      "orig": "b) Child lettered second",
-      "text": "b) Child lettered second",
-      "enumerated": false,
-      "marker": "-"
-    },
-    {
       "self_ref": "#/texts/84",
       "parent": {
-        "$ref": "#/groups/24"
+        "$ref": "#/groups/27"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Child lettered first",
+      "text": "Child lettered first",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "a)"
+    },
+    {
+      "self_ref": "#/texts/85",
+      "parent": {
+        "$ref": "#/groups/27"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [],
+      "orig": "Child lettered second",
+      "text": "Child lettered second",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
+      "enumerated": true,
+      "marker": "b)"
+    },
+    {
+      "self_ref": "#/texts/86",
+      "parent": {
+        "$ref": "#/groups/26"
       },
       "children": [],
       "content_layer": "body",
@@ -1788,6 +2251,13 @@
       "prov": [],
       "orig": "Parent decimal two",
       "text": "Parent decimal two",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      },
       "enumerated": true,
       "marker": "2."
     }

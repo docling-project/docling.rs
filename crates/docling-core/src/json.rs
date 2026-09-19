@@ -583,6 +583,10 @@ impl Builder {
         let mut refs: Vec<String> = Vec::with_capacity(tree.items.len());
         let (mut nt, mut ng, mut ntb, mut np, mut nf) = (0, 0, 0, 0, 0);
         for item in &tree.items {
+            if item.deleted {
+                refs.push(String::new());
+                continue;
+            }
             let r = match &item.kind {
                 TreeKind::Text { .. } | TreeKind::Code { .. } => {
                     nt += 1;
@@ -620,6 +624,9 @@ impl Builder {
         }
         let ref_of = |id: usize| json!({ "$ref": refs[id] });
         for (id, item) in tree.items.iter().enumerate() {
+            if item.deleted {
+                continue;
+            }
             let parent = item.parent.map_or("#/body", |p| refs[p].as_str());
             let children: Vec<Value> = item.children.iter().map(|&c| ref_of(c)).collect();
             let layer = item.layer.map_or("body", |l| l.value());
@@ -657,9 +664,20 @@ impl Builder {
                         "content_layer": layer,
                         "label": label,
                         "prov": [],
-                        "orig": orig.as_deref().unwrap_or(text),
-                        "text": text,
                     });
+                    // docling's `comments` back-refs sit between `prov` and
+                    // `orig`, and are written only when set.
+                    if !item.comments.is_empty() {
+                        item_json["comments"] =
+                            Value::Array(item.comments.iter().map(|&c| ref_of(c)).collect());
+                    }
+                    merge(
+                        &mut item_json,
+                        json!({
+                            "orig": orig.as_deref().unwrap_or(text),
+                            "text": text,
+                        }),
+                    );
                     merge(&mut item_json, Value::Object(tail));
                     self.texts.push(item_json);
                     r
@@ -679,9 +697,18 @@ impl Builder {
                         "content_layer": layer,
                         "label": "code",
                         "prov": [],
-                        "orig": orig.as_deref().unwrap_or(text),
-                        "text": text,
                     });
+                    if !item.comments.is_empty() {
+                        item_json["comments"] =
+                            Value::Array(item.comments.iter().map(|&c| ref_of(c)).collect());
+                    }
+                    merge(
+                        &mut item_json,
+                        json!({
+                            "orig": orig.as_deref().unwrap_or(text),
+                            "text": text,
+                        }),
+                    );
                     if let Some(f) = formatting {
                         item_json["formatting"] = formatting_json(f);
                     }
@@ -745,10 +772,18 @@ impl Builder {
                     captions,
                     image,
                     classification,
+                    chart,
                 } => {
-                    let meta = classification.as_ref().map(
+                    // A chart's meta: the kind as the one classification
+                    // prediction, then the reconstructed data grid (#405).
+                    let mut meta = classification.as_ref().map(
                         |c| json!({ "classification": { "predictions": [{ "class_name": c }] } }),
                     );
+                    if let (Some(m), Some(t)) = (meta.as_mut(), chart) {
+                        if !t.rows.is_empty() {
+                            m["tabular_chart"] = json!({ "chart_data": table_data(t) });
+                        }
+                    }
                     let r = self.push_picture(
                         json!([]),
                         captions.iter().map(|&c| ref_of(c)).collect(),
@@ -2089,6 +2124,96 @@ mod tests {
     /// tree's parents / children / layers, docling's field order for
     /// `formatting`, `hyperlink`, `level`, `enumerated`/`marker`, a rich
     /// cell's `ref` on `table_cells` only, raw cell text.
+    /// The DOCX tree's extras: an item `delete`d (docling's `delete_items`,
+    /// the spacer between two items of a resumed list) is neither written nor
+    /// numbered, `comments` back-refs sit between `prov` and `orig`, and a
+    /// chart picture carries `classification` plus `tabular_chart`.
+    #[test]
+    fn deleted_items_comment_refs_and_chart_meta_in_the_tree() {
+        use crate::tree::{ItemTree, TreeKind};
+        let mut t = ItemTree::default();
+        let text = |txt: &str| TreeKind::Text {
+            label: "text".into(),
+            text: txt.into(),
+            orig: None,
+            formatting: None,
+            hyperlink: None,
+            level: None,
+            list: None,
+        };
+        let a = t.add(None, None, text("a"));
+        let blank = t.add(None, None, text(""));
+        let b = t.add(None, None, text("b"));
+        t.delete(blank);
+        let group = t.add(
+            None,
+            Some(ContentLayer::Notes),
+            TreeKind::Group {
+                label: "comment_section".into(),
+                name: "comment-0".into(),
+            },
+        );
+        t.add(Some(group), Some(ContentLayer::Notes), text("note"));
+        t.items[a].comments.push(group);
+        t.add(
+            None,
+            None,
+            TreeKind::Picture {
+                captions: Vec::new(),
+                image: None,
+                classification: Some("bar_chart".into()),
+                chart: Some(Table {
+                    rows: vec![vec!["".into(), "s".into()], vec!["c".into(), "1".into()]],
+                    ..Table::default()
+                }),
+            },
+        );
+        assert_eq!(t.last_text(), Some(4), "the note; the blank is skipped");
+        assert_eq!(t.bucket_index(b), 1, "numbered past the deleted item");
+        let mut doc = DoclingDocument::new("t");
+        doc.tree = Some(t);
+        let v: Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+        let texts = v["texts"].as_array().unwrap();
+        assert_eq!(texts.len(), 3);
+        assert_eq!(texts[1]["text"], "b");
+        assert_eq!(texts[1]["self_ref"], "#/texts/1");
+        assert_eq!(
+            v["body"]["children"],
+            serde_json::json!([{"$ref": "#/texts/0"}, {"$ref": "#/texts/1"}, {"$ref": "#/groups/0"}, {"$ref": "#/pictures/0"}])
+        );
+        let keys: Vec<&str> = texts[0]
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            keys,
+            vec![
+                "self_ref",
+                "parent",
+                "children",
+                "content_layer",
+                "label",
+                "prov",
+                "comments",
+                "orig",
+                "text"
+            ]
+        );
+        assert_eq!(
+            texts[0]["comments"],
+            serde_json::json!([{"$ref": "#/groups/0"}])
+        );
+        assert!(texts[1].get("comments").is_none());
+        let meta = &v["pictures"][0]["meta"];
+        assert_eq!(
+            meta["classification"]["predictions"][0]["class_name"],
+            "bar_chart"
+        );
+        assert_eq!(meta["tabular_chart"]["chart_data"]["num_rows"], 2);
+    }
+
     #[test]
     fn a_backend_item_tree_is_written_verbatim() {
         use crate::tree::{Formatting, ItemTree, ListMeta, TreeKind};

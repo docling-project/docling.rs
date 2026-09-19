@@ -36,25 +36,28 @@
         "$ref": "#/groups/0"
       },
       {
-        "$ref": "#/texts/7"
+        "$ref": "#/texts/11"
       },
       {
-        "$ref": "#/texts/8"
+        "$ref": "#/texts/12"
       },
       {
         "$ref": "#/tables/0"
       },
       {
-        "$ref": "#/texts/9"
+        "$ref": "#/texts/29"
       },
       {
-        "$ref": "#/texts/10"
+        "$ref": "#/texts/30"
       },
       {
         "$ref": "#/tables/1"
       },
       {
-        "$ref": "#/texts/11"
+        "$ref": "#/texts/34"
+      },
+      {
+        "$ref": "#/groups/10"
       }
     ],
     "content_layer": "body",
@@ -72,12 +75,194 @@
           "$ref": "#/texts/5"
         },
         {
-          "$ref": "#/texts/6"
+          "$ref": "#/texts/8"
         }
       ],
       "content_layer": "body",
       "name": "list",
       "label": "list"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/texts/5"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        }
+      ],
+      "content_layer": "body",
+      "name": "group",
+      "label": "inline"
+    },
+    {
+      "self_ref": "#/groups/2",
+      "parent": {
+        "$ref": "#/texts/8"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/9"
+        },
+        {
+          "$ref": "#/texts/10"
+        }
+      ],
+      "content_layer": "body",
+      "name": "group",
+      "label": "inline"
+    },
+    {
+      "self_ref": "#/groups/3",
+      "parent": {
+        "$ref": "#/tables/0"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/13"
+        }
+      ],
+      "content_layer": "body",
+      "name": "rich_cell_group_1_0_0",
+      "label": "unspecified"
+    },
+    {
+      "self_ref": "#/groups/4",
+      "parent": {
+        "$ref": "#/tables/0"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/14"
+        }
+      ],
+      "content_layer": "body",
+      "name": "rich_cell_group_1_1_0",
+      "label": "unspecified"
+    },
+    {
+      "self_ref": "#/groups/5",
+      "parent": {
+        "$ref": "#/tables/0"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/15"
+        }
+      ],
+      "content_layer": "body",
+      "name": "rich_cell_group_1_2_0",
+      "label": "unspecified"
+    },
+    {
+      "self_ref": "#/groups/6",
+      "parent": {
+        "$ref": "#/tables/0"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/16"
+        },
+        {
+          "$ref": "#/texts/17"
+        },
+        {
+          "$ref": "#/texts/18"
+        },
+        {
+          "$ref": "#/texts/19"
+        },
+        {
+          "$ref": "#/texts/20"
+        },
+        {
+          "$ref": "#/texts/21"
+        },
+        {
+          "$ref": "#/texts/22"
+        },
+        {
+          "$ref": "#/texts/23"
+        },
+        {
+          "$ref": "#/texts/24"
+        },
+        {
+          "$ref": "#/texts/25"
+        },
+        {
+          "$ref": "#/texts/26"
+        },
+        {
+          "$ref": "#/texts/27"
+        },
+        {
+          "$ref": "#/texts/28"
+        }
+      ],
+      "content_layer": "body",
+      "name": "rich_cell_group_1_1_1",
+      "label": "unspecified"
+    },
+    {
+      "self_ref": "#/groups/7",
+      "parent": {
+        "$ref": "#/tables/1"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/31"
+        }
+      ],
+      "content_layer": "body",
+      "name": "rich_cell_group_2_0_0",
+      "label": "unspecified"
+    },
+    {
+      "self_ref": "#/groups/8",
+      "parent": {
+        "$ref": "#/tables/1"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/32"
+        }
+      ],
+      "content_layer": "body",
+      "name": "rich_cell_group_2_1_0",
+      "label": "unspecified"
+    },
+    {
+      "self_ref": "#/groups/9",
+      "parent": {
+        "$ref": "#/tables/1"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/33"
+        }
+      ],
+      "content_layer": "body",
+      "name": "rich_cell_group_2_2_0",
+      "label": "unspecified"
+    },
+    {
+      "self_ref": "#/groups/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/35"
+        }
+      ],
+      "content_layer": "furniture",
+      "name": "page header",
+      "label": "section"
     }
   ],
   "texts": [
@@ -90,8 +275,15 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "**Changes to the DOCLANG Core Spec**",
-      "text": "**Changes to the DOCLANG Core Spec**"
+      "orig": "Changes to the DOCLANG Core Spec",
+      "text": "Changes to the DOCLANG Core Spec",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/1",
@@ -103,7 +295,14 @@
       "label": "text",
       "prov": [],
       "orig": "Last Updated: 2026-06-18",
-      "text": "Last Updated: 2026-06-18"
+      "text": "Last Updated: 2026-06-18",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/2",
@@ -127,7 +326,14 @@
       "label": "text",
       "prov": [],
       "orig": "This document identifies the edits needed for a PAS submission to ISO via ISO/IEC JTC/1.",
-      "text": "This document identifies the edits needed for a PAS submission to ISO via ISO/IEC JTC/1."
+      "text": "This document identifies the edits needed for a PAS submission to ISO via ISO/IEC JTC/1.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/4",
@@ -139,83 +345,126 @@
       "label": "text",
       "prov": [],
       "orig": "The transformation of this technical draft for ISO compliance involves two phases:",
-      "text": "The transformation of this technical draft for ISO compliance involves two phases:"
+      "text": "The transformation of this technical draft for ISO compliance involves two phases:",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/5",
       "parent": {
         "$ref": "#/groups/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/groups/1"
+        }
+      ],
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "**Phase 1** (Macro-Level Structural Realignment) fixes the document's main layout. It forces the strict standard clause order, removes forbidden company and author names, cuts out critiques of competing formats, and changes all casual requirement language or uppercase tokens into standard lowercase ISO verbal forms (shall, should, may).",
-      "text": "**Phase 1** (Macro-Level Structural Realignment) fixes the document's main layout. It forces the strict standard clause order, removes forbidden company and author names, cuts out critiques of competing formats, and changes all casual requirement language or uppercase tokens into standard lowercase ISO verbal forms (shall, should, may).",
+      "orig": "",
+      "text": "",
       "enumerated": false,
-      "marker": "-"
+      "marker": ""
     },
     {
       "self_ref": "#/texts/6",
       "parent": {
-        "$ref": "#/groups/0"
+        "$ref": "#/groups/1"
       },
       "children": [],
       "content_layer": "body",
-      "label": "list_item",
+      "label": "text",
       "prov": [],
-      "orig": "**Phase 2** (Micro-Level Editorial Optimization) cleans up the small details required by the ISO House Style. This fixes layout bugs like ha nging paragraphs, adds spaces to large numbers (e.g., 65 535), writes out printable web links for physical paper copies, uses proper math subscript formatting, and limits all typography to standard fonts so it passes the final publishing system.",
-      "text": "**Phase 2** (Micro-Level Editorial Optimization) cleans up the small details required by the ISO House Style. This fixes layout bugs like ha nging paragraphs, adds spaces to large numbers (e.g., 65 535), writes out printable web links for physical paper copies, uses proper math subscript formatting, and limits all typography to standard fonts so it passes the final publishing system.",
-      "enumerated": false,
-      "marker": "-"
+      "orig": "Phase 1",
+      "text": "Phase 1",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/7",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "",
-      "text": ""
+      "orig": "(Macro-Level Structural Realignment) fixes the document's main layout. It forces the strict standard clause order, removes forbidden company and author names, cuts out critiques of competing formats, and changes all casual requirement language or uppercase tokens into standard lowercase ISO verbal forms (shall, should, may).",
+      "text": "(Macro-Level Structural Realignment) fixes the document's main layout. It forces the strict standard clause order, removes forbidden company and author names, cuts out critiques of competing formats, and changes all casual requirement language or uppercase tokens into standard lowercase ISO verbal forms (shall, should, may).",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/8",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/0"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/groups/2"
+        }
+      ],
       "content_layer": "body",
-      "label": "text",
+      "label": "list_item",
       "prov": [],
-      "orig": "**Phase 1**",
-      "text": "**Phase 1**"
+      "orig": "",
+      "text": "",
+      "enumerated": false,
+      "marker": ""
     },
     {
       "self_ref": "#/texts/9",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/2"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "",
-      "text": ""
+      "orig": "Phase 2",
+      "text": "Phase 2",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/10",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/2"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "**Phase 2**",
-      "text": "**Phase 2**"
+      "orig": "(Micro-Level Editorial Optimization) cleans up the small details required by the ISO House Style. This fixes layout bugs like ha nging paragraphs, adds spaces to large numbers (e.g., 65 535), writes out printable web links for physical paper copies, uses proper math subscript formatting, and limits all typography to standard fonts so it passes the final publishing system.",
+      "text": "(Micro-Level Editorial Optimization) cleans up the small details required by the ISO House Style. This fixes layout bugs like ha nging paragraphs, adds spaces to large numbers (e.g., 65 535), writes out printable web links for physical paper copies, uses proper math subscript formatting, and limits all typography to standard fonts so it passes the final publishing system.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/11",
@@ -228,6 +477,441 @@
       "prov": [],
       "orig": "",
       "text": ""
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Phase 1",
+      "text": "Phase 1",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/groups/3"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Feature",
+      "text": "Feature",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/groups/4"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Action Needed",
+      "text": "Action Needed",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/groups/5"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Comment/Links",
+      "text": "Comment/Links",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Reorganize into the mandatory sequence:",
+      "text": "Reorganize into the mandatory sequence:",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "• Foreword (Mandatory, unnumbered)",
+      "text": "• Foreword (Mandatory, unnumbered)",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/18",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "• Introduction (Optional, unnumbered)",
+      "text": "• Introduction (Optional, unnumbered)",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/19",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "• 1 Scope (Mandatory, Clause 1)",
+      "text": "• 1 Scope (Mandatory, Clause 1)",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/20",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "• 2 Normative references (Mandatory, Clause 2)",
+      "text": "• 2 Normative references (Mandatory, Clause 2)",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/21",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "• 3 Terms and definitions (Mandatory, Clause 3)",
+      "text": "• 3 Terms and definitions (Mandatory, Clause 3)",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/22",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "• 4 Symbols and abbreviated terms (Mandatory, Clause 4)",
+      "text": "• 4 Symbols and abbreviated terms (Mandatory, Clause 4)",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/23",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "• 5 Conformance (Mandatory, Clause 5)",
+      "text": "• 5 Conformance (Mandatory, Clause 5)",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/24",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "• 6 Technical Clauses...",
+      "text": "• 6 Technical Clauses...",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/25",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "• Annex A (normative)",
+      "text": "• Annex A (normative)",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/26",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "• Annex B/C (informative)",
+      "text": "• Annex B/C (informative)",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/27",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "• Bibliography (Mandatory, absolute end)",
+      "text": "• Bibliography (Mandatory, absolute end)",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/28",
+      "parent": {
+        "$ref": "#/groups/6"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/29",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/30",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Phase 2",
+      "text": "Phase 2",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/31",
+      "parent": {
+        "$ref": "#/groups/7"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Feature",
+      "text": "Feature",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/32",
+      "parent": {
+        "$ref": "#/groups/8"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Action Needed",
+      "text": "Action Needed",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/33",
+      "parent": {
+        "$ref": "#/groups/9"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "Comment/Links",
+      "text": "Comment/Links",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/34",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/35",
+      "parent": {
+        "$ref": "#/groups/10"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "text",
+      "prov": [],
+      "orig": "ISO/IEC JTC 1",
+      "text": "ISO/IEC JTC 1",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     }
   ],
   "pictures": [],
@@ -237,7 +921,20 @@
       "parent": {
         "$ref": "#/body"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/groups/3"
+        },
+        {
+          "$ref": "#/groups/4"
+        },
+        {
+          "$ref": "#/groups/5"
+        },
+        {
+          "$ref": "#/groups/6"
+        }
+      ],
       "content_layer": "body",
       "label": "table",
       "prov": [],
@@ -253,11 +950,14 @@
             "end_row_offset_idx": 1,
             "start_col_offset_idx": 0,
             "end_col_offset_idx": 1,
-            "text": "**Feature**",
+            "text": "Feature",
             "column_header": true,
             "row_header": false,
             "row_section": false,
-            "fillable": false
+            "fillable": false,
+            "ref": {
+              "$ref": "#/groups/3"
+            }
           },
           {
             "row_span": 1,
@@ -266,11 +966,14 @@
             "end_row_offset_idx": 1,
             "start_col_offset_idx": 1,
             "end_col_offset_idx": 2,
-            "text": "**Action Needed**",
+            "text": "Action Needed",
             "column_header": true,
             "row_header": false,
             "row_section": false,
-            "fillable": false
+            "fillable": false,
+            "ref": {
+              "$ref": "#/groups/4"
+            }
           },
           {
             "row_span": 1,
@@ -279,11 +982,14 @@
             "end_row_offset_idx": 1,
             "start_col_offset_idx": 2,
             "end_col_offset_idx": 3,
-            "text": "**Comment/Links**",
+            "text": "Comment/Links",
             "column_header": true,
             "row_header": false,
             "row_section": false,
-            "fillable": false
+            "fillable": false,
+            "ref": {
+              "$ref": "#/groups/5"
+            }
           },
           {
             "row_span": 1,
@@ -305,11 +1011,14 @@
             "end_row_offset_idx": 2,
             "start_col_offset_idx": 1,
             "end_col_offset_idx": 2,
-            "text": "Reorganize into the mandatory sequence:\n\n• Foreword (Mandatory, unnumbered)\n\n• Introduction (Optional, unnumbered)\n\n• 1 Scope (Mandatory, Clause 1)\n\n• 2 Normative references (Mandatory, Clause 2)\n\n• 3 Terms and definitions (Mandatory, Clause 3)\n\n• 4 Symbols and abbreviated terms (Mandatory, Clause 4)\n\n• 5 Conformance (Mandatory, Clause 5)\n\n• 6 Technical Clauses...\n\n• Annex A (normative)\n\n• Annex B/C (informative)\n\n• Bibliography (Mandatory, absolute end)",
+            "text": "Reorganize into the mandatory sequence:\n• Foreword (Mandatory, unnumbered)\n• Introduction (Optional, unnumbered)\n• 1 Scope (Mandatory, Clause 1)\n• 2 Normative references (Mandatory, Clause 2)\n• 3 Terms and definitions (Mandatory, Clause 3)\n• 4 Symbols and abbreviated terms (Mandatory, Clause 4)\n• 5 Conformance (Mandatory, Clause 5)\n• 6 Technical Clauses...\n• Annex A (normative)\n• Annex B/C (informative)\n• Bibliography (Mandatory, absolute end)\n",
             "column_header": false,
             "row_header": false,
             "row_section": false,
-            "fillable": false
+            "fillable": false,
+            "ref": {
+              "$ref": "#/groups/6"
+            }
           },
           {
             "row_span": 1,
@@ -1195,7 +1904,7 @@
               "end_row_offset_idx": 1,
               "start_col_offset_idx": 0,
               "end_col_offset_idx": 1,
-              "text": "**Feature**",
+              "text": "Feature",
               "column_header": true,
               "row_header": false,
               "row_section": false,
@@ -1208,7 +1917,7 @@
               "end_row_offset_idx": 1,
               "start_col_offset_idx": 1,
               "end_col_offset_idx": 2,
-              "text": "**Action Needed**",
+              "text": "Action Needed",
               "column_header": true,
               "row_header": false,
               "row_section": false,
@@ -1221,7 +1930,7 @@
               "end_row_offset_idx": 1,
               "start_col_offset_idx": 2,
               "end_col_offset_idx": 3,
-              "text": "**Comment/Links**",
+              "text": "Comment/Links",
               "column_header": true,
               "row_header": false,
               "row_section": false,
@@ -1249,7 +1958,7 @@
               "end_row_offset_idx": 2,
               "start_col_offset_idx": 1,
               "end_col_offset_idx": 2,
-              "text": "Reorganize into the mandatory sequence:\n\n• Foreword (Mandatory, unnumbered)\n\n• Introduction (Optional, unnumbered)\n\n• 1 Scope (Mandatory, Clause 1)\n\n• 2 Normative references (Mandatory, Clause 2)\n\n• 3 Terms and definitions (Mandatory, Clause 3)\n\n• 4 Symbols and abbreviated terms (Mandatory, Clause 4)\n\n• 5 Conformance (Mandatory, Clause 5)\n\n• 6 Technical Clauses...\n\n• Annex A (normative)\n\n• Annex B/C (informative)\n\n• Bibliography (Mandatory, absolute end)",
+              "text": "Reorganize into the mandatory sequence:\n• Foreword (Mandatory, unnumbered)\n• Introduction (Optional, unnumbered)\n• 1 Scope (Mandatory, Clause 1)\n• 2 Normative references (Mandatory, Clause 2)\n• 3 Terms and definitions (Mandatory, Clause 3)\n• 4 Symbols and abbreviated terms (Mandatory, Clause 4)\n• 5 Conformance (Mandatory, Clause 5)\n• 6 Technical Clauses...\n• Annex A (normative)\n• Annex B/C (informative)\n• Bibliography (Mandatory, absolute end)\n",
               "column_header": false,
               "row_header": false,
               "row_section": false,
@@ -2180,7 +2889,17 @@
       "parent": {
         "$ref": "#/body"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/groups/7"
+        },
+        {
+          "$ref": "#/groups/8"
+        },
+        {
+          "$ref": "#/groups/9"
+        }
+      ],
       "content_layer": "body",
       "label": "table",
       "prov": [],
@@ -2196,11 +2915,14 @@
             "end_row_offset_idx": 1,
             "start_col_offset_idx": 0,
             "end_col_offset_idx": 1,
-            "text": "**Feature**",
+            "text": "Feature",
             "column_header": true,
             "row_header": false,
             "row_section": false,
-            "fillable": false
+            "fillable": false,
+            "ref": {
+              "$ref": "#/groups/7"
+            }
           },
           {
             "row_span": 1,
@@ -2209,11 +2931,14 @@
             "end_row_offset_idx": 1,
             "start_col_offset_idx": 1,
             "end_col_offset_idx": 2,
-            "text": "**Action Needed**",
+            "text": "Action Needed",
             "column_header": true,
             "row_header": false,
             "row_section": false,
-            "fillable": false
+            "fillable": false,
+            "ref": {
+              "$ref": "#/groups/8"
+            }
           },
           {
             "row_span": 1,
@@ -2222,11 +2947,14 @@
             "end_row_offset_idx": 1,
             "start_col_offset_idx": 2,
             "end_col_offset_idx": 3,
-            "text": "**Comment/Links**",
+            "text": "Comment/Links",
             "column_header": true,
             "row_header": false,
             "row_section": false,
-            "fillable": false
+            "fillable": false,
+            "ref": {
+              "$ref": "#/groups/9"
+            }
           },
           {
             "row_span": 1,
@@ -3138,7 +3866,7 @@
               "end_row_offset_idx": 1,
               "start_col_offset_idx": 0,
               "end_col_offset_idx": 1,
-              "text": "**Feature**",
+              "text": "Feature",
               "column_header": true,
               "row_header": false,
               "row_section": false,
@@ -3151,7 +3879,7 @@
               "end_row_offset_idx": 1,
               "start_col_offset_idx": 1,
               "end_col_offset_idx": 2,
-              "text": "**Action Needed**",
+              "text": "Action Needed",
               "column_header": true,
               "row_header": false,
               "row_section": false,
@@ -3164,7 +3892,7 @@
               "end_row_offset_idx": 1,
               "start_col_offset_idx": 2,
               "end_col_offset_idx": 3,
-              "text": "**Comment/Links**",
+              "text": "Comment/Links",
               "column_header": true,
               "row_header": false,
               "row_section": false,

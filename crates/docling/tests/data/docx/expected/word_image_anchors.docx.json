@@ -24,35 +24,84 @@
         "$ref": "#/texts/1"
       },
       {
-        "$ref": "#/pictures/0"
+        "$ref": "#/groups/0"
       },
       {
-        "$ref": "#/pictures/1"
-      },
-      {
-        "$ref": "#/texts/2"
-      },
-      {
-        "$ref": "#/texts/3"
-      },
-      {
-        "$ref": "#/pictures/2"
+        "$ref": "#/groups/1"
       },
       {
         "$ref": "#/texts/4"
       },
       {
-        "$ref": "#/texts/5"
+        "$ref": "#/pictures/2"
       },
       {
-        "$ref": "#/texts/6"
+        "$ref": "#/groups/2"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
       }
     ],
     "content_layer": "body",
     "name": "_root_",
     "label": "unspecified"
   },
-  "groups": [],
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/pictures/0"
+        },
+        {
+          "$ref": "#/pictures/1"
+        }
+      ],
+      "content_layer": "body",
+      "name": "group",
+      "label": "picture_area"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/2"
+        },
+        {
+          "$ref": "#/texts/3"
+        }
+      ],
+      "content_layer": "body",
+      "name": "group",
+      "label": "inline"
+    },
+    {
+      "self_ref": "#/groups/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/5"
+        },
+        {
+          "$ref": "#/texts/6"
+        }
+      ],
+      "content_layer": "body",
+      "name": "group",
+      "label": "inline"
+    }
+  ],
   "texts": [
     {
       "self_ref": "#/texts/0",
@@ -63,8 +112,15 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "**Transcript**",
-      "text": "**Transcript**"
+      "orig": "Transcript",
+      "text": "Transcript",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/1",
@@ -76,31 +132,52 @@
       "label": "text",
       "prov": [],
       "orig": "February 20, 2025, 8:32PM",
-      "text": "February 20, 2025, 8:32PM"
+      "text": "February 20, 2025, 8:32PM",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/2",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "**This is test 1** 0:08\nCorrect, he is not.",
-      "text": "**This is test 1** 0:08\nCorrect, he is not."
+      "orig": "This is test 1",
+      "text": "This is test 1",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/3",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/1"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "",
-      "text": ""
+      "orig": "0:08\nCorrect, he is not.",
+      "text": "0:08\nCorrect, he is not.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/4",
@@ -111,11 +188,49 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "**This is test 2** 0:16\nYeah, exactly.",
-      "text": "**This is test 2** 0:16\nYeah, exactly."
+      "orig": "",
+      "text": ""
     },
     {
       "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "This is test 2",
+      "text": "This is test 2",
+      "formatting": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "0:16\nYeah, exactly.",
+      "text": "0:16\nYeah, exactly.",
+      "formatting": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/7",
       "parent": {
         "$ref": "#/body"
       },
@@ -127,7 +242,7 @@
       "text": ""
     },
     {
-      "self_ref": "#/texts/6",
+      "self_ref": "#/texts/8",
       "parent": {
         "$ref": "#/body"
       },
@@ -143,7 +258,7 @@
     {
       "self_ref": "#/pictures/0",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/0"
       },
       "children": [],
       "content_layer": "body",
@@ -166,7 +281,7 @@
     {
       "self_ref": "#/pictures/1",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/0"
       },
       "children": [],
       "content_layer": "body",
