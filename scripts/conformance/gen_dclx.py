@@ -89,6 +89,10 @@ def build_document(path: Path):
     fmt = _dc.EXT_TO_FORMAT.get(ext) or _EXTRA_EXT.get(ext)
     if ext == "xml":
         fmt = _sniff_xml(path)
+    elif ext == "txt" and path.read_text(encoding="utf-8", errors="ignore").startswith("PATN"):
+        # docling's format detection: a text/plain file opening with a PATN
+        # record is a legacy APS patent (`pftaps*.txt`), not Markdown.
+        fmt = InputFormat.XML_USPTO
     if fmt is None:
         raise ValueError(f"unrecognized extension .{ext}")
     if fmt in (InputFormat.PDF, InputFormat.IMAGE, InputFormat.METS_GBS):

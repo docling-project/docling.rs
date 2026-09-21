@@ -24,9 +24,9 @@ Python code, unchanged. `docling-core` is a runtime dependency; nothing else fro
 docling is required for the declarative path.
 
 > **Status: experimental.** The PyPI distribution name is `docling-rs`.
-> Releases are cut manually (like the npm package) via the
-> [`pypi-publish`](../../.github/workflows/pypi-publish.yml) workflow — see
-> [Publishing](#publishing) below. The crate is intentionally outside the repo's
+> Releases are published automatically (like the npm package) by the
+> [`pypi-publish`](../../.github/workflows/pypi-publish.yml) workflow whenever
+> CI cuts a GitHub Release — see [Publishing](#publishing) below. The crate is intentionally outside the repo's
 > Cargo workspace and its crates.io publish flow. For development, build and
 > install locally as shown next.
 
@@ -294,16 +294,20 @@ inline formatting rather than structured `formatting` fields — see
 
 ## Publishing
 
-Releases are **manual**, mirroring the npm package: the
-[`pypi-publish`](../../.github/workflows/pypi-publish.yml) GitHub Actions workflow
-(`workflow_dispatch`) builds an `abi3` wheel per platform (Linux x86-64/arm64 as
+Releases are **automatic**, mirroring the npm package: every GitHub Release
+CI cuts (`v<version>`, see the repo's release flow) triggers the
+[`pypi-publish`](../../.github/workflows/pypi-publish.yml) GitHub Actions
+workflow, which builds an `abi3` wheel per platform (Linux x86-64/arm64 as
 `manylinux_2_28`, Windows x86-64 — one wheel covers every Python ≥ 3.9) plus an
-sdist, and uploads them to PyPI.
+sdist and the `docling-rs-cuda` wheel, and uploads them to PyPI at the release's
+version. It can also be run by hand (`workflow_dispatch`) — to re-publish a
+version an automatic run skipped or failed on, or to publish a branch build;
+files already on PyPI are skipped, so re-runs are safe:
 
 ```bash
 # From the Actions tab, or:
-gh workflow run pypi-publish.yml                 # version from pyproject.toml
-gh workflow run pypi-publish.yml -f version=0.16.0
+gh workflow run pypi-publish.yml                 # version from the workspace Cargo.toml
+gh workflow run pypi-publish.yml -f tag=v0.16.0 -f cuda_wheel=true
 ```
 
 No secrets: it publishes via PyPI **Trusted Publishing** (OIDC), like

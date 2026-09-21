@@ -21,11 +21,13 @@ npm install docling.rs   # or: bun add docling.rs
 
 Prebuilt platforms: Linux x64 / arm64 (glibc) and Windows x64. (macOS isn't
 prebuilt — build from source, see below.) The right binary is pulled in
-automatically as a platform-specific `optionalDependency` (`docling.rs-<triple>`). Releases are published to npm by
-manually running the `npm publish` workflow
-(`.github/workflows/npm-publish.yml`) — by default it builds the latest master
-(the workspace version); optionally pass a release tag to build that instead.
-Decoupled from the crates.io release.
+automatically as a platform-specific `optionalDependency` (`docling.rs-<triple>`). Releases are published to npm
+automatically by the `npm publish` workflow
+(`.github/workflows/npm-publish.yml`) whenever CI cuts a GitHub Release
+(`v<version>`): the release tag is built and published at its version, together
+with `docling.rs-cuda` and `docling.rs-wasm`. The workflow can also be run by
+hand — by default it builds the latest master (the workspace version), or pass
+a release tag to (re-)publish that; versions already on npm are skipped.
 
 ## Build from source
 
@@ -69,9 +71,10 @@ npm install docling.rs-cuda
 # or: npm install docling.rs@npm:docling.rs-cuda
 ```
 
-The package is published by the `npm publish` workflow's `cuda` input
-(`.github/workflows/npm-publish.yml`), which also uploads the release assets
-(`crates/docling-node/cuda/` holds the shim sources).
+The package is published by the `npm publish` workflow
+(`.github/workflows/npm-publish.yml`) — automatically on every GitHub Release,
+or on a manual run with the `cuda` input — which also uploads the release
+assets (`crates/docling-node/cuda/` holds the shim sources).
 
 **Or build the addon from source** with the `cuda` feature:
 
@@ -436,6 +439,10 @@ constructor; output options (`to`, `imageMode`, `artifactsDir`) are per call.
   expect seconds per code/formula region on CPU. Also read by `new Pipeline()`.
 - `asrModel` / `asrLang`: Whisper model preset and transcription language
   (`"auto"` default) for audio/video sources.
+- `encoding`: character encoding of text inputs (Markdown, CSV, AsciiDoc,
+  WebVTT, XML, …) — docling's `TextBackendOptions.encoding`, a WHATWG label
+  such as `"shift_jis"` or `"koi8-r"`. Unset detects (BOM, UTF-8, then
+  windows-1252); bytes the named encoding cannot decode fail the conversion.
 - `videoFrames`: max frames sampled from a video input as timestamped pictures
   (`0` = transcript only; default 8, needs ffmpeg at runtime).
 - `pipeline`: `"standard"` (default) or `"vlm"` — convert PDF/image pages

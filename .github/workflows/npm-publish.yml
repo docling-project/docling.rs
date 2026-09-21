@@ -5,12 +5,20 @@
 # package plus per-platform `optionalDependencies` (docling.rs-<triple>) via
 # napi-rs and publishes them all.
 #
-# Trigger: manual only (workflow_dispatch). By default it builds the latest
-# master (the version in the workspace Cargo.toml); optionally pass a release
-# tag to build that instead. Either way the workflow checks out the chosen ref
-# and publishes, so npm releases stay decoupled from the crates.io release on
-# every master push. Run it from the Actions tab (or
-# `gh workflow run npm-publish.yml`, optionally `-f tag=v0.7.0`).
+# Triggers:
+#   - Release published: runs automatically for every `v<version>` GitHub
+#     Release ci.yml cuts (the release is created with RELEASE_PAT, so the
+#     `release: published` event fires — same mechanism as cli-binaries.yml and
+#     docker-publish.yml). The release tag is checked out and its version
+#     published; `docling.rs-cuda` is published too (the `cuda` input is
+#     implied). Releases with any other tag (the `npm-cuda-v*` binary-asset
+#     releases this workflow itself creates) are ignored.
+#   - Manual dispatch: by default it builds the latest master (the version in
+#     the workspace Cargo.toml); optionally pass a release tag to build that
+#     instead, and `cuda` to add `docling.rs-cuda`. Run it from the Actions tab
+#     (or `gh workflow run npm-publish.yml`, optionally `-f tag=v0.7.0`) — e.g.
+#     to re-publish a version an automatic run skipped or failed on. Every
+#     publish job skips a version that is already on npm, so re-runs are safe.
 #
 # Authentication is npm Trusted Publishing (OIDC): no NPM_TOKEN secret. Each
 # published package — `docling.rs`, every `docling.rs-<triple>` platform
@@ -30,6 +38,8 @@
 name: npm publish
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -41,7 +51,7 @@ on:
         required: false
         default: ""
       cuda:
-        description: "Also publish docling.rs-cuda (Linux x64: binaries to a GitHub release, npm shim downloads on install)."
+        description: "Also publish docling.rs-cuda (Linux x64: binaries to a GitHub release, npm shim downloads on install). Implied on a release event."
         required: false
         type: boolean
         default: false
@@ -53,7 +63,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: npm-publish-${{ inputs.tag || github.ref }}
+  group: npm-publish-${{ inputs.tag || github.event.release.tag_name || github.ref }}
   cancel-in-progress: false
 
 defaults:
@@ -63,6 +73,10 @@ defaults:
 jobs:
   build:
     name: build ${{ matrix.target }}
+    # On a release event only the `v<version>` releases ci.yml cuts are
+    # published; the `npm-cuda-v*` asset releases publish-cuda creates carry
+    # no package of their own.
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ${{ matrix.host }}
     strategy:
       fail-fast: false
@@ -86,7 +100,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ inputs.tag || github.event.release.tag_name || github.ref }}
 
       # rustup is preinstalled on GitHub-hosted runners (Linux + Windows); use it
       # directly — the docling-project org allowlists only GitHub-owned / vetted
@@ -156,7 +170,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ inputs.tag || github.event.release.tag_name || github.ref }}
 
       # No registry-url: setup-node would write an .npmrc that reads
       # $NODE_AUTH_TOKEN, and trusted publishing sends no token — npm errors
@@ -195,14 +209,14 @@ jobs:
         run: |
           v="${{ inputs.version }}"
           if [ -z "$v" ]; then
-            if [ -n "${{ inputs.tag }}" ]; then
-              v="${{ inputs.tag }}"; v="${v#v}"
+            if [ -n "${{ inputs.tag || github.event.release.tag_name }}" ]; then
+              v="${{ inputs.tag || github.event.release.tag_name }}"; v="${v#v}"
             else
               v="$(grep -m1 '^version = ' ../../Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
             fi
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "Publishing docling.rs@$v (ref: ${{ inputs.tag || github.ref }})"
+          echo "Publishing docling.rs@$v (ref: ${{ inputs.tag || github.event.release.tag_name || github.ref }})"
 
       # Skip cleanly if this version is already on npm (idempotent re-runs).
       - name: Check if already published
@@ -247,7 +261,8 @@ jobs:
   # Python wheel — see pypi-publish.yml's wheel-cuda job).
   publish-cuda:
     name: publish docling.rs-cuda
-    if: inputs.cuda
+    # Manual runs opt in with `cuda`; a release publishes it unconditionally.
+    if: inputs.cuda || (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v'))
     runs-on: ubuntu-24.04
     permissions:
       contents: write # gh release create/upload
@@ -255,7 +270,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ inputs.tag || github.event.release.tag_name || github.ref }}
 
       - name: Install Rust (stable)
         run: |
@@ -290,14 +305,14 @@ jobs:
         run: |
           v="${{ inputs.version }}"
           if [ -z "$v" ]; then
-            if [ -n "${{ inputs.tag }}" ]; then
-              v="${{ inputs.tag }}"; v="${v#v}"
+            if [ -n "${{ inputs.tag || github.event.release.tag_name }}" ]; then
+              v="${{ inputs.tag || github.event.release.tag_name }}"; v="${v#v}"
             else
               v="$(grep -m1 '^version = ' ../../Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
             fi
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "Publishing docling.rs-cuda@$v (ref: ${{ inputs.tag || github.ref }})"
+          echo "Publishing docling.rs-cuda@$v (ref: ${{ inputs.tag || github.event.release.tag_name || github.ref }})"
 
       - name: Check if already published
         id: check
@@ -395,6 +410,7 @@ jobs:
   # workspace version, skips cleanly when that version is already on npm.
   publish-wasm:
     name: publish docling.rs-wasm
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -405,7 +421,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ inputs.tag || github.event.release.tag_name || github.ref }}
 
       - name: Install Rust (stable + wasm32 target)
         run: |

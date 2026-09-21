@@ -215,6 +215,22 @@ fn formatting_json(f: &crate::tree::Formatting) -> Value {
     })
 }
 
+/// docling's `TrackSource` entry: `kind`, the two offsets, then the optional
+/// `identifier` / `voice` (dropped when `None`, as `exclude_none` does).
+fn track_json(t: &crate::tree::TreeTrack) -> Value {
+    let mut m = serde_json::Map::new();
+    m.insert("kind".into(), json!("track"));
+    m.insert("start_time".into(), json!(t.start_time));
+    m.insert("end_time".into(), json!(t.end_time));
+    if let Some(id) = &t.identifier {
+        m.insert("identifier".into(), json!(id));
+    }
+    if let Some(v) = &t.voice {
+        m.insert("voice".into(), json!(v));
+    }
+    Value::Object(m)
+}
+
 /// Build the docling-core JSON object for `doc`.
 pub fn to_json(doc: &DoclingDocument) -> Value {
     let mut b = Builder::default();
@@ -807,6 +823,11 @@ impl Builder {
                     if !item.comments.is_empty() {
                         item_json["comments"] =
                             Value::Array(item.comments.iter().map(|&c| ref_of(c)).collect());
+                    }
+                    // `DocItem.source`, likewise only when set: a WebVTT
+                    // cue's `TrackSource`, whose `None` fields are omitted.
+                    if let Some(track) = &item.source {
+                        item_json["source"] = json!([track_json(track)]);
                     }
                     merge(
                         &mut item_json,

@@ -180,6 +180,7 @@ async fn serves_its_logo_and_openapi_description() {
         "ocr_scale:",
         "scale:",
         "asr_model:",
+        "encoding:",
         "video_frames:",
     ] {
         assert!(spec.contains(opt), "option {opt} missing from openapi.yaml");
@@ -228,6 +229,31 @@ async fn query_options_apply_and_body_wins() {
     assert_eq!(response.status(), StatusCode::OK);
     let v: serde_json::Value = serde_json::from_str(&body_string(response).await).unwrap();
     assert!(v.get("hierarchical").is_some(), "chunks shape expected");
+}
+
+/// docling's `TextBackendOptions.encoding`: the `encoding` option names the
+/// text input's character encoding (multipart field or query parameter);
+/// bytes it cannot decode fail the request instead of being guessed.
+#[tokio::test]
+async fn encoding_option_decodes_text_inputs() {
+    // "# 日本" in Shift-JIS — detection would read it as windows-1252 mojibake.
+    let sjis = b"# \x93\xfa\x96\x7b\n".to_vec();
+    let (ct, body) = multipart("t.md", &sjis, &[("encoding", "shift_jis")]);
+    let response = app().oneshot(convert_request(&ct, body, "")).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(body_string(response).await.contains("# 日本"));
+
+    let (ct, body) = multipart("t.md", &sjis, &[]);
+    let response = app()
+        .oneshot(convert_request(&ct, body, "?encoding=shift_jis"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(body_string(response).await.contains("# 日本"));
+
+    let (ct, body) = multipart("t.md", &sjis, &[("encoding", "utf-8")]);
+    let response = app().oneshot(convert_request(&ct, body, "")).await.unwrap();
+    assert_ne!(response.status(), StatusCode::OK);
 }
 
 #[tokio::test]

@@ -126,6 +126,21 @@ pub struct TreeProv {
     pub charspan: [usize; 2],
 }
 
+/// docling's `TrackSource` — where in a time-based track (a WebVTT cue) a
+/// text item came from. Written as the item's `source: [{"kind": "track", …}]`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TreeTrack {
+    /// The cue's start offset in seconds (docling's `WebVTTTimestamp.seconds`:
+    /// `h*3600 + m*60 + s + millis/1000.0`, so the float is bit-identical).
+    pub start_time: f64,
+    /// The cue's end offset in seconds.
+    pub end_time: f64,
+    /// The cue identifier line, when the cue has one.
+    pub identifier: Option<String>,
+    /// The `<v …>` voice annotation the text sits in, when any.
+    pub voice: Option<String>,
+}
+
 /// One item of an [`ItemTree`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct TreeItem {
@@ -143,6 +158,9 @@ pub struct TreeItem {
     /// text items) annotating this item, as item indices — written after
     /// `prov` when non-empty.
     pub comments: Vec<usize>,
+    /// docling's `DocItem.source`: the track segment a text item was taken
+    /// from (WebVTT cues) — written after `prov` when set.
+    pub source: Option<TreeTrack>,
     /// Removed by [`ItemTree::delete`] (docling's `delete_items`): the slot
     /// stays so every other index keeps its meaning, but the item is not
     /// numbered or written.
@@ -176,6 +194,7 @@ impl ItemTree {
             kind,
             prov: None,
             comments: Vec::new(),
+            source: None,
             deleted: false,
         });
         match parent {

@@ -16,7 +16,7 @@
 //! Options are one JSON object whose keys mirror docling-serve's request
 //! options (`to`, `strict`, `images`, `no_ocr`, `force_full_page_ocr`,
 //! `no_table_former`, `no_text_panels`, `fetch_images`, `asr_model`,
-//! `asr_lang`, `video_frames`, `pages`, `ocr_lang`); unknown keys fail the
+//! `asr_lang`, `encoding`, `video_frames`, `pages`, `ocr_lang`); unknown keys fail the
 //! conversion with a clear message rather than silently doing nothing — an
 //! embedder's typo should not go unnoticed. `NULL` or `""` means defaults.
 //!
@@ -57,6 +57,9 @@ struct Options {
     fetch_images: Option<bool>,
     asr_model: Option<String>,
     asr_lang: Option<String>,
+    /// Character encoding of text inputs (docling's
+    /// `TextBackendOptions.encoding`, a WHATWG label); unset = detect.
+    encoding: Option<String>,
     video_frames: Option<usize>,
     /// PDF page window, `"A-B"` or a single `"N"` (1-based inclusive, #80).
     pages: Option<String>,
@@ -113,6 +116,7 @@ fn convert_impl(bytes: &[u8], filename: &str, options_json: &str) -> Result<Vec<
         .fetch_images(options.fetch_images.unwrap_or(false))
         .asr_model(options.asr_model.clone())
         .asr_lang(options.asr_lang.clone())
+        .encoding(options.encoding.clone())
         .video_frames(
             options
                 .video_frames

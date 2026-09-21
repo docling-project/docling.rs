@@ -16,7 +16,12 @@ validated for byte-for-byte conformance against upstream Python docling.
   Docs/CI-only merges still release nothing (release.sh only fires when a
   publishable crate's source changed). No automatic semver-major: majors are
   cut by hand (`force_version` dispatch input) — v1.0.0 marks the breaking
-  `.models/` asset-dir rename.
+  `.models/` asset-dir rename. The GitHub Release ci.yml creates then fans
+  out (`release: published`) to `pypi-publish.yml` (PyPI `docling-rs` +
+  `docling-rs-cuda`), `npm-publish.yml` (`docling.rs`, the platform packages,
+  `docling.rs-cuda`, `docling.rs-wasm`), `cli-binaries.yml` and
+  `docker-publish.yml` — nothing to click; re-run one by hand only to repair
+  a skipped/failed publish.
 - Claude Web: **Never open pull requests on `artiz/docling.rs`.** Push a `claude/<topic>`
   branch and hand back a compare link
   (`https://github.com/docling-project/docling.rs/compare/master...artiz:docling.rs:<branch>?expand=1`);

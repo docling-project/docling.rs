@@ -461,6 +461,11 @@ struct ConvertOptions {
     /// (`en`, `de`, …) or `auto` (default) — detected from the first
     /// 30 seconds. Unknown codes fail the conversion with a clear error.
     asr_lang: Option<String>,
+    /// Character encoding of text inputs (Markdown, CSV, AsciiDoc, WebVTT,
+    /// XML, …) — docling's `TextBackendOptions.encoding`: a WHATWG label
+    /// (`shift_jis`, `koi8-r`, `windows-1251`). Unset = detect (BOM, UTF-8,
+    /// then windows-1252); bytes it cannot decode fail the request.
+    encoding: Option<String>,
     /// Max frames sampled from a video input (0 = transcript only; needs the
     /// server to have the ffmpeg binary).
     video_frames: Option<usize>,
@@ -542,6 +547,7 @@ impl ConvertOptions {
             ebcdic_layout: self.ebcdic_layout.or(base.ebcdic_layout),
             asr_model: self.asr_model.or(base.asr_model),
             asr_lang: self.asr_lang.or(base.asr_lang),
+            encoding: self.encoding.or(base.encoding),
             video_frames: self.video_frames.or(base.video_frames),
             pages: self.pages.or(base.pages),
             ocr_lang: self.ocr_lang.or(base.ocr_lang),
@@ -1815,6 +1821,7 @@ async fn read_multipart(
             }
             "asr_model" => body_opts.asr_model = Some(text_field(field).await?),
             "asr_lang" => body_opts.asr_lang = Some(text_field(field).await?),
+            "encoding" => body_opts.encoding = Some(text_field(field).await?),
             "pages" => body_opts.pages = Some(text_field(field).await?),
             "ocr_lang" => body_opts.ocr_lang = Some(text_field(field).await?),
             "ocr_mode" => body_opts.ocr_mode = Some(text_field(field).await?),
@@ -2399,6 +2406,7 @@ fn request_converter(
         .ebcdic_layout_opt(options.ebcdic_layout.clone())
         .asr_model(options.asr_model.clone())
         .asr_lang(options.asr_lang.clone())
+        .encoding(options.encoding.clone())
         .video_frames(
             options
                 .video_frames

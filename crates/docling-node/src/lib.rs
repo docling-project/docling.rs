@@ -37,6 +37,11 @@ pub struct ConverterOptions {
     /// ASR transcription language for audio/video: a Whisper code (`"en"`,
     /// `"de"`, …) or `"auto"` (default) — detected from the first 30 seconds.
     pub asr_lang: Option<String>,
+    /// Character encoding of text inputs (Markdown, CSV, AsciiDoc, WebVTT,
+    /// XML, …) — docling's `TextBackendOptions.encoding`: a WHATWG label
+    /// (`"shift_jis"`, `"koi8-r"`, `"windows-1251"`). Unset = detect (BOM,
+    /// UTF-8, then windows-1252); bytes it cannot decode fail the conversion.
+    pub encoding: Option<String>,
     /// Max frames sampled from a video input as timestamped pictures (needs
     /// the ffmpeg binary at runtime; `0` = transcript only). Default 8.
     pub video_frames: Option<u32>,
@@ -186,6 +191,9 @@ pub struct ConvertOptions {
     /// ASR transcription language for audio/video: a Whisper code (`"en"`,
     /// `"de"`, …) or `"auto"` (default) — detected from the first 30 seconds.
     pub asr_lang: Option<String>,
+    /// Character encoding of text inputs (docling's
+    /// `TextBackendOptions.encoding`); unset = detect.
+    pub encoding: Option<String>,
     /// Max frames sampled from a video input (`0` = transcript only).
     pub video_frames: Option<u32>,
     /// PDF page window `"A-B"` (or `"N"`), 1-based inclusive (#80).
@@ -303,6 +311,7 @@ struct ConvertConfig {
     fetch_images: bool,
     asr_model: Option<String>,
     asr_lang: Option<String>,
+    encoding: Option<String>,
     video_frames: Option<usize>,
     page_range: Option<(usize, usize)>,
     ocr_lang: Option<String>,
@@ -384,6 +393,7 @@ fn build_config(o: ConvertOptions) -> Result<ConvertConfig> {
         fetch_images: o.fetch_images.unwrap_or(false),
         asr_model: o.asr_model,
         asr_lang: o.asr_lang,
+        encoding: o.encoding,
         video_frames: o.video_frames.map(|n| n as usize),
         page_range,
         ocr_lang: parse_ocr_lang(o.ocr_lang)?,
@@ -572,7 +582,8 @@ fn build_converter(cfg: &ConvertConfig) -> RsConverter {
         .do_code_enrichment(cfg.enrich.code)
         .do_formula_enrichment(cfg.enrich.formula)
         .asr_model(cfg.asr_model.clone())
-        .asr_lang(cfg.asr_lang.clone());
+        .asr_lang(cfg.asr_lang.clone())
+        .encoding(cfg.encoding.clone());
     let base = match cfg.video_frames {
         Some(max) => base.video_frames(max),
         None => base,
@@ -799,6 +810,7 @@ pub struct DocumentConverter {
     fetch_images: bool,
     asr_model: Option<String>,
     asr_lang: Option<String>,
+    encoding: Option<String>,
     video_frames: Option<usize>,
     page_range: Option<(usize, usize)>,
     ocr_lang: Option<String>,
@@ -840,6 +852,7 @@ impl DocumentConverter {
             fetch_images: o.fetch_images.unwrap_or(false),
             asr_model: o.asr_model.clone(),
             asr_lang: o.asr_lang.clone(),
+            encoding: o.encoding.clone(),
             video_frames: o.video_frames.map(|n| n as usize),
             page_range,
             ocr_lang: parse_ocr_lang(o.ocr_lang.clone())?,
@@ -878,6 +891,7 @@ impl DocumentConverter {
             fetch_images: self.fetch_images,
             asr_model: self.asr_model.clone(),
             asr_lang: self.asr_lang.clone(),
+            encoding: self.encoding.clone(),
             video_frames: self.video_frames,
             page_range: self.page_range,
             ocr_lang: self.ocr_lang.clone(),
@@ -1381,6 +1395,7 @@ fn output_config(out: Option<OutputOptions>, strict: bool) -> Result<ConvertConf
         fetch_images: false,
         asr_model: None,
         asr_lang: None,
+        encoding: None,
         video_frames: None,
         page_range: None,
         list_attachments: false,

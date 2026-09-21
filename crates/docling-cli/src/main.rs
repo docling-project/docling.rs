@@ -11,7 +11,7 @@
 //! optional features the binary carries (execution providers, `serve`,
 //! chunking) — both answer without models present.
 //!
-//! Usage: docling-rs [--strict] [--page-break-placeholder TEXT] [--to md|json|dclx|chunks|images|latex] [--pages A-B] [--scale X] [--images MODE] [--input GLOB --output DIR [--jobs N]] [--fetch-images] [--list-attachments] [--skip-empty-cells] [--compact-tables] [--ebcdic-layout JSON|PATH] [--no-stream] [--no-table-former] [--no-ocr] [--skip-ocr] [--force-full-page-ocr] [--no-text-panels] [--heading-hierarchy] [--ocr-lang LANG] [--ocr-mode MODE] [--ocr-scale X] [--chunker hierarchical|hybrid] [--chunk-tokenizer PATH] [--chunk-max-tokens N] [--no-chunk-merge-peers] [--pipeline standard|vlm] [--vlm-endpoint URL] [--vlm-model NAME] [--vlm-api-key TOKEN] [--vlm-prompt TEXT] [--vlm-max-tokens N] [--asr-model PRESET] [--asr-lang CODE] [--video-frames N] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] <input-file>
+//! Usage: docling-rs [--strict] [--page-break-placeholder TEXT] [--to md|json|dclx|chunks|images|latex] [--pages A-B] [--scale X] [--images MODE] [--input GLOB --output DIR [--jobs N]] [--fetch-images] [--list-attachments] [--skip-empty-cells] [--compact-tables] [--ebcdic-layout JSON|PATH] [--encoding LABEL] [--no-stream] [--no-table-former] [--no-ocr] [--skip-ocr] [--force-full-page-ocr] [--no-text-panels] [--heading-hierarchy] [--ocr-lang LANG] [--ocr-mode MODE] [--ocr-scale X] [--chunker hierarchical|hybrid] [--chunk-tokenizer PATH] [--chunk-max-tokens N] [--no-chunk-merge-peers] [--pipeline standard|vlm] [--vlm-endpoint URL] [--vlm-model NAME] [--vlm-api-key TOKEN] [--vlm-prompt TEXT] [--vlm-max-tokens N] [--asr-model PRESET] [--asr-lang CODE] [--video-frames N] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] <input-file>
 //!   --input GLOB|DIR   batch mode (#205): convert every file the glob matches
 //!                      (`--input '/data/reports/**/*.pdf'` — quote it so the
 //!                      shell doesn't expand it) instead of one positional file.
@@ -82,6 +82,12 @@
 //!                      code (en, de, zh, ...) or auto (the default) to detect
 //!                      it from the first 30 seconds. English-only presets
 //!                      always transcribe English.
+//!   --encoding LABEL   decode text inputs (Markdown, CSV, AsciiDoc, WebVTT,
+//!                      LaTeX, XML, …) with this character encoding — a WHATWG
+//!                      label such as shift_jis, koi8-r, windows-1251 or
+//!                      latin1 — instead of detecting one (BOM, UTF-8, then
+//!                      windows-1252); bytes it cannot decode fail the
+//!                      conversion (docling's TextBackendOptions.encoding)
 //!   --force-full-page-ocr  OCR every PDF page even when it has a text layer
 //!                      (docling's force_full_page_ocr) — for layers that lie:
 //!                      broken encodings, forms with a few typed-in fields
@@ -199,6 +205,8 @@ FORMAT OPTIONS
   --list-attachments      append an Attachments section for .eml/.msg
   --skip-empty-cells      omit empty cells from XLSX/XLS grids
   --ebcdic-layout JSON|PATH   EBCDIC copybook layout
+  --encoding LABEL        character encoding of text inputs (shift_jis, koi8-r,
+                          windows-1251, …); default: detect (BOM, UTF-8, cp1252)
   --use-web-browser       pre-render HTML with a headless browser (feature `web-browser`)
 
 PDF / IMAGE PIPELINE
@@ -303,6 +311,7 @@ fn main() -> ExitCode {
     let mut use_web_browser = false;
     let mut asr_model: Option<String> = None;
     let mut asr_lang: Option<String> = None;
+    let mut encoding: Option<String> = None;
     let mut video_frames: Option<usize> = None;
     let mut enrich_picture_classes = false;
     let mut enrich_code = false;
@@ -401,6 +410,15 @@ fn main() -> ExitCode {
             // Transcription language (or "auto"); validated against the model's
             // vocabulary at conversion time.
             "--asr-lang" => asr_lang = args.next(),
+            // Character encoding of text inputs; validated when a text backend
+            // first decodes the file.
+            "--encoding" => match args.next() {
+                Some(label) => encoding = Some(label),
+                None => {
+                    eprintln!("error: --encoding needs an encoding label (e.g. shift_jis)");
+                    std::process::exit(2);
+                }
+            },
             // Max frames sampled from a video input (needs the ffmpeg binary;
             // 0 = transcript only). Default 8.
             "--video-frames" => video_frames = args.next().and_then(|v| v.parse().ok()),
@@ -658,6 +676,7 @@ fn main() -> ExitCode {
             enrich_formula,
             asr_model,
             asr_lang,
+            encoding,
             video_frames,
             pages,
             ocr_lang,
@@ -767,6 +786,7 @@ fn main() -> ExitCode {
         .strict(strict)
         .asr_model(asr_model.clone())
         .asr_lang(asr_lang.clone())
+        .encoding(encoding.clone())
         .fetch_images(fetch_images)
         .list_attachments(list_attachments)
         .skip_empty_cells(skip_empty_cells)
@@ -975,6 +995,7 @@ struct BatchCfg {
     enrich_formula: bool,
     asr_model: Option<String>,
     asr_lang: Option<String>,
+    encoding: Option<String>,
     video_frames: Option<usize>,
     pages: Option<(usize, usize)>,
     ocr_lang: Option<String>,
@@ -1085,6 +1106,7 @@ fn batch_converter(cfg: &BatchCfg) -> DocumentConverter {
         .strict(cfg.strict)
         .asr_model(cfg.asr_model.clone())
         .asr_lang(cfg.asr_lang.clone())
+        .encoding(cfg.encoding.clone())
         .fetch_images(cfg.fetch_images)
         .list_attachments(cfg.list_attachments)
         .skip_empty_cells(cfg.skip_empty_cells)

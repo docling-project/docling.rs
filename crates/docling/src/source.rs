@@ -25,6 +25,14 @@ pub struct SourceDocument {
     /// image fetching is enabled (an HTML page fetched from the web references
     /// its images by relative path). `None` for local / in-memory sources.
     pub base_url: Option<String>,
+    /// The character encoding to decode the bytes with when a backend reads
+    /// them as text — docling's `TextBackendOptions.encoding`
+    /// (`MarkdownBackendOptions(encoding="shift_jis")`). A WHATWG encoding
+    /// label (`shift_jis`, `koi8-r`, `windows-1251`, `latin1`; Python codec
+    /// spellings with `_` are accepted too). `None` (default) detects the
+    /// encoding — see [`Self::text`]. Set by [`Self::with_encoding`] or, for
+    /// every source a converter handles, `DocumentConverter::encoding`.
+    pub encoding: Option<String>,
 }
 
 impl SourceDocument {
@@ -53,6 +61,7 @@ impl SourceDocument {
             bytes,
             path: Some(path.to_path_buf()),
             base_url: None,
+            encoding: None,
         })
     }
 
@@ -64,7 +73,17 @@ impl SourceDocument {
             bytes,
             path: None,
             base_url: None,
+            encoding: None,
         }
+    }
+
+    /// Decode the bytes with this character encoding when read as text —
+    /// nothing is guessed, and bytes the encoding cannot decode fail the
+    /// conversion (docling raises `DocumentLoadError`). `None` restores
+    /// detection.
+    pub fn with_encoding(mut self, label: Option<String>) -> Self {
+        self.encoding = label;
+        self
     }
 
     /// Record the URL this document was fetched from (for resolving relative
@@ -95,8 +114,56 @@ impl SourceDocument {
     /// (Python's `cp1252` rejects them where the WHATWG table maps them to
     /// C1 controls). Borrowed when the bytes are already UTF-8.
     pub fn text(&self) -> Result<Cow<'_, str>, ConversionError> {
-        decode_text(&self.bytes)
+        match &self.encoding {
+            Some(label) => decode_text_as(&self.bytes, label),
+            None => decode_text(&self.bytes),
+        }
     }
+}
+
+/// Decode with a requested encoding — docling's `decode_text(…, encoding)`
+/// branch: the label is looked up, the bytes are decoded strictly (a leading
+/// byte-order mark of that encoding is dropped) and a byte the encoding cannot
+/// map is an error, never a guess or a replacement character.
+pub(crate) fn decode_text_as<'a>(
+    bytes: &'a [u8],
+    label: &str,
+) -> Result<Cow<'a, str>, ConversionError> {
+    let encoding = lookup_encoding(label).ok_or_else(|| {
+        ConversionError::Parse(format!(
+            "unknown character encoding {label:?}: use a WHATWG encoding label such as \
+             utf-8, windows-1252, latin1, shift_jis, euc-jp, gbk, big5, euc-kr or koi8-r"
+        ))
+    })?;
+    let (text, had_errors) = encoding.decode_with_bom_removal(bytes);
+    if had_errors {
+        return Err(ConversionError::Parse(format!(
+            "input is not valid {}: it cannot be decoded with the requested encoding {label:?}",
+            encoding.name()
+        )));
+    }
+    Ok(text)
+}
+
+/// Resolve an encoding label: the WHATWG label as given, then with Python's
+/// `_` spelling folded to `-` (`shift_jis` is a WHATWG label, `euc_jp` is
+/// not), then the Python codec names WHATWG spells differently.
+fn lookup_encoding(label: &str) -> Option<&'static encoding_rs::Encoding> {
+    let label = label.trim();
+    let dashed = label.replace('_', "-").to_ascii_lowercase();
+    encoding_rs::Encoding::for_label(label.as_bytes())
+        .or_else(|| encoding_rs::Encoding::for_label(dashed.as_bytes()))
+        .or_else(|| {
+            let alias = match dashed.as_str() {
+                "latin-1" | "iso8859-1" | "iso-latin-1" => "latin1",
+                "utf-8-sig" | "utf8-sig" => "utf-8",
+                "cp932" | "ms932" | "sjis" => "shift_jis",
+                "mac-roman" | "macroman" => "macintosh",
+                "cp1361" | "johab" | "euc-tw" => return None,
+                _ => return None,
+            };
+            encoding_rs::Encoding::for_label(alias.as_bytes())
+        })
 }
 
 /// See [`SourceDocument::text`].
@@ -212,7 +279,34 @@ fn utf8_high_byte_coverage(raw: &[u8]) -> f64 {
 
 #[cfg(test)]
 mod decode_tests {
-    use super::decode_text;
+    use super::{decode_text, decode_text_as};
+
+    /// docling's `encoding` option: the requested encoding is used as is —
+    /// WHATWG or Python spelling — its own BOM dropped, and undecodable bytes
+    /// or an unknown label are errors rather than guesses.
+    #[test]
+    fn explicit_encoding_decodes_strictly() {
+        // "日本" in Shift-JIS (windows-1252 would happily mojibake it).
+        let sjis = b"\x93\xfa\x96\x7b";
+        assert_eq!(decode_text_as(sjis, "shift_jis").unwrap(), "日本");
+        assert_eq!(decode_text_as(sjis, "Shift_JIS").unwrap(), "日本");
+        assert_eq!(decode_text_as(sjis, "cp932").unwrap(), "日本");
+        // "Привет" in KOI8-R; the Python `koi8_r` spelling resolves too.
+        let koi = b"\xf0\xd2\xc9\xd7\xc5\xd4";
+        assert_eq!(decode_text_as(koi, "koi8-r").unwrap(), "Привет");
+        assert_eq!(decode_text_as(koi, "koi8_r").unwrap(), "Привет");
+        assert_eq!(decode_text_as(b"caf\xe9", "latin-1").unwrap(), "caf\u{e9}");
+        assert_eq!(decode_text_as(b"\xef\xbb\xbfa", "utf-8").unwrap(), "a");
+        assert!(matches!(
+            decode_text_as(b"plain", "utf-8").unwrap(),
+            std::borrow::Cow::Borrowed(_)
+        ));
+        // Not UTF-8 under a UTF-8 request: an error, not a cp1252 fallback.
+        let err = decode_text_as(b"caf\xe9", "utf-8").unwrap_err().to_string();
+        assert!(err.contains("UTF-8"), "{err}");
+        let err = decode_text_as(b"x", "klingon-1").unwrap_err().to_string();
+        assert!(err.contains("unknown character encoding"), "{err}");
+    }
 
     /// docling#4202: a BOM settles the encoding (and is dropped); UTF-8 is
     /// borrowed; a legacy single-byte file decodes as windows-1252; damaged

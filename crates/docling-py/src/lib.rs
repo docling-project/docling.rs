@@ -151,6 +151,11 @@ impl PyDocumentConverter {
     /// * `asr_lang` — transcription language for audio/video: a Whisper code
     ///   (`"en"`, `"de"`, …) or `"auto"` (default) to detect it from the
     ///   first 30 seconds (docling 2.116 parity).
+    /// * `encoding` — character encoding of text inputs (Markdown, CSV,
+    ///   AsciiDoc, WebVTT, XML, …), docling's `TextBackendOptions.encoding`:
+    ///   a WHATWG label or Python codec name (`"shift_jis"`, `"koi8-r"`).
+    ///   `None` (default) detects — BOM, UTF-8, then windows-1252; bytes the
+    ///   requested encoding cannot decode raise.
     /// * `pipeline` — `"standard"` (default) or `"vlm"` (#304): convert PDF /
     ///   image inputs by sending each page to a remote OpenAI-compatible
     ///   vision model instead of the local ML stack. The `vlm_*` kwargs
@@ -176,6 +181,7 @@ impl PyDocumentConverter {
         do_formula_enrichment = false,
         asr_model = None,
         asr_lang = None,
+        encoding = None,
         video_frames = None,
         page_range = None,
         ocr_lang = None,
@@ -208,6 +214,7 @@ impl PyDocumentConverter {
         do_formula_enrichment: bool,
         asr_model: Option<String>,
         asr_lang: Option<String>,
+        encoding: Option<String>,
         video_frames: Option<usize>,
         page_range: Option<(usize, usize)>,
         ocr_lang: Option<String>,
@@ -315,6 +322,7 @@ impl PyDocumentConverter {
                 .ebcdic_layout_opt(ebcdic_layout)
                 .asr_model(asr_model)
                 .asr_lang(asr_lang)
+                .encoding(encoding)
                 .no_ocr(text_layer_only)
                 .skip_ocr(!do_ocr)
                 .force_full_page_ocr(force_full_page_ocr)

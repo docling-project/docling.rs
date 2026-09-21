@@ -75,6 +75,7 @@ paths:
         - { $ref: "#/components/parameters/ocr_scale" }
         - { $ref: "#/components/parameters/asr_model" }
         - { $ref: "#/components/parameters/asr_lang" }
+        - { $ref: "#/components/parameters/encoding" }
         - { $ref: "#/components/parameters/video_frames" }
         - { $ref: "#/components/parameters/chunker" }
         - { $ref: "#/components/parameters/chunk_tokenizer" }
@@ -119,6 +120,7 @@ paths:
                 ocr_scale: { $ref: "#/components/schemas/OcrScale" }
                 asr_model: { type: string }
                 asr_lang: { type: string, examples: ["auto", "en", "de"] }
+                encoding: { type: string, examples: ["shift_jis", "koi8-r", "windows-1251"] }
                 video_frames: { type: integer, minimum: 0 }
                 chunker: { $ref: "#/components/schemas/Chunker" }
                 chunk_tokenizer: { type: string }
@@ -582,6 +584,15 @@ components:
             Audio/video — transcription language: a Whisper code (`en`, `de`,
             `zh`, …) or `auto` (default) to detect it from the first 30
             seconds. English-only presets always transcribe English.
+        encoding:
+          type: string
+          description: >-
+            Text inputs (Markdown, CSV, AsciiDoc, WebVTT, XML, …) — the
+            character encoding to decode the file with, a WHATWG label such
+            as `shift_jis`, `koi8-r` or `windows-1251` (docling's
+            `TextBackendOptions.encoding`). Unset detects it: byte-order
+            mark, then UTF-8, then windows-1252. Bytes the named encoding
+            cannot decode fail the request instead of being guessed.
           examples: ["auto", "en", "de"]
         video_frames:
           type: integer
@@ -808,6 +819,8 @@ components:
       { name: asr_model, in: query, schema: { type: string } }
     asr_lang:
       { name: asr_lang, in: query, schema: { type: string } }
+    encoding:
+      { name: encoding, in: query, schema: { type: string } }
     video_frames:
       { name: video_frames, in: query, schema: { type: integer, minimum: 0 } }
     chunker:

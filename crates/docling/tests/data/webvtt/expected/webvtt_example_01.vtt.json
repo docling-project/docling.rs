@@ -72,6 +72,14 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 11.0,
+          "end_time": 13.0,
+          "voice": "Roger Bingham"
+        }
+      ],
       "orig": "We are in New York City",
       "text": "We are in New York City"
     },
@@ -84,6 +92,14 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 13.0,
+          "end_time": 16.0,
+          "voice": "Roger Bingham"
+        }
+      ],
       "orig": "We’re actually at the Lucern Hotel, just down the street",
       "text": "We’re actually at the Lucern Hotel, just down the street"
     },
@@ -96,6 +112,14 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 16.0,
+          "end_time": 18.0,
+          "voice": "Roger Bingham"
+        }
+      ],
       "orig": "from the American Museum of Natural History",
       "text": "from the American Museum of Natural History"
     },
@@ -108,6 +132,14 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 18.0,
+          "end_time": 20.0,
+          "voice": "Roger Bingham"
+        }
+      ],
       "orig": "And with me is Neil deGrasse Tyson",
       "text": "And with me is Neil deGrasse Tyson"
     },
@@ -120,6 +152,14 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 20.0,
+          "end_time": 22.0,
+          "voice": "Roger Bingham"
+        }
+      ],
       "orig": "Astrophysicist, Director of the Hayden Planetarium",
       "text": "Astrophysicist, Director of the Hayden Planetarium"
     },
@@ -132,6 +172,14 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 22.0,
+          "end_time": 24.0,
+          "voice": "Roger Bingham"
+        }
+      ],
       "orig": "at the AMNH.",
       "text": "at the AMNH."
     },
@@ -144,6 +192,14 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 24.0,
+          "end_time": 26.0,
+          "voice": "Roger Bingham"
+        }
+      ],
       "orig": "Thank you for walking down here.",
       "text": "Thank you for walking down here."
     },
@@ -156,6 +212,14 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 27.0,
+          "end_time": 30.0,
+          "voice": "Roger Bingham"
+        }
+      ],
       "orig": "And I want to do a follow-up on the last conversation we did.",
       "text": "And I want to do a follow-up on the last conversation we did."
     },
@@ -168,6 +232,14 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 30.0,
+          "end_time": 31.5,
+          "voice": "Roger Bingham"
+        }
+      ],
       "orig": "When we e-mailed—",
       "text": "When we e-mailed—"
     },
@@ -180,6 +252,14 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 30.5,
+          "end_time": 32.5,
+          "voice": "Neil deGrasse Tyson"
+        }
+      ],
       "orig": "Didn’t we talk about enough in that conversation?",
       "text": "Didn’t we talk about enough in that conversation?"
     },
@@ -192,6 +272,14 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 32.0,
+          "end_time": 35.5,
+          "voice": "Roger Bingham"
+        }
+      ],
       "orig": "No! No no no no; 'cos 'cos obviously 'cos",
       "text": "No! No no no no; 'cos 'cos obviously 'cos"
     },
@@ -204,8 +292,23 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "*Laughs*",
-      "text": "*Laughs*"
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 32.5,
+          "end_time": 33.5,
+          "voice": "Neil deGrasse Tyson"
+        }
+      ],
+      "orig": "Laughs",
+      "text": "Laughs",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/12",
@@ -216,6 +319,14 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 35.5,
+          "end_time": 38.0,
+          "voice": "Roger Bingham"
+        }
+      ],
       "orig": "You know I’m so excited my glasses are falling off here.",
       "text": "You know I’m so excited my glasses are falling off here."
     }

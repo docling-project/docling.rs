@@ -10,12 +10,19 @@
 # `pypa/cibuildwheel` (which orchestrates the manylinux containers and auditwheel
 # repair itself) and uploaded with `pypa/gh-action-pypi-publish`.
 #
-# Trigger: manual only (workflow_dispatch), mirroring npm-publish.yml. By default
-# it builds the checked-out ref at the current workspace version (the root
-# Cargo.toml — same source npm-publish.yml uses), so the PyPI version tracks the
-# crates automatically; pass `version` (or a release `tag`) to override. Run it
-# from the Actions tab (or `gh workflow run pypi-publish.yml`, optionally
-# `-f version=0.16.0`).
+# Triggers, mirroring npm-publish.yml:
+#   - Release published: runs automatically for every `v<version>` GitHub
+#     Release ci.yml cuts (created with RELEASE_PAT, so the `release: published`
+#     event fires). The release tag is checked out, its version published, and
+#     the `docling-rs-cuda` wheel built as well (the `cuda_wheel` input is
+#     implied). Releases with any other tag are ignored.
+#   - Manual dispatch: by default it builds the checked-out ref at the current
+#     workspace version (the root Cargo.toml — same source npm-publish.yml
+#     uses), so the PyPI version tracks the crates automatically; pass `version`
+#     (or a release `tag`) to override, `cuda_wheel` to add the CUDA wheel. Run
+#     it from the Actions tab (or `gh workflow run pypi-publish.yml`, optionally
+#     `-f version=0.16.0`) — e.g. to re-publish a version an automatic run
+#     skipped or failed on; the upload skips files already on PyPI.
 #
 # No secrets: publishing uses PyPI Trusted Publishing (OIDC), like
 # docling-core's pypi.yml. This requires a one-time setup on PyPI — add a trusted
@@ -31,6 +38,8 @@
 name: pypi publish
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -42,13 +51,13 @@ on:
         required: false
         default: ""
       cuda_wheel:
-        description: "Also build the docling-rs-cuda wheel (Linux x86_64, CUDA EP compiled in)."
+        description: "Also build the docling-rs-cuda wheel (Linux x86_64, CUDA EP compiled in). Implied on a release event."
         required: false
         type: boolean
         default: false
 
 concurrency:
-  group: pypi-publish-${{ inputs.tag || github.ref }}
+  group: pypi-publish-${{ inputs.tag || github.event.release.tag_name || github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -57,11 +66,14 @@ permissions:
 jobs:
   sdist:
     name: sdist
+    # On a release event only the `v<version>` releases ci.yml cuts are
+    # published (every other job hangs off this one).
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ inputs.tag || github.event.release.tag_name || github.ref }}
 
       # Version resolution mirrors npm-publish.yml: explicit `version` input,
       # else the release `tag`, else the workspace version from the root
@@ -74,7 +86,7 @@ jobs:
         working-directory: crates/docling-py
         run: |
           v="${{ inputs.version }}"
-          if [ -z "$v" ] && [ -n "${{ inputs.tag }}" ]; then v="${{ inputs.tag }}"; v="${v#v}"; fi
+          if [ -z "$v" ] && [ -n "${{ inputs.tag || github.event.release.tag_name }}" ]; then v="${{ inputs.tag || github.event.release.tag_name }}"; v="${v#v}"; fi
           if [ -z "$v" ]; then
             v="$(grep -m1 '^version = ' ../../Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
           fi
@@ -178,7 +190,8 @@ jobs:
   #   glibc at runtime, which matches the native `--features cuda` story.
   wheel-cuda:
     name: wheel x86_64 (docling-rs-cuda)
-    if: inputs.cuda_wheel
+    # Manual runs opt in with `cuda_wheel`; a release builds it unconditionally.
+    if: inputs.cuda_wheel || github.event_name == 'release'
     needs: sdist
     runs-on: ubuntu-24.04
     steps:

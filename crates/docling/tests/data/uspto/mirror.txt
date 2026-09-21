@@ -6,3 +6,4 @@ ipg08672134.xml
 ipgD0701016.xml
 pg06442728.xml
 tables_ipa20180000016.xml
+pftaps057006474.txt

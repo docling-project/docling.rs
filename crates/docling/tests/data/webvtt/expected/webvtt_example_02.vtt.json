@@ -24,20 +24,61 @@
         "$ref": "#/texts/1"
       },
       {
-        "$ref": "#/texts/2"
+        "$ref": "#/groups/0"
       },
       {
-        "$ref": "#/texts/3"
+        "$ref": "#/texts/5"
       },
       {
-        "$ref": "#/texts/4"
+        "$ref": "#/groups/1"
       }
     ],
     "content_layer": "body",
     "name": "_root_",
     "label": "unspecified"
   },
-  "groups": [],
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/2"
+        },
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/4"
+        }
+      ],
+      "content_layer": "body",
+      "name": "WebVTT cue span",
+      "label": "inline"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        },
+        {
+          "$ref": "#/texts/8"
+        }
+      ],
+      "content_layer": "body",
+      "name": "WebVTT cue span",
+      "label": "inline"
+    }
+  ],
   "texts": [
     {
       "self_ref": "#/texts/0",
@@ -48,6 +89,14 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 0.0,
+          "end_time": 2.0,
+          "voice": "Esme"
+        }
+      ],
       "orig": "It’s a blue apple tree!",
       "text": "It’s a blue apple tree!"
     },
@@ -60,35 +109,84 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 2.0,
+          "end_time": 4.0,
+          "voice": "Mary"
+        }
+      ],
       "orig": "No way!",
       "text": "No way!"
     },
     {
       "self_ref": "#/texts/2",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/0"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Hee!   *laughter*",
-      "text": "Hee!   *laughter*"
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 4.0,
+          "end_time": 6.0,
+          "voice": "Esme"
+        }
+      ],
+      "orig": "Hee!",
+      "text": "Hee!"
     },
     {
       "self_ref": "#/texts/3",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/0"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "That’s awesome!",
-      "text": "That’s awesome!"
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 4.0,
+          "end_time": 6.0
+        }
+      ],
+      "orig": " ",
+      "text": " "
     },
     {
       "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 4.0,
+          "end_time": 6.0
+        }
+      ],
+      "orig": "laughter",
+      "text": "laughter",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/5",
       "parent": {
         "$ref": "#/body"
       },
@@ -96,8 +194,80 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Sur les  *playground* , ici à Montpellier",
-      "text": "Sur les  *playground* , ici à Montpellier"
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 6.0,
+          "end_time": 8.0,
+          "voice": "Mary"
+        }
+      ],
+      "orig": "That’s awesome!",
+      "text": "That’s awesome!"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 8.0,
+          "end_time": 10.0
+        }
+      ],
+      "orig": "Sur les ",
+      "text": "Sur les "
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 8.0,
+          "end_time": 10.0
+        }
+      ],
+      "orig": "playground",
+      "text": "playground",
+      "formatting": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "source": [
+        {
+          "kind": "track",
+          "start_time": 8.0,
+          "end_time": 10.0
+        }
+      ],
+      "orig": ", ici à Montpellier",
+      "text": ", ici à Montpellier"
     }
   ],
   "pictures": [],

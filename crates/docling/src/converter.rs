@@ -125,6 +125,9 @@ pub struct DocumentConverter {
     /// OCR recognition language for scanned PDF/image pages (`en`/`ch`).
     /// `None` = the process default (`DOCLING_RS_OCR_LANG`, else English).
     ocr_lang: Option<String>,
+    /// Character encoding for text inputs (docling's
+    /// `TextBackendOptions.encoding`); `None` = detect. See [`Self::encoding`].
+    encoding: Option<String>,
     /// Directory referenced-mode streaming writes images into (#80).
     /// See [`Self::artifacts_dir`].
     artifacts_dir: String,
@@ -188,6 +191,7 @@ impl Default for DocumentConverter {
             enrich: crate::EnrichmentOptions::default(),
             page_range: None,
             ocr_lang: None,
+            encoding: None,
             artifacts_dir: "artifacts".to_string(),
         }
     }
@@ -345,6 +349,30 @@ impl DocumentConverter {
     pub fn artifacts_dir(mut self, dir: impl Into<String>) -> Self {
         self.artifacts_dir = dir.into();
         self
+    }
+
+    /// Decode text inputs (Markdown, CSV, AsciiDoc, WebVTT, LaTeX, the XML
+    /// dialects, …) with this character encoding instead of detecting one —
+    /// docling's `TextBackendOptions.encoding`
+    /// (`MarkdownBackendOptions(encoding="shift_jis")`). A WHATWG encoding
+    /// label (`shift_jis`, `koi8-r`, `windows-1251`, `latin1`; Python codec
+    /// spellings with `_` are accepted). Nothing is guessed: bytes the
+    /// encoding cannot decode fail the conversion, as does an unknown label.
+    /// `None` (default) detects — a byte-order mark, then UTF-8, then
+    /// windows-1252 (see [`SourceDocument::text`]). A source that already
+    /// carries its own [`SourceDocument::encoding`] keeps it.
+    pub fn encoding(mut self, label: Option<String>) -> Self {
+        self.encoding = label;
+        self
+    }
+
+    /// The converter's [`encoding`](Self::encoding) applied to a source that
+    /// did not set its own.
+    fn with_encoding(&self, mut source: SourceDocument) -> SourceDocument {
+        if source.encoding.is_none() {
+            source.encoding = self.encoding.clone();
+        }
+        source
     }
 
     /// Cap the number of frames sampled from a video (#138 Phase 2); `0`
@@ -685,6 +713,7 @@ impl DocumentConverter {
                 return Err(ConversionError::UnsupportedFormat(source.format));
             }
         }
+        let source = self.with_encoding(source);
         Ok(crate::stream::spawn(self.clone(), source, image_mode))
     }
 
@@ -725,6 +754,7 @@ impl DocumentConverter {
                 return Err(ConversionError::UnsupportedFormat(source.format));
             }
         }
+        let source = self.with_encoding(source);
 
         let mut document = match source.format {
             // A legacy APS (Automated Patent System) plain-text patent (`PATN`
@@ -1017,6 +1047,39 @@ impl DocumentConverter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// docling's `TextBackendOptions.encoding`: the converter's `encoding`
+    /// decodes text inputs as named (a source's own setting wins), and an
+    /// undecodable byte or unknown label is an error, not a guess.
+    #[test]
+    fn encoding_option_decodes_text_inputs() {
+        let sjis = b"# \x93\xfa\x96\x7b\n".to_vec();
+        let md = |c: &DocumentConverter, s: SourceDocument| {
+            c.convert(s).map(|r| r.document.export_to_markdown())
+        };
+        let conv = DocumentConverter::new().encoding(Some("shift_jis".into()));
+        let src = || SourceDocument::from_bytes("doc", InputFormat::Md, sjis.clone());
+        assert_eq!(md(&conv, src()).unwrap().trim(), "# 日本");
+        // Detection reads the same bytes as windows-1252.
+        assert_ne!(
+            md(&DocumentConverter::new(), src()).unwrap().trim(),
+            "# 日本"
+        );
+        // The source's own encoding takes precedence over the converter's.
+        let own = src().with_encoding(Some("shift_jis".into()));
+        let latin = DocumentConverter::new().encoding(Some("latin1".into()));
+        assert_eq!(md(&latin, own).unwrap().trim(), "# 日本");
+        assert!(md(
+            &DocumentConverter::new().encoding(Some("utf-8".into())),
+            src()
+        )
+        .is_err());
+        assert!(md(
+            &DocumentConverter::new().encoding(Some("nope-1".into())),
+            src()
+        )
+        .is_err());
+    }
 
     #[test]
     fn end_to_end_markdown() {

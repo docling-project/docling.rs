@@ -163,6 +163,11 @@ class DocumentConverter:
     * ``asr_lang`` — transcription language for audio/video: a Whisper code
       (``"en"``, ``"de"``, …) or ``"auto"`` (default) to detect it from the
       first 30 seconds (docling 2.116 parity).
+    * ``encoding`` — character encoding of text inputs (Markdown, CSV,
+      AsciiDoc, WebVTT, XML, …): docling's ``TextBackendOptions.encoding``
+      (``MarkdownBackendOptions(encoding="shift_jis")``), a WHATWG label or
+      Python codec name. ``None`` (default) detects — BOM, UTF-8, then
+      windows-1252; bytes the requested encoding cannot decode raise.
     * ``pipeline`` — ``"standard"`` (default) or ``"vlm"`` (#304): convert
       PDF / image inputs by sending each page to a remote OpenAI-compatible
       vision model instead of the local ML stack (no models needed). The
@@ -197,6 +202,7 @@ class DocumentConverter:
         skip_empty_cells: bool = False,
         compact_tables: bool = False,
         asr_lang: Optional[str] = None,
+        encoding: Optional[str] = None,
         pipeline: Optional[str] = None,
         vlm_endpoint: Optional[str] = None,
         vlm_model: Optional[str] = None,
@@ -311,6 +317,7 @@ class DocumentConverter:
             skip_empty_cells=skip_empty_cells,
             compact_tables=compact_tables,
             asr_lang=asr_lang,
+            encoding=encoding,
             pipeline=pipeline,
             vlm_endpoint=vlm_endpoint,
             vlm_model=vlm_model,

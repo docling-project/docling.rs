@@ -4,7 +4,8 @@
 //! (`patent-application-publication`) or the ST.32 grant path (`PATDOC`). Emits
 //! the title (#), the ABSTRACT (###) + text, headings, paragraphs, the CLAIMS,
 //! and CALS `<table>`s (ported from docling's `XmlTable`). The legacy APS
-//! plain-text format and maths are out of scope.
+//! plain-text format (`pftaps*.txt`) has its own line-oriented parser
+//! ([`convert_aps`]); maths are out of scope.
 
 use std::borrow::Cow;
 
@@ -15,40 +16,267 @@ use crate::backend::uspto_entities::NAMED_ENTITIES;
 use crate::backend::DeclarativeBackend;
 use crate::error::ConversionError;
 use crate::source::SourceDocument;
+use docling_core::tree::{ItemTree, TreeKind};
 use docling_core::{DoclingDocument, Node, Table, TableStructure};
 
 /// Whether a plain-text file is a legacy APS (Automated Patent System) patent —
-/// its first non-blank line is the `PATN` record marker. docling reconstructs
-/// such a file verbatim into a single text item, one source line per run.
+/// its first non-blank line is the `PATN` record marker. docling routes such a
+/// `.txt` to `PatentUsptoGrantAps`.
 pub fn looks_like_aps(text: &str) -> bool {
     text.lines()
         .find(|l| !l.trim().is_empty())
         .is_some_and(|l| l.trim_end() == "PATN")
 }
 
-/// Reconstruct a legacy APS patent as docling does: the whole file becomes one
-/// text item whose runs are the source lines (CR stripped), so DocLang renders
-/// the lines verbatim (the first indented, the rest at column 0), CDATA-escaping
-/// only the lines that need it.
+/// Parse a legacy APS patent (Patent Grant Full Text Data/APS, 1976–2001) —
+/// a port of docling's `PatentUsptoGrantAps`. The file is a sequence of
+/// `KEY  value` lines (two or more spaces separate the key) with indented
+/// continuation lines, grouped under bare section markers (`ABST`, `BSUM`,
+/// `DETD`, `CLMS`, `DRWD`, …). The title (`TTL`) becomes the document title,
+/// the abstract's `PAL` lines one paragraph under an `ABSTRACT` heading, each
+/// `PAC` caption a heading, the `PAR`/`PA1`–`PA3` paragraphs its text, and the
+/// claims (`NUM` + `PAR`) paragraphs under a `CLAIMS` heading. Everything else
+/// (bibliographic records, `##STRn##` structure placeholders) is dropped.
 pub fn convert_aps(source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
     let raw = source.text()?;
-    let mut doc = DoclingDocument::new(&source.name);
-    let mut lines: Vec<&str> = raw.split('\n').map(|l| l.trim_end_matches('\r')).collect();
-    while lines.last().is_some_and(|l| l.trim().is_empty()) {
-        lines.pop();
+    let mut aps = Aps::default();
+    let (mut section, mut key, mut value) = (String::new(), String::new(), String::new());
+    for line in raw.lines() {
+        let cols = split_on_double_space(line);
+        // A section marker or a new key flushes the pending field.
+        let starts_new = match cols {
+            (_, None) => true,
+            (k, Some(_)) => !k.is_empty(),
+        };
+        if !key.is_empty() && !value.is_empty() && starts_new {
+            aps.store_content(&section, &key, &value);
+            key.clear();
+            value.clear();
+        }
+        match cols {
+            (title, None) => {
+                section = title.to_string();
+                aps.store_section(&section);
+            }
+            (k, Some(v)) if !k.is_empty() => {
+                key = k.to_string();
+                value = v.to_string();
+            }
+            // Indented continuation line — unless it is a chemical-structure
+            // placeholder (`##STR12##`), which carries no text.
+            (_, Some(v)) if !is_structure_placeholder(v) => {
+                value.push(' ');
+                value.push_str(v);
+            }
+            _ => {}
+        }
     }
-    // docling normalizes each source line's surrounding whitespace away
-    // (continuation lines wrap at column 0) and dumps the whole file as one text
-    // item.
-    let text = lines
-        .into_iter()
-        .map(|l| l.trim())
-        .collect::<Vec<_>>()
-        .join("\n");
-    if !text.is_empty() {
-        doc.push(Node::TextDump(text));
+    if !key.is_empty() && !value.is_empty() {
+        aps.store_content(&section, &key, &value);
     }
-    Ok(doc)
+    Ok(aps.finish(&source.name))
+}
+
+/// `re.split(r"\s{2,}", line, maxsplit=1)`: the text before the first run of
+/// two or more whitespace characters and, when there is one, the text after it.
+fn split_on_double_space(line: &str) -> (&str, Option<&str>) {
+    let mut run_start: Option<usize> = None;
+    for (i, ch) in line.char_indices() {
+        if ch.is_whitespace() {
+            let start = *run_start.get_or_insert(i);
+            // Second whitespace char of the run: the run is long enough;
+            // extend it to its end and split there.
+            if i > start {
+                let after = line[i..]
+                    .char_indices()
+                    .find(|(_, c)| !c.is_whitespace())
+                    .map_or(line.len(), |(j, _)| i + j);
+                return (&line[..start], Some(&line[after..]));
+            }
+        } else {
+            run_start = None;
+        }
+    }
+    (line, None)
+}
+
+/// `^##STR\d+##$` — an APS chemical-structure drawing placeholder.
+fn is_structure_placeholder(s: &str) -> bool {
+    s.strip_prefix("##STR")
+        .and_then(|r| r.strip_suffix("##"))
+        .is_some_and(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// The keys `PatentUsptoGrantAps.Field` knows; any other key's value is
+/// ignored.
+const APS_FIELDS: &[&str] = &[
+    "WKU", "TTL", "PAR", "PA1", "PA2", "PA3", "PAL", "PAC", "NUM", "NAM", "ICL", "ISD", "APD",
+    "PNO", "APN", "APT", "CNT",
+];
+
+/// docling's APS parser state: the item tree being built and its
+/// `level`/`parents` heading hierarchy (`parents[level]` is the item new
+/// content goes under; `None` = the body).
+struct Aps {
+    tree: ItemTree,
+    level: i32,
+    parents: std::collections::BTreeMap<i32, Option<usize>>,
+}
+
+impl Default for Aps {
+    fn default() -> Self {
+        Self {
+            tree: ItemTree::default(),
+            level: 1,
+            parents: [(1, None)].into_iter().collect(),
+        }
+    }
+}
+
+impl Aps {
+    fn parent(&self) -> Option<usize> {
+        self.parents.get(&self.level).copied().flatten()
+    }
+
+    fn add_text(&mut self, label: &str, text: &str, level: Option<u8>) -> usize {
+        let parent = self.parent();
+        self.tree.add(
+            parent,
+            None,
+            TreeKind::Text {
+                label: label.into(),
+                text: text.into(),
+                // docling's `orig` is the text at creation: a paragraph the
+                // parser later appends to keeps its first fragment here.
+                orig: Some(text.into()),
+                formatting: None,
+                hyperlink: None,
+                level,
+                list: None,
+            },
+        )
+    }
+
+    /// `add_heading(value, level=L, parent=parents[L])` at the level docling
+    /// picks for captions and tagged sections — `PatentHeading.ABSTRACT`'s 2
+    /// when a level 2 exists, else 1 — then descend under it.
+    fn add_heading_at_base(&mut self, text: &str, base: i32) {
+        self.level = if self.parents.contains_key(&base) {
+            base
+        } else {
+            1
+        };
+        let id = self.add_text("section_header", text, Some(self.level as u8));
+        self.parents.insert(self.level + 1, Some(id));
+        self.level += 1;
+    }
+
+    /// The last text item among the current parent's children (`None` at the
+    /// body: docling reads `parent.children` only for a real parent).
+    fn last_text_item(&self) -> Option<usize> {
+        let parent = self.parent()?;
+        self.tree.items[parent]
+            .children
+            .iter()
+            .rev()
+            .find(|&&c| matches!(self.tree.items[c].kind, TreeKind::Text { .. }))
+            .copied()
+    }
+
+    fn append_text(&mut self, id: usize, extra: &str) {
+        if let TreeKind::Text { text, .. } = &mut self.tree.items[id].kind {
+            text.push_str(extra);
+        }
+    }
+
+    fn text_of(&self, id: usize) -> &str {
+        match &self.tree.items[id].kind {
+            TreeKind::Text { text, .. } => text,
+            _ => "",
+        }
+    }
+
+    /// `store_section`: only `ABST` and `CLMS` open a heading of their own;
+    /// the other sections' headings come from their `PAC` captions.
+    fn store_section(&mut self, section: &str) {
+        let heading = match section {
+            "ABST" => "ABSTRACT",
+            "CLMS" => "CLAIMS",
+            _ => return,
+        };
+        self.add_heading_at_base(heading, 2);
+    }
+
+    /// `store_content`: place one `KEY  value` field.
+    fn store_content(&mut self, section: &str, field: &str, value: &str) {
+        if !APS_FIELDS.contains(&field) {
+            return;
+        }
+        let paragraph_field = matches!(field, "PAR" | "PA1" | "PA2" | "PA3");
+        let body_section = matches!(section, "BSUM" | "DETD" | "DRWD");
+        if field == "TTL" {
+            let id = self.add_text("title", value, None);
+            self.parents.insert(self.level + 1, Some(id));
+            self.level += 1;
+        } else if field == "PAL" && section == "ABST" {
+            // The abstract is one paragraph: later `PAL`s append to the first.
+            match self.last_text_item() {
+                Some(id) => self.append_text(id, &format!(" {value}")),
+                None => {
+                    self.add_text("paragraph", value, None);
+                }
+            }
+        } else if field == "NUM" && section == "CLMS" {
+            // A claim number opens an empty paragraph its `PAR`s fill in.
+            self.add_text("paragraph", "", None);
+        } else if paragraph_field && section == "CLMS" {
+            let id = self
+                .last_text_item()
+                .unwrap_or_else(|| self.add_text("paragraph", "", None));
+            let extra = if self.text_of(id).is_empty() {
+                value.trim().to_string()
+            } else {
+                format!(" {}", value.trim())
+            };
+            self.append_text(id, &extra);
+        } else if field == "PAC" && body_section {
+            // Captions are siblings of the abstract: no level information.
+            self.add_heading_at_base(value, 2);
+        } else if paragraph_field && body_section {
+            self.add_text("paragraph", value, None);
+        }
+    }
+
+    /// The document: docling's item tree for the JSON export and the flat
+    /// nodes (title `#`, a level-L heading as `#` × (L+1), paragraphs) for the
+    /// other serializers.
+    fn finish(self, name: &str) -> DoclingDocument {
+        let mut doc = DoclingDocument::new(name);
+        for item in &self.tree.items {
+            let TreeKind::Text {
+                label, text, level, ..
+            } = &item.kind
+            else {
+                continue;
+            };
+            match label.as_str() {
+                "title" => doc.push(Node::Heading {
+                    level: 1,
+                    text: escape_text(text),
+                }),
+                "section_header" => doc.push(Node::Heading {
+                    level: level.unwrap_or(1) + 1,
+                    text: escape_text(text),
+                }),
+                _ if !text.is_empty() => doc.push(Node::Paragraph {
+                    text: escape_text(text),
+                }),
+                _ => {}
+            }
+        }
+        doc.tree = Some(self.tree);
+        doc
+    }
 }
 
 pub struct UsptoBackend;
@@ -903,6 +1131,47 @@ fn push_xml_escaped(out: &mut String, s: &str) {
 mod tests {
     use super::*;
     use crate::format::InputFormat;
+
+    /// The APS plain-text parser (docling's `PatentUsptoGrantAps`): `TTL`
+    /// title, the abstract's `PAL`s as one paragraph, `PAC` captions as
+    /// headings, claims (`NUM` + `PAR`/`PA1`) as paragraphs under `CLAIMS`;
+    /// indented continuation lines join their field, `##STRn##` placeholders
+    /// and bibliographic records are dropped.
+    #[test]
+    fn aps_plain_text_patent() {
+        let txt = "PATN\nWKU  012345678\nTTL  Widget with a  double space\nINVT\nNAM  Doe; Jane\n\
+                   ABST\nPAL  First part of the\n      abstract.\nPAL  Second part.\n      ##STR1##\n\
+                   BSUM\nPAC  BACKGROUND\nPAR  Para one\n      continues.\nPA1  Para two.\n\
+                   CLMS\nSTM  What is claimed is:\nNUM  1.\nPAR  1. A widget\n      comprising a knob.\n\
+                   PA1  wherein the knob is red.\nNUM  2.\nPAR  2. The widget of claim 1.\n";
+        assert!(looks_like_aps(txt));
+        let src = SourceDocument::from_bytes("t", InputFormat::Md, txt.as_bytes().to_vec());
+        let doc = convert_aps(&src).unwrap();
+        assert_eq!(
+            doc.export_to_markdown().trim_end(),
+            "# Widget with a  double space\n\n### ABSTRACT\n\n\
+             First part of the abstract. Second part.\n\n### BACKGROUND\n\n\
+             Para one continues.\n\nPara two.\n\n### CLAIMS\n\n\
+             1. A widget comprising a knob. wherein the knob is red.\n\n2. The widget of claim 1."
+        );
+        let v: serde_json::Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+        let texts = v["texts"].as_array().unwrap();
+        // Headings hang off the title; `orig` keeps a paragraph's first
+        // fragment (docling appends to `text` only), a claim's is empty.
+        assert_eq!(texts[0]["label"], "title");
+        assert_eq!(texts[0]["children"].as_array().unwrap().len(), 3);
+        assert_eq!(texts[1]["label"], "section_header");
+        assert_eq!(texts[1]["level"], 2);
+        assert_eq!(texts[1]["parent"]["$ref"], "#/texts/0");
+        assert_eq!(texts[2]["orig"], "First part of the abstract.");
+        assert_eq!(texts[2]["text"], "First part of the abstract. Second part.");
+        assert_eq!(texts[7]["orig"], "");
+        assert_eq!(
+            texts[7]["text"],
+            "1. A widget comprising a knob. wherein the knob is red."
+        );
+        assert_eq!(texts[7]["parent"]["$ref"], "#/texts/6");
+    }
 
     #[test]
     fn resolves_iso_and_html_entities_and_drops_unknown() {

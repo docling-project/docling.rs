@@ -60,7 +60,7 @@ docling's `FormatToExtensions`):
 
 | Category | Extensions |
 |---|---|
-| Text & markup | `.md` `.txt` `.text` `.qmd` `.rmd` · AsciiDoc `.adoc` `.asciidoc` `.asc` · HTML `.html` `.htm` `.xhtml` (any charset: BOM, declared `<meta charset>`, UTF-8, windows-1252 fallback; the JSON is docling's own tree — heading nesting, `inline` groups of formatted runs with `formatting`/`hyperlink`, rich table cells, `furniture` chrome — structurally identical to upstream's on the whole corpus) · MHTML `.mhtml` `.mht` · LaTeX `.tex` `.latex` |
+| Text & markup | `.md` `.txt` `.text` `.qmd` `.rmd` · AsciiDoc `.adoc` `.asciidoc` `.asc` (text inputs decode like docling's `decode_text`: BOM, UTF-8, then windows-1252 — or the encoding you name with `--encoding shift_jis` / the `encoding` option, docling's `TextBackendOptions.encoding`) · HTML `.html` `.htm` `.xhtml` (any charset: BOM, declared `<meta charset>`, UTF-8, windows-1252 fallback; the JSON is docling's own tree — heading nesting, `inline` groups of formatted runs with `formatting`/`hyperlink`, rich table cells, `furniture` chrome — structurally identical to upstream's on the whole corpus) · MHTML `.mhtml` `.mht` · LaTeX `.tex` `.latex` |
 | Word processing | DOCX `.docx` `.docm` `.dotx` `.dotm` (the JSON is docling's own tree — heading nesting, `inline` groups of formatting runs, list groups, rich cells, textbox/header/footer sections, comment back-refs — structurally identical to upstream's on the whole corpus) · Word 97–2004 `.doc` `.dot` · OpenDocument `.odt` `.ott` (flat `.fodt`) · OpenOffice 1.x `.sxw` `.stw` `.sxg` · StarWriter 3–5 `.sdw` `.vor` · AbiWord `.abw` `.zabw` `.awt` · WordPerfect 5.x/6.x+ `.wpd` `.wp` `.wp5` `.wp6` `.wpt` · Microsoft Works 2–9 `.wps` · EPUB `.epub` · RTF `.rtf` |
 | Presentations | PPTX `.pptx` `.pptm` `.potx` `.potm` `.ppsx` `.ppsm` (the JSON is docling's own tree — slide groups, `paragraph`/`title`/`list_item` items with docling's markers, list groups, non-empty table cells, pictures at the file's dpi, chart captions, notes and `comment_section` groups, every item's raw-EMU provenance — structurally identical to upstream's on the whole corpus) · PowerPoint 97–2003 `.ppt` `.pot` `.pps` · OpenDocument `.odp` `.otp` (flat `.fodp`) · OpenOffice 1.x `.sxi` `.sti` · StarImpress/StarDraw 3–5 `.sdd` `.sda` |
 | Diagrams | Visio `.vsdx` `.vsdm` — pages as sections, shape text in reading order, connectors as a relations table · SVG `.svg` — rasterized (resvg) into the image ML pipeline; without ML or with `--no-ocr`, `<text>` elements extract directly into reading-order paragraphs |
@@ -154,10 +154,10 @@ image bytes):
 | Markdown | 10 | 10 | 5 |
 | JATS | 6 | 6 | 0 |
 | ODF | 7 | 7 | 6 |
-| WebVTT | 4 | 4 | 0 |
+| WebVTT | 4 | 4 | 4 |
 | DocLang | 15 | 15 | 0 |
 | AsciiDoc | 4 | 4 | 0 |
-| USPTO | 9 | 5 | 0 |
+| USPTO | 9 | 6 | 1 |
 | EPUB | 1 | 0 | 1 |
 | Email / iWork Pages / EBCDIC | 2 / 1 / 3 | all | all |
 
@@ -255,7 +255,7 @@ Options per request: `to=md|json|dclx|chunks|latex|images`, `strict`, `images=pl
 [enrichment models](#enrichment-models-picture-classification-code-formulas), named as
 docling's `PdfPipelineOptions` flags; a request that changes the enrichment mix rebuilds the
 warm pipeline once, the models themselves load lazily on the first matching region),
-`ocr_lang`, `ocr_mode`, `ocr_scale`, `scale`, `asr_model`, `asr_lang`, `video_frames`, `fetch_images`,
+`ocr_lang`, `ocr_mode`, `ocr_scale`, `scale`, `asr_model`, `asr_lang`, `encoding`, `video_frames`, `fetch_images`,
 `chunker=hierarchical|hybrid`, `chunk_tokenizer`, `chunk_max_tokens`, `chunk_merge_peers` (#256:
 per-request `to=chunks` configuration; the tokenizer is a server-local relative path),
 `pipeline=standard|vlm` + `vlm_endpoint`, `vlm_model`, `vlm_api_key`, `vlm_prompt`,
