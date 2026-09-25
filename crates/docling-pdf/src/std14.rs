@@ -359,6 +359,25 @@ pub(crate) fn symbolic_builtin(base: &[u8]) -> Option<&'static [(u8, u32, u16)]>
     }
 }
 
+/// For a Symbol-family face: its ASCII letters mapped to the glyphs Symbol
+/// actually draws at those codes (`m` → µ, `W` → Ω, `a` → α). Symbol has no
+/// Latin letters, so a `ToUnicode` entry naming one is the producer
+/// mislabelling a Greek glyph by its code -- seen in office exports that
+/// embed Symbol as a CID font. `None` for any other face.
+pub(crate) fn symbol_letter_remap(base: &[u8]) -> Option<std::collections::HashMap<char, char>> {
+    let table = symbolic_builtin(base)?;
+    if !std::ptr::eq(table, SYMBOL) {
+        return None;
+    }
+    Some(
+        table
+            .iter()
+            .filter(|&&(code, _, _)| code.is_ascii_alphabetic())
+            .filter_map(|&(code, cp, _)| char::from_u32(cp).map(|ch| (code as char, ch)))
+            .collect(),
+    )
+}
+
 /// Width table for a normalized standard-14 family, or `None` when the face
 /// is not one of the twelve text faces (Symbol/ZapfDingbats included).
 /// `base` is the `/BaseFont` name with any `ABCDEF+` subset prefix stripped.

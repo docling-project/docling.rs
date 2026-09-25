@@ -94,6 +94,10 @@ struct Font {
     /// used only as a last resort for glyphs the base encoding leaves unmapped
     /// (standard TeX math fonts: `λ`, `≤`, …).
     program_encoding: HashMap<u8, char>,
+    /// Symbol-family faces only: ASCII letter → the Greek glyph Symbol draws
+    /// at that code, applied to `ToUnicode` results (see
+    /// [`crate::std14::symbol_letter_remap`]).
+    symbol_letters: Option<HashMap<char, char>>,
     ascent: f64,
     descent: f64,
     hash: u64,
@@ -110,7 +114,11 @@ impl Font {
             .copied()
             .unwrap_or(self.default_width);
         if let Some(s) = self.to_unicode.get(&code) {
-            return (Some(decompose_ligatures(s)), w);
+            let s = match &self.symbol_letters {
+                Some(remap) => s.chars().map(|c| *remap.get(&c).unwrap_or(&c)).collect(),
+                None => s.clone(),
+            };
+            return (Some(decompose_ligatures(&s)), w);
         }
         if !self.two_byte {
             // A GID-style `/Differences` name (no Unicode) overrides the base
@@ -248,6 +256,7 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
     };
 
     let (ascent, descent) = font_ascent_descent(doc, fdict, two_byte);
+    let symbol_letters = base_font_name(fdict).and_then(|n| crate::std14::symbol_letter_remap(&n));
 
     Font {
         two_byte,
@@ -257,6 +266,7 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
         simple_encoding,
         fallback_names,
         program_encoding,
+        symbol_letters,
         ascent,
         descent,
         hash: hash_name(name),
@@ -3034,6 +3044,42 @@ mod base14_fonts {
     }
 
     /// The parsed cells of the only page.
+    /// [`pdf_with_font`] plus one extra object (number 6), for a font that
+    /// references a stream such as its `ToUnicode` CMap.
+    fn pdf_with_font_and_extra(fontdict: &[u8], text: &[u8], extra: &[u8]) -> Vec<u8> {
+        let content = [b"BT /F1 12 Tf 72 700 Td (".as_slice(), text, b") Tj ET\n"].concat();
+        let stream = format!("<</Length {}>>stream\n", content.len()).into_bytes();
+        let objs: Vec<Vec<u8>> = vec![
+            b"<</Type/Catalog/Pages 2 0 R>>".to_vec(),
+            b"<</Type/Pages/Kids[3 0 R]/Count 1>>".to_vec(),
+            b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents 4 0 R\
+               /Resources<</Font<</F1 5 0 R>>>>>>"
+                .to_vec(),
+            [stream.as_slice(), content.as_slice(), b"endstream"].concat(),
+            fontdict.to_vec(),
+            extra.to_vec(),
+        ];
+        let mut out = b"%PDF-1.4\n".to_vec();
+        let mut offsets = Vec::new();
+        for (i, body) in objs.iter().enumerate() {
+            offsets.push(out.len());
+            out.extend_from_slice(format!("{} 0 obj", i + 1).as_bytes());
+            out.extend_from_slice(body);
+            out.extend_from_slice(b"endobj\n");
+        }
+        let xref_at = out.len();
+        out.extend_from_slice(format!("xref\n0 {}\n", objs.len() + 1).as_bytes());
+        out.extend_from_slice(b"0000000000 65535 f \n");
+        for off in &offsets {
+            out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+        }
+        out.extend_from_slice(
+            format!("trailer<</Size {}/Root 1 0 R>>\n", objs.len() + 1).as_bytes(),
+        );
+        out.extend_from_slice(format!("startxref\n{xref_at}\n%%EOF\n").as_bytes());
+        out
+    }
+
     fn cells(pdf: &[u8]) -> Vec<crate::pdfium_backend::TextCell> {
         super::pdf_textlines(pdf)
             .into_iter()
@@ -3271,6 +3317,31 @@ mod base14_fonts {
         let cs = cells(&unknown);
         let text: String = cs.iter().map(|c| c.text.as_str()).collect();
         assert!(text.contains("Mystery"), "text still decodes: {cs:?}");
+    }
+
+    /// A Symbol font whose `ToUnicode` names the Latin letter at each code:
+    /// ap3441l's embedded Symbol CID font maps its µ glyph to U+006D, so the
+    /// page's "µs" read "ms" (in poppler too). Symbol has no Latin letters,
+    /// so the letter goes back through Symbol's own encoding.
+    #[test]
+    fn a_symbol_font_tounicode_naming_latin_letters_decodes_as_symbol() {
+        let cmap = b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n\
+            1 begincodespacerange <00> <FF> endcodespacerange\n\
+            2 beginbfchar <6D> <006D> <57> <0057> endbfchar\n\
+            endcmap CMapName currentdict /CMap defineresource pop end end";
+        let stream = [
+            format!("<</Length {}>>stream\n", cmap.len()).as_bytes(),
+            cmap.as_slice(),
+            b"\nendstream",
+        ]
+        .concat();
+        let pdf = pdf_with_font_and_extra(
+            b"<</Type/Font/Subtype/Type1/BaseFont/ABCDEF+Symbol/ToUnicode 6 0 R>>",
+            b"mW",
+            &stream,
+        );
+        let text: String = cells(&pdf).iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(text, "\u{00B5}\u{2126}");
     }
 
     /// A non-embedded `/Symbol` decodes through Symbol's own built-in encoding
