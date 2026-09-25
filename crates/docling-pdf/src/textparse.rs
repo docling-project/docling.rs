@@ -2394,30 +2394,277 @@ fn winansi_table() -> HashMap<u8, char> {
     m
 }
 
-/// Minimal MacRomanEncoding: ASCII plus the high-range points our corpus hits
-/// (notably 0xA5 = bullet, used as a list marker).
+/// MacRomanEncoding: ASCII plus every code point PDF 32000-1 Annex D.2
+/// defines in the high range 0x80-0xFF (all 128 codes are defined; none of
+/// them is left unassigned by the spec).
+///
+/// Source: PDF 32000-1:2008, Annex D.2, "Latin Character Set and Encodings",
+/// the MacRomanEncoding column. Cross-checked byte-for-byte against
+/// `lopdf::encodings::mappings::MAC_ROMAN_ENCODING` (`lopdf` 0.44,
+/// `encodings/mappings.rs` + `encodings/glyphnames.rs`), which vendors the
+/// same Annex D table and is already an indirect dependency of this crate
+/// via the PDF parsing stack, and against the Adobe Glyph List names each
+/// code resolves through.
+///
+/// Before this table was completed, only 11 of these 128 codes were mapped,
+/// so any other MacRoman-encoded high code -- including µ (0xB5), ˚ (0xFB,
+/// ring above) and ± (0xB1) -- silently vanished from the parsed text while
+/// its glyph's advance width still consumed layout space.
+///
+/// One deliberate deviation from a literal Annex D.2 reading: PDF 32000-1
+/// gives code 0xCA the glyph name "space" (the same AGL name as ASCII 0x20),
+/// which read literally would decode it to a second, indistinguishable
+/// U+0020. Real MacRoman text uses 0xCA specifically for the *non-breaking*
+/// space -- the spec table reuses "space" here only because the Adobe Glyph
+/// List has no separate name for it -- and this crate already mapped 0xCA to
+/// U+00A0 before this change. That mapping is kept as-is (not "completed"
+/// away) so this change stays purely additive: decoding 0xCA as a second literal space
+/// would merge it with runs of ordinary spaces during line assembly and
+/// change existing, already-correct output.
 fn macroman_table() -> HashMap<u8, char> {
     let mut m = HashMap::new();
     for b in 0x20u8..=0x7e {
         m.insert(b, b as char);
     }
+    // PDF 32000-1 Annex D.2, MacRomanEncoding, codes 0x80-0xFF, in code order.
     let high: &[(u8, char)] = &[
-        (0xA5, '\u{2022}'), // bullet
-        (0xD0, '\u{2013}'), // endash
-        (0xD1, '\u{2014}'), // emdash
-        (0xD2, '\u{201C}'),
-        (0xD3, '\u{201D}'),
-        (0xD4, '\u{2018}'),
-        (0xD5, '\u{2019}'),
-        (0xCA, '\u{00A0}'),
-        (0xC9, '\u{2026}'),
-        (0xDE, '\u{FB01}'),
-        (0xDF, '\u{FB02}'),
+        (0x80, '\u{00C4}'), // Adieresis  Ä
+        (0x81, '\u{00C5}'), // Aring      Å
+        (0x82, '\u{00C7}'), // Ccedilla   Ç
+        (0x83, '\u{00C9}'), // Eacute     É
+        (0x84, '\u{00D1}'), // Ntilde     Ñ
+        (0x85, '\u{00D6}'), // Odieresis  Ö
+        (0x86, '\u{00DC}'), // Udieresis  Ü
+        (0x87, '\u{00E1}'), // aacute     á
+        (0x88, '\u{00E0}'), // agrave     à
+        (0x89, '\u{00E2}'), // acircumflex â
+        (0x8A, '\u{00E4}'), // adieresis  ä
+        (0x8B, '\u{00E3}'), // atilde     ã
+        (0x8C, '\u{00E5}'), // aring      å
+        (0x8D, '\u{00E7}'), // ccedilla   ç
+        (0x8E, '\u{00E9}'), // eacute     é
+        (0x8F, '\u{00E8}'), // egrave     è
+        (0x90, '\u{00EA}'), // ecircumflex ê
+        (0x91, '\u{00EB}'), // edieresis  ë
+        (0x92, '\u{00ED}'), // iacute     í
+        (0x93, '\u{00EC}'), // igrave     ì
+        (0x94, '\u{00EE}'), // icircumflex î
+        (0x95, '\u{00EF}'), // idieresis  ï
+        (0x96, '\u{00F1}'), // ntilde     ñ
+        (0x97, '\u{00F3}'), // oacute     ó
+        (0x98, '\u{00F2}'), // ograve     ò
+        (0x99, '\u{00F4}'), // ocircumflex ô
+        (0x9A, '\u{00F6}'), // odieresis  ö
+        (0x9B, '\u{00F5}'), // otilde     õ
+        (0x9C, '\u{00FA}'), // uacute     ú
+        (0x9D, '\u{00F9}'), // ugrave     ù
+        (0x9E, '\u{00FB}'), // ucircumflex û
+        (0x9F, '\u{00FC}'), // udieresis  ü
+        (0xA0, '\u{2020}'), // dagger     †
+        (0xA1, '\u{00B0}'), // degree     °
+        (0xA2, '\u{00A2}'), // cent       ¢
+        (0xA3, '\u{00A3}'), // sterling   £
+        (0xA4, '\u{00A7}'), // section    §
+        (0xA5, '\u{2022}'), // bullet     •
+        (0xA6, '\u{00B6}'), // paragraph  ¶
+        (0xA7, '\u{00DF}'), // germandbls ß
+        (0xA8, '\u{00AE}'), // registered ®
+        (0xA9, '\u{00A9}'), // copyright  ©
+        (0xAA, '\u{2122}'), // trademark  ™
+        (0xAB, '\u{00B4}'), // acute      ´
+        (0xAC, '\u{00A8}'), // dieresis   ¨
+        (0xAD, '\u{2260}'), // notequal   ≠
+        (0xAE, '\u{00C6}'), // AE         Æ
+        (0xAF, '\u{00D8}'), // Oslash     Ø
+        (0xB0, '\u{221E}'), // infinity   ∞
+        (0xB1, '\u{00B1}'), // plusminus  ±
+        (0xB2, '\u{2264}'), // lessequal  ≤
+        (0xB3, '\u{2265}'), // greaterequal ≥
+        (0xB4, '\u{00A5}'), // yen        ¥
+        (0xB5, '\u{00B5}'), // mu         µ  (micro sign; not U+03BC Greek mu)
+        (0xB6, '\u{2202}'), // partialdiff ∂
+        (0xB7, '\u{2211}'), // summation  ∑
+        (0xB8, '\u{220F}'), // product    ∏
+        (0xB9, '\u{03C0}'), // pi         π
+        (0xBA, '\u{222B}'), // integral   ∫
+        (0xBB, '\u{00AA}'), // ordfeminine ª
+        (0xBC, '\u{00BA}'), // ordmasculine º
+        (0xBD, '\u{2126}'), // Omega      Ω
+        (0xBE, '\u{00E6}'), // ae         æ
+        (0xBF, '\u{00F8}'), // oslash     ø
+        (0xC0, '\u{00BF}'), // questiondown ¿
+        (0xC1, '\u{00A1}'), // exclamdown ¡
+        (0xC2, '\u{00AC}'), // logicalnot ¬
+        (0xC3, '\u{221A}'), // radical    √
+        (0xC4, '\u{0192}'), // florin     ƒ
+        (0xC5, '\u{2248}'), // approxequal ≈
+        (0xC6, '\u{2206}'), // Delta      ∆
+        (0xC7, '\u{00AB}'), // guillemotleft «
+        (0xC8, '\u{00BB}'), // guillemotright »
+        (0xC9, '\u{2026}'), // ellipsis   …
+        (0xCA, '\u{00A0}'), // NBSP (see doc comment: Annex D.2 names it
+        // "space" like 0x20, kept as-is; pre-existing)
+        (0xCB, '\u{00C0}'), // Agrave     À
+        (0xCC, '\u{00C3}'), // Atilde     Ã
+        (0xCD, '\u{00D5}'), // Otilde     Õ
+        (0xCE, '\u{0152}'), // OE         Œ
+        (0xCF, '\u{0153}'), // oe         œ
+        (0xD0, '\u{2013}'), // endash     –
+        (0xD1, '\u{2014}'), // emdash     —
+        (0xD2, '\u{201C}'), // quotedblleft “
+        (0xD3, '\u{201D}'), // quotedblright ”
+        (0xD4, '\u{2018}'), // quoteleft  ‘
+        (0xD5, '\u{2019}'), // quoteright ’
+        (0xD6, '\u{00F7}'), // divide     ÷
+        (0xD7, '\u{25CA}'), // lozenge    ◊
+        (0xD8, '\u{00FF}'), // ydieresis  ÿ
+        (0xD9, '\u{0178}'), // Ydieresis  Ÿ
+        (0xDA, '\u{2044}'), // fraction   ⁄
+        (0xDB, '\u{00A4}'), // currency   ¤
+        (0xDC, '\u{2039}'), // guilsinglleft ‹
+        (0xDD, '\u{203A}'), // guilsinglright ›
+        (0xDE, '\u{FB01}'), // fi         ﬁ
+        (0xDF, '\u{FB02}'), // fl         ﬂ
+        (0xE0, '\u{2021}'), // daggerdbl  ‡
+        (0xE1, '\u{00B7}'), // periodcentered ·
+        (0xE2, '\u{201A}'), // quotesinglbase ‚
+        (0xE3, '\u{201E}'), // quotedblbase „
+        (0xE4, '\u{2030}'), // perthousand ‰
+        (0xE5, '\u{00C2}'), // Acircumflex Â
+        (0xE6, '\u{00CA}'), // Ecircumflex Ê
+        (0xE7, '\u{00C1}'), // Aacute     Á
+        (0xE8, '\u{00CB}'), // Edieresis  Ë
+        (0xE9, '\u{00C8}'), // Egrave     È
+        (0xEA, '\u{00CD}'), // Iacute     Í
+        (0xEB, '\u{00CE}'), // Icircumflex Î
+        (0xEC, '\u{00CF}'), // Idieresis  Ï
+        (0xED, '\u{00CC}'), // Igrave     Ì
+        (0xEE, '\u{00D3}'), // Oacute     Ó
+        (0xEF, '\u{00D4}'), // Ocircumflex Ô
+        (0xF0, '\u{F8FF}'), // apple      (private-use Apple logo)
+        (0xF1, '\u{00D2}'), // Ograve     Ò
+        (0xF2, '\u{00DA}'), // Uacute     Ú
+        (0xF3, '\u{00DB}'), // Ucircumflex Û
+        (0xF4, '\u{00D9}'), // Ugrave     Ù
+        (0xF5, '\u{0131}'), // dotlessi   ı
+        (0xF6, '\u{02C6}'), // circumflex ˆ
+        (0xF7, '\u{02DC}'), // tilde      ˜
+        (0xF8, '\u{00AF}'), // macron     ¯
+        (0xF9, '\u{02D8}'), // breve      ˘
+        (0xFA, '\u{02D9}'), // dotaccent  ˙
+        (0xFB, '\u{02DA}'), // ring       ˚  (ring above; NOT µ or °)
+        (0xFC, '\u{00B8}'), // cedilla    ¸
+        (0xFD, '\u{02DD}'), // hungarumlaut ˝
+        (0xFE, '\u{02DB}'), // ogonek     ˛
+        (0xFF, '\u{02C7}'), // caron      ˇ
     ];
     for &(b, c) in high {
         m.insert(b, c);
     }
     m
+}
+
+/// A Type1 font whose `/Encoding` is `/BaseEncoding
+/// /MacRomanEncoding` with a `/Differences` array that does *not* touch
+/// 0xB5 (µ), 0xB1 (±) or 0xFB (˚, ring above) -- exactly lf411's `/F2`
+/// (object 234 of the real datasheet: `/BaseEncoding /MacRomanEncoding`,
+/// `/Differences` remapping 27-31, 127, 173, 176, 178-186, 189, 195, 197-198,
+/// 215, 240, and nothing in the µ/±/˚ range). Before `macroman_table()` was
+/// completed, those three codes fell through to `(None, width)` and were
+/// silently dropped from the decoded text while their advance still
+/// consumed layout space -- lf411's "µV/˚C" read as "V/ C".
+#[cfg(test)]
+mod macroman_high_codes {
+    /// A one-page PDF: a Type1 font with `/BaseEncoding /MacRomanEncoding`
+    /// plus lf411's real `/Differences` array, and a single `Tj` string
+    /// containing raw (unescaped, since none needs PDF string escaping)
+    /// high-range bytes.
+    fn pdf_with_macroman_string(raw_string_bytes: &[u8]) -> Vec<u8> {
+        let fontdict = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica\
+            /Encoding<</Type/Encoding/BaseEncoding/MacRomanEncoding\
+            /Differences[27/thorn/yacute/Thorn/Yacute/Eth 127/minus\
+            173/Lslash 176/Scaron 178/twosuperior/threesuperior\
+            182/Zcaron/lslash/scaron/onesuperior/zcaron 189/onehalf\
+            195/brokenbar 197/onequarter/threequarters 215/multiply\
+            240/eth]>>>>"
+            .to_vec();
+        let mut content = b"BT /F1 12 Tf 72 700 Td (".to_vec();
+        content.extend_from_slice(raw_string_bytes);
+        content.extend_from_slice(b") Tj ET\n");
+        let stream = format!("<</Length {}>>stream\n", content.len()).into_bytes();
+        let objs: Vec<Vec<u8>> = vec![
+            b"<</Type/Catalog/Pages 2 0 R>>".to_vec(),
+            b"<</Type/Pages/Kids[3 0 R]/Count 1>>".to_vec(),
+            b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents 4 0 R\
+               /Resources<</Font<</F1 5 0 R>>>>>>"
+                .to_vec(),
+            [stream.as_slice(), content.as_slice(), b"endstream"].concat(),
+            fontdict,
+        ];
+        let mut out = b"%PDF-1.4\n".to_vec();
+        let mut offsets = Vec::new();
+        for (i, body) in objs.iter().enumerate() {
+            offsets.push(out.len());
+            out.extend_from_slice(format!("{} 0 obj", i + 1).as_bytes());
+            out.extend_from_slice(body);
+            out.extend_from_slice(b"endobj\n");
+        }
+        let xref_at = out.len();
+        out.extend_from_slice(format!("xref\n0 {}\n", objs.len() + 1).as_bytes());
+        out.extend_from_slice(b"0000000000 65535 f \n");
+        for off in &offsets {
+            out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+        }
+        out.extend_from_slice(
+            format!("trailer<</Size {}/Root 1 0 R>>\n", objs.len() + 1).as_bytes(),
+        );
+        out.extend_from_slice(format!("startxref\n{xref_at}\n%%EOF\n").as_bytes());
+        out
+    }
+
+    fn decoded_text(pdf: &[u8]) -> String {
+        super::pdf_textlines(pdf)
+            .into_iter()
+            .flat_map(|(_, _, cells)| cells)
+            .map(|c| c.text)
+            .collect::<Vec<_>>()
+            .join("")
+    }
+
+    /// µ (0xB5) must decode to U+00B5 MICRO SIGN, not vanish.
+    #[test]
+    fn micro_sign_0xb5_is_not_dropped() {
+        let pdf = pdf_with_macroman_string(&[0xB5]);
+        let text = decoded_text(&pdf);
+        assert_eq!(text, "\u{00B5}", "0xB5 (µ) must decode, got {text:?}");
+    }
+
+    /// ± (0xB1) must decode to U+00B1 PLUS-MINUS SIGN, not vanish.
+    #[test]
+    fn plusminus_0xb1_is_not_dropped() {
+        let pdf = pdf_with_macroman_string(&[0xB1]);
+        let text = decoded_text(&pdf);
+        assert_eq!(text, "\u{00B1}", "0xB1 (±) must decode, got {text:?}");
+    }
+
+    /// ˚ (0xFB, ring above) must decode to U+02DA, not vanish.
+    #[test]
+    fn ring_above_0xfb_is_not_dropped() {
+        let pdf = pdf_with_macroman_string(&[0xFB]);
+        let text = decoded_text(&pdf);
+        assert_eq!(text, "\u{02DA}", "0xFB (˚) must decode, got {text:?}");
+    }
+
+    /// The motivating string from lf411 p2's "Average TC of Input" row:
+    /// `µV/˚C` (micro, V, slash, ring-above, C) must survive whole, not
+    /// collapse to "V/ C" with the two MacRoman glyphs silently eaten.
+    #[test]
+    fn microvolts_per_degree_c_survives_whole() {
+        let raw: Vec<u8> = vec![0xB5, b'V', b'/', 0xFB, b'C'];
+        let pdf = pdf_with_macroman_string(&raw);
+        let text = decoded_text(&pdf);
+        assert_eq!(text, "\u{00B5}V/\u{02DA}C", "got {text:?}");
+    }
 }
 
 #[cfg(test)]
