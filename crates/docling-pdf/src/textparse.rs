@@ -2381,6 +2381,137 @@ pub(crate) fn glyph_name_to_char(name: &[u8]) -> Option<char> {
         "congruent" => '\u{2245}',
         "dotmath" => '\u{22C5}',
         "asteriskmath" => '\u{2217}',
+        // Adobe Glyph List Latin-1/Latin Extended-A names (accented letters,
+        // ligature-adjacent punctuation, spacing diacritics, superscripts). A
+        // `/Differences` array is free to name any of these directly -- most
+        // commonly the classic Distiller/Acrobat "WinAnsiEncoding" subsetting
+        // block (`Lslash /lslash /minus /fraction /breve /caron /dotlessi
+        // /dotaccent /hungarumlaut /ogonek /ring /fi /fl` at codes 19-31, or
+        // `thorn /yacute /Thorn /Yacute /Eth ... /Scaron ... /Zcaron ...` at
+        // codes 27+) -- regardless of the font's base encoding. Every one of
+        // these already had a validated code point in `macroman_table()`
+        // (PDF 32000-1 Annex D.2); this reuses those same values so a
+        // `/Differences`-named glyph decodes identically whether the base
+        // encoding is MacRoman or WinAnsi. Without them, e.g. `ring` (the
+        // ring-above accent used to spell "˚C") silently dropped and its
+        // advance still consumed layout space, splitting "˚C" into " C".
+        "Aacute" => '\u{00C1}',
+        "Acircumflex" => '\u{00C2}',
+        "Adieresis" => '\u{00C4}',
+        "AE" => '\u{00C6}',
+        "Agrave" => '\u{00C0}',
+        "Aring" => '\u{00C5}',
+        "Atilde" => '\u{00C3}',
+        "Ccedilla" => '\u{00C7}',
+        "Eacute" => '\u{00C9}',
+        "Ecircumflex" => '\u{00CA}',
+        "Edieresis" => '\u{00CB}',
+        "Egrave" => '\u{00C8}',
+        "Iacute" => '\u{00CD}',
+        "Icircumflex" => '\u{00CE}',
+        "Idieresis" => '\u{00CF}',
+        "Igrave" => '\u{00CC}',
+        "Ntilde" => '\u{00D1}',
+        "OE" => '\u{0152}',
+        "Oacute" => '\u{00D3}',
+        "Ocircumflex" => '\u{00D4}',
+        "Odieresis" => '\u{00D6}',
+        "Ograve" => '\u{00D2}',
+        "Oslash" => '\u{00D8}',
+        "Otilde" => '\u{00D5}',
+        "Uacute" => '\u{00DA}',
+        "Ucircumflex" => '\u{00DB}',
+        "Udieresis" => '\u{00DC}',
+        "Ugrave" => '\u{00D9}',
+        "Ydieresis" => '\u{0178}',
+        "aacute" => '\u{00E1}',
+        "acircumflex" => '\u{00E2}',
+        "acute" => '\u{00B4}',
+        "adieresis" => '\u{00E4}',
+        "ae" => '\u{00E6}',
+        "agrave" => '\u{00E0}',
+        "apple" => '\u{F8FF}',
+        "aring" => '\u{00E5}',
+        "atilde" => '\u{00E3}',
+        "breve" => '\u{02D8}',
+        "caron" => '\u{02C7}',
+        "ccedilla" => '\u{00E7}',
+        "cedilla" => '\u{00B8}',
+        "cent" => '\u{00A2}',
+        "circumflex" => '\u{02C6}',
+        "currency" => '\u{00A4}',
+        "dagger" => '\u{2020}',
+        "daggerdbl" => '\u{2021}',
+        "dieresis" => '\u{00A8}',
+        "dotaccent" => '\u{02D9}',
+        "dotlessi" => '\u{0131}',
+        "eacute" => '\u{00E9}',
+        "ecircumflex" => '\u{00EA}',
+        "edieresis" => '\u{00EB}',
+        "egrave" => '\u{00E8}',
+        "exclamdown" => '\u{00A1}',
+        "florin" => '\u{0192}',
+        "germandbls" => '\u{00DF}',
+        "guillemotleft" => '\u{00AB}',
+        "guillemotright" => '\u{00BB}',
+        "guilsinglleft" => '\u{2039}',
+        "guilsinglright" => '\u{203A}',
+        "hungarumlaut" => '\u{02DD}',
+        "iacute" => '\u{00ED}',
+        "icircumflex" => '\u{00EE}',
+        "idieresis" => '\u{00EF}',
+        "igrave" => '\u{00EC}',
+        "logicalnot" => '\u{00AC}',
+        "lozenge" => '\u{25CA}',
+        "macron" => '\u{00AF}',
+        "ntilde" => '\u{00F1}',
+        "oacute" => '\u{00F3}',
+        "ocircumflex" => '\u{00F4}',
+        "odieresis" => '\u{00F6}',
+        "oe" => '\u{0153}',
+        "ogonek" => '\u{02DB}',
+        "ograve" => '\u{00F2}',
+        "ordfeminine" => '\u{00AA}',
+        "ordmasculine" => '\u{00BA}',
+        "oslash" => '\u{00F8}',
+        "otilde" => '\u{00F5}',
+        "paragraph" => '\u{00B6}',
+        "perthousand" => '\u{2030}',
+        "questiondown" => '\u{00BF}',
+        "ring" => '\u{02DA}',
+        "section" => '\u{00A7}',
+        "sterling" => '\u{00A3}',
+        "tilde" => '\u{02DC}',
+        "uacute" => '\u{00FA}',
+        "ucircumflex" => '\u{00FB}',
+        "udieresis" => '\u{00FC}',
+        "ugrave" => '\u{00F9}',
+        "ydieresis" => '\u{00FF}',
+        "yen" => '\u{00A5}',
+        // Not in MacRomanEncoding's own 128 codes (PDF 32000-1 Annex D.2 covers
+        // only MacRoman), but standard Adobe Glyph List / Latin Extended-A names
+        // that appear directly as `/Differences` overrides regardless of base
+        // encoding (the WinAnsiEncoding Distiller block above continues into
+        // these at higher codes).
+        "Lslash" => '\u{0141}',
+        "lslash" => '\u{0142}',
+        "Scaron" => '\u{0160}',
+        "scaron" => '\u{0161}',
+        "Zcaron" => '\u{017D}',
+        "zcaron" => '\u{017E}',
+        "thorn" => '\u{00FE}',
+        "yacute" => '\u{00FD}',
+        "Thorn" => '\u{00DE}',
+        "Yacute" => '\u{00DD}',
+        "Eth" => '\u{00D0}',
+        "eth" => '\u{00F0}',
+        "twosuperior" => '\u{00B2}',
+        "threesuperior" => '\u{00B3}',
+        "onesuperior" => '\u{00B9}',
+        "onehalf" => '\u{00BD}',
+        "onequarter" => '\u{00BC}',
+        "threequarters" => '\u{00BE}',
+        "brokenbar" => '\u{00A6}',
         _ => {
             // Strip an AGL `.suffix` (oldstyle/small-cap variant) and retry.
             if let Some((base, _)) = s.split_once('.') {
@@ -2607,12 +2738,25 @@ mod macroman_high_codes {
     /// containing raw (unescaped, since none needs PDF string escaping)
     /// high-range bytes.
     fn pdf_with_macroman_string(raw_string_bytes: &[u8]) -> Vec<u8> {
+        // NOTE: each `\`-continued line above must end with a trailing space
+        // before a line that starts with a bare integer (a `/Differences`
+        // code), never with a bare name -- `\` line continuation in a Rust
+        // byte-string literal swallows the newline *and* the next line's
+        // leading whitespace with nothing in their place, so `/minus\` +
+        // `173/Lslash` (no space) concatenates into the single PDF name
+        // token `/minus173`, silently eating the `173` code and reassigning
+        // every following name to the wrong code. This went unnoticed while
+        // `glyph_name_to_char()` didn't resolve most of these names anyway
+        // (the corrupted assignment decoded to nothing either way); it
+        // surfaced once the AGL name table was completed and a
+        // wrongly-shifted name (`lslash`, landing on 0xB5 instead of its
+        // intended 0xB7) started resolving and silently overwrote µ.
         let fontdict = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica\
             /Encoding<</Type/Encoding/BaseEncoding/MacRomanEncoding\
-            /Differences[27/thorn/yacute/Thorn/Yacute/Eth 127/minus\
-            173/Lslash 176/Scaron 178/twosuperior/threesuperior\
-            182/Zcaron/lslash/scaron/onesuperior/zcaron 189/onehalf\
-            195/brokenbar 197/onequarter/threequarters 215/multiply\
+            /Differences[27/thorn/yacute/Thorn/Yacute/Eth 127/minus \
+            173/Lslash 176/Scaron 178/twosuperior/threesuperior \
+            182/Zcaron/lslash/scaron/onesuperior/zcaron 189/onehalf \
+            195/brokenbar 197/onequarter/threequarters 215/multiply \
             240/eth]>>>>"
             .to_vec();
         let mut content = b"BT /F1 12 Tf 72 700 Td (".to_vec();
@@ -2689,6 +2833,138 @@ mod macroman_high_codes {
     fn microvolts_per_degree_c_survives_whole() {
         let raw: Vec<u8> = vec![0xB5, b'V', b'/', 0xFB, b'C'];
         let pdf = pdf_with_macroman_string(&raw);
+        let text = decoded_text(&pdf);
+        assert_eq!(text, "\u{00B5}V/\u{02DA}C", "got {text:?}");
+    }
+}
+
+/// A `/Differences` array can name a glyph directly by its Adobe Glyph List
+/// name -- `ring`, `breve`, `caron`, an accented Latin letter -- regardless of
+/// the font's *base* encoding. `glyph_name_to_char()` only covered a small
+/// hand-picked subset of the AGL (Greek letters, math operators, a handful of
+/// punctuation names); any name outside that subset resolved to `None` and the
+/// glyph was silently dropped from the text while its advance still consumed
+/// layout space. This is distinct from `macroman_high_codes` above, which
+/// covers undefined *codes* under a MacRomanEncoding base -- these tests cover
+/// undefined *names* in a `/Differences` override, independent of base
+/// encoding.
+///
+/// The motivating case: a WinAnsiEncoding-based Type1 font whose
+/// `/Differences` array is exactly the classic Distiller/Acrobat subsetting
+/// block `19/Lslash/lslash/minus/fraction/breve/caron/dotlessi/dotaccent
+/// /hungarumlaut/ogonek/ring/fi/fl` (codes 19-31) -- a real vendor datasheet's
+/// "Average TC of Input" row prints `µV/˚C` (micro sign, V, slash, ring above,
+/// C) using code 29 (`ring`) for the degree-like accent; docling read it as
+/// `µV/ C`, poppler's `pdftotext` as `µV/˚C`.
+#[cfg(test)]
+mod differences_glyph_names {
+    /// A one-page PDF: a Type1 font with `/BaseEncoding /WinAnsiEncoding` plus
+    /// the real Distiller `/Differences` block (codes 19-31), and a single
+    /// `Tj` string of raw (unescaped) codes.
+    fn pdf_with_differences_string(raw_string_bytes: &[u8]) -> Vec<u8> {
+        let fontdict = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica\
+            /Encoding<</Type/Encoding/BaseEncoding/WinAnsiEncoding\
+            /Differences[19/Lslash/lslash/minus/fraction/breve/caron\
+            /dotlessi/dotaccent/hungarumlaut/ogonek/ring/fi/fl]>>>>"
+            .to_vec();
+        let mut content = b"BT /F1 12 Tf 72 700 Td (".to_vec();
+        content.extend_from_slice(raw_string_bytes);
+        content.extend_from_slice(b") Tj ET\n");
+        let stream = format!("<</Length {}>>stream\n", content.len()).into_bytes();
+        let objs: Vec<Vec<u8>> = vec![
+            b"<</Type/Catalog/Pages 2 0 R>>".to_vec(),
+            b"<</Type/Pages/Kids[3 0 R]/Count 1>>".to_vec(),
+            b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents 4 0 R\
+               /Resources<</Font<</F1 5 0 R>>>>>>"
+                .to_vec(),
+            [stream.as_slice(), content.as_slice(), b"endstream"].concat(),
+            fontdict,
+        ];
+        let mut out = b"%PDF-1.4\n".to_vec();
+        let mut offsets = Vec::new();
+        for (i, body) in objs.iter().enumerate() {
+            offsets.push(out.len());
+            out.extend_from_slice(format!("{} 0 obj", i + 1).as_bytes());
+            out.extend_from_slice(body);
+            out.extend_from_slice(b"endobj\n");
+        }
+        let xref_at = out.len();
+        out.extend_from_slice(format!("xref\n0 {}\n", objs.len() + 1).as_bytes());
+        out.extend_from_slice(b"0000000000 65535 f \n");
+        for off in &offsets {
+            out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+        }
+        out.extend_from_slice(
+            format!("trailer<</Size {}/Root 1 0 R>>\n", objs.len() + 1).as_bytes(),
+        );
+        out.extend_from_slice(format!("startxref\n{xref_at}\n%%EOF\n").as_bytes());
+        out
+    }
+
+    fn decoded_text(pdf: &[u8]) -> String {
+        super::pdf_textlines(pdf)
+            .into_iter()
+            .flat_map(|(_, _, cells)| cells)
+            .map(|c| c.text)
+            .collect::<Vec<_>>()
+            .join("")
+    }
+
+    /// Code 29, named `ring` in the `/Differences` array, must decode to
+    /// U+02DA RING ABOVE, not vanish.
+    #[test]
+    fn ring_glyph_name_is_not_dropped() {
+        let pdf = pdf_with_differences_string(&[29]);
+        let text = decoded_text(&pdf);
+        assert_eq!(
+            text, "\u{02DA}",
+            "code 29 (/ring) must decode, got {text:?}"
+        );
+    }
+
+    /// Code 23, named `breve`, must decode to U+02D8 BREVE.
+    #[test]
+    fn breve_glyph_name_is_not_dropped() {
+        let pdf = pdf_with_differences_string(&[23]);
+        let text = decoded_text(&pdf);
+        assert_eq!(
+            text, "\u{02D8}",
+            "code 23 (/breve) must decode, got {text:?}"
+        );
+    }
+
+    /// Code 24, named `caron`, must decode to U+02C7 CARON.
+    #[test]
+    fn caron_glyph_name_is_not_dropped() {
+        let pdf = pdf_with_differences_string(&[24]);
+        let text = decoded_text(&pdf);
+        assert_eq!(
+            text, "\u{02C7}",
+            "code 24 (/caron) must decode, got {text:?}"
+        );
+    }
+
+    /// The rest of the block (`Lslash lslash dotlessi dotaccent hungarumlaut
+    /// ogonek`) must resolve too, not just the three names the motivating bug
+    /// report named.
+    #[test]
+    fn rest_of_distiller_block_is_not_dropped() {
+        let pdf = pdf_with_differences_string(&[19, 20, 25, 26, 27, 28]);
+        let text = decoded_text(&pdf);
+        assert_eq!(
+            text, "\u{0141}\u{0142}\u{0131}\u{02D9}\u{02DD}\u{02DB}",
+            "got {text:?}"
+        );
+    }
+
+    /// The real reproducer: a WinAnsiEncoding font whose text run is micro
+    /// sign (native WinAnsi 0xB5), `V`, `/`, code 29 (`/ring`), `C` -- must
+    /// decode to `µV/˚C` whole, not collapse to `µV/ C` with the ring glyph
+    /// silently eaten.
+    #[test]
+    fn microvolts_per_degree_c_survives_whole_via_differences_name() {
+        let raw: Vec<u8> = vec![0xB5, b'V', b'/', 29, b'C'];
+        let pdf = pdf_with_differences_string(&raw);
         let text = decoded_text(&pdf);
         assert_eq!(text, "\u{00B5}V/\u{02DA}C", "got {text:?}");
     }
