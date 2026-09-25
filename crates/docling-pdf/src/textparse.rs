@@ -2123,7 +2123,12 @@ fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char
         // `∈` as `2` (2203's `{ahn,…}` author line). The font program (often
         // CFF, which this parser does not read) carries the same mapping;
         // docling-parse decodes it from there.
-        tex_math_builtin(fdict).unwrap_or_else(winansi_table)
+        // Symbol and ZapfDingbats likewise have a fixed built-in encoding
+        // (Symbol's `m` is µ, 0xB0 is °, `W` is Ω); reading them as WinAnsi
+        // turned a µA into an mA.
+        tex_math_builtin(fdict)
+            .or_else(|| symbolic_builtin_table(fdict))
+            .unwrap_or_else(winansi_table)
     } else {
         winansi_table()
     };
@@ -2146,6 +2151,18 @@ fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char
         }
     }
     m
+}
+
+/// The built-in encoding of a symbolic standard-14 face (Symbol, ZapfDingbats),
+/// or `None` for any other font.
+fn symbolic_builtin_table(fdict: &Dictionary) -> Option<HashMap<u8, char>> {
+    let table = crate::std14::symbolic_builtin(&base_font_name(fdict)?)?;
+    Some(
+        table
+            .iter()
+            .filter_map(|&(code, cp, _)| char::from_u32(cp).map(|ch| (code, ch)))
+            .collect(),
+    )
 }
 
 /// The fixed built-in encodings of the standard TeX math fonts (TeXbook
@@ -3254,6 +3271,31 @@ mod base14_fonts {
         let cs = cells(&unknown);
         let text: String = cs.iter().map(|c| c.text.as_str()).collect();
         assert!(text.contains("Mystery"), "text still decodes: {cs:?}");
+    }
+
+    /// A non-embedded `/Symbol` decodes through Symbol's own built-in encoding
+    /// with real advances. The font dict is ad813's object 10 verbatim (Analog
+    /// Devices, 1990s: `/Type1 /BaseFont /Symbol`, no `/Encoding`, `/Widths` or
+    /// descriptor), which paints every `±` of its spec table as `(\261)Tj`.
+    /// Before, each glyph got a zero advance and was dropped — and read as
+    /// WinAnsi, Symbol's `m` (µ) would have become a Latin `m`: µA as mA.
+    #[test]
+    fn symbol_font_uses_its_builtin_encoding_and_widths() {
+        let symbol = b"<</Type/Font/Subtype/Type1/Name/F13/BaseFont/Symbol>>";
+        // µ ± ° Ω ≤ ≥, as Symbol codes: m 0xB1 0xB0 W 0xA3 0xB3.
+        let pdf = pdf_with_font(symbol, b"m\xB1\xB0W\xA3\xB3");
+        let cs = cells(&pdf);
+        let text: String = cs.iter().map(|c| c.text.as_str()).collect();
+        // The codepoints poppler's `pdftotext` emits for ad813: MICRO SIGN, OHM SIGN.
+        assert_eq!(text, "\u{00B5}\u{00B1}\u{00B0}\u{2126}\u{2264}\u{2265}");
+        assert!(cs.iter().all(|c| c.r > c.l), "zero-width cells: {cs:?}");
+
+        // ZapfDingbats: 0x6C is the filled circle (a71), 0x33 the check mark.
+        let zapf = b"<</Type/Font/Subtype/Type1/BaseFont/ZapfDingbats>>";
+        let cs = cells(&pdf_with_font(zapf, b"l3"));
+        let text: String = cs.iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(text, "\u{25CF}\u{2713}");
+        assert!(cs.iter().all(|c| c.r > c.l), "zero-width cells: {cs:?}");
     }
 }
 
