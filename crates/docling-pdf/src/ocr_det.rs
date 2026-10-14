@@ -143,6 +143,19 @@ pub fn det_input_size_capped(w: u32, h: u32, max_side: u32) -> Option<(u32, u32)
 /// tensor and its `(width, height)`.
 pub fn prep_det_input(img: &RgbImage) -> Option<(Vec<f32>, u32, u32)> {
     let (w, h) = det_input_size(img.width(), img.height())?;
+    prep_det_input_at(img, w, h)
+}
+
+/// [`prep_det_input`] with an explicit cap on the input's longer side
+/// ([`det_input_size_capped`], `0` = none) instead of the process-wide
+/// `DOCLING_RS_OCR_DET_MAX_SIDE`, for a caller whose box thresholds were
+/// tuned at one input scale.
+pub fn prep_det_input_capped(img: &RgbImage, max_side: u32) -> Option<(Vec<f32>, u32, u32)> {
+    let (w, h) = det_input_size_capped(img.width(), img.height(), max_side)?;
+    prep_det_input_at(img, w, h)
+}
+
+fn prep_det_input_at(img: &RgbImage, w: u32, h: u32) -> Option<(Vec<f32>, u32, u32)> {
     let resized = if (w, h) == img.dimensions() {
         img.clone()
     } else {
