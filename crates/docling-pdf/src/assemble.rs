@@ -1043,6 +1043,51 @@ pub fn recover_text_panels(regions: &mut Vec<Region>, cells: &[TextCell]) {
     *regions = out;
 }
 
+/// Relabel a `picture` detection as a `table` when the page itself titles it
+/// one (deliberate deviation from docling). A table whose cells hold drawings
+/// (a datasheet's pinning table with a package outline and a circuit symbol
+/// in its columns) can score higher as a picture than as a table, and docling
+/// then emits no table at all. Two pieces of evidence together outweigh the
+/// score: the layout model also proposed a table over the same box (IoU >
+/// 0.8, at any confidence it kept), and the text right above the box reads
+/// "Table <number>", the document's own caption. Runs on the raw detections,
+/// before the per-label thresholds.
+pub fn promote_captioned_table_pictures(regions: &mut [Region], cells: &[TextCell]) {
+    /// About one line of caption-to-body gap, in points.
+    const MAX_GAP: f32 = 14.0;
+    let promote: Vec<usize> = (0..regions.len())
+        .filter(|&i| {
+            let p = &regions[i];
+            p.label == "picture"
+                && p.score >= crate::layout::label_threshold("picture")
+                && regions.iter().any(|t| t.label == "table" && iou(p, t) > 0.8)
+                && regions.iter().any(|c| {
+                    c.label != "picture"
+                        && c.label != "table"
+                        && c.t < p.t
+                        && c.b <= p.t + 4.0
+                        && p.t - c.b <= MAX_GAP
+                        && c.l < p.r
+                        && c.r > p.l
+                        && is_table_caption(&region_text(c, cells))
+                })
+        })
+        .collect();
+    for i in promote {
+        regions[i].label = "table";
+    }
+}
+
+/// "Table 2. Pinning information", "TABLE 3 Ordering": the word, then a
+/// number.
+fn is_table_caption(text: &str) -> bool {
+    let mut words = text.split_whitespace();
+    words.next().is_some_and(|w| w.eq_ignore_ascii_case("table"))
+        && words
+            .next()
+            .is_some_and(|n| n.chars().next().is_some_and(|c| c.is_ascii_digit()))
+}
+
 /// Drop a `picture` detection covering more than 90 % of the page — docling's
 /// `LayoutPostprocessor._process_special_clusters` "Filter out full-page
 /// pictures" (upstream since 2.15), applied to the thresholded detections
@@ -4559,6 +4604,44 @@ mod tests {
             r,
             b,
         }
+    }
+
+    /// A pinning table whose columns hold a package outline and a symbol, as
+    /// the layout model reads one (page points): picture 0.74 and table 0.46
+    /// over the same box, under the caption "Table 2. Pinning information".
+    #[test]
+    fn a_picture_captioned_as_a_table_with_a_table_proposal_becomes_a_table() {
+        let cells = vec![cell("Table 2. Pinning information", 50.0, 119.0, 170.0, 128.0)];
+        let mut regions = vec![
+            region("picture", 0.736, 49.0, 127.0, 546.0, 231.0),
+            region("section_header", 0.663, 50.0, 119.0, 170.0, 128.0),
+            region("table", 0.456, 49.0, 127.0, 546.0, 231.0),
+        ];
+        promote_captioned_table_pictures(&mut regions, &cells);
+        assert_eq!(regions[0].label, "table");
+    }
+
+    /// Either piece of evidence alone leaves the picture a picture: a
+    /// "Figure" caption over a table proposal, or a "Table" caption with no
+    /// table proposal.
+    #[test]
+    fn a_picture_needs_both_the_caption_and_the_table_proposal() {
+        let figure = vec![cell("Figure 2. Package outline", 50.0, 119.0, 170.0, 128.0)];
+        let mut regions = vec![
+            region("picture", 0.736, 49.0, 127.0, 546.0, 231.0),
+            region("caption", 0.6, 50.0, 119.0, 170.0, 128.0),
+            region("table", 0.456, 49.0, 127.0, 546.0, 231.0),
+        ];
+        promote_captioned_table_pictures(&mut regions, &figure);
+        assert_eq!(regions[0].label, "picture");
+
+        let table = vec![cell("Table 2. Pinning information", 50.0, 119.0, 170.0, 128.0)];
+        let mut regions = vec![
+            region("picture", 0.736, 49.0, 127.0, 546.0, 231.0),
+            region("caption", 0.6, 50.0, 119.0, 170.0, 128.0),
+        ];
+        promote_captioned_table_pictures(&mut regions, &table);
+        assert_eq!(regions[0].label, "picture");
     }
 
     #[test]

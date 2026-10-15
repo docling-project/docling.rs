@@ -1641,6 +1641,9 @@ impl Worker {
                 );
             }
         }
+        // A picture the page captions "Table N" and the model also proposed
+        // as a table is read as a table (deliberate deviation).
+        assemble::promote_captioned_table_pictures(&mut regions, &page.cells);
         regions.retain(|r| r.score >= layout::label_threshold(r.label));
         // docling's full-page picture filter and same-label picture dedup run
         // on the thresholded detections, before overlap resolution: a picture
