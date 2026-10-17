@@ -2449,28 +2449,40 @@ fn winansi_table() -> HashMap<u8, char> {
     m
 }
 
-/// Minimal MacRomanEncoding: ASCII plus the high-range points our corpus hits
-/// (notably 0xA5 = bullet, used as a list marker).
+/// MacRomanEncoding: ASCII plus the whole high range, 0x80–0xFF, as Mac OS
+/// Roman maps it (#744) — the table pdfium, pdftotext and pdf.js decode with.
+/// Two codes follow the PDF reference instead of Apple's later revisions:
+/// 0xDB is `currency` (¤, not €), and 0xF0 (`apple`, a private-use glyph) is
+/// left unmapped. 0xCA, the PDF table's second `space`, reads as a no-break
+/// space.
 fn macroman_table() -> HashMap<u8, char> {
+    #[rustfmt::skip]
+    const HIGH: [char; 128] = [
+        'Ä', 'Å', 'Ç', 'É', 'Ñ', 'Ö', 'Ü', 'á',  // 0x80
+        'à', 'â', 'ä', 'ã', 'å', 'ç', 'é', 'è',  // 0x88
+        'ê', 'ë', 'í', 'ì', 'î', 'ï', 'ñ', 'ó',  // 0x90
+        'ò', 'ô', 'ö', 'õ', 'ú', 'ù', 'û', 'ü',  // 0x98
+        '†', '°', '¢', '£', '§', '•', '¶', 'ß',  // 0xA0
+        '®', '©', '™', '´', '¨', '≠', 'Æ', 'Ø',  // 0xA8
+        '∞', '±', '≤', '≥', '¥', 'µ', '∂', '∑',  // 0xB0
+        '∏', 'π', '∫', 'ª', 'º', 'Ω', 'æ', 'ø',  // 0xB8
+        '¿', '¡', '¬', '√', 'ƒ', '≈', '∆', '«',  // 0xC0
+        '»', '…', '\u{00A0}', 'À', 'Ã', 'Õ', 'Œ', 'œ',  // 0xC8
+        '–', '—', '“', '”', '‘', '’', '÷', '◊',  // 0xD0
+        'ÿ', 'Ÿ', '⁄', '¤', '‹', '›', 'ﬁ', 'ﬂ',  // 0xD8
+        '‡', '·', '‚', '„', '‰', 'Â', 'Ê', 'Á',  // 0xE0
+        'Ë', 'È', 'Í', 'Î', 'Ï', 'Ì', 'Ó', 'Ô',  // 0xE8
+        '\0', 'Ò', 'Ú', 'Û', 'Ù', 'ı', 'ˆ', '˜',  // 0xF0
+        '¯', '˘', '˙', '˚', '¸', '˝', '˛', 'ˇ',  // 0xF8
+    ];
     let mut m = HashMap::new();
     for b in 0x20u8..=0x7e {
         m.insert(b, b as char);
     }
-    let high: &[(u8, char)] = &[
-        (0xA5, '\u{2022}'), // bullet
-        (0xD0, '\u{2013}'), // endash
-        (0xD1, '\u{2014}'), // emdash
-        (0xD2, '\u{201C}'),
-        (0xD3, '\u{201D}'),
-        (0xD4, '\u{2018}'),
-        (0xD5, '\u{2019}'),
-        (0xCA, '\u{00A0}'),
-        (0xC9, '\u{2026}'),
-        (0xDE, '\u{FB01}'),
-        (0xDF, '\u{FB02}'),
-    ];
-    for &(b, c) in high {
-        m.insert(b, c);
+    for (b, &c) in (0x80u8..=0xFF).zip(HIGH.iter()) {
+        if c != '\0' {
+            m.insert(b, c);
+        }
     }
     m
 }
@@ -3032,6 +3044,47 @@ mod base14_fonts {
                 String::from_utf8_lossy(fontdict)
             );
         }
+    }
+
+    /// MacRomanEncoding without a ToUnicode CMap (#744) — Word for Mac's
+    /// Quartz output: the whole high range decodes, Danish æ ø å, é, ü, ß
+    /// and § included, through the plain encoding name and as the base of a
+    /// `/Differences` dictionary alike.
+    #[test]
+    fn macroman_fonts_keep_accented_letters() {
+        let sentence = b"Bl\x8cb\xbergr\xbfd p\x8c \xbfen \xd0 caf\x8e M\x9fller, Stra\xa7e \xa4 3";
+        for (fontdict, want) in [
+            (
+                b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/MacRomanEncoding>>"
+                    .as_slice(),
+                "Blåbærgrød på øen – café Müller, Straße § 3",
+            ),
+            (
+                b"<</Type/Font/Subtype/TrueType/BaseFont/ABCDEF+Arial\
+                   /Encoding<</Type/Encoding/BaseEncoding/MacRomanEncoding/Differences[51/four]>>>>",
+                "Blåbærgrød på øen – café Müller, Straße § 4",
+            ),
+        ] {
+            let text: String = cells(&pdf_with_font(fontdict, sentence))
+                .iter()
+                .map(|c| c.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            assert_eq!(text, want, "{}", String::from_utf8_lossy(fontdict));
+        }
+
+        // The table itself: all of 0x80–0xFF but the Apple logo, ¤ at 0xDB.
+        let table = super::macroman_table();
+        assert_eq!(
+            (0x80u8..=0xFF).filter(|b| table.contains_key(b)).count(),
+            127
+        );
+        assert_eq!(table.get(&0xF0), None);
+        assert_eq!(table[&0xDB], '¤');
+        assert_eq!(
+            [0x80, 0x8C, 0xAE, 0xAF, 0xBE, 0xBF, 0xFF].map(|b| table[&b]),
+            ['Ä', 'å', 'Æ', 'Ø', 'æ', 'ø', 'ˇ']
+        );
     }
 
     /// An explicit `/Widths` array always wins over the built-in metrics, and a

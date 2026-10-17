@@ -1026,6 +1026,16 @@ mod tests {
                     paragraphs += 1;
                     assert!(text.starts_with("[time: "));
                 }
+                // Transcript segments are timed items (#681): the cue's
+                // span on the track, the `[time: …]` paragraph inside.
+                Node::Track { track, inner, .. } => {
+                    paragraphs += 1;
+                    assert!(track.end_time > track.start_time, "{track:?}");
+                    assert!(
+                        matches!(inner.as_ref(), Node::Paragraph { text } if text.starts_with("[time: ")),
+                        "{inner:?}"
+                    );
+                }
                 other => panic!("unexpected node {other:?}"),
             }
         }
