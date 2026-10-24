@@ -30,8 +30,9 @@ pub mod email_attachments;
 mod error;
 pub mod fetch;
 mod format;
-// Allocator housekeeping for processes that convert many documents (#669).
-pub mod memory;
+// Allocator housekeeping (#669, #871) — docling-core's, so docling-onnx
+// applies it to every ONNX Runtime process; re-exported under its old path.
+pub use docling_core::memory;
 mod metadata;
 pub mod options;
 pub mod plugins;

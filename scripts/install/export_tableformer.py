@@ -18,6 +18,10 @@ We export three graphs and drive the loop from Rust:
                   pass cache=[L,0,1,512] on the first call)
   bbox.onnx    : enc_out + cell_hidden[ncells,512] -> classes, coords  (optional)
 
+plus decoder_kv.onnx (the true-KV-cache step the Rust loop prefers, see below)
+and decoder_kv_layers.onnx — its graph rewritten to per-layer caches by
+kv_layers.py (#871), over the same decoder_kv.onnx.data.
+
 IMPORTANT: export from the *same* checkpoint docling runs. Current docling pulls
 `docling-project/docling-models` (NOT the older `ds4sd/docling-models`); their
 TableFormer weights differ and produce different OTSL. Point the arg at:
@@ -563,6 +567,18 @@ for step, (lg, hd) in enumerate(both):
             hd[j : j + 1], solo[j][step][1]
         ), f"step {step}, table {j}: batched decode differs from the solo decode"
 print("  64 steps × 2 tables bit-identical batched vs solo")
+
+# ---- decoder_kv_layers.onnx: the same step with per-layer caches (#871) ----
+# A graph rewrite of decoder_kv.onnx (kv_layers.py): the self-attention cache
+# per layer (Kᵀ and V in and out) instead of two stacked tensors, so the Rust
+# loop keeps the caches in its own buffers. It shares decoder_kv.onnx.data and
+# must reproduce decoder_kv.onnx bit for bit — verified over the whole `past`
+# range, one table and two batched.
+from kv_layers import rewrite as kv_layers_rewrite, verify as kv_layers_verify  # noqa: E402
+
+kv_layers_rewrite(f"{OUT}/decoder_kv.onnx", f"{OUT}/decoder_kv_layers.onnx")
+print("decoder_kv_layers.onnx (per-layer caches) vs decoder_kv.onnx:")
+kv_layers_verify(f"{OUT}/decoder_kv.onnx", f"{OUT}/decoder_kv_layers.onnx", f"{OUT}/encoder.onnx")
 
 # word map → tokens file for the Rust decode loop
 json.dump(

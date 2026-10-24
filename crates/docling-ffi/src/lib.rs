@@ -149,7 +149,11 @@ fn convert_impl(
         converter = converter.progress_callback(std::sync::Arc::new(move |e| bridge.call(e)));
     }
 
-    let result = converter.convert(source).map_err(|e| e.to_string())?;
+    let result = converter.convert(source).map_err(|e| e.to_string());
+    // The heap the conversion freed goes back to the OS rather than staying
+    // in glibc's arenas between calls (#871; `docling::memory`, as serve does).
+    docling::memory::release_free_memory();
+    let result = result?;
     let document = result.document;
 
     // #537: the Pandoc AST embeds its pictures unless `images` says otherwise.

@@ -985,6 +985,14 @@ fn check_allowed(source: &SourceDocument, cfg: &ConvertConfig) -> Result<()> {
 /// Run a buffered conversion and render it per the config. Runs off the JS
 /// thread for the async path, so it must stay free of napi/JS types.
 fn run_convert(source: SourceDocument, cfg: &ConvertConfig) -> Result<RawResult> {
+    let result = run_convert_inner(source, cfg);
+    // The heap the conversion freed goes back to the OS rather than staying
+    // in glibc's arenas between calls (#871; `docling::memory`, as serve does).
+    docling::memory::release_free_memory();
+    result
+}
+
+fn run_convert_inner(source: SourceDocument, cfg: &ConvertConfig) -> Result<RawResult> {
     // #77: the remote VLM replaces the entire ML stack — no ONNX model is
     // loaded, and every other converter knob (OCR, TableFormer, text panels)
     // has nothing to act on. A page that failed or came back cut off

@@ -156,6 +156,12 @@ pub fn session_builder() -> Result<SessionBuilder, String> {
 pub fn environment() -> Result<&'static ort::environment::Environment, String> {
     static ENV: OnceLock<Result<ort::environment::Environment, String>> = OnceLock::new();
     ENV.get_or_init(|| {
+        // Before the first tensor: without the arena (`DOCLING_RS_NO_ARENA`,
+        // serve's default) every ONNX Runtime allocation is a `malloc`, and
+        // the TableFormer decoder's ever-longer KV caches left glibc's heap
+        // too fragmented to finish a long table on linux/arm64 (#871). The
+        // fixed threshold maps the large ones, so freeing them returns them.
+        docling_core::memory::pin_mmap_threshold();
         #[cfg(feature = "load-dynamic")]
         runtime_library()?;
         ort::init()
@@ -1078,6 +1084,88 @@ pub fn run_options() -> Option<&'static ort::session::RunOptions> {
     .as_ref()
 }
 
+/// [`run_options`] for a run that writes some outputs into values the caller
+/// provides (`OutputSelector::preallocate`) — built per run, since the
+/// selector holds them — with the same CUDA arena shrinkage.
+pub fn run_options_with_outputs(
+    outputs: ort::session::OutputSelector,
+) -> Result<ort::session::RunOptions<ort::session::HasSelectedOutputs>, String> {
+    let mut opts = ort::session::RunOptions::new()
+        .map_err(|e| format!("run options: {e}"))?
+        .with_outputs(outputs);
+    if arena_shrink_wanted() && cuda_usable() {
+        let device = format!("gpu:{}", cuda_options().device);
+        opts.set("memory.enable_memory_arena_shrinkage", &device)
+            .map_err(|e| format!("arena shrinkage for {device}: {e}"))?;
+    }
+    Ok(opts)
+}
+
+/// An owned ONNX Runtime `f32` tensor of `shape` over the first elements of
+/// `data` — memory the caller owns, which ONNX Runtime writes or reads in
+/// place and never frees (dropping the value releases only its handle). The
+/// TableFormer decoder binds its per-layer KV-cache outputs to such views
+/// (#871): `OutputSelector::preallocate` takes an owned value, and `ort`'s
+/// safe constructors either take ownership of a `Vec` (which could then not
+/// be reused for the next step) or return a borrowed `TensorRefMut` that
+/// cannot become one.
+///
+/// # Safety
+///
+/// Until the returned value and every clone of it are dropped — the clone in
+/// the `OutputSelector`/`RunOptions` it is preallocated in, and the session
+/// output a run hands back for it — `data` must not be moved, freed, read or
+/// written by anything but the ONNX Runtime run it is bound to.
+pub unsafe fn borrowed_f32(
+    data: &mut [f32],
+    shape: &[usize],
+    allocator: &ort::memory::Allocator,
+) -> Result<ort::value::DynValue, String> {
+    use ort::AsPointer as _;
+    let n: usize = shape.iter().product();
+    if n > data.len() {
+        return Err(format!(
+            "borrowed tensor {shape:?} needs {n} elements, the buffer holds {}",
+            data.len()
+        ));
+    }
+    let dims: Vec<i64> = shape.iter().map(|&d| d as i64).collect();
+    // ONNX Runtime copies the memory info into the value.
+    let info = ort::memory::MemoryInfo::default();
+    let api = ort::api();
+    let mut value: *mut ort::sys::OrtValue = std::ptr::null_mut();
+    // SAFETY: `data` holds at least `n` f32s (checked above) and, per this
+    // function's contract, outlives the value; `dims` and `info` are valid
+    // for the call.
+    let status = unsafe {
+        (api.CreateTensorWithDataAsOrtValue)(
+            info.ptr(),
+            data.as_mut_ptr().cast(),
+            n * std::mem::size_of::<f32>(),
+            dims.as_ptr(),
+            dims.len(),
+            ort::sys::ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
+            &mut value,
+        )
+    };
+    if !status.0.is_null() {
+        // SAFETY: a non-null status is an error the API allocated; its message
+        // is a NUL-terminated string valid until the status is released.
+        let message = unsafe {
+            let msg = std::ffi::CStr::from_ptr((api.GetErrorMessage)(status.0))
+                .to_string_lossy()
+                .into_owned();
+            (api.ReleaseStatus)(status.0);
+            msg
+        };
+        return Err(format!("borrowed tensor {shape:?}: {message}"));
+    }
+    let value = std::ptr::NonNull::new(value).ok_or("borrowed tensor: null value")?;
+    // SAFETY: `value` is the tensor just created; ownership passes to the
+    // returned handle, whose drop calls ReleaseValue (not the data's free).
+    Ok(unsafe { ort::value::DynValue::from_ptr(value, Some(allocator)) })
+}
+
 /// Run a session with the workspace's run options ([`run_options`]) — what
 /// every `Session::run` in docling-pdf, docling-asr and docling-rag goes
 /// through, so the GPU arena policy is one place.
@@ -1855,5 +1943,36 @@ mod cuda_option_tests {
         let out = session.run(ort::inputs!["x" => x]).expect("identity runs");
         let (_, y) = out["y"].try_extract_tensor::<f32>().unwrap();
         assert_eq!(y, &[42.0]);
+    }
+
+    /// A preallocated output over a borrowed buffer is written in place, and
+    /// the buffer is the caller's again once the run's values are dropped.
+    #[test]
+    fn borrowed_output_is_written_in_place() {
+        let Ok(builder) = super::session_builder() else {
+            return; // no runtime library on this host (load-dynamic)
+        };
+        let mut builder = builder;
+        let mut session = builder
+            .commit_from_memory(PROBE_MODEL)
+            .expect("the probe model loads");
+        let mut buf = vec![0.0f32; 4];
+        {
+            // SAFETY: `buf` is untouched until `opts` and `out` are dropped.
+            let y = unsafe { super::borrowed_f32(&mut buf, &[1], session.allocator()) }.unwrap();
+            let opts = super::run_options_with_outputs(
+                ort::session::OutputSelector::default().preallocate("y", y),
+            )
+            .unwrap();
+            let x = ort::value::Tensor::from_array(([1usize], vec![7.5f32])).unwrap();
+            let out = session
+                .run_with_options(ort::inputs!["x" => x], &opts)
+                .expect("identity runs");
+            drop(out);
+        }
+        assert_eq!(buf, [7.5, 0.0, 0.0, 0.0]);
+        let mut short = vec![0.0f32; 1];
+        // SAFETY: never run; only the size check is exercised.
+        assert!(unsafe { super::borrowed_f32(&mut short, &[2], session.allocator()) }.is_err());
     }
 }

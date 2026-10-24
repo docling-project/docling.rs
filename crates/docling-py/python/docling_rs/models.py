@@ -91,6 +91,9 @@ _OPTIONAL = {
     # and the fastest variant on every machine measured; ensure_env prefers it.
     "decoder_kv.onnx": "models/tableformer/decoder_kv.onnx",
     "decoder_kv.onnx.data": "models/tableformer/decoder_kv.onnx.data",
+    # Its per-layer-cache graph over the same .data (#871): bit-identical,
+    # caches in the loop's own buffers; the engine prefers it when present.
+    "decoder_kv_layers.onnx": "models/tableformer/decoder_kv_layers.onnx",
     "decoder_kv_int8.onnx": "models/tableformer/decoder_kv_int8.onnx",
     # fp16-weight repack of the TableFormer encoder (#374): fp32 compute,
     # half the download; the Rust pipeline prefers it unless fp32 is forced.

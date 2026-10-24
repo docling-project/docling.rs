@@ -39,6 +39,10 @@ tokenizers = { version = "0.20", default-features = false, features = ["onig"], 
 # `chunking` feature); same flags as the docling crate's Markdown backend.
 pulldown-cmark = { version = "0.13", default-features = false, optional = true }
 
+# glibc's allocator controls (`memory.rs`, #669, #871).
+[target.'cfg(all(target_os = "linux", target_env = "gnu"))'.dependencies]
+libc = "0.2"
+
 [features]
 # Tokenization-aware chunking (HybridChunker's HuggingFaceTokenizer) and the
 # Markdown window chunker (WindowChunker).

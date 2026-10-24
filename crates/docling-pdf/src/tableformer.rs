@@ -15,7 +15,7 @@ use crate::tf_core::{
 };
 use image::RgbImage;
 use ort::session::Session;
-use ort::value::{DynValue, Tensor};
+use ort::value::{DynValue, Tensor, TensorRef};
 
 const SIDE: usize = crate::tf_core::SIDE as usize;
 const EMBED_DIM: usize = crate::tf_core::EMBED_DIM;
@@ -35,7 +35,9 @@ const N_LAYERS: usize = 6;
 /// fallback). `decoder_kv` ranks ABOVE `decoder_int8`: the #97 hoisted fp32
 /// KV graph is faster than the quantized legacy graph on every machine
 /// measured, and it is byte-exact (its own int8 variant is not produced — see
-/// quantize_models.py).
+/// quantize_models.py). `decoder_kv_layers` ranks just above `decoder_kv`:
+/// the same graph with per-layer caches (#871, [`DecoderStyle::KvLayered`]),
+/// bit-identical and without per-step allocations that grow with the table.
 pub fn resolved_paths() -> (String, String, String) {
     // The encoder ranks its fp16-weight repack (`encoder_fp16.onnx`, #374 —
     // the same graph with the weights stored as fp16 and cast back to fp32
@@ -59,12 +61,14 @@ pub fn resolved_paths() -> (String, String, String) {
     let dec = docling_core::env::nonempty("DOCLING_TABLEFORMER_DECODER").unwrap_or_else(|| {
         let candidates: &[&str] = if crate::prefer_fp32() {
             &[
+                ".models/tableformer/decoder_kv_layers.onnx",
                 ".models/tableformer/decoder_kv.onnx",
                 ".models/tableformer/decoder.onnx",
             ]
         } else {
             &[
                 ".models/tableformer/decoder_kv_int8.onnx",
+                ".models/tableformer/decoder_kv_layers.onnx",
                 ".models/tableformer/decoder_kv.onnx",
                 ".models/tableformer/decoder_int8.onnx",
                 ".models/tableformer/decoder.onnx",
@@ -110,6 +114,18 @@ enum DecoderStyle {
     /// transposed for q·Kᵀ, `cross_v_i`), computed once per table by the
     /// encoder — the step graph does no work proportional to their size.
     KvHoisted,
+    /// `decoder_kv_layers.onnx` (#871, `scripts/install/kv_layers.py`): the
+    /// `KvHoisted` graph with the self-attention cache per layer — `Kᵀ` and
+    /// `V` in and out for each layer instead of two stacked tensors — whose
+    /// outputs land in buffers the loop owns ([`LayerCache`]).
+    KvLayered,
+}
+
+impl DecoderStyle {
+    /// One tag per step with the per-layer cross tensors the encoder emits.
+    fn hoisted(self) -> bool {
+        matches!(self, DecoderStyle::KvHoisted | DecoderStyle::KvLayered)
+    }
 }
 
 /// KV-cache geometry fixed by the `decoder_kv.onnx` export
@@ -124,6 +140,71 @@ const KV_HEAD_DIM: usize = 64;
 struct DecodeCache {
     a: Option<DynValue>,
     b: Option<DynValue>,
+    /// The `KvLayered` caches, set up on the first step.
+    layers: Option<LayerCache>,
+}
+
+/// The `KvLayered` decoder's self-attention caches, in memory docling owns
+/// (#871). With ONNX Runtime allocating them, every step of a table made a
+/// cache one token longer than the last and freed the previous one —
+/// hundreds of ever-larger blocks per table, which on linux/arm64 with the
+/// CPU arena off fragmented glibc's heap until a 6 GiB container ran out of
+/// memory. Here each step reads its caches from one of two buffers and ONNX
+/// Runtime writes the one-token-longer caches straight into the other (the
+/// outputs are preallocated over it, [`docling_onnx::borrowed_f32`]); the
+/// next step swaps them. Each buffer holds the `2 × N_LAYERS` tensors in
+/// regions of `cap` floats — per layer `Kᵀ` `[rows, H, hd, past]`, then `V`
+/// `[rows, H, past, hd]` — sized for [`MAX_STEPS`] tokens: zeroed (`calloc`,
+/// so mapped lazily), only the prefix a table reaches becomes resident, and
+/// they are released when the table (or the page's batch) is done.
+struct LayerCache {
+    rows: usize,
+    past: usize,
+    cap: usize,
+    bufs: [Vec<f32>; 2],
+    /// Which of `bufs` holds the current caches.
+    cur: usize,
+    /// Zero-`past` first-step inputs (ort's slice constructors reject a
+    /// 0-length dim, the session allocator does not).
+    empty: Vec<Tensor<f32>>,
+}
+
+impl LayerCache {
+    fn new(alloc: &ort::memory::Allocator, rows: usize) -> Result<Self, String> {
+        let cap = rows * KV_HEADS * MAX_STEPS * KV_HEAD_DIM;
+        let mut empty = Vec::with_capacity(2 * N_LAYERS);
+        for j in 0..2 * N_LAYERS {
+            empty.push(
+                Tensor::<f32>::new(alloc, Self::shape(j, rows, 0))
+                    .map_err(|e| format!("tableformer: empty kv cache: {e}"))?,
+            );
+        }
+        Ok(Self {
+            rows,
+            past: 0,
+            cap,
+            bufs: [vec![0.0; 2 * N_LAYERS * cap], vec![0.0; 2 * N_LAYERS * cap]],
+            cur: 0,
+            empty,
+        })
+    }
+
+    /// Tensor `j`'s shape at `past` tokens: `Kᵀ` for the first `N_LAYERS`.
+    fn shape(j: usize, rows: usize, past: usize) -> [usize; 4] {
+        if j < N_LAYERS {
+            [rows, KV_HEADS, KV_HEAD_DIM, past]
+        } else {
+            [rows, KV_HEADS, past, KV_HEAD_DIM]
+        }
+    }
+
+    fn input_name(j: usize) -> String {
+        if j < N_LAYERS {
+            format!("cache_kt_{j}")
+        } else {
+            format!("cache_v_{}", j - N_LAYERS)
+        }
+    }
 }
 
 /// Zero-`past` first-step cache tensors: `(cache, None)` for the legacy graph,
@@ -224,16 +305,16 @@ impl TableFormer {
         ) {
             (Ok(encoder), Ok(decoder), Ok(bbox)) => {
                 let has = |n: &str| decoder.inputs().iter().any(|i| i.name() == n);
-                let style = if has("cross_kt_0") {
+                let style = if has("cache_kt_0") {
+                    DecoderStyle::KvLayered
+                } else if has("cross_kt_0") {
                     DecoderStyle::KvHoisted
                 } else if has("cache_k") {
                     DecoderStyle::KvStacked
                 } else {
                     DecoderStyle::Legacy
                 };
-                if style == DecoderStyle::KvHoisted
-                    && !encoder.outputs().iter().any(|o| o.name() == "cross_kt_0")
-                {
+                if style.hoisted() && !encoder.outputs().iter().any(|o| o.name() == "cross_kt_0") {
                     eprintln!(
                         "docling-pdf: tableformer decoder needs per-layer cross tensors \
                          (cross_kt_*) the encoder doesn't emit — re-download or re-export \
@@ -244,7 +325,7 @@ impl TableFormer {
                 }
                 // Dynamic batch axis on `tag` ⇒ the export batches decode
                 // steps across tables (ort reports a symbolic dim as -1).
-                let batched = style == DecoderStyle::KvHoisted
+                let batched = style.hoisted()
                     && decoder.inputs().iter().any(|i| {
                         i.name() == "tag"
                             && matches!(i.dtype(), ort::value::ValueType::Tensor { shape, .. }
@@ -275,7 +356,7 @@ impl TableFormer {
                 .map_err(|e| format!("tableformer: encode: {e}"))
         })?;
         let mut per_layer = Vec::new();
-        if self.style == DecoderStyle::KvHoisted {
+        if self.style.hoisted() {
             for prefix in ["cross_kt_", "cross_v_"] {
                 for i in 0.. {
                     let name = format!("{prefix}{i}");
@@ -294,7 +375,7 @@ impl TableFormer {
                 .remove(name)
                 .ok_or_else(|| format!("tableformer: encoder output {name} missing"))
         };
-        let hoisted = self.style == DecoderStyle::KvHoisted;
+        let hoisted = self.style.hoisted();
         Ok(EncodeOut {
             ck: if hoisted {
                 None
@@ -338,11 +419,11 @@ impl TableFormer {
         cache: &mut DecodeCache,
         empty: &EmptyCache,
     ) -> Result<(i64, Vec<f32>), String> {
-        if self.style == DecoderStyle::KvHoisted {
+        if self.style.hoisted() {
             // #97 graph: one tag; the constant per-layer cross tensors are
             // borrowed views — the step pays nothing proportional to them.
             let last = *tags.last().expect("decode starts from <start>");
-            let (raws, hidden) = self.step_kv_hoisted(&[last], &enc.per_layer, cache, empty)?;
+            let (raws, hidden) = self.step_kv(&[last], &enc.per_layer, cache, empty)?;
             return Ok((raws[0], hidden));
         }
         let (ck, cv) = match (enc.ck.as_ref(), enc.cv.as_ref()) {
@@ -350,7 +431,7 @@ impl TableFormer {
             _ => return Err("tableformer: stacked cross K/V missing".into()),
         };
         let mut dout = match self.style {
-            DecoderStyle::KvHoisted => unreachable!("handled above"),
+            DecoderStyle::KvHoisted | DecoderStyle::KvLayered => unreachable!("handled above"),
             DecoderStyle::KvStacked => {
                 // Pre-#97 KV graph: feed only the newly emitted tag; the projected
                 // K/V for the whole prefix live in cache_k/cache_v and are fed
@@ -418,6 +499,112 @@ impl TableFormer {
             );
         }
         Ok((raw, hidden))
+    }
+
+    /// One step of a one-tag-per-step graph over `tags.len()` rows, through
+    /// whichever cache layout the loaded decoder has.
+    fn step_kv(
+        &mut self,
+        tags: &[i64],
+        per_layer: &[(String, DynValue)],
+        cache: &mut DecodeCache,
+        empty: &EmptyCache,
+    ) -> Result<(Vec<i64>, Vec<f32>), String> {
+        if self.style == DecoderStyle::KvLayered {
+            self.step_kv_layered(tags, per_layer, cache)
+        } else {
+            self.step_kv_hoisted(tags, per_layer, cache, empty)
+        }
+    }
+
+    /// One `KvLayered` step: [`Self::step_kv_hoisted`] with the caches read
+    /// from and written into the [`LayerCache`] buffers — ONNX Runtime
+    /// allocates nothing that grows with the table (#871).
+    fn step_kv_layered(
+        &mut self,
+        tags: &[i64],
+        per_layer: &[(String, DynValue)],
+        cache: &mut DecodeCache,
+    ) -> Result<(Vec<i64>, Vec<f32>), String> {
+        let rows = tags.len();
+        let lc = match &mut cache.layers {
+            Some(lc) => lc,
+            None => cache
+                .layers
+                .insert(LayerCache::new(self.decoder.allocator(), rows)?),
+        };
+        if lc.rows != rows || lc.past >= MAX_STEPS {
+            return Err(format!(
+                "tableformer: kv cache for {} rows at {} tokens, asked for {rows} rows one more",
+                lc.rows, lc.past
+            ));
+        }
+        let (past, cap) = (lc.past, lc.cap);
+        let tag_t = Tensor::from_array(([rows, 1usize], tags.to_vec()))
+            .map_err(|e| format!("tableformer: tag: {e}"))?;
+        let [first, second] = &mut lc.bufs;
+        let (src, dst) = if lc.cur == 0 {
+            (&*first, second)
+        } else {
+            (&*second, first)
+        };
+        let mut inputs: Vec<(
+            std::borrow::Cow<'_, str>,
+            ort::session::SessionInputValue<'_>,
+        )> = Vec::with_capacity(1 + 2 * N_LAYERS + per_layer.len());
+        inputs.push(("tag".into(), tag_t.into()));
+        let in_len = rows * KV_HEADS * past * KV_HEAD_DIM;
+        for j in 0..2 * N_LAYERS {
+            let name = LayerCache::input_name(j);
+            if past == 0 {
+                inputs.push((name.into(), (&lc.empty[j]).into()));
+            } else {
+                let view = TensorRef::from_array_view((
+                    LayerCache::shape(j, rows, past),
+                    &src[j * cap..j * cap + in_len],
+                ))
+                .map_err(|e| format!("tableformer: {name}: {e}"))?;
+                inputs.push((name.into(), view.into()));
+            }
+        }
+        for (name, v) in per_layer {
+            inputs.push((name.as_str().into(), v.into()));
+        }
+        let alloc = self.decoder.allocator();
+        let mut outputs = ort::session::OutputSelector::default();
+        for (j, region) in dst.chunks_exact_mut(cap).enumerate() {
+            // SAFETY: `dst` is borrowed mutably for this whole step and
+            // nothing else touches it; the values over it live in `opts` and
+            // `dout`, both dropped at the end of this function, before the
+            // next step reads the buffer (or the cache frees it).
+            let out = unsafe {
+                docling_onnx::borrowed_f32(region, &LayerCache::shape(j, rows, past + 1), alloc)
+            }
+            .map_err(|e| format!("tableformer: kv cache output: {e}"))?;
+            outputs = outputs.preallocate(format!("out_{}", LayerCache::input_name(j)), out);
+        }
+        let opts = docling_onnx::run_options_with_outputs(outputs)?;
+        let dout = self
+            .decoder
+            .run_with_options(inputs, &opts)
+            .map_err(|e| format!("tableformer: decode: {e}"))?;
+        let (_, logits) = dout["logits"]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| format!("tableformer: logits: {e}"))?;
+        let vocab = logits.len() / rows;
+        let raws: Vec<i64> = logits
+            .chunks_exact(vocab)
+            .map(|row| argmax(row) as i64)
+            .collect();
+        let (_, hidden) = dout["hidden"]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| format!("tableformer: hidden: {e}"))?;
+        let hidden = hidden.to_vec();
+        drop(dout);
+        drop(opts);
+        lc.past += 1;
+        lc.cur ^= 1;
+        Ok((raws, hidden))
     }
 
     /// One `KvHoisted` step over `tags.len()` rows — one table per row. `tags`
@@ -545,7 +732,7 @@ impl TableFormer {
                     break;
                 }
                 let (raws, hidden) = crate::timing::timed("tf.decode_step", || {
-                    self.step_kv_hoisted(&last, &cross, &mut cache, &empty)
+                    self.step_kv(&last, &cross, &mut cache, &empty)
                 })?;
                 for t in 0..b {
                     if !active[t] {

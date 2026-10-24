@@ -239,6 +239,8 @@ jobs:
           stage .models/tableformer/decoder.onnx decoder.onnx
           stage .models/tableformer/decoder_int8.onnx decoder_int8.onnx
           stage .models/tableformer/decoder_kv.onnx decoder_kv.onnx
+          # Its per-layer-cache graph (#871) — references decoder_kv.onnx.data.
+          stage .models/tableformer/decoder_kv_layers.onnx decoder_kv_layers.onnx
           stage .models/tableformer/decoder_kv_int8.onnx decoder_kv_int8.onnx
           stage .models/tableformer/bbox.onnx bbox.onnx
           stage third-party/picture_classifier.onnx picture_classifier.onnx

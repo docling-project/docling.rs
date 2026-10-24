@@ -793,6 +793,7 @@ better, byte-identical where the change is structural:
 | Per-document font + form caches in the text parser | 3–10% off `textparse` here; far more on CJK/form-heavy PDFs |
 | True-KV-cache decoder export (`decoder_kv.onnx`, optional) | parity at corpus table sizes; O(past)/step for very large tables |
 | Dynamic-batch `decoder_kv.onnx`: a page's tables decode in one lockstep loop | decode steps shared across tables; byte-identical (see round four below) |
+| Per-layer caches in loop-owned buffers (`decoder_kv_layers.onnx`, #871) | no per-step allocation that grows with the table (the arm64 OOM); long tables ~24% faster; bit-identical (round six) |
 
 Cumulative head-to-head vs Python docling (measured on an 8-thread desktop,
 `scripts/test/performance.sh`): **4.3× faster warm conversion, 4.7× end-to-end,
@@ -1255,6 +1256,59 @@ Two small items left over from round four's profile of master.
   cache (each top-level field's declared length must end within the file;
   a truncation lands inside the multi-megabyte `graph` field), a handful of
   reads and seeks, never a parse of the weights.
+
+#### Round six (Oct 2026): per-layer caches in buffers the loop owns (#871)
+
+Not a speed round — an out-of-memory one. On linux/arm64 (ONNX Runtime 1.31)
+with the CPU arena off (`DOCLING_RS_NO_ARENA`, serve's default) a PDF with a
+~700-step table ran a 6 GiB container out of memory: 4.3 GB of glibc heap
+was *free* 608 steps into the first table, 530 MB in use. Every step of
+`decoder_kv.onnx` made the KV cache one token longer and freed the old one —
+and copied it several times over on the way: ONNX Runtime's optimized graph
+splits the stacked `[L,B,H,past,hd]` input into the six layers, each layer
+concatenates its token, K is transposed for q·Kᵀ, and the layers are stacked
+and concatenated again into the outputs. Each of those buffers is a
+`malloc` one token larger than its predecessor, and on arm64 glibc reused
+25% of the freed blocks (87% on amd64), so they piled up.
+
+- **The graph** (`scripts/install/kv_layers.py` → `decoder_kv_layers.onnx`):
+  a rewrite of `decoder_kv.onnx`, not a re-export. The cache comes in and
+  goes out per layer — `cache_kt_<i>` `[B,H,hd,past]` (K already transposed)
+  and `cache_v_<i>` `[B,H,past,hd]` — so a step's only cache-sized work is
+  one `Concat` per layer and tensor. The attention reads exactly the floats
+  it read before (Kᵀ in the same layout, the same `FusedMatMul` with
+  `alpha=s²`), and the rewrite keeps the exporter's `value_info` so ONNX
+  Runtime still fuses Add+LayerNorm→SkipLayerNormalization (without it the
+  residual stream rounds differently, ~5e-6 in the logits). Bit-identical
+  to `decoder_kv.onnx` — logits, hidden states and caches — over the whole
+  1024-step range, one table and two batched (`kv_layers.py --verify`, run
+  by `export_tableformer.py`). Weights untouched: the new 0.25 MB graph
+  reads `decoder_kv.onnx.data`.
+- **The loop** (`tableformer.rs`, `DecoderStyle::KvLayered`): the caches live
+  in two buffers per decode (a table, or a page's batch), each holding the
+  12 tensors in regions sized for `MAX_STEPS` tokens — `calloc`'d, so pages
+  become resident only as far as the table reaches. A step reads its caches
+  from one buffer and binds the outputs to the other
+  (`OutputSelector::preallocate` over `docling_onnx::borrowed_f32`, the one
+  `unsafe` in it: an owned ONNX Runtime value over a slice the loop keeps
+  borrowed for the step), so ONNX Runtime writes the next caches in place
+  and allocates nothing that grows with the table; the next step swaps the
+  buffers.
+- **Measured** (x86_64, release CLI, `DOCLING_RS_NO_ARENA=1`; an
+  `LD_PRELOAD` counter of allocations ≥ 64 KiB, three 79-row tables of
+  ~790 steps): TableFormer's large allocations **44,600 → 620** (36.1 →
+  8.0 GiB allocated over the run, 843 → 27 distinct sizes; what is left is
+  the encoder, once per table); the same PDF converts in **69.0 → 52.2 s**
+  — the per-step Split/Transpose/re-stack copies were real work too. Peak
+  RSS on x86 is unchanged (~2.1 GB; amd64 reused the blocks), Markdown and
+  JSON byte-identical on the 8 table-bearing corpus PDFs and that one.
+  The same change pins glibc's mmap threshold in every process that loads
+  a model (`docling_core::memory`, until then serve and MCP only), which on
+  the reporter's machine alone avoided the OOM, at 0.66–1.28 GB above
+  2.22.0's peak.
+
+`decoder_kv_layers.onnx` reaches users through the models release: an
+installation without it keeps decoding with `decoder_kv.onnx`.
 
 #### TableFormer decoder: dynamic INT8 (~10% faster tables, byte-identical)
 

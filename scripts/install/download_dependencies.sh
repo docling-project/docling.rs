@@ -41,6 +41,8 @@
 #   .models/tableformer/encoder.onnx (+ .data, if the export needs it)
 #   .models/tableformer/decoder.onnx (+ .data, if the export needs it)
 #   .models/tableformer/decoder_kv.onnx (+ .data; preferred when hosted)
+#   .models/tableformer/decoder_kv_layers.onnx (its per-layer-cache graph over
+#     the same .data, #871; preferred over it when hosted)
 #   .models/tableformer/bbox.onnx (+ .data, if the export needs it)
 #   .models/asr/{encoder_model,decoder_model}.onnx + vocab.json   (Whisper tiny,
 #     from the release when the tag mirrors it, else Hugging Face; skip with
@@ -512,6 +514,10 @@ fetch_optional "$BASE_URL/decoder.onnx.data" .models/tableformer/decoder.onnx.da
 # older release tags don't host it, and the legacy decoder above still works.
 fetch_optional "$BASE_URL/decoder_kv.onnx" .models/tableformer/decoder_kv.onnx
 fetch_optional "$BASE_URL/decoder_kv.onnx.data" .models/tableformer/decoder_kv.onnx.data
+# The same decoder with per-layer caches (#871, scripts/install/kv_layers.py):
+# a ~0.25 MB graph over decoder_kv.onnx.data, bit-identical output, whose
+# caches the Rust loop keeps in its own buffers — preferred when present.
+fetch_optional "$BASE_URL/decoder_kv_layers.onnx" .models/tableformer/decoder_kv_layers.onnx
 fetch "$BASE_URL/bbox.onnx" .models/tableformer/bbox.onnx
 fetch_optional "$BASE_URL/bbox.onnx.data" .models/tableformer/bbox.onnx.data
 

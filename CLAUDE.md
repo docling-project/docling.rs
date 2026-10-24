@@ -160,7 +160,12 @@ cargo test -p docling-pdf --features pdfium --lib raster:: pdfium_backend::  # t
   keeps every distinct cut), `DOCLING_RS_PDF_WORKERS/_THREADS/_INTRA`, `DOCLING_RS_TF_INTRA` (#262),
   `DOCLING_RS_NO_ARENA` (#263; serve and `docling-rs mcp` default it on —
   both also pin glibc's mmap threshold and trim after each conversion,
-  `docling::memory`, #669), the CUDA arena knobs (#842: `DOCLING_RS_CUDA_DEVICE`,
+  `docling::memory` = `docling_core::memory`, #669; since #871 docling-onnx
+  pins it with the ONNX Runtime environment, so every model-loading process
+  has it, and the Node/Python/FFI bindings trim after each conversion; the
+  TableFormer decoder `decoder_kv_layers.onnx` — `kv_layers.py`'s rewrite of
+  `decoder_kv.onnx`, bit-identical — keeps its KV caches in loop-owned
+  buffers, `docling_onnx::borrowed_f32`, so no per-step tensor grows), the CUDA arena knobs (#842: `DOCLING_RS_CUDA_DEVICE`,
   `DOCLING_RS_CUDA_MEM_LIMIT_MB`, `DOCLING_RS_CUDA_ARENA_EXTEND`
   `next_power_of_two`|`same_as_requested`, `DOCLING_RS_CUDA_ARENA_SHRINK` —
   on: every run hands its arena growth back, `docling_onnx::run` /

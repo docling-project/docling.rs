@@ -28,6 +28,7 @@ mod latex;
 pub mod limits;
 mod markdown;
 mod mathml;
+pub mod memory;
 pub mod metadata;
 pub mod pandoc;
 mod pixel_digest;

@@ -112,8 +112,24 @@ function resolvePaths(dir) {
     tfEncoder:
       process.env.DOCLING_TABLEFORMER_ENCODER ||
       firstExisting(fp32Forced() ? [tf('encoder.onnx')] : [tf('encoder_fp16.onnx'), tf('encoder.onnx')]),
+    // The decoder follows the Rust pipeline's own preference chain
+    // (`tableformer::resolved_paths`): the per-layer-cache graph (#871), the
+    // KV-cache one, then the legacy graphs. Pinning `decoder.onnx`, as this
+    // did, ran every Node conversion on the slowest graph, whose growing
+    // per-step tensors are what #871's heap fragmentation came from.
     tfDecoder:
-      process.env.DOCLING_TABLEFORMER_DECODER || path.join(models, 'tableformer', 'decoder.onnx'),
+      process.env.DOCLING_TABLEFORMER_DECODER ||
+      firstExisting(
+        fp32Forced()
+          ? [tf('decoder_kv_layers.onnx'), tf('decoder_kv.onnx'), tf('decoder.onnx')]
+          : [
+              tf('decoder_kv_int8.onnx'),
+              tf('decoder_kv_layers.onnx'),
+              tf('decoder_kv.onnx'),
+              tf('decoder_int8.onnx'),
+              tf('decoder.onnx'),
+            ],
+      ),
     tfBbox: process.env.DOCLING_TABLEFORMER_BBOX || path.join(models, 'tableformer', 'bbox.onnx'),
     chunkTokenizer:
       process.env.DOCLING_CHUNK_TOKENIZER || path.join(models, 'chunk', 'tokenizer.json'),

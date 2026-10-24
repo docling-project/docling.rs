@@ -129,6 +129,8 @@ call :fetch_opt "%BASE_URL%/decoder.onnx.data"          .models\tableformer\deco
 rem True-KV-cache decoder - preferred by the Rust loop when present.
 call :fetch_opt "%BASE_URL%/decoder_kv.onnx"            .models\tableformer\decoder_kv.onnx
 call :fetch_opt "%BASE_URL%/decoder_kv.onnx.data"       .models\tableformer\decoder_kv.onnx.data
+rem Its per-layer-cache graph over the same .data (#871) - preferred over it.
+call :fetch_opt "%BASE_URL%/decoder_kv_layers.onnx"     .models\tableformer\decoder_kv_layers.onnx
 call :fetch "%BASE_URL%/bbox.onnx"                      .models\tableformer\bbox.onnx       || goto :fail
 call :fetch_opt "%BASE_URL%/bbox.onnx.data"             .models\tableformer\bbox.onnx.data
 call :fetch_opt "%BASE_URL%/wordmap.json"               .models\tableformer\wordmap.json

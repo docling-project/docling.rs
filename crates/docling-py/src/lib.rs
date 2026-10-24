@@ -1031,6 +1031,23 @@ impl PyDocumentConverter {
         progress_callback: Option<Py<PyAny>>,
         document_index: usize,
     ) -> PyResult<PyNativeResult> {
+        let result =
+            self.convert_source_inner(py, src, page_range, progress_callback, document_index);
+        // The heap the conversion freed goes back to the OS rather than
+        // staying in glibc's arenas between calls (#871; `docling::memory`,
+        // as serve does).
+        docling::memory::release_free_memory();
+        result
+    }
+
+    fn convert_source_inner(
+        &self,
+        py: Python<'_>,
+        src: SourceDocument,
+        page_range: Option<(usize, usize)>,
+        progress_callback: Option<Py<PyAny>>,
+        document_index: usize,
+    ) -> PyResult<PyNativeResult> {
         // This call's own progress callback (#783), on top of the
         // constructor's — docling's `convert(source, progress_callback=…)`.
         let call_progress = progress_callback.map(py_progress_callback);

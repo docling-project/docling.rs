@@ -109,7 +109,7 @@ and `errors`); `redact_pii` reports its counts in `X-Docling-Redaction`.
 Thread pools are cgroup-quota-aware (#262; `DOCLING_RS_TF_INTRA` narrows the
 shared TableFormer session) and the server runs with `DOCLING_RS_NO_ARENA=1`,
 which measured ~3× lower warm RSS at no latency cost; glibc's mmap threshold
-is pinned at startup (#669) so freed buffers leave the process instead of
+is pinned at startup (#669; every ONNX process does it since #871) so freed buffers leave the process instead of
 piling up in its per-thread arenas — RSS holds flat across requests (~590 MB
 over six mixed PDFs) where it used to creep (528 → 754 MB). An operator's
 own `GLIBC_TUNABLES=glibc.malloc.mmap_threshold=…` wins. Observability mirrors

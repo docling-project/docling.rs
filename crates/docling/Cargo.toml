@@ -155,10 +155,6 @@ sha2 = "0.11"
 md-5 = "0.11"
 base64 = "0.22"
 
-# glibc's allocator controls for long-lived processes (#669, `memory.rs`).
-[target.'cfg(all(target_os = "linux", target_env = "gnu"))'.dependencies]
-libc = "0.2"
-
 [[example]]
 name = "convert"
 path = "examples/convert.rs"

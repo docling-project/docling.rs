@@ -1,5 +1,6 @@
-//! Allocator housekeeping for a process that converts many documents — a
-//! server, an agent tool, a batch worker (#263, #669).
+//! Allocator housekeeping for a process that runs ONNX Runtime or converts
+//! many documents — a server, an agent tool, a batch worker, a binding
+//! (#263, #669, #871).
 //!
 //! A conversion churns hundreds of MB of short-lived buffers (page bitmaps,
 //! ONNX Runtime tensors) across many threads. glibc's allocator keeps what
@@ -11,7 +12,16 @@
 //!   threshold (up to 32 MiB) every time a large mapped block is freed, after
 //!   which blocks of that size are carved from the arenas, where they
 //!   fragment and stay resident. A fixed threshold turns the adjustment off,
-//!   so large buffers are mapped and unmapped again.
+//!   so large buffers are mapped and unmapped again. docling-onnx pins it
+//!   when it creates the ONNX Runtime environment, so every process that
+//!   runs a model has it — the CLI and the bindings too, not only the
+//!   servers (#871): the TableFormer decoder allocates a KV cache one token
+//!   longer on every step, so a long table frees hundreds of ever-larger
+//!   blocks inside a single conversion. With the threshold free to rise
+//!   they all landed in the arenas, and on linux/arm64 (ONNX Runtime 1.31)
+//!   few of the freed blocks were reused: 4.3 GB of free heap 608 steps
+//!   into one table, an OOM under a 6 GiB limit that 2.22.0 converted in
+//!   3.3 GB.
 //! - [`release_free_memory`], after each conversion: hands the free pages
 //!   still inside the arenas back to the OS.
 //!
@@ -29,14 +39,14 @@ pub const MMAP_THRESHOLD: usize = 4 << 20;
 
 /// Pin glibc's mmap threshold at [`MMAP_THRESHOLD`] for the rest of the
 /// process, unless the operator chose one (`GLIBC_TUNABLES` naming
-/// `glibc.malloc.mmap_threshold`, or `MALLOC_MMAP_THRESHOLD_`). Call once,
-/// early, in a long-lived process; a one-shot conversion gains nothing.
+/// `glibc.malloc.mmap_threshold`, or `MALLOC_MMAP_THRESHOLD_`). Idempotent;
+/// call it early — blocks the arenas already hold stay there.
 pub fn pin_mmap_threshold() {
     #[cfg(all(target_os = "linux", target_env = "gnu"))]
     {
-        let tunables = std::env::var("GLIBC_TUNABLES").unwrap_or_default();
+        let tunables = crate::env::nonempty("GLIBC_TUNABLES").unwrap_or_default();
         if tunables.contains("glibc.malloc.mmap_threshold")
-            || std::env::var_os("MALLOC_MMAP_THRESHOLD_").is_some()
+            || crate::env::nonempty("MALLOC_MMAP_THRESHOLD_").is_some()
         {
             return;
         }
