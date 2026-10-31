@@ -86,10 +86,10 @@ serde_json = { version = "1", optional = true }
 # what current LTS distros ship (Ubuntu 24.04 = 1.17). Newer libheif-rs
 # requires libheif >= 1.18 and can be selected once baselines move.
 libheif-rs = { version = "~1.0", default-features = false, optional = true }
-docling-core = { path = "../docling-core", version = "2.59.1" }
+docling-core = { path = "../docling-core", version = "2.59.2" }
 # Shared ONNX execution-provider selection (DOCLING_RS_EP, #74/#288);
 # re-exported as `docling_pdf::ep`.
-docling-onnx = { path = "../docling-onnx", version = "2.59.1", optional = true }
+docling-onnx = { path = "../docling-onnx", version = "2.59.2", optional = true }
 pdfium-render = { version = "0.8", optional = true }
 # Runtime loading of the opt-in docling-parse renderer plugin (#478,
 # `dparse_render.rs`) — the same mechanism pdfium-render uses for libpdfium.
