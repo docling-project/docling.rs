@@ -538,12 +538,24 @@ fn fixture_corpus_both_chains_carry_the_same_words() {
     }
     names.sort();
     assert!(names.len() > 50, "fixture dirs moved? {}", names.len());
+    // The two walks over every fixture were the crate's slowest unit test
+    // (20 s serial); the fixtures are independent, so they convert in
+    // parallel and the verdicts are read back in the sorted order.
+    let divergences: Vec<(String, Words, Words)> = {
+        use rayon::prelude::*;
+        names
+            .par_iter()
+            .map(|path| {
+                let name = path.file_name().unwrap().to_string_lossy().into_owned();
+                let bytes = std::fs::read(path).unwrap();
+                let (flat_only, tree_only) = chain_divergence(bytes, &name);
+                (name, flat_only, tree_only)
+            })
+            .collect()
+    };
     let mut failures = Vec::new();
     let mut stale: Vec<&str> = KNOWN.iter().map(|(n, _)| *n).collect();
-    for path in names {
-        let name = path.file_name().unwrap().to_string_lossy().into_owned();
-        let bytes = std::fs::read(&path).unwrap();
-        let (flat_only, tree_only) = chain_divergence(bytes, &name);
+    for (name, flat_only, tree_only) in divergences {
         let diverges = !flat_only.is_empty() || !tree_only.is_empty();
         if let Some((_, reason)) = KNOWN.iter().find(|(n, _)| *n == name) {
             stale.retain(|n| *n != name);

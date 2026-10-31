@@ -212,33 +212,212 @@ fn stream_to_string(src: &Path, strict: bool) -> Result<String, String> {
     Ok(out)
 }
 
-/// Streaming Markdown must be byte-identical to the buffered export for every
-/// (non-PDF) source — the streaming serializer and the buffered one are held to
-/// the same output. (PDF, the format with real page-level streaming, is covered by
-/// the snapshot harness and the `StreamAssembler` unit tests in `docling-pdf`.)
-#[test]
-fn streaming_matches_buffered_markdown() {
-    let srcs = sources();
-    let mut failures = Vec::new();
-    for src in &srcs {
-        let rel = &src.rel;
-        for strict in [false, true] {
-            let buffered = match convert(&src.path, strict) {
-                Ok(d) => d.export_to_markdown(),
-                Err(e) => {
-                    failures.push(format!("{rel}: convert error: {e}"));
+/// Every check the suite makes on one source, from a single pass over it.
+///
+/// The three corpus-wide tests below used to convert every source on their
+/// own — eight conversions per file, each test walking the corpus serially —
+/// and the `regression` binary had grown to ten minutes of the CI test job
+/// (the corpus doubled in a month). One pass converts each source five times
+/// (buffered legacy and strict, streamed legacy and strict, streamed with
+/// options), runs across the sources in parallel (`par_map`), and keeps only
+/// the verdicts; the tests read their share of them. Filtering `cargo test`
+/// to one test name therefore still runs the whole pass once.
+#[derive(Default)]
+struct Verdicts {
+    /// `outputs_match_fixtures`: outputs that differ from the committed
+    /// fixtures (or fixtures that are missing).
+    fixtures: Vec<String>,
+    /// `streaming_matches_buffered_markdown`: streamed Markdown that differs
+    /// from the buffered export, legacy or strict.
+    streaming: Vec<String>,
+    /// `streaming_with_options_matches_buffered_markdown`: the same with
+    /// every layer and picture traversal on.
+    streaming_with_options: Vec<String>,
+    sources: usize,
+    regen: bool,
+}
+
+fn verdicts() -> &'static Verdicts {
+    static VERDICTS: std::sync::OnceLock<Verdicts> = std::sync::OnceLock::new();
+    VERDICTS.get_or_init(|| {
+        let regen = std::env::var_os("DOCLING_RS_REGEN").is_some();
+        let srcs = sources();
+        assert!(
+            !srcs.is_empty(),
+            "no sources under {}",
+            data_dir().display()
+        );
+        let per_source = par_map(&srcs, |src| check_source(src, regen));
+        let mut all = Verdicts {
+            sources: srcs.len(),
+            regen,
+            ..Verdicts::default()
+        };
+        for v in per_source {
+            all.fixtures.extend(v.fixtures);
+            all.streaming.extend(v.streaming);
+            all.streaming_with_options.extend(v.streaming_with_options);
+        }
+        all
+    })
+}
+
+/// `f` over every item, one plain thread per core, the results in the
+/// items' order (so the failure lists read as the serial loops' did).
+///
+/// Plain threads, not rayon: `stream_to_string` drains a producer that
+/// runs on a thread of its own (`docling::stream`), and the PPTX / XLSX
+/// backends that producer may run fan their slides / sheets out on rayon's
+/// global pool. Walked on that pool, every worker ended up blocked in
+/// `recv()` on a producer waiting for a free worker — the suite's first
+/// parallel run hung that way after eight minutes of CPU.
+fn par_map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Mutex;
+
+    let next = AtomicUsize::new(0);
+    let done: Mutex<Vec<(usize, R)>> = Mutex::new(Vec::with_capacity(items.len()));
+    let workers = std::thread::available_parallelism()
+        .map_or(4, |n| n.get())
+        .min(items.len().max(1));
+    std::thread::scope(|s| {
+        let handles: Vec<_> = (0..workers)
+            .map(|_| {
+                s.spawn(|| loop {
+                    let i = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(item) = items.get(i) else { break };
+                    let r = f(item);
+                    done.lock().unwrap().push((i, r));
+                })
+            })
+            .collect();
+        // A worker's panic is the pass's.
+        for h in handles {
+            if let Err(e) = h.join() {
+                std::panic::resume_unwind(e);
+            }
+        }
+    });
+    let mut done = done.into_inner().unwrap();
+    done.sort_by_key(|(i, _)| *i);
+    done.into_iter().map(|(_, r)| r).collect()
+}
+
+/// Convert `src` every way the suite checks and record what differs.
+fn check_source(src: &Source, regen: bool) -> Verdicts {
+    let rel = &src.rel;
+    let mut v = Verdicts::default();
+
+    let legacy = convert(&src.path, false);
+    let strict = convert(&src.path, true);
+
+    // The committed fixtures: legacy and strict Markdown, JSON, LaTeX, HTML.
+    match (&legacy, &strict) {
+        (Err(e), _) => v.fixtures.push(format!("{rel}: convert error: {e}")),
+        (_, Err(e)) => v.fixtures.push(format!("{rel}: strict convert error: {e}")),
+        (Ok(legacy), Ok(strict)) => {
+            let outputs = [
+                (".md", legacy.export_to_markdown()),
+                (".strict.md", strict.export_to_markdown()),
+                (".json", legacy.export_to_json()),
+                (".tex", legacy.export_to_latex()),
+                (
+                    ".html",
+                    legacy
+                        .export_to_html_with_images(docling::ImageMode::Embedded, "artifacts")
+                        .0,
+                ),
+            ];
+            for (suffix, got) in outputs {
+                let path = expected_path(src, suffix);
+                if regen {
+                    fs::create_dir_all(path.parent().unwrap()).unwrap();
+                    fs::write(&path, got).unwrap();
                     continue;
                 }
-            };
-            match stream_to_string(&src.path, strict) {
-                Ok(streamed) if streamed == buffered => {}
-                Ok(_) => failures.push(format!(
-                    "{rel} (strict={strict}): streamed Markdown != buffered export"
-                )),
-                Err(e) => failures.push(format!("{rel} (strict={strict}): stream error: {e}")),
+                match fs::read_to_string(&path) {
+                    Ok(want) if want == got => {}
+                    Ok(want)
+                        if HOST_FONT_PICTURES.contains(&rel.as_str())
+                            && mask_png_payloads(&want) == mask_png_payloads(&got) => {}
+                    Ok(_) => v.fixtures.push(format!(
+                        "{rel}{suffix}: output changed (run DOCLING_RS_REGEN=1 to update)"
+                    )),
+                    Err(_) => v
+                        .fixtures
+                        .push(format!("{rel}{suffix}: missing fixture {}", path.display())),
+                }
             }
         }
     }
+
+    // Streaming Markdown must be byte-identical to the buffered export for
+    // every (non-PDF) source — the streaming serializer and the buffered one
+    // are held to the same output. (PDF, the format with real page-level
+    // streaming, is covered by the snapshot harness and the `StreamAssembler`
+    // unit tests in `docling-pdf`.)
+    for (strict, doc) in [(false, &legacy), (true, &strict)] {
+        let buffered = match doc {
+            Ok(d) => d.export_to_markdown(),
+            Err(e) => {
+                v.streaming.push(format!("{rel}: convert error: {e}"));
+                continue;
+            }
+        };
+        match stream_to_string(&src.path, strict) {
+            Ok(streamed) if streamed == buffered => {}
+            Ok(_) => v.streaming.push(format!(
+                "{rel} (strict={strict}): streamed Markdown != buffered export"
+            )),
+            Err(e) => v
+                .streaming
+                .push(format!("{rel} (strict={strict}): stream error: {e}")),
+        }
+    }
+
+    // `convert_streaming_with_options` with every layer and picture traversal
+    // on — the CLI's streamed `--layers all --traverse-pictures` — matches
+    // the buffered `export_to_markdown_with_options` byte for byte.
+    let options = docling::MarkdownExportOptions {
+        layers: docling::ContentLayers::ALL,
+        traverse_pictures: true,
+        ..Default::default()
+    };
+    match &legacy {
+        Err(e) => v
+            .streaming_with_options
+            .push(format!("{rel}: convert error: {e}")),
+        Ok(legacy) => {
+            let buffered = legacy.export_to_markdown_with_options(&options).0;
+            let streamed = SourceDocument::from_file(&src.path)
+                .map_err(|e| e.to_string())
+                .and_then(|source| {
+                    converter_for(&src.path)
+                        .convert_streaming_with_options(source, &options)
+                        .map_err(|e| e.to_string())
+                })
+                .and_then(|stream| {
+                    stream
+                        .collect::<Result<String, _>>()
+                        .map_err(|e| e.to_string())
+                });
+            match streamed {
+                Ok(streamed) if streamed == buffered => {}
+                Ok(_) => v
+                    .streaming_with_options
+                    .push(format!("{rel}: streamed Markdown != buffered export")),
+                Err(e) => v
+                    .streaming_with_options
+                    .push(format!("{rel}: stream error: {e}")),
+            }
+        }
+    }
+    v
+}
+
+#[test]
+fn streaming_matches_buffered_markdown() {
+    let failures = &verdicts().streaming;
     assert!(
         failures.is_empty(),
         "{} streaming mismatch(es):\n{}",
@@ -247,44 +426,9 @@ fn streaming_matches_buffered_markdown() {
     );
 }
 
-/// `convert_streaming_with_options` with every layer and picture traversal
-/// on — the CLI's streamed `--layers all --traverse-pictures` — matches the
-/// buffered `export_to_markdown_with_options` byte for byte.
 #[test]
 fn streaming_with_options_matches_buffered_markdown() {
-    let options = docling::MarkdownExportOptions {
-        layers: docling::ContentLayers::ALL,
-        traverse_pictures: true,
-        ..Default::default()
-    };
-    let mut failures = Vec::new();
-    for src in &sources() {
-        let rel = &src.rel;
-        let buffered = match convert(&src.path, false) {
-            Ok(d) => d.export_to_markdown_with_options(&options).0,
-            Err(e) => {
-                failures.push(format!("{rel}: convert error: {e}"));
-                continue;
-            }
-        };
-        let streamed = SourceDocument::from_file(&src.path)
-            .map_err(|e| e.to_string())
-            .and_then(|source| {
-                converter_for(&src.path)
-                    .convert_streaming_with_options(source, &options)
-                    .map_err(|e| e.to_string())
-            })
-            .and_then(|stream| {
-                stream
-                    .collect::<Result<String, _>>()
-                    .map_err(|e| e.to_string())
-            });
-        match streamed {
-            Ok(streamed) if streamed == buffered => {}
-            Ok(_) => failures.push(format!("{rel}: streamed Markdown != buffered export")),
-            Err(e) => failures.push(format!("{rel}: stream error: {e}")),
-        }
-    }
+    let failures = &verdicts().streaming_with_options;
     assert!(
         failures.is_empty(),
         "{} streaming mismatch(es):\n{}",
@@ -334,75 +478,15 @@ fn png_payload_masking_keeps_the_rest() {
 
 #[test]
 fn outputs_match_fixtures() {
-    let regen = std::env::var_os("DOCLING_RS_REGEN").is_some();
-    let srcs = sources();
-    assert!(
-        !srcs.is_empty(),
-        "no sources under {}",
-        data_dir().display()
-    );
-
-    let mut failures = Vec::new();
-    for src in &srcs {
-        let rel = &src.rel;
-
-        let legacy = match convert(&src.path, false) {
-            Ok(d) => d,
-            Err(e) => {
-                failures.push(format!("{rel}: convert error: {e}"));
-                continue;
-            }
-        };
-        let strict = match convert(&src.path, true) {
-            Ok(d) => d,
-            Err(e) => {
-                failures.push(format!("{rel}: strict convert error: {e}"));
-                continue;
-            }
-        };
-
-        let outputs = [
-            (".md", legacy.export_to_markdown()),
-            (".strict.md", strict.export_to_markdown()),
-            (".json", legacy.export_to_json()),
-            (".tex", legacy.export_to_latex()),
-            (
-                ".html",
-                legacy
-                    .export_to_html_with_images(docling::ImageMode::Embedded, "artifacts")
-                    .0,
-            ),
-        ];
-        for (suffix, got) in outputs {
-            let path = expected_path(src, suffix);
-            if regen {
-                fs::create_dir_all(path.parent().unwrap()).unwrap();
-                fs::write(&path, got).unwrap();
-                continue;
-            }
-            match fs::read_to_string(&path) {
-                Ok(want) if want == got => {}
-                Ok(want)
-                    if HOST_FONT_PICTURES.contains(&rel.as_str())
-                        && mask_png_payloads(&want) == mask_png_payloads(&got) => {}
-                Ok(_) => failures.push(format!(
-                    "{rel}{suffix}: output changed (run DOCLING_RS_REGEN=1 to update)"
-                )),
-                Err(_) => {
-                    failures.push(format!("{rel}{suffix}: missing fixture {}", path.display()))
-                }
-            }
-        }
-    }
-
-    if regen {
-        eprintln!("regenerated fixtures for {} sources", srcs.len());
+    let v = verdicts();
+    if v.regen {
+        eprintln!("regenerated fixtures for {} sources", v.sources);
         return;
     }
     assert!(
-        failures.is_empty(),
+        v.fixtures.is_empty(),
         "{} regression failure(s):\n{}",
-        failures.len(),
-        failures.join("\n")
+        v.fixtures.len(),
+        v.fixtures.join("\n")
     );
 }
