@@ -2645,7 +2645,10 @@ fn expand_archives(
                 continue;
             }
             items.push(BatchItem {
-                file: root.join(&entry.path),
+                // The entry's segments one by one: a ZIP path is
+                // `/`-separated, and `join`ing it whole leaves that `/`
+                // inside the Windows output path (`bundle\sub/b.md`).
+                file: root.join(entry.path.split('/').collect::<std::path::PathBuf>()),
                 base: base.clone(),
                 entry: Some((file.clone(), entry.index)),
                 preloaded: None,

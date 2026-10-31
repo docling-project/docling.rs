@@ -91,6 +91,24 @@ whole crate with all backends. Two things keep that short.
   `tests/suite/main.rs`, linked once (`--test suite`). The files that change
   the process environment, and `regression`, stay binaries of their own —
   add a new test to the suite unless it calls `std::env::set_var`.
+- **One pass over the corpus**: `regression`'s three tests (the fixtures,
+  streaming vs buffered Markdown, streaming with options) share a single
+  parallel pass that converts each source once per mode and keeps the
+  verdicts, so running one of them by name still converts the whole corpus
+  once — restrict with `DOCLING_RS_REGRESSION_FORMATS=<fmt>,…` instead.
+  A test that walks a corpus (the `*_upstream` suites, `docx_chain_parity`,
+  docling-pdf's `renders_the_corpus`) converts its files in parallel; keep
+  a new one that way — a serial corpus walk in a debug build is a minute
+  of CI per hundred files. A walk that *streams* (`convert_streaming`)
+  runs on plain threads, not rayon's pool: the stream's producer is a
+  thread of its own that may itself fan out on that pool (PPTX slides,
+  XLSX sheets), and a pool whose every worker waits on such a producer
+  is a deadlock (`regression`'s `par_map`). The rule behind both: a
+  rayon worker must never block on a plain thread that may need the
+  pool — and a conversion may, through PPTX/XLSX's `par_iter` or lopdf's
+  (every PDF read, a LaTeX paper's figures included). Work a worker
+  fans out goes on the pool itself (nested rayon is deadlock-free);
+  only a thread that is not a worker may spawn and join plain threads.
 - **`--profile fasttest`**: optimized like `--release` (the PDF/ONNX tests
   need it) but without the thin LTO the release binaries get, and with
   incremental builds — use it instead of `--release` while iterating:

@@ -9,6 +9,7 @@ use std::fs;
 use std::path::Path;
 
 use docling::{DocumentConverter, ImageMode, SourceDocument};
+use rayon::prelude::*;
 
 #[test]
 fn doclang_follows_docling() {
@@ -16,27 +17,38 @@ fn doclang_follows_docling() {
     let root = crate_dir.join("../../tests/data/latex");
     let mirror = fs::read_to_string(crate_dir.join("tests/data/latex/mirror.txt"))
         .expect("latex mirror list");
-    let mut failures = Vec::new();
-    for rel in mirror.lines().map(str::trim).filter(|l| !l.is_empty()) {
-        let name = rel.replace('/', "_");
-        let want = fs::read_to_string(root.join("groundtruth").join(format!("{name}.dclg")))
-            .unwrap_or_else(|e| panic!("{name}.dclg: {e}"));
-        let got = DocumentConverter::new()
-            .convert(SourceDocument::from_file(root.join("sources").join(rel)).expect("source"))
-            .unwrap_or_else(|e| panic!("{rel}: {e}"))
-            .document
-            .export_to_doclang_with_images(ImageMode::Placeholder)
-            .0;
-        if got != want {
+    let papers: Vec<&str> = mirror
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    // A paper's conversion renders its PDF figures (matplotlib / TikZ vector
+    // art, tens of MB of them in the corpus) in a debug build — a minute per
+    // serial pass, so the papers convert in parallel.
+    let failures: Vec<String> = papers
+        .par_iter()
+        .filter_map(|rel| {
+            let name = rel.replace('/', "_");
+            let want = fs::read_to_string(root.join("groundtruth").join(format!("{name}.dclg")))
+                .unwrap_or_else(|e| panic!("{name}.dclg: {e}"));
+            let got = DocumentConverter::new()
+                .convert(SourceDocument::from_file(root.join("sources").join(rel)).expect("source"))
+                .unwrap_or_else(|e| panic!("{rel}: {e}"))
+                .document
+                .export_to_doclang_with_images(ImageMode::Placeholder)
+                .0;
+            if got == want {
+                return None;
+            }
             let line = got
                 .lines()
                 .zip(want.lines())
                 .position(|(g, w)| g != w)
-                .map_or(got.lines().count().min(want.lines().count()), |i| i)
+                .unwrap_or(got.lines().count().min(want.lines().count()))
                 + 1;
-            failures.push(format!("{name} (first difference on line {line})"));
-        }
-    }
+            Some(format!("{name} (first difference on line {line})"))
+        })
+        .collect();
     assert!(
         failures.is_empty(),
         "DocLang differs from docling: {failures:?}"

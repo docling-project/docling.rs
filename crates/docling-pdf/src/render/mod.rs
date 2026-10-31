@@ -234,10 +234,10 @@ mod tests {
         }
         files.sort();
         assert!(!files.is_empty());
-        for f in files {
-            let bytes = std::fs::read(&f).unwrap();
+        let check = |f: &std::path::Path| {
+            let bytes = std::fs::read(f).unwrap();
             let Some(meta) = PdfMeta::open(&bytes) else {
-                continue;
+                return;
             };
             let renderer = Renderer::new(&meta);
             for i in 0..meta.page_count().min(3) {
@@ -260,7 +260,28 @@ mod tests {
                 let dark = img.pixels().filter(|p| p[0] < 200).count();
                 assert!(dark > 0, "{} p{}: blank render", f.display(), i + 1);
             }
-        }
+        };
+        // A minute of debug-build rendering serially; the files are
+        // independent, so a thread per core takes them off a shared queue
+        // (the crate has no rayon). A worker's panic is the test's.
+        let next = std::sync::atomic::AtomicUsize::new(0);
+        let workers = std::thread::available_parallelism().map_or(1, |n| n.get());
+        std::thread::scope(|s| {
+            let handles: Vec<_> = (0..workers.min(files.len()))
+                .map(|_| {
+                    s.spawn(|| loop {
+                        let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(f) = files.get(i) else { break };
+                        check(f);
+                    })
+                })
+                .collect();
+            for h in handles {
+                if let Err(e) = h.join() {
+                    std::panic::resume_unwind(e);
+                }
+            }
+        });
     }
 
     /// Measure this renderer against the docling-parse shim on the corpus at

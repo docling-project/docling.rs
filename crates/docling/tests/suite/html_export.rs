@@ -10,6 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use docling::{ContentLayers, DocumentConverter, HtmlExportOptions, ImageMode, SourceDocument};
+use rayon::prelude::*;
 
 /// `src="data:<mime>;base64,<payload>"` → `src="data:…"`: the payload and
 /// its media type both come from the JSON export's picture bytes.
@@ -72,52 +73,55 @@ fn html_matches_upstream_groundtruth() {
     );
 
     let converter = DocumentConverter::new();
-    let mut failures = Vec::new();
-    for (src, gt) in &cases {
-        let name = src.file_name().unwrap().to_string_lossy().into_owned();
-        let source = SourceDocument::from_file(src).expect("read source");
-        let doc = match converter.convert(source) {
-            Ok(r) => r.document,
-            Err(e) => {
-                failures.push(format!("{name}: convert error: {e}"));
-                continue;
+    // Every fixture with HTML groundtruth, converted once more here (the
+    // regression suite pins our own HTML): in parallel, the verdicts in
+    // the cases' sorted order.
+    let failures: Vec<String> = cases
+        .par_iter()
+        .filter_map(|(src, gt)| {
+            let name = src.file_name().unwrap().to_string_lossy().into_owned();
+            let source = SourceDocument::from_file(src).expect("read source");
+            let doc = match converter.convert(source) {
+                Ok(r) => r.document,
+                Err(e) => return Some(format!("{name}: convert error: {e}")),
+            };
+            let want = fs::read_to_string(gt).expect("read groundtruth");
+            let (got, _) = doc.export_to_html_with_images(ImageMode::Embedded, "artifacts");
+            // Picture payloads are the JSON export's business (upstream's
+            // `save_as_html` re-encodes every picture through PIL as PNG, so
+            // neither its bytes nor its media type are the file's): compare the
+            // markup with the embedded `<img>`s dropped, the trailing newline
+            // aside. Dropped, not masked: references written since docling-core
+            // 2.103 leave out the image of a picture its local-image opt-in did
+            // not load (`docx_rich_cells`' two cell pictures, whose JSON
+            // carries them), so only the markup around a picture is compared.
+            let (got, want) = (
+                drop_embedded_images(&mask_data_uris(got.trim_end())),
+                drop_embedded_images(&mask_data_uris(want.trim_end())),
+            );
+            if got != want {
+                if let Some(dir) = std::env::var_os("DOCLING_RS_HTML_DUMP") {
+                    let dir = Path::new(&dir);
+                    fs::create_dir_all(dir).unwrap();
+                    fs::write(dir.join(format!("{name}.got.html")), &got).unwrap();
+                    fs::write(dir.join(format!("{name}.want.html")), &want).unwrap();
+                }
+                let first = got
+                    .lines()
+                    .zip(want.lines())
+                    .enumerate()
+                    .find(|(_, (a, b))| a != b)
+                    .map(|(i, (a, b))| {
+                        format!("line {}:\n  got:  {:.200}\n  want: {:.200}", i + 1, a, b)
+                    })
+                    .unwrap_or_else(|| {
+                        format!("lengths differ: got {} want {}", got.len(), want.len())
+                    });
+                return Some(format!("{name}: {first}"));
             }
-        };
-        let want = fs::read_to_string(gt).expect("read groundtruth");
-        let (got, _) = doc.export_to_html_with_images(ImageMode::Embedded, "artifacts");
-        // Picture payloads are the JSON export's business (upstream's
-        // `save_as_html` re-encodes every picture through PIL as PNG, so
-        // neither its bytes nor its media type are the file's): compare the
-        // markup with the embedded `<img>`s dropped, the trailing newline
-        // aside. Dropped, not masked: references written since docling-core
-        // 2.103 leave out the image of a picture its local-image opt-in did
-        // not load (`docx_rich_cells`' two cell pictures, whose JSON
-        // carries them), so only the markup around a picture is compared.
-        let (got, want) = (
-            drop_embedded_images(&mask_data_uris(got.trim_end())),
-            drop_embedded_images(&mask_data_uris(want.trim_end())),
-        );
-        if got != want {
-            if let Some(dir) = std::env::var_os("DOCLING_RS_HTML_DUMP") {
-                let dir = Path::new(&dir);
-                fs::create_dir_all(dir).unwrap();
-                fs::write(dir.join(format!("{name}.got.html")), &got).unwrap();
-                fs::write(dir.join(format!("{name}.want.html")), &want).unwrap();
-            }
-            let first = got
-                .lines()
-                .zip(want.lines())
-                .enumerate()
-                .find(|(_, (a, b))| a != b)
-                .map(|(i, (a, b))| {
-                    format!("line {}:\n  got:  {:.200}\n  want: {:.200}", i + 1, a, b)
-                })
-                .unwrap_or_else(|| {
-                    format!("lengths differ: got {} want {}", got.len(), want.len())
-                });
-            failures.push(format!("{name}: {first}"));
-        }
-    }
+            None
+        })
+        .collect();
     assert!(
         failures.is_empty(),
         "{} of {} HTML groundtruth mismatch(es):\n{}",

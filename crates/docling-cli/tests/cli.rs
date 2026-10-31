@@ -516,7 +516,7 @@ fn to_text_prints_plain_text_and_writes_txt() {
 
     let (code, stdout, stderr) = run(&["--to", "text", "--output", &dir.path("out"), &src]);
     assert_eq!(code, 0, "stderr: {stderr}");
-    let written = dir.0.join("out/note.txt");
+    let written = dir.0.join("out").join("note.txt");
     assert_eq!(stdout.trim(), written.to_string_lossy());
     assert_eq!(
         std::fs::read_to_string(&written).unwrap(),
@@ -736,7 +736,9 @@ fn zip_sources_convert_each_document_inside() {
     assert_eq!(code, 0, "stderr: {stderr}");
     for rel in ["bundle/a.md", "bundle/sub/b.md", "duck.md"] {
         assert!(out.0.join(rel).is_file(), "{rel} missing; stderr: {stderr}");
-        assert!(stdout.contains(rel), "stdout: {stdout}");
+        // The CLI prints the output path as the host spells it.
+        let native = rel.replace('/', std::path::MAIN_SEPARATOR_STR);
+        assert!(stdout.contains(&native), "stdout: {stdout}");
     }
     assert!(!out.0.join("bundle/tool.md").exists());
     assert!(!out.0.join("evil.md").exists() && !src.0.join("evil.md").exists());

@@ -1070,10 +1070,11 @@ fn local_path(state: &State, path: &Path) -> Result<PathBuf, String> {
     };
     let lexical = normalize(&joined);
     let under = |p: &Path| {
+        let p = plain(p);
         state
             .roots
             .iter()
-            .any(|r| p.starts_with(&r.given) || p.starts_with(&r.canonical))
+            .any(|r| p.starts_with(plain(&r.given)) || p.starts_with(plain(&r.canonical)))
     };
     if !under(&lexical) {
         return Err(outside());
@@ -1088,6 +1089,25 @@ fn local_path(state: &State, path: &Path) -> Result<PathBuf, String> {
         return Err(outside());
     }
     Ok(canonical)
+}
+
+/// The path without Windows' `\\?\` verbatim prefix: `canonicalize` spells
+/// every root that way there, and the plain `C:\…` a client sends names
+/// the same place without starting with it — so the lexical check compares
+/// both sides in the plain spelling (a UNC `\\?\UNC\host\share` as
+/// `\\host\share`). Elsewhere the path is returned as it is.
+fn plain(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let text = path.to_string_lossy();
+        if let Some(rest) = text.strip_prefix(r"\\?\") {
+            return match rest.strip_prefix(r"UNC\") {
+                Some(unc) => PathBuf::from(format!(r"\\{unc}")),
+                None => PathBuf::from(rest),
+            };
+        }
+    }
+    path.to_path_buf()
 }
 
 /// `.` and `..` folded away without touching the file system.
@@ -1165,6 +1185,21 @@ mod tests {
         assert!(local_path(&s, &std::fs::canonicalize(via_target).unwrap()).is_ok());
         assert!(local_path(&s, &dir.join("docs/../elsewhere")).is_err());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// The canonical root is spelled `\\?\C:\…`, an absolute path the
+    /// client sends `C:\…` — one place, so the latter is under the root.
+    #[cfg(windows)]
+    #[test]
+    fn a_verbatim_root_takes_a_plain_absolute_path() {
+        let root = std::fs::canonicalize(fixtures().join("md")).unwrap();
+        let text = root.to_string_lossy();
+        let Some(plain_root) = text.strip_prefix(r"\\?\") else {
+            panic!("not a verbatim path: {text}");
+        };
+        let s = state(&root, false);
+        assert!(local_path(&s, &Path::new(plain_root).join("sources")).is_ok());
+        assert!(local_path(&s, Path::new(r"C:\Windows\win.ini")).is_err());
     }
 
     #[cfg(unix)]

@@ -1548,7 +1548,11 @@ fn is_local_path(value: &str) -> bool {
 /// docling's `ImageResourceLoader.is_absolute_path`: a rooted path, or a
 /// Windows drive spelling (`C:…`).
 fn is_absolute_path(value: &str) -> bool {
-    Path::new(value).is_absolute()
+    // `has_root`, not `is_absolute`: the href was written into the XML on
+    // any OS, and `/abs/a.png` is docling's `os.path.isabs` — which
+    // `Path::is_absolute` denies on Windows, where the path is root-relative
+    // yet still replaces the base in a `join`.
+    Path::new(value).has_root()
         || (value.len() >= 2
             && value.as_bytes()[1] == b':'
             && value.as_bytes()[0].is_ascii_alphabetic()

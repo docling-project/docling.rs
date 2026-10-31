@@ -15,6 +15,22 @@ fn fixtures() -> PathBuf {
         .unwrap()
 }
 
+/// The `file:` URL of a local path: `file:///home/…`, or `file:///C:/…` for
+/// a canonical Windows path (its `\\?\` prefix dropped, `\` as `/`) — no
+/// character in the fixture paths needs percent-encoding.
+fn file_uri(path: &std::path::Path) -> String {
+    let path = path.to_string_lossy();
+    let path = path
+        .strip_prefix(r"\\?\")
+        .unwrap_or(&path)
+        .replace('\\', "/");
+    if path.starts_with('/') {
+        format!("file://{path}")
+    } else {
+        format!("file:///{path}")
+    }
+}
+
 /// A stdio session: the child plus its two pipe ends.
 struct Session {
     child: Child,
@@ -140,10 +156,7 @@ fn stdio_converts_a_docx_fixture() {
     assert!(!is_error, "{md}");
     assert!(md.contains("Lorem ipsum dolor sit amet"), "{md}");
     // …a file: URI…
-    let uri = format!(
-        "file://{}",
-        root.join("docx/sources/lorem_ipsum.docx").display()
-    );
+    let uri = file_uri(&root.join("docx/sources/lorem_ipsum.docx"));
     let (md2, is_error) = s.call("convert_to_markdown", json!({"uri": uri}));
     assert!(!is_error, "{md2}");
     assert_eq!(md, md2);
@@ -167,11 +180,21 @@ fn stdio_converts_a_docx_fixture() {
 fn stdio_refuses_what_the_operator_did_not_allow() {
     let root = fixtures().join("md");
     let (mut s, _) = Session::start(&["--root", root.to_str().unwrap()]);
-    for uri in [
-        "../docx/sources/lorem_ipsum.docx",
-        "/etc/passwd",
-        "file:///etc/passwd",
-    ] {
+    // An absolute path and its `file:` URL outside the root, in the
+    // spellings the host resolves: `file:///etc/passwd` names no Windows
+    // path at all and is refused earlier, with another message.
+    let outside: &[&str] = if cfg!(windows) {
+        &[
+            "/etc/passwd",
+            r"C:\Windows\win.ini",
+            "file:///C:/Windows/win.ini",
+        ]
+    } else {
+        &["/etc/passwd", "file:///etc/passwd"]
+    };
+    let mut uris = vec!["../docx/sources/lorem_ipsum.docx"];
+    uris.extend_from_slice(outside);
+    for uri in uris {
         let (text, is_error) = s.call("convert_to_markdown", json!({"uri": uri}));
         assert!(is_error, "{uri}: {text}");
         assert!(text.contains("outside the server's root"), "{uri}: {text}");
