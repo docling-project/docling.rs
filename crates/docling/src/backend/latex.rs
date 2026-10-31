@@ -71,6 +71,7 @@ impl DeclarativeBackend for LatexBackend {
             labels: HashSet::new(),
             metadata_groups: HashMap::new(),
             role_groups: HashMap::new(),
+            figures: HashMap::new(),
             doc: Builder::default(),
         };
         conv.run(&text);
@@ -1102,6 +1103,9 @@ struct Converter {
     /// and its `authors` / `affiliations` groups.
     metadata_groups: HashMap<Option<usize>, usize>,
     role_groups: HashMap<(Option<usize>, &'static str), usize>,
+    /// `\includegraphics` payloads rendered ahead of the walk, on worker
+    /// threads (`prerender_figures`), by the macro's argument text.
+    figures: HashMap<String, Figure>,
     doc: Builder,
 }
 
@@ -1119,6 +1123,7 @@ impl Converter {
         self.preserve_source_commands(&nodes, latex_text, &src);
         self.extract_custom_macros(&nodes, 0);
         self.process_preamble(&nodes, 0);
+        self.prerender_figures(&nodes);
         match find_document_env(&nodes, 0) {
             Some(K::Env { nodelist, .. }) => {
                 let nodelist = nodelist.clone();
@@ -1963,45 +1968,60 @@ impl Converter {
     /// docling-pdf's renderer — a build without the `pdf` feature (wasm), or
     /// a missing file, leaves the picture without one.
     fn load_image(&self, img_path: &str) -> (Option<PictureImage>, Option<u32>) {
+        if let Some(rendered) = self.figures.get(img_path) {
+            return rendered.clone();
+        }
         let Some(base_dir) = &self.base_dir else {
             return (None, None);
         };
-        let full = base_dir.join(img_path);
-        if within(base_dir, &full).is_none() || !full.is_file() {
-            return (None, None);
-        }
-        let Ok(data) = std::fs::read(&full) else {
-            return (None, None);
+        load_image_file(base_dir, img_path)
+    }
+
+    /// Every `\includegraphics` under `nodes`, rendered before the walk on
+    /// worker threads (`render_figures`): a paper's PDF figures — matplotlib
+    /// and TikZ vector art, megabytes each — are the bulk of its conversion
+    /// time, and the walk wants them one at a time in document order. Keyed
+    /// by the argument text, each path once; a figure the walk meets that
+    /// was not here (inside an `\input` file) renders in place.
+    fn prerender_figures(&mut self, nodes: &[N]) {
+        let Some(base_dir) = self.base_dir.clone() else {
+            return;
         };
-        if full
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
-        {
-            return render_pdf_figure(&data);
+        let mut paths = Vec::new();
+        self.collect_figure_paths(nodes, &mut paths);
+        if paths.is_empty() {
+            return;
         }
-        let dpi = super::ooxml::image_dpi(&data).map_or(72, |d| d as u32);
-        let Ok(reader) = image::ImageReader::new(std::io::Cursor::new(&data)).with_guessed_format()
-        else {
-            return (None, None);
-        };
-        let Ok(decoded) = reader.decode() else {
-            return (None, None);
-        };
-        let mut png = std::io::Cursor::new(Vec::new());
-        if decoded.write_to(&mut png, image::ImageFormat::Png).is_err() {
-            return (None, None);
+        let rendered = render_figures(&base_dir, &paths);
+        self.figures = paths.into_iter().zip(rendered).collect();
+    }
+
+    fn collect_figure_paths(&self, nodes: &[N], out: &mut Vec<String>) {
+        for node in nodes {
+            match &node.kind {
+                K::Macro { name, args } => {
+                    if name == "includegraphics" {
+                        let path = self.extract_macro_arg(node);
+                        if !path.is_empty() && !out.contains(&path) {
+                            out.push(path);
+                        }
+                    }
+                    for arg in args.iter().flatten().flatten() {
+                        self.collect_figure_paths(std::slice::from_ref(arg), out);
+                    }
+                }
+                K::Env { nodelist, args, .. } => {
+                    for arg in args.iter().flatten().flatten() {
+                        self.collect_figure_paths(std::slice::from_ref(arg), out);
+                    }
+                    self.collect_figure_paths(nodelist, out);
+                }
+                K::Group(list) | K::Math { nodelist: list, .. } => {
+                    self.collect_figure_paths(list, out);
+                }
+                K::Chars(_) | K::Comment | K::Specials(_) | K::Formula(_) => {}
+            }
         }
-        (
-            Some(PictureImage {
-                dpi: PictureImage::DEFAULT_DPI,
-                mimetype: "image/png".into(),
-                width: decoded.width(),
-                height: decoded.height(),
-                data: png.into_inner(),
-                display_size: None,
-            }),
-            Some(dpi),
-        )
     }
 
     // -- environments ----------------------------------------------------------
@@ -2660,6 +2680,102 @@ impl Converter {
             }
         }
     }
+}
+
+/// An `\includegraphics` payload and the dpi it was read at — `None`s
+/// when the file is missing, outside the source's directory or unreadable.
+type Figure = (Option<PictureImage>, Option<u32>);
+
+/// The picture an `\includegraphics` path under `base_dir` yields, as
+/// `load_image` documents it; kept inside the source's directory.
+fn load_image_file(base_dir: &Path, img_path: &str) -> Figure {
+    let full = base_dir.join(img_path);
+    if within(base_dir, &full).is_none() || !full.is_file() {
+        return (None, None);
+    }
+    let Ok(data) = std::fs::read(&full) else {
+        return (None, None);
+    };
+    if full
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
+    {
+        return render_pdf_figure(&data);
+    }
+    let dpi = super::ooxml::image_dpi(&data).map_or(72, |d| d as u32);
+    let Ok(reader) = image::ImageReader::new(std::io::Cursor::new(&data)).with_guessed_format()
+    else {
+        return (None, None);
+    };
+    let Ok(decoded) = reader.decode() else {
+        return (None, None);
+    };
+    let mut png = std::io::Cursor::new(Vec::new());
+    if decoded.write_to(&mut png, image::ImageFormat::Png).is_err() {
+        return (None, None);
+    }
+    (
+        Some(PictureImage {
+            dpi: PictureImage::DEFAULT_DPI,
+            mimetype: "image/png".into(),
+            width: decoded.width(),
+            height: decoded.height(),
+            data: png.into_inner(),
+            display_size: None,
+        }),
+        Some(dpi),
+    )
+}
+
+/// `load_image_file` over `paths`, on worker threads, the results in the
+/// paths' order. The PDF pipeline's page-worker count applies
+/// (`DOCLING_RS_PDF_WORKERS`; else the cores, at most 16): a figure render
+/// is a page render, with a bitmap of up to the `DOCLING_RS_MAX_RENDER_PIXELS`
+/// side behind each worker. Plain scoped threads, not a pool: the
+/// conversion may itself be running on a rayon worker or on a
+/// `convert_streaming` producer thread.
+#[cfg(not(target_arch = "wasm32"))]
+fn render_figures(base_dir: &Path, paths: &[String]) -> Vec<Figure> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Mutex;
+
+    let workers = docling_core::env::parse::<usize>("DOCLING_RS_PDF_WORKERS")
+        .filter(|&n| n > 0)
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism()
+                .map_or(1, |n| n.get())
+                .min(16)
+        })
+        .min(paths.len());
+    if workers <= 1 {
+        return paths.iter().map(|p| load_image_file(base_dir, p)).collect();
+    }
+    let next = AtomicUsize::new(0);
+    let done: Mutex<Vec<Option<Figure>>> =
+        Mutex::new(std::iter::repeat_with(|| None).take(paths.len()).collect());
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| loop {
+                let i = next.fetch_add(1, Ordering::Relaxed);
+                let Some(path) = paths.get(i) else {
+                    break;
+                };
+                let image = load_image_file(base_dir, path);
+                done.lock().unwrap()[i] = Some(image);
+            });
+        }
+    });
+    done.into_inner()
+        .unwrap()
+        .into_iter()
+        .map(|r| r.unwrap_or((None, None)))
+        .collect()
+}
+
+/// No threads on wasm: the figures render one after another.
+#[cfg(target_arch = "wasm32")]
+fn render_figures(base_dir: &Path, paths: &[String]) -> Vec<Figure> {
+    paths.iter().map(|p| load_image_file(base_dir, p)).collect()
 }
 
 /// A PDF figure's first page as the picture's PNG payload, at 144 dpi:
