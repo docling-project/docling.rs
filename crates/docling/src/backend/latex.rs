@@ -2727,55 +2727,23 @@ fn load_image_file(base_dir: &Path, img_path: &str) -> Figure {
     )
 }
 
-/// `load_image_file` over `paths`, on worker threads, the results in the
-/// paths' order. The PDF pipeline's page-worker count applies
-/// (`DOCLING_RS_PDF_WORKERS`; else the cores, at most 16): a figure render
-/// is a page render, with a bitmap of up to the `DOCLING_RS_MAX_RENDER_PIXELS`
-/// side behind each worker. Plain scoped threads, not a pool: the
-/// conversion may itself be running on a rayon worker or on a
-/// `convert_streaming` producer thread.
-#[cfg(not(target_arch = "wasm32"))]
+/// `load_image_file` over `paths` on rayon's global pool, the results in
+/// the paths' order.
+///
+/// The pool, not plain threads: lopdf parses a PDF's objects on that pool,
+/// so a figure render needs a free worker — and the conversion may itself
+/// be running on one (`latex_upstream`, a `par_iter` over the papers). A
+/// plain thread that renders while the worker waits in its `join` holds
+/// the worker and wants the pool it is part of; once every worker waits
+/// that way (eight papers on 4-core CI) nothing moves. Rayon work nested
+/// on the pool is deadlock-free: a worker waiting on a `join` runs other
+/// jobs meanwhile. On wasm the pool is the current thread.
 fn render_figures(base_dir: &Path, paths: &[String]) -> Vec<Figure> {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Mutex;
-
-    let workers = docling_core::env::parse::<usize>("DOCLING_RS_PDF_WORKERS")
-        .filter(|&n| n > 0)
-        .unwrap_or_else(|| {
-            std::thread::available_parallelism()
-                .map_or(1, |n| n.get())
-                .min(16)
-        })
-        .min(paths.len());
-    if workers <= 1 {
-        return paths.iter().map(|p| load_image_file(base_dir, p)).collect();
-    }
-    let next = AtomicUsize::new(0);
-    let done: Mutex<Vec<Option<Figure>>> =
-        Mutex::new(std::iter::repeat_with(|| None).take(paths.len()).collect());
-    std::thread::scope(|scope| {
-        for _ in 0..workers {
-            scope.spawn(|| loop {
-                let i = next.fetch_add(1, Ordering::Relaxed);
-                let Some(path) = paths.get(i) else {
-                    break;
-                };
-                let image = load_image_file(base_dir, path);
-                done.lock().unwrap()[i] = Some(image);
-            });
-        }
-    });
-    done.into_inner()
-        .unwrap()
-        .into_iter()
-        .map(|r| r.unwrap_or((None, None)))
+    use rayon::prelude::*;
+    paths
+        .par_iter()
+        .map(|p| load_image_file(base_dir, p))
         .collect()
-}
-
-/// No threads on wasm: the figures render one after another.
-#[cfg(target_arch = "wasm32")]
-fn render_figures(base_dir: &Path, paths: &[String]) -> Vec<Figure> {
-    paths.iter().map(|p| load_image_file(base_dir, p)).collect()
 }
 
 /// A PDF figure's first page as the picture's PNG payload, at 144 dpi:

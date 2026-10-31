@@ -103,7 +103,12 @@ whole crate with all backends. Two things keep that short.
   runs on plain threads, not rayon's pool: the stream's producer is a
   thread of its own that may itself fan out on that pool (PPTX slides,
   XLSX sheets), and a pool whose every worker waits on such a producer
-  is a deadlock (`regression`'s `par_map`).
+  is a deadlock (`regression`'s `par_map`). The rule behind both: a
+  rayon worker must never block on a plain thread that may need the
+  pool — and a conversion may, through PPTX/XLSX's `par_iter` or lopdf's
+  (every PDF read, a LaTeX paper's figures included). Work a worker
+  fans out goes on the pool itself (nested rayon is deadlock-free);
+  only a thread that is not a worker may spawn and join plain threads.
 - **`--profile fasttest`**: optimized like `--release` (the PDF/ONNX tests
   need it) but without the thin LTO the release binaries get, and with
   incremental builds — use it instead of `--release` while iterating:
