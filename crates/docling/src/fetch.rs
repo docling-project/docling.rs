@@ -777,11 +777,28 @@ mod tests {
     #[cfg(feature = "fetch-url")]
     #[test]
     fn file_url_resolves_to_a_local_path() {
-        assert_eq!(
-            file_url_path("file:///tmp/a%20b.pdf").unwrap(),
-            std::path::PathBuf::from("/tmp/a b.pdf")
-        );
-        assert!(file_url_path("file://host.example/x.pdf").is_err());
+        // A drive-less `file:///tmp/…` names no Windows path (the url crate
+        // refuses it there), and a host is a UNC share on Windows only — so
+        // each host checks its own spellings.
+        #[cfg(not(windows))]
+        {
+            assert_eq!(
+                file_url_path("file:///tmp/a%20b.pdf").unwrap(),
+                std::path::PathBuf::from("/tmp/a b.pdf")
+            );
+            assert!(file_url_path("file://host.example/x.pdf").is_err());
+        }
+        #[cfg(windows)]
+        {
+            assert_eq!(
+                file_url_path("file:///C:/tmp/a%20b.pdf").unwrap(),
+                std::path::PathBuf::from(r"C:\tmp\a b.pdf")
+            );
+            assert_eq!(
+                file_url_path("file://host.example/x.pdf").unwrap(),
+                std::path::PathBuf::from(r"\\host.example\x.pdf")
+            );
+        }
         assert!(file_url_path("https://h.example/x.pdf").is_err());
     }
 
