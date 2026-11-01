@@ -27,7 +27,11 @@ impl RabbitMqQueue {
             .await
             .map_err(|e| RagError::Queue(format!("amqp channel: {e}")))?;
         channel
-            .queue_declare(TOPIC, QueueDeclareOptions::default(), FieldTable::default())
+            .queue_declare(
+                TOPIC.into(),
+                QueueDeclareOptions::default(),
+                FieldTable::default(),
+            )
             .await
             .map_err(|e| RagError::Queue(format!("amqp queue_declare: {e}")))?;
         Ok(RabbitMqQueue { conn, channel })
@@ -40,8 +44,8 @@ impl MessageQueue for RabbitMqQueue {
         let confirm = self
             .channel
             .basic_publish(
-                "",
-                TOPIC,
+                "".into(),
+                TOPIC.into(),
                 BasicPublishOptions::default(),
                 payload,
                 BasicProperties::default(),
@@ -62,8 +66,8 @@ impl MessageQueue for RabbitMqQueue {
             .map_err(|e| RagError::Queue(format!("amqp channel: {e}")))?;
         let consumer = channel
             .basic_consume(
-                TOPIC,
-                "docling-rag",
+                TOPIC.into(),
+                "docling-rag".into(),
                 BasicConsumeOptions {
                     no_ack: true,
                     ..Default::default()

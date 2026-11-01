@@ -38,16 +38,13 @@ env:
   # get tuned out) and `audit-fix` doesn't try to bump what we've accepted.
   # Keep this list in sync with the "Known residual" section of
   # docs/SECURITY.md; drop an entry the week its upstream fix lands so a
-  # regression can't hide behind the ignore.
-  #   RUSTSEC-2026-0194 / -0195: quick-xml DoS, reachable only via calamine's
-  #     transitive 0.31 pin (XLSX). Our direct quick-xml is >=0.41 (patched).
-  #     Remove when calamine bumps quick-xml.
-  #   RUSTSEC-2026-0367 / -0368 / -0369: zip 8.x symlink/permission handling
-  #     in ZipArchive::extract / ZipStreamReader::extract, reachable only via
-  #     calamine's transitive `zip ^8.6` pin, and neither calamine nor docling
-  #     calls either extract (#749). Our direct zip is 9 (patched). Remove
-  #     when calamine moves to zip 9 (tafia/calamine#746).
-  AUDIT_IGNORES: --ignore RUSTSEC-2026-0194 --ignore RUSTSEC-2026-0195 --ignore RUSTSEC-2026-0367 --ignore RUSTSEC-2026-0368 --ignore RUSTSEC-2026-0369
+  # regression can't hide behind the ignore. Empty since #952: calamine 0.37
+  # moved to quick-xml 0.41 / zip 9 (the RUSTSEC-2026-0194/-0195 and
+  # -0367/-0368/-0369 residuals) and object_store 0.14 dropped the last
+  # quick-xml 0.38. The remaining `unmaintained` findings (ttf-parser, paste)
+  # are warnings, which `cargo audit` reports without failing, and are
+  # tracked in SECURITY.md rather than ignored here.
+  AUDIT_IGNORES: ""
 
 jobs:
   # Weekly known-CVE scan of the committed lockfiles. Runs unconditionally

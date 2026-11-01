@@ -95,7 +95,12 @@ pdfium-render = { version = "0.8", optional = true }
 # `dparse_render.rs`) — the same mechanism pdfium-render uses for libpdfium.
 libloading = { version = "0.8", optional = true }
 ort = { version = "2.0.0-rc.14", default-features = false, features = ["std", "download-binaries", "tls-rustls"], optional = true }
-image = { version = "0.25", optional = true }
+# The formats the image input accepts (docling's `format.rs` list; HEIC goes
+# through libheif behind `heif`), not `image`'s default set: the defaults also
+# pull the OpenEXR and AVIF codecs (`exr` → `pulp`, `ravif` → `rav1e`) — two
+# routes to the unmaintained `paste` proc-macro (RUSTSEC-2024-0436, #952) and
+# rav1e's minutes of compile time, for formats nothing here decodes.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "webp"], optional = true }
 flate2 = { version = "1", optional = true }
 tar = { version = "0.4", optional = true }
 regex = { version = "1.11", optional = true }
@@ -143,7 +148,7 @@ lopdf = { version = "0.45", features = ["wasm_js"] }
 # failure apart from "loaded, but no text came out".
 [dev-dependencies]
 # Decodes the corpus figures the picture-classifier test (#517) feeds the model.
-image = "0.25"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "webp"] }
 lopdf = "0.45"
 
 [lib]

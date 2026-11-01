@@ -179,7 +179,8 @@ impl CloudCoords {
 mod cloud {
     use super::CloudCoords;
     use object_store::path::Path as StorePath;
-    use object_store::ObjectStore;
+    // `get` / `put` moved to the `ObjectStoreExt` extension trait in 0.13.
+    use object_store::{ObjectStore, ObjectStoreExt};
     use std::sync::Arc;
     use tokio_stream::StreamExt;
 
