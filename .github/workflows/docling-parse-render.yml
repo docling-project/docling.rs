@@ -50,7 +50,7 @@ jobs:
           - host: ubuntu-24.04-arm
             os: linux
             arch: arm64
-          - host: macos-14
+          - host: macos-15
             os: mac
             arch: arm64
     env:

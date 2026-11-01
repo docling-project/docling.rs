@@ -11,8 +11,10 @@
 # `npm-cuda-v*` / `models-v*` releases never get in its way (#707).
 #
 # macOS (#816): Apple Silicon is built natively on the GitHub-hosted
-# `macos-14` runner, the same one ci.yml's `check (coreml, macos-latest)`
-# job and docling-parse-render.yml's `build mac-arm64` job already run on.
+# `macos-15` runner (`macos-14` was retired on 2026-11-02 — its brownouts
+# failed the v2.62.0 wheel job; actions/runner-images#13518), the image
+# family ci.yml's `check (coreml, macos-latest)` job and
+# docling-parse-render.yml's `build mac-arm64` job run on.
 # (The "macOS runners are blocked" note this matrix carried until #816 dated
 # from the repository's previous home, where the Intel-mac job hung waiting
 # for a runner; it never applied to docling-project.) pyke's only
@@ -95,7 +97,7 @@ jobs:
             cli_only: true
           # Apple Silicon, native (see the header for Intel).
           - target: aarch64-apple-darwin
-            host: macos-14
+            host: macos-15
             macos_min: "13.0"
           # IBM Z: no native runner, cross-compiled with cargo-zigbuild (see
           # the header). `cross` is the binutils prefix used to strip.
