@@ -28,6 +28,7 @@ use std::sync::Arc;
 
 use lopdf::{Dictionary, Document, Object, ObjectId};
 use read_fonts::ps::cff::CffFontRef;
+use read_fonts::TableProvider as _;
 use skrifa::font::charmap::{Encoding, EncodingKind};
 use skrifa::font::glyph::outline::{DrawMemory, DrawOptions, OutlineSource, PathSink};
 use skrifa::font::Font;
@@ -938,14 +939,48 @@ fn outline_glyph(font: &Font, gid: GlyphId) -> Option<GlyphPath> {
         return None;
     }
     let mut b = Builder(tiny_skia::PathBuilder::new());
+    let mut dx = 0.0f32;
     if let Some(glyph) = font.outline_glyphs().get(gid) {
         let _ = glyph.draw(&DrawOptions::new(), DrawMemory::Scratch, &mut b);
+        if glyph.source() == OutlineSource::Glyf {
+            dx = glyf_lsb_shift(font, gid);
+        }
     }
+    let path = b.0.finish().and_then(|p| {
+        if dx == 0.0 {
+            Some(p)
+        } else {
+            p.transform(tiny_skia::Transform::from_translate(dx, 0.0))
+        }
+    });
     let advance = f64::from(font.glyph_metrics().h_advance(gid));
-    Some(GlyphPath {
-        path: b.0.finish(),
-        advance,
-    })
+    Some(GlyphPath { path, advance })
+}
+
+/// How far read-fonts moved a `glyf` outline from its stored coordinates:
+/// like FreeType, it translates every TrueType glyph so that its xMin lands
+/// on `hmtx`'s left side bearing (the first phantom point, `lsb − xMin`).
+/// A well-formed font (`head` flag 1) keeps the two equal and the shift is
+/// zero; the subsetted fonts PDF producers embed often do not — a bold
+/// Helvetica subset in the corpus has its hyphen 50 units apart — and the
+/// stored coordinates are what ttf-parser drew, what docling-parse draws,
+/// and so what the renders are measured against. The shift is undone.
+fn glyf_lsb_shift(font: &Font, gid: GlyphId) -> f32 {
+    let tables = font.tables();
+    let (Ok(glyf), Ok(loca), Ok(hmtx)) = (tables.glyf(), tables.loca(None), tables.hmtx()) else {
+        return 0.0;
+    };
+    let Some(lsb) = hmtx.side_bearing(gid) else {
+        return 0.0;
+    };
+    // An empty glyph (no outline data) is placed at xMin = 0, as FreeType does.
+    let x_min = loca
+        .get_glyf(gid, &glyf)
+        .ok()
+        .flatten()
+        .map(|g| g.x_min())
+        .unwrap_or(0);
+    f32::from(x_min) - f32::from(lsb)
 }
 
 /// glyph units → text space for a program: 1/unitsPerEm. For a CFF program

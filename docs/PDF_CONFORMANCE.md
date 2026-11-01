@@ -153,18 +153,22 @@ says `… and the password is wrong`).
 * **Fonts** (`render/font/`): TrueType/OpenType and bare CFF through
   `skrifa` / `read-fonts` (Google Fonts' fontations; `ttf-parser` until
   #952, when its author declared it unmaintained — RUSTSEC-2026-0192. The
-  port rendered 99 of the corpus's 113 pages pixel-identically; the other
-  14 — `multi_page`, `normal_4pages` p1, `redp5110` pp7–15 — differ in
-  ≤ 0.013 % of their pixels, the anti-aliasing of a TrueType bullet's
-  edge and of CFF italics (read-fonts applies the FontMatrix in 16.16
-  fixed point where the old path multiplied f64), and every one of them
-  is as close to the docling-parse shim as before or closer, `multi_page`
-  0.676 → 0.669 mean |Δ|. Through the models, 45 of the 46 corpus PDFs
-  convert to byte-identical Markdown with the Rust renderer; `redp5110`
-  moves on two borderline regions of its italic/monospace CFF pages — a
-  SQL listing's TableFormer cells regroup, keeping two tokens the old
-  render dropped, and a code listing heron had called a picture is read
-  as text — the shim-rendered snapshot baselines being untouched) —
+  port is measured against the old renders with `render_compare`: 110 of
+  the corpus's 119 pages pixel-identical, after undoing one FreeType-ism
+  read-fonts applies — a `glyf` outline moved so its xMin meets `hmtx`'s
+  left side bearing, which the subsetted fonts PDFs embed violate (a bold
+  Helvetica subset's hyphen by 50 units) and neither ttf-parser nor
+  docling-parse apply. The 9 that differ are `redp5110` pp7–15, in
+  ≤ 0.013 % of their pixels: an italic CFF whose FontMatrix skew
+  read-fonts applies in 16.16 fixed point (≤ 0.4/1000 em from the f64
+  path), and a handful of accented (`seac`) glyphs placed as FreeType
+  does, among them glyphs ttf-parser drew nothing for; none is further
+  from the docling-parse shim and p8 is closer. Through the models, 45 of
+  the 46 corpus PDFs convert to byte-identical Markdown; `redp5110` moves
+  on two borderline regions — a SQL listing's TableFormer cells regroup,
+  keeping two tokens the old render dropped, and a code listing heron had
+  called a picture is read as text — the shim-rendered snapshot baselines
+  being untouched) —
   with the Type 2 `dotsection` operator (`12 0`, a Type 1 hint Adobe's
   converters leave in front of every dot) stripped from the charstrings
   first (`dotsection.rs`, #531): the spec says to ignore it, and skrifa
