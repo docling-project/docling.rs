@@ -14,7 +14,10 @@
 # libstdc++. The tarball onnxruntime-linux-s390x.tar.gz unpacks straight into
 # .models/onnxruntime/:
 #   libonnxruntime.so, libonnxruntime.so.1, libonnxruntime.so.<version>
-#   LICENSE, VERSION
+#   LICENSE, ThirdPartyNotices.txt, VERSION — and the provenance records
+#   (#954): GIT_COMMIT_ID (the upstream commit built) and BUILD_INFO (tag,
+#   commit, the library's sha256, compiler, glibc floor, recipe commit, this
+#   run's URL), what docs/IBMZ.md "Runtime provenance & advisories" points at.
 # The smoke test runs the s390x docling-rs CLI under qemu-user against it:
 # a DOCX (no runtime involved) and a one-page PDF through the layout model.
 #
@@ -87,7 +90,8 @@ jobs:
       - name: Stage tarball
         run: |
           mkdir -p release-assets .models/onnxruntime
-          cp -a onnxruntime-s390x/lib/. onnxruntime-s390x/LICENSE onnxruntime-s390x/VERSION .models/onnxruntime/
+          cp -a onnxruntime-s390x/lib/. onnxruntime-s390x/LICENSE onnxruntime-s390x/ThirdPartyNotices.txt \
+            onnxruntime-s390x/VERSION onnxruntime-s390x/GIT_COMMIT_ID onnxruntime-s390x/BUILD_INFO .models/onnxruntime/
           tar czf release-assets/onnxruntime-linux-s390x.tar.gz -C .models/onnxruntime .
           ls -la release-assets/ .models/onnxruntime/
 

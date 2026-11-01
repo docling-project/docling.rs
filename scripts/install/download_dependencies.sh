@@ -105,9 +105,13 @@
 # itself never loads it. Building the models from source: see
 # scripts/install/pdf_setup.sh.
 #
-# --with-onnxruntime fetches the ONNX Runtime shared library for IBM Z into
-# .models/onnxruntime/ (#504; automatic on an s390x host, where no prebuilt
-# runtime is linked in and the `ort-load-dynamic` build dlopens this one).
+# --with-onnxruntime fetches the ONNX Runtime shared library an
+# `ort-load-dynamic` build dlopens into .models/onnxruntime/ (#504; automatic
+# on an s390x host, where no prebuilt runtime is linked in): docling.rs's own
+# s390x build from the models release, or — on linux-x64, linux-aarch64,
+# osx-arm64, win-x64 — Microsoft's official release archive of the same
+# ONNX Runtime version, checked against the digests pinned in this script
+# (#954; the record docs/IBMZ.md "Runtime provenance" documents).
 # --with-fonts drops the Liberation and DejaVu families into .models/fonts —
 # the faces the pure-Rust page renderer substitutes for fonts a PDF does not
 # embed (the base-14 Helvetica/Times/Courier of most office exports). Only
@@ -413,18 +417,66 @@ if [ "$WITH_DPARSE" = true ]; then
     fi
   fi
 fi
-# ONNX Runtime for IBM Z (#504; --with-onnxruntime / DOCLING_RS_WITH_ONNXRUNTIME=1,
-# on by default on an s390x host): pyke's `ort` links a prebuilt runtime on
-# x86_64/aarch64 only, so the s390x build of docling.rs (`ort-load-dynamic`)
-# dlopens libonnxruntime.so — `ORT_DYLIB_PATH`, then this directory through
-# the models-dir resolution, then the library search path. Built from source
-# by .github/workflows/onnxruntime-s390x.yml (scripts/install/build_onnxruntime_s390x.sh)
+# ONNX Runtime for an `ort-load-dynamic` build (#504; --with-onnxruntime /
+# DOCLING_RS_WITH_ONNXRUNTIME=1, on by default on an s390x host): pyke's
+# `ort` links a prebuilt runtime on x86_64/aarch64 only, so the s390x build
+# of docling.rs dlopens libonnxruntime.so — `ORT_DYLIB_PATH`, then this
+# directory through the models-dir resolution, then the library search path.
+# On s390x the library is docling.rs's own, built from source by
+# .github/workflows/onnxruntime-s390x.yml (scripts/install/build_onnxruntime_s390x.sh)
 # into the models release as onnxruntime-linux-s390x.tar.gz, which unpacks
-# into .models/onnxruntime/ as is. Only the s390x build exists: on another
-# arch the flag is a no-op with a note (the runtime is linked in there).
+# into .models/onnxruntime/ as is and is checked against SHA256SUMS like
+# every other asset.
+#
+# Elsewhere the runtime is linked into the default build and the flag only
+# matters for a build made with `ort-load-dynamic` (a self-built runtime, a
+# library the host must be able to audit). The *supported* runtime for such
+# a build is Microsoft's own release archive of the ONNX Runtime version the
+# linked builds carry — the exact bytes below, pinned by the archive's
+# sha256, the library's sha256 and upstream's GIT_COMMIT_ID (#954): a
+# provenance record an operator can take to upstream's advisories
+# (https://github.com/microsoft/onnxruntime/security/advisories) without
+# guessing which build of "1.31.0" is installed. Microsoft publishes no
+# SBOM or signed attestation for these archives (checked for v1.31.0); the
+# pin is what makes them identifiable. docs/IBMZ.md "Runtime provenance &
+# advisories" is the human-readable copy of this table — keep the two in
+# step, and refresh both when the linked builds move (`ort-sys`'s version in
+# Cargo.lock; scripts/install/build_onnxruntime_s390x.sh's ORT_TAG).
+#
+# Columns: platform  archive  archive-sha256  library  library-sha256  GIT_COMMIT_ID
+# The platform is `uname -s`/`uname -m` folded to upstream's asset names;
+# Microsoft publishes no osx-x86_64 archive for this version.
+ORT_UPSTREAM_VERSION="1.31.0"
+ORT_UPSTREAM_URL="${DOCLING_RS_ONNXRUNTIME_URL:-https://github.com/microsoft/onnxruntime/releases/download/v$ORT_UPSTREAM_VERSION}"
+ORT_UPSTREAM_PINS='
+linux-x64     onnxruntime-linux-x64-1.31.0.tgz     cc5c72baf5ae5c8238a6841f0897227be2d02826b9cf98eaf02fdefaeeb03a57  libonnxruntime.so.1.31.0     469849977cb60744ea160927e1a3a0643fd4c55c0aff743251c6d293402e334e  402979ac1bef89dcd55add41eaa7277c407599eb
+linux-aarch64 onnxruntime-linux-aarch64-1.31.0.tgz c5b8b3cca31f3d643a3b313b8f42e2d0f16a4fcefd02cda343d97bd5306afaab  libonnxruntime.so.1.31.0     595c7f7a6775f5c7b3d567c3ed94c04f722092575abcc092560f5208a54daf99  402979ac1bef89dcd55add41eaa7277c407599eb
+osx-arm64     onnxruntime-osx-arm64-1.31.0.tgz     1031b36dd3bdaa8d976a6130d9cf2a05e9be320b93ae804f8427b91dc3432afc  libonnxruntime.1.31.0.dylib  2a50a63e7f41f8d4d551d3ee47248df3864f6540109fce8ad520ca3b51af4b70  402979ac1bef89dcd55add41eaa7277c407599eb
+win-x64       onnxruntime-win-x64-1.31.0.zip       3958d8a44984160692c1b4ffd0de3cb48f8c39f9d34bb31e433db06e30b82195  onnxruntime.dll              0c42dc4e278f0968fdf9ebf1b1e54a74c657a9942e70803e453c91993451cf4c  402979ac1bef89dcd55add41eaa7277c407599eb
+'
+
+verify_pinned() { # <file> <expected-sha256> <label> — a pinned digest; a mismatch ends the run
+  [ "$VERIFY" = off ] && return 0
+  got="$(sha256_of "$1")"
+  if [ -z "$got" ]; then
+    if [ "$VERIFY" = require ]; then
+      rm -f "$1"
+      echo "error: no sha256sum, shasum or openssl on PATH to check $3 (DOCLING_RS_MODELS_VERIFY=require)" >&2
+      exit 1
+    fi
+    echo "  ! no sha256sum, shasum or openssl on PATH — $3 not integrity-checked" >&2
+    return 0
+  fi
+  if [ "$got" != "$2" ]; then
+    rm -f "$1"
+    echo "error: $3: sha256 mismatch (expected $2, got $got) — not the bytes docling.rs pins for this runtime: a corrupted download, a replaced upstream asset, or a mirror (DOCLING_RS_ONNXRUNTIME_URL) serving another build; the pin is updated with the version the linked builds carry, not bypassed" >&2
+    exit 1
+  fi
+}
+
 if [ "$WITH_ORT" = true ]; then
-  case "$(uname -m)" in
-    s390x)
+  case "$(uname -s)-$(uname -m)" in
+    Linux-s390x)
       ORT_ASSET="onnxruntime-linux-s390x.tar.gz"
       if [ "$FORCE" = false ] && [ -f .models/onnxruntime/libonnxruntime.so ]; then
         echo "  = .models/onnxruntime/libonnxruntime.so (already present)"
@@ -435,7 +487,8 @@ if [ "$WITH_ORT" = true ]; then
           verify "$BASE_URL/$ORT_ASSET" .models/onnxruntime/ort.tgz
           tar xzf .models/onnxruntime/ort.tgz -C .models/onnxruntime
           rm -f .models/onnxruntime/ort.tgz
-          echo "  > .models/onnxruntime/libonnxruntime.so ($ORT_ASSET, ONNX Runtime $(cat .models/onnxruntime/VERSION 2>/dev/null))"
+          ORT_BUILT="$(cat .models/onnxruntime/GIT_COMMIT_ID 2>/dev/null || true)"
+          echo "  > .models/onnxruntime/libonnxruntime.so ($ORT_ASSET, ONNX Runtime $(cat .models/onnxruntime/VERSION 2>/dev/null)${ORT_BUILT:+ @ $ORT_BUILT})"
         else
           rm -f .models/onnxruntime/ort.tgz
           echo "  ($ORT_ASSET not hosted for this tag — scripts/install/build_onnxruntime_s390x.sh builds it; without it the ML stages are unavailable on this host)"
@@ -443,7 +496,70 @@ if [ "$WITH_ORT" = true ]; then
       fi
       ;;
     *)
-      echo "  (--with-onnxruntime: only the s390x build exists; on $(uname -m) the runtime is linked into the binary)"
+      case "$(uname -s)-$(uname -m)" in
+        Linux-x86_64) ORT_PLATFORM=linux-x64 ;;
+        Linux-aarch64) ORT_PLATFORM=linux-aarch64 ;;
+        Darwin-arm64) ORT_PLATFORM=osx-arm64 ;;
+        MINGW*-x86_64 | MSYS*-x86_64 | CYGWIN*-x86_64) ORT_PLATFORM=win-x64 ;;
+        *) ORT_PLATFORM= ;;
+      esac
+      # shellcheck disable=SC2086 # the pin row splits into its columns
+      set -- $(printf '%s\n' "$ORT_UPSTREAM_PINS" | awk -v p="$ORT_PLATFORM" 'p != "" && $1 == p')
+      if [ $# -ne 6 ]; then
+        echo "  (--with-onnxruntime: no pinned ONNX Runtime $ORT_UPSTREAM_VERSION archive for $(uname -s)/$(uname -m) — the default build links the runtime in; an ort-load-dynamic build takes one through ORT_DYLIB_PATH, see docs/IBMZ.md)"
+      else
+        ORT_ASSET=$2 ORT_ARCHIVE_SHA=$3 ORT_LIB=$4 ORT_LIB_SHA=$5 ORT_COMMIT=$6
+        case "$ORT_LIB" in
+          *.dll) ORT_SONAME=onnxruntime.dll ;;
+          *.dylib) ORT_SONAME=libonnxruntime.dylib ;;
+          *) ORT_SONAME=libonnxruntime.so ;;
+        esac
+        if [ "$FORCE" = false ] && [ -f ".models/onnxruntime/$ORT_SONAME" ]; then
+          echo "  = .models/onnxruntime/$ORT_SONAME (already present)"
+        else
+          mkdir -p .models/onnxruntime
+          rm -rf .models/onnxruntime/.unpack && mkdir -p .models/onnxruntime/.unpack
+          echo "  > .models/onnxruntime/$ORT_SONAME ($ORT_ASSET from $ORT_UPSTREAM_URL)"
+          # shellcheck disable=SC2086
+          curl -fsSL $CURL_TIMEOUTS -o ".models/onnxruntime/.unpack/$ORT_ASSET" "$ORT_UPSTREAM_URL/$ORT_ASSET"
+          verify_pinned ".models/onnxruntime/.unpack/$ORT_ASSET" "$ORT_ARCHIVE_SHA" "$ORT_ASSET"
+          case "$ORT_ASSET" in
+            *.zip)
+              if command -v unzip >/dev/null 2>&1; then
+                unzip -q ".models/onnxruntime/.unpack/$ORT_ASSET" -d .models/onnxruntime/.unpack
+              else
+                python3 -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])' ".models/onnxruntime/.unpack/$ORT_ASSET" .models/onnxruntime/.unpack
+              fi
+              ;;
+            *) tar xzf ".models/onnxruntime/.unpack/$ORT_ASSET" -C .models/onnxruntime/.unpack ;;
+          esac
+          ORT_TOP="$(find .models/onnxruntime/.unpack -mindepth 1 -maxdepth 1 -type d | head -1)"
+          # The library, its versioned name and the symlinks between them land
+          # flat in .models/onnxruntime/ (the layout the s390x tarball has and
+          # the lookup expects); upstream's records travel with the bytes.
+          # Not copied: the dSYM bundle, the cmake/pkgconfig files, headers,
+          # the test custom-op library.
+          find "$ORT_TOP/lib" -maxdepth 1 \( -type f -o -type l \) \( -name 'libonnxruntime*' -o -name 'onnxruntime*.dll' -o -name 'onnxruntime*.lib' \) -exec cp -a {} .models/onnxruntime/ \;
+          # The macOS archive ships the unversioned name as a second copy of
+          # the library that differs only in its install name; make it the
+          # symlink the Linux archive has, so the file the lookup dlopens is
+          # the pinned bytes.
+          if [ -f ".models/onnxruntime/$ORT_SONAME" ] && [ ! -L ".models/onnxruntime/$ORT_SONAME" ] && [ "$ORT_SONAME" != "$ORT_LIB" ] && [ -f ".models/onnxruntime/$ORT_LIB" ]; then
+            ln -sf "$ORT_LIB" ".models/onnxruntime/$ORT_SONAME"
+          fi
+          for f in LICENSE ThirdPartyNotices.txt GIT_COMMIT_ID VERSION_NUMBER; do
+            [ -f "$ORT_TOP/$f" ] && cp "$ORT_TOP/$f" .models/onnxruntime/
+          done
+          tr -d '\n' < .models/onnxruntime/VERSION_NUMBER > .models/onnxruntime/VERSION && echo >> .models/onnxruntime/VERSION
+          rm -rf .models/onnxruntime/.unpack
+          verify_pinned ".models/onnxruntime/$ORT_LIB" "$ORT_LIB_SHA" "$ORT_LIB"
+          if [ "$(tr -d '[:space:]' < .models/onnxruntime/GIT_COMMIT_ID 2>/dev/null)" != "$ORT_COMMIT" ]; then
+            echo "error: $ORT_ASSET: GIT_COMMIT_ID $(cat .models/onnxruntime/GIT_COMMIT_ID 2>/dev/null) is not the pinned $ORT_COMMIT" >&2
+            exit 1
+          fi
+          echo "  > .models/onnxruntime/$ORT_SONAME (ONNX Runtime $(cat .models/onnxruntime/VERSION) @ $ORT_COMMIT, sha256 $ORT_LIB_SHA)"
+        fi
+      fi
       ;;
   esac
 fi

@@ -201,7 +201,12 @@ cargo test -p docling-pdf --features pdfium --lib raster:: pdfium_backend::  # t
   `DOCLING_RS_EP` (GPU execution providers), `ORT_DYLIB_PATH` (an
   `ort-load-dynamic` build only, #504: the `libonnxruntime.so` to `dlopen`;
   unset → `.models/onnxruntime/<soname>` then the library search path; missing
-  → the ML stages degrade like a missing model; the s390x library is
+  → the ML stages degrade like a missing model; `download_dependencies.sh
+  --with-onnxruntime` installs the *supported* runtime, #954: on s390x the
+  models-release tarball, elsewhere Microsoft's 1.31.0 archive for the host
+  checked against the archive/library/commit pins in the script, the table
+  `docs/IBMZ.md` "Runtime provenance & advisories" mirrors — move both with
+  `ort-sys`; the s390x library is
   `onnxruntime-linux-s390x.tar.gz` in the models release —
   `onnxruntime-s390x.yml` / `build_onnxruntime_s390x.sh` cross-build it,
   `download_dependencies.sh` fetches it on an s390x host), `DOCLING_RS_ASR_LANG`,

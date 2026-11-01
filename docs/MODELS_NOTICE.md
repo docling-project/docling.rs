@@ -30,7 +30,7 @@ Not models, hosted in the same release:
 |---|---|---|
 | `libpdfium.so` — used only by a build with docling-pdf's opt-in `pdfium` feature and its oracle tests; the default pipeline renders in pure Rust | [bblanchon/pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) @ `chromium/8100` (`pdfium-linux-x64.tgz`), a build of Google's PDFium, re-hosted unmodified; the build's own `LICENSE` is the release's `LICENSE-pdfium-binaries.txt`, its dependencies' notices ship inside the upstream tarball | BSD-3-Clause (PDFium) / Apache-2.0 |
 | `docling-parse-render-<os>-<arch>.tar.gz` — docling-parse's Blend2D renderer as a `dlopen`-able shim (#478), the conformance scripts' development oracle | [docling-project/docling-parse](https://github.com/docling-project/docling-parse) @ `v7.22.1`, built from source by `.github/workflows/docling-parse-render.yml` | MIT |
-| `onnxruntime-linux-s390x.tar.gz` — the ONNX Runtime an `ort-load-dynamic` build `dlopen`s on IBM Z (#504); carries upstream's `LICENSE` | [microsoft/onnxruntime](https://github.com/microsoft/onnxruntime) @ `v1.31.0`, built from source by `.github/workflows/onnxruntime-s390x.yml` | MIT |
+| `onnxruntime-linux-s390x.tar.gz` — the ONNX Runtime an `ort-load-dynamic` build `dlopen`s on IBM Z (#504); carries upstream's `LICENSE`, `ThirdPartyNotices.txt`, `VERSION`, `GIT_COMMIT_ID` and a `BUILD_INFO` record (#954, `docs/IBMZ.md`) | [microsoft/onnxruntime](https://github.com/microsoft/onnxruntime) @ `v1.31.0`, built from source by `.github/workflows/onnxruntime-s390x.yml` | MIT |
 
 `scripts/install/export_layout.py`, `scripts/install/export_tableformer.py` and
 `scripts/install/export_code_formula.py` do the conversion (PyTorch → ONNX via

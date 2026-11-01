@@ -34,7 +34,8 @@
 #   ORT_TOOLCHAIN        zig (default) | gcc — see above.
 #   ORT_SRC_DIR          an existing checkout to build instead of cloning.
 #   JOBS                 parallel compile jobs (default: nproc).
-#   OUT_DIR              where lib/, LICENSE and VERSION land (default ./onnxruntime-s390x).
+#   OUT_DIR              where lib/, LICENSE, ThirdPartyNotices.txt, VERSION,
+#                        GIT_COMMIT_ID and BUILD_INFO land (default ./onnxruntime-s390x).
 #   PROTOC               a host protoc of the protobuf release the tag pins in
 #                        cmake/deps.txt (default: downloaded from that release —
 #                        ONNX Runtime needs the host's protoc when
@@ -176,10 +177,43 @@ rm -rf "$OUT_DIR/lib" && mkdir -p "$OUT_DIR/lib"
 cp -a "$BUILD"/libonnxruntime.so* "$OUT_DIR/lib/"
 [ -n "$STRIP" ] && "$STRIP" --strip-unneeded "$OUT_DIR"/lib/libonnxruntime.so.*.*.* || echo "(no s390x-linux-gnu-strip on the host — the library is left unstripped)"
 cp "$SRC/LICENSE" "$OUT_DIR/LICENSE"
+cp "$SRC/ThirdPartyNotices.txt" "$OUT_DIR/ThirdPartyNotices.txt"
 tr -d '\n' < "$SRC/VERSION_NUMBER" > "$OUT_DIR/VERSION"; echo >> "$OUT_DIR/VERSION"
-echo "built ONNX Runtime $(cat "$OUT_DIR/VERSION") for s390x ($ORT_TOOLCHAIN toolchain):"
-ls -la "$OUT_DIR/lib"
-file "$OUT_DIR"/lib/libonnxruntime.so.*.*.* | sed 's/,.*//'
+# Provenance records (#954), the same files Microsoft's own release archives
+# carry plus what they lack: GIT_COMMIT_ID is the upstream commit the library
+# was compiled from, BUILD_INFO the exact-binary record — tag, commit, the
+# library's sha256, the compiler, the glibc floor, the docling.rs recipe
+# commit and the CI run — an operator takes to upstream's advisories.
+git -C "$SRC" rev-parse HEAD > "$OUT_DIR/GIT_COMMIT_ID"
+LIB="$(ls "$OUT_DIR"/lib/libonnxruntime.so.*.*.*)"
+GLIBC_FLOOR=""
 if command -v s390x-linux-gnu-objdump >/dev/null 2>&1; then
-  echo "glibc floor: $(s390x-linux-gnu-objdump -T "$OUT_DIR"/lib/libonnxruntime.so.*.*.* | grep -o 'GLIBC_2\.[0-9]*' | sort -t. -k2 -n | uniq | tail -1)"
+  GLIBC_FLOOR="$(s390x-linux-gnu-objdump -T "$LIB" | grep -o 'GLIBC_2\.[0-9]*' | sort -t. -k2 -n | uniq | tail -1)"
 fi
+case "$ORT_TOOLCHAIN" in
+  zig) COMPILER="zig $("$ZIG" version) ($ZIG_FLAGS)" ;;
+  *) COMPILER="$(s390x-linux-gnu-gcc --version | head -1)" ;;
+esac
+{
+  echo "artifact=onnxruntime-linux-s390x.tar.gz"
+  echo "onnxruntime_tag=$ORT_TAG"
+  echo "onnxruntime_commit=$(cat "$OUT_DIR/GIT_COMMIT_ID")"
+  echo "onnxruntime_version=$(cat "$OUT_DIR/VERSION")"
+  echo "library=$(basename "$LIB")"
+  echo "library_sha256=$(sha256sum "$LIB" | cut -d' ' -f1)"
+  echo "target=s390x-unknown-linux-gnu"
+  echo "compiler=$COMPILER"
+  echo "glibc_floor=${GLIBC_FLOOR:-unknown}"
+  echo "stripped=$([ -n "$STRIP" ] && echo yes || echo no)"
+  echo "recipe=scripts/install/build_onnxruntime_s390x.sh"
+  echo "recipe_commit=$(git -C "$HERE" rev-parse HEAD 2>/dev/null || echo unknown)"
+  echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  if [ -n "${GITHUB_RUN_ID:-}" ]; then
+    echo "workflow_run=${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-}/actions/runs/$GITHUB_RUN_ID${GITHUB_RUN_ATTEMPT:+/attempts/$GITHUB_RUN_ATTEMPT}"
+  fi
+} > "$OUT_DIR/BUILD_INFO"
+echo "built ONNX Runtime $(cat "$OUT_DIR/VERSION") @ $(cat "$OUT_DIR/GIT_COMMIT_ID") for s390x ($ORT_TOOLCHAIN toolchain):"
+ls -la "$OUT_DIR/lib"
+file "$LIB" | sed 's/,.*//'
+echo "glibc floor: ${GLIBC_FLOOR:-unknown}"
+cat "$OUT_DIR/BUILD_INFO"
