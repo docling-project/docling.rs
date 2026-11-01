@@ -1,6 +1,9 @@
 # Freeze a models release into an immutable content-addressed copy
-# (scripts/ci/models_snapshot.sh, #951) — run after publish-models.yml /
-# models-manifest.yml changed the rolling release:
+# (scripts/ci/models_snapshot.sh, #951). Since #965 every workflow that
+# uploads into the rolling release (publish-models.yml,
+# docling-parse-render.yml, onnxruntime-s390x.yml, models-manifest.yml)
+# ends by running the same script, so this dispatch is the repair path —
+# a publish whose last step failed, a release changed by hand:
 #
 #   gh workflow run models-snapshot.yml                   # tag = models-v1
 #   gh workflow run models-snapshot.yml -f tag=models-v2

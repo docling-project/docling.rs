@@ -225,11 +225,31 @@ the four ONNX graphs are delegated to
 wrappers around `ort.InferenceSession`. One implementation is what keeps the
 wasm output matching native — drift can only come from the runtime kernels.
 
-| Stage | What | Models (from the [`models-v1` release](https://github.com/docling-project/docling.rs/releases/tag/models-v1)) |
+| Stage | What | Models (from the [`models-v1` release](https://github.com/docling-project/docling.rs/releases/tag/models-v1) — pin a build to one of its immutable `models-v1-<id>` snapshots, below) |
 |---|---|---|
 | **1** — `ocr_image` | OCR a single scanned **image** | PP-OCRv3 recognition (~10 MB) |
 | **2** — `ScannedConverter` / `convert_scanned_image` | Scanned **PDF/image** → Markdown: layout + OCR + reading order, tables via geometric reconstruction | + RT-DETR layout (`layout_heron_int8.onnx`, ~68 MB) |
 | **3** — `ScannedConverter.addPageTf` | Real **TableFormer** table structure, on the tables that need it | + `tableformer/{encoder,decoder_kv,bbox}.onnx` (~260 MB; ~380 MB with the pre-#374 encoder) |
+
+**Pin the model bytes to a snapshot, not to `models-v1`.** `models-v1` is a
+rolling release: every `publish-models.yml` run re-uploads its assets, and
+a re-export of the same weights is not byte-identical (the fp32 graph's
+folded BatchNorm scales differ in their last bits between runs, and the INT8
+calibration infers on whichever CPU the runner has), which breaks a build
+that checks the file's sha256 (#965). Every published
+state is frozen into an immutable prerelease named
+`models-v1-<12 hex of sha256(SHA256SUMS)>`; fetch from that URL and the
+digest you pinned holds forever:
+
+```js
+// the snapshot's SHA256SUMS lists every asset's digest
+const MODELS = "https://github.com/docling-project/docling.rs/releases/download/models-v1-df257987d1fc";
+const layout = await fetch(`${MODELS}/layout_heron_int8.onnx`);
+```
+
+The snapshot ids are on the [Releases page](https://github.com/docling-project/docling.rs/releases)
+(prereleases); `docs/MODELS.md` "Pinning and snapshots" has the native
+downloaders' equivalent (`DOCLING_RS_MODELS_URL` + `DOCLING_RS_MODELS_SUMS`).
 
 Stage 3 is *selective*. TableFormer's encoder runs once per table region and
 costs seconds, so each table is first reconstructed geometrically (free, from

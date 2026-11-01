@@ -129,10 +129,14 @@ jobs:
       # kernel on runners without VNNI (83 of 505 detections lost there, 1
       # on a VNNI box with the same input).
       # quantize_models.py now emits 7-bit weights and checks that range
-      # hardware-independently, so the outcome no longer depends on which
-      # machine the job landed on. Deps pinned to the validated set. Two
-      # separate steps so a TableFormer export failure doesn't block the
-      # layout int8.
+      # hardware-independently, so the GATE's outcome no longer depends on
+      # which machine the job landed on. The BYTES still do: the calibration
+      # infers on the runner, and the same fp32 layout graph quantized on an
+      # Intel Xeon (run 41309437001's predecessor) and an AMD EPYC (run
+      # 41321526955) gave two distinct layout_heron_int8.onnx — which is why
+      # the record keeps the CPU and why downstream pins go to the
+      # snapshots (#965). Deps pinned to the validated set. Two separate
+      # steps so a TableFormer export failure doesn't block the layout int8.
       - name: Install quantization deps
         continue-on-error: true
         id: quant-deps
@@ -444,3 +448,14 @@ jobs:
       # cover: a new export needs its catalog entry in the same change.
       - name: Regenerate SHA256SUMS + models.json + notices
         run: scripts/ci/models_manifest.sh "$TAG"
+
+      # Freeze the release as it now stands into its immutable snapshot
+      # (#951, #965): `models-v1-<12 hex of sha256(SHA256SUMS)>`, a
+      # content-addressed prerelease — a no-op when that state is already
+      # frozen, a new tag when any asset changed. Every workflow that uploads
+      # into the rolling release ends this way, so no published state goes
+      # unfrozen and a downstream pin by sha256 (#965: a browser build
+      # fetching layout_heron_int8.onnx) can always fetch its bytes from the
+      # snapshot of the state it pinned.
+      - name: Freeze the release into an immutable snapshot
+        run: scripts/ci/models_snapshot.sh "$TAG"

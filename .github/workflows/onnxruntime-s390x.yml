@@ -142,6 +142,12 @@ jobs:
         if: inputs.publish
         run: scripts/ci/models_manifest.sh "$TAG"
 
+      # The immutable snapshot of the state just published (#951, #965;
+      # publish-models.yml explains).
+      - name: Freeze the release into an immutable snapshot
+        if: inputs.publish
+        run: scripts/ci/models_snapshot.sh "$TAG"
+
       - uses: actions/upload-artifact@v7
         with:
           name: onnxruntime-linux-s390x
