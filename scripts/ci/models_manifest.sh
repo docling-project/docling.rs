@@ -158,12 +158,19 @@ gh api "repos/$REPO/releases/tags/$TAG" \
 
 : > "$tmp/unsorted"
 : > "$tmp/sizes.tsv"
+# The records regenerated below — their previous copies do not count. Only
+# the licence texts the catalog names are records; a licence an artifact
+# ships as its own asset (pdfium-binaries' LICENSE-pdfium-binaries.txt,
+# staged by publish-models.yml) is an ordinary asset, hashed like the
+# library it belongs to — left out, it was hosted but absent from
+# SHA256SUMS, so every downloader fetched it unverified and
+# DOCLING_RS_MODELS_VERIFY=require failed on it.
+regenerated="$(printf 'SHA256SUMS\nmodels.json\n%s\n' "$(jq -r '.notice, (.licenses[])' "$CATALOG")")"
 while IFS=$'\t' read -r name digest size; do
   [ -n "$name" ] || continue
-  # The records are regenerated below; their previous copies do not count.
-  case "$name" in
-    SHA256SUMS | models.json | MODELS_NOTICE.md | LICENSE-*) continue ;;
-  esac
+  if printf '%s\n' "$regenerated" | grep -qxF -- "$name"; then
+    continue
+  fi
   case "$digest" in
     sha256:*) hash="${digest#sha256:}" ;;
     *)

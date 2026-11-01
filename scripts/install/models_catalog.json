@@ -1072,6 +1072,11 @@
           "asset": "libpdfium.so",
           "path": ".pdfium/lib/libpdfium.so",
           "role": "library"
+        },
+        {
+          "asset": "LICENSE-pdfium-binaries.txt",
+          "path": ".models/LICENSE-pdfium-binaries.txt",
+          "role": "license"
         }
       ]
     },
