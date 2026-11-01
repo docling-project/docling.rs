@@ -34,6 +34,7 @@ import onnx
 import torch
 from onnx import helper, numpy_helper
 from onnx.reference import ReferenceEvaluator
+from huggingface_hub import hf_hub_download
 from transformers import RTDetrV2ForObjectDetection
 
 REPO = "docling-project/docling-layout-heron"
@@ -154,6 +155,13 @@ def main() -> None:
     model = RTDetrV2ForObjectDetection.from_pretrained(
         REPO, revision=REVISION, torch_dtype=torch.float32
     ).eval()
+    # The processor config is not read here — the Rust pipeline's
+    # preprocessing (640×640 resize, normalization) mirrors its values — but
+    # it is an input of this export in the catalog's sense, so fetch it into
+    # the hub cache at the same revision: the execution record
+    # (scripts/ci/export_record.py, #955) hashes every catalog input from
+    # there, and an absent file reads as "not consumed".
+    hf_hub_download(REPO, "preprocessor_config.json", revision=REVISION)
     wrap = Wrap(model)
     with torch.no_grad():
         logits, boxes = wrap(torch.zeros(1, 3, 640, 640, dtype=torch.float32))
