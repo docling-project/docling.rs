@@ -51,9 +51,23 @@ themselves come from an immutable snapshot — `models-snapshot.yml`
 (`scripts/ci/models_snapshot.sh`) copies the release's assets into a
 `models-v1-<12 hex of sha256(SHA256SUMS)>` prerelease, never modified
 afterwards; point `DOCLING_RS_MODELS_URL` at
-`.../releases/download/models-v1-<id>` to fetch from it. Snapshots exist only
-from the first run of the workflow on; bytes replaced before that cannot be
-recovered.
+`.../releases/download/models-v1-<id>` to fetch from it. Every workflow that
+uploads into the rolling release ends by freezing the state it published
+(#965), so each `SHA256SUMS` the release ever served has its snapshot;
+`models-snapshot.yml` remains the manual repair path. Snapshots exist only
+from 2026-11-01 on; bytes replaced before that cannot be recovered. A build
+that pins an asset by sha256 — a browser app fetching
+`layout_heron_int8.onnx` for `docling.rs-wasm`, a Dockerfile's `ADD` with a
+checksum — fetches it from a snapshot URL, not from `models-v1`: the rolling
+release re-exports the same weights on every `publish-models.yml` run, and
+the bytes are not reproducible run to run: the fp32 export differs in the
+last bits of the folded BatchNorm scales between some runs (three runs on
+2026-11-01 gave two distinct `layout_heron.onnx`), and the INT8 calibration
+infers on the runner's CPU, so the same fp32 graph quantized on an Intel
+and an AMD runner gave two distinct `layout_heron_int8.onnx`
+(`export_record.json` records the CPU and its int8 ISA for that reason).
+`models-v2` marks a *different model* (a new upstream revision or graph),
+not a re-export.
 
 **Attribution records (#942).** Next to `SHA256SUMS` the release hosts
 `models.json` — the digest-bound manifest `scripts/ci/models_manifest.sh`

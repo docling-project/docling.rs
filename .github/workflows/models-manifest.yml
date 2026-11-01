@@ -30,3 +30,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: scripts/ci/models_manifest.sh "${{ inputs.tag }}"
+      # The immutable snapshot of the state just written (#951, #965;
+      # publish-models.yml explains).
+      - run: scripts/ci/models_snapshot.sh "${{ inputs.tag }}"
