@@ -141,7 +141,8 @@ def package_versions() -> dict[str, str]:
 def upstream_inputs(catalog: dict, cache: Path) -> list[dict]:
     """The upstream files every `export` artifact consumed, hashed from the
     hub cache's snapshot of the catalog's revision — `sha256: null` with a
-    note when the file is not there (an export that did not run)."""
+    note when the file is not there (an export step that did not run, or
+    one that does not read that file)."""
     seen: set[tuple[str, str, str]] = set()
     out: list[dict] = []
     for art in catalog["artifacts"]:
@@ -164,7 +165,7 @@ def upstream_inputs(catalog: dict, cache: Path) -> list[dict]:
                     entry["size"] = path.resolve().stat().st_size
                 else:
                     entry["sha256"] = None
-                    entry["note"] = "not in the hub cache: its export did not run in this job"
+                    entry["note"] = "not in the hub cache after the exports: no step of this job read it"
             else:
                 entry["sha256"] = None
                 entry["note"] = "not a Hugging Face file: hashed by its own fetch step, see the workflow log"
