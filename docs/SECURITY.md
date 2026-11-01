@@ -303,20 +303,9 @@ No open vulnerability advisory in either lockfile at this writing: the
 `calamine` 0.37 moved to `quick-xml` 0.41 and `zip` 9, and the last
 `quick-xml` 0.38 came through `object_store` 0.12, bumped to 0.14 (#952).
 
-Two *maintenance* warnings (`INFO unmaintained`, not vulnerabilities) remain
-and are tracked, not suppressed (#952):
+One *maintenance* warning (`INFO unmaintained`, not a vulnerability) remains
+and is tracked, not suppressed (#952):
 
-- **`ttf-parser` 0.25.1 (RUSTSEC-2026-0192).** Its author declared the crate
-  unmaintained in June 2026. docling-pdf's page renderer reads embedded
-  OpenType/TrueType programs and bare CFF (Type1C) programs with it
-  (`render/font/`). A `ttf-parser` bug is reachable from a crafted PDF, so
-  this is the one to retire: the planned replacement is `skrifa`
-  (Google Fonts' `fontations`, the advisory's own recommendation), which
-  covers the sfnt and bare-CFF paths; the CFF Top/Private DICT fields the
-  renderer needs (FontMatrix, nominal/default widths) are not exposed by it
-  and will be parsed from the raw DICTs. Until then the crate is pinned at
-  the last release and its inputs are bounded like every other parser's
-  (`DOCLING_RS_MAX_RENDER_PIXELS`, the per-document timeouts).
 - **`paste` 1.0.15 (RUSTSEC-2024-0436).** A build-time proc-macro, reached
   only through `tokenizers` 0.20 (the `chunking` feature's token counter) —
   the OpenEXR / AVIF codecs that also pulled it in through `image`'s default
@@ -324,6 +313,14 @@ and are tracked, not suppressed (#952):
   compile time only and never sees input; `tokenizers` 1.0 (release
   candidates at this writing) drops it, and the bump follows its stable
   release.
+
+`ttf-parser` (RUSTSEC-2026-0192, unmaintained since June 2026) left the tree
+with #952 too: the page renderer's font programs — embedded TrueType /
+OpenType and bare CFF (Type1C) — are read by `skrifa` / `read-fonts`
+(Google Fonts' `fontations`, the advisory's recommendation), which is
+maintained and fuzzed; it is reachable from a crafted PDF, like every parser
+here, and bounded the same way (`DOCLING_RS_MAX_RENDER_PIXELS`, the
+per-document timeouts).
 
 `instant` and `rustls-pemfile` (unmaintained) left the tree with
 `lapin` 2 → 4 (#952), whose rustls is pinned to `ring` so no `aws-lc-sys`

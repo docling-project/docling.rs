@@ -1,14 +1,18 @@
-//! Strip the Type 2 `dotsection` operator from a CFF program before
-//! ttf-parser reads it (#531).
+//! Strip the Type 2 `dotsection` operator from a CFF program before the
+//! font parser reads it (#531).
 //!
 //! `dotsection` (`12 0`) is a Type 1 hint Adobe's converters carry over
 //! into CFF: FrameMaker-era Helvetica / Times subsets put it in front of
 //! every dot — the period, the dot of `i` and `j`, the colon. The Type 2
 //! spec (5177, Appendix B) lists it as deprecated and to be *ignored*, and
-//! FreeType, pdfium and docling-parse do, but ttf-parser stops the glyph at
-//! it with `UnsupportedOperator`: the period draws nothing and the `i` keeps
-//! its stem and loses its dot. Dot leaders in an index vanish, and the
-//! layout model reads the page as a table instead of a document index.
+//! FreeType, pdfium and docling-parse do, but ttf-parser — the renderer's
+//! font parser until #952 — stopped the glyph at it with
+//! `UnsupportedOperator`: the period drew nothing and the `i` kept its stem
+//! and lost its dot. Dot leaders in an index vanished, and the layout model
+//! read the page as a table instead of a document index. skrifa (read-fonts)
+//! ignores the operator as the spec says; the rewrite stays as a belt to
+//! that brace — it is cheap, exact, and keeps every reader of the stripped
+//! bytes (the fallback-face probe, a future parser) on the same footing.
 //!
 //! The operator is removed in place. Every CFF structure is located through
 //! absolute offsets, so a charstring INDEX can be rewritten shorter at its
@@ -49,7 +53,7 @@ pub fn strip(cff: &mut [u8]) -> usize {
         let (s, e) = font.char_strings.entry(g);
         if let Flow::Fail = walker.walk(s, e, Target::Glyph, local, 0) {
             // A glyph we cannot follow (arithmetic operators, a broken
-            // subroutine index): leave the font as ttf-parser sees it.
+            // subroutine index): leave the font as the parser sees it.
             return 0;
         }
     }
@@ -461,7 +465,7 @@ impl Walker<'_> {
                             *safe &= empty;
                         }
                         // The flex family; anything else (arithmetic,
-                        // storage) ttf-parser rejects too.
+                        // storage) a parser rejects too.
                         34..=37 => {}
                         _ => return Flow::Fail,
                     }
@@ -662,7 +666,7 @@ mod tests {
     }
 
     struct Bounds(f32, f32, f32, f32, usize);
-    impl ttf_parser::OutlineBuilder for Bounds {
+    impl skrifa::font::glyph::outline::PathSink for Bounds {
         fn move_to(&mut self, x: f32, y: f32) {
             self.line_to(x, y);
         }
@@ -683,17 +687,17 @@ mod tests {
     }
 
     fn outline(data: &[u8], gid: u16) -> (bool, Bounds) {
-        let table = ttf_parser::cff::Table::parse(data).expect("parses");
+        use skrifa::font::glyph::outline::{DrawMemory, DrawOptions};
+        let font = skrifa::font::Font::new(data.to_vec(), 0).expect("parses");
         let mut b = Bounds(f32::MAX, f32::MAX, f32::MIN, f32::MIN, 0);
-        let ok = table.outline(ttf_parser::GlyphId(gid), &mut b).is_ok();
+        let ok = font
+            .outline_glyphs()
+            .get(skrifa::GlyphId::new(u32::from(gid)))
+            .is_some_and(|g| {
+                g.draw(&DrawOptions::new(), DrawMemory::Scratch, &mut b)
+                    .is_ok()
+            });
         (ok, b)
-    }
-
-    #[test]
-    fn dotsection_stops_ttf_parser() {
-        let data = font();
-        assert!(!outline(&data, 1).0, "the period fails before the fix");
-        assert!(!outline(&data, 2).0, "the i fails at its dot");
     }
 
     #[test]

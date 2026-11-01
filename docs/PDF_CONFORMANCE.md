@@ -151,12 +151,15 @@ says `… and the password is wrong`).
   Neugebauer model (`render/color.rs`; pure K is (35, 31, 32)), an
   unresolvable glyph as its thin blue box.
 * **Fonts** (`render/font/`): TrueType/OpenType and bare CFF through
-  `ttf-parser` — with the Type 2 `dotsection` operator (`12 0`, a Type 1
-  hint Adobe's converters leave in front of every dot) stripped from the
-  charstrings first (`dotsection.rs`, #531): the spec says to ignore it, but
-  ttf-parser abandons the glyph there, which drew no period and dot-less
-  `i`s, so FrameMaker index pages lost their dot leaders and heron read
-  them as one page-wide `table` instead of `document_index` columns —,
+  `skrifa` / `read-fonts` (Google Fonts' fontations; `ttf-parser` until
+  #952, when its author declared it unmaintained — RUSTSEC-2026-0192; the
+  port keeps the renders pixel-identical on the corpus, see the #952 PR) —
+  with the Type 2 `dotsection` operator (`12 0`, a Type 1 hint Adobe's
+  converters leave in front of every dot) stripped from the charstrings
+  first (`dotsection.rs`, #531): the spec says to ignore it, and skrifa
+  does, but ttf-parser abandoned the glyph there, which drew no period and
+  dot-less `i`s, so FrameMaker index pages lost their dot leaders and heron
+  read them as one page-wide `table` instead of `document_index` columns —,
   Type 1 through an own charstring interpreter (`type1.rs`),
   Type 3 through the glyph procedures, selected per ISO 32000-1 9.6.6 /
   9.7.4 (`/Differences`, base encodings, `cmap` subtable rules, `post`

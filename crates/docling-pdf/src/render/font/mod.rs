@@ -3,7 +3,8 @@
 //! outline in text space, or — for Type 3 — its glyph procedure.
 //!
 //! Glyph programs: TrueType / OpenType (`/FontFile2`, `/FontFile3 /OpenType`)
-//! and bare CFF (`/FontFile3 /Type1C`, `/CIDFontType0C`) through ttf-parser,
+//! and bare CFF (`/FontFile3 /Type1C`, `/CIDFontType0C`) through skrifa /
+//! read-fonts (#952 — fontations, the maintained successor of ttf-parser),
 //! Type 1 (`/FontFile`) through [`type1`]. Glyph selection follows ISO
 //! 32000-1 9.6.6 / 9.7.4: a simple font's code goes through `/Differences`,
 //! the base encoding or the program's built-in one to a glyph *name* (Type 1,
@@ -26,7 +27,11 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use lopdf::{Dictionary, Document, Object, ObjectId};
-use ttf_parser::GlyphId;
+use read_fonts::ps::cff::CffFontRef;
+use skrifa::font::charmap::{Encoding, EncodingKind};
+use skrifa::font::glyph::outline::{DrawMemory, DrawOptions, OutlineSource, PathSink};
+use skrifa::font::Font;
+use skrifa::GlyphId;
 
 use super::geom::Mat;
 use super::objects::{
@@ -42,10 +47,13 @@ pub struct GlyphPath {
 
 /// The program that draws the glyphs.
 enum Program {
-    /// TrueType / OpenType (glyf or CFF table): parsed per use, cheap.
+    /// TrueType / OpenType (glyf or CFF table).
     Sfnt {
-        data: Vec<u8>,
-        /// glyph units → text space (1/unitsPerEm, or the CFF FontMatrix).
+        font: Font,
+        /// glyph units → text space: 1/unitsPerEm. For a CFF table that is
+        /// the em the FontMatrix was normalized into (read-fonts folds a
+        /// matrix that is not a plain 1/upem scale into the outline, as
+        /// FreeType does), so the one factor covers both.
         matrix: Mat,
         /// CID → glyph index for a CID-keyed CFF inside the sfnt.
         cid_to_gid: Option<HashMap<u16, u16>>,
@@ -56,11 +64,11 @@ enum Program {
     },
     /// A bare CFF program.
     Cff {
-        data: Vec<u8>,
+        font: Font,
         matrix: Mat,
         cid_to_gid: Option<HashMap<u16, u16>>,
-        /// glyph name → glyph index (ttf-parser's own lookup by name has
-        /// no answer for the predefined ISOAdobe/Expert charsets).
+        /// glyph name → glyph index over the charset, built once (the
+        /// program's own lookup by name is a per-call scan).
         names: HashMap<String, u16>,
     },
     Type1 {
@@ -419,9 +427,7 @@ impl LoadedFont {
                 style.family = fallback::Family::Cjk;
             }
             if let Some(face) = fallback::face(style) {
-                let upem = ttf_parser::Face::parse(&face.data, 0)
-                    .ok()
-                    .map(|f| f64::from(f.units_per_em()))
+                let upem = Some(f64::from(face.font.units_per_em()))
                     .filter(|u| *u > 0.0)
                     .unwrap_or(1000.0);
                 program = Program::Fallback {
@@ -594,53 +600,50 @@ impl LoadedFont {
                 font.glyph(&name)
             }
             Program::Cff {
-                data,
+                font,
                 cid_to_gid,
                 names,
                 ..
             } => {
-                let table = ttf_parser::cff::Table::parse(data)?;
                 let gid = if self.composite {
                     let gid = match &self.cid_to_gid {
                         CidToGid::Map(m) => map_cid(m, cid),
                         CidToGid::Identity => cid,
                     };
                     match cid_to_gid {
-                        Some(map) => GlyphId(*map.get(&(gid as u16))?),
-                        None => GlyphId(gid as u16),
+                        Some(map) => gid16(*map.get(&(gid as u16))?),
+                        None => gid16(gid as u16),
                     }
                 } else {
-                    self.cff_simple_gid(&table, names, code)?
+                    self.cff_simple_gid(font, names, code)?
                 };
-                outline_cff(&table, gid)
+                outline_glyph(font, gid)
             }
             Program::Sfnt {
-                data,
+                font,
                 cid_to_gid,
                 has_cmap,
                 has_glyf,
                 names,
                 ..
             } => {
-                let face = ttf_parser::Face::parse(data, 0).ok()?;
                 let gid = if self.composite {
                     let gid = match &self.cid_to_gid {
                         CidToGid::Map(m) => map_cid(m, cid),
                         CidToGid::Identity => cid,
                     };
                     match cid_to_gid {
-                        Some(map) => GlyphId(*map.get(&(gid as u16))?),
-                        None => GlyphId(gid as u16),
+                        Some(map) => gid16(*map.get(&(gid as u16))?),
+                        None => gid16(gid as u16),
                     }
                 } else {
-                    self.sfnt_simple_gid(&face, names, code, *has_cmap, *has_glyf)?
+                    self.sfnt_simple_gid(font, names, code, *has_cmap, *has_glyf)?
                 };
-                outline_face(&face, gid)
+                outline_glyph(font, gid)
             }
             Program::Fallback { face, .. } => {
-                let f = ttf_parser::Face::parse(&face.data, 0).ok()?;
-                let gid = self.fallback_gid(&f, code, cid)?;
-                outline_face(&f, gid)
+                let gid = self.fallback_gid(&face.font, code, cid)?;
+                outline_glyph(&face.font, gid)
             }
         }
     }
@@ -695,7 +698,7 @@ impl LoadedFont {
 
     fn cff_simple_gid(
         &self,
-        table: &ttf_parser::cff::Table,
+        font: &Font,
         names: &HashMap<String, u16>,
         code: u32,
     ) -> Option<GlyphId> {
@@ -703,8 +706,8 @@ impl LoadedFont {
         let by_name = |n: &str| -> Option<GlyphId> {
             names
                 .get(n)
-                .map(|g| GlyphId(*g))
-                .or_else(|| table.glyph_index_by_name(n))
+                .map(|g| gid16(*g))
+                .or_else(|| font.glyph_by_name(n))
         };
         if let Some(name) = self.glyph_name(code) {
             if let Some(g) = by_name(name) {
@@ -724,15 +727,18 @@ impl LoadedFont {
                 if let Some(g) = names
                     .iter()
                     .find(|(n, _)| crate::textparse::glyph_name_to_char(n.as_bytes()) == Some(ch))
-                    .map(|(_, g)| GlyphId(*g))
+                    .map(|(_, g)| gid16(*g))
                 {
                     return Some(g);
                 }
             }
         }
         // The program's built-in encoding.
-        if let Some(g) = table.glyph_index(c) {
-            if g.0 != 0 {
+        if let Some(g) = cff_font(font)
+            .and_then(|cff| cff.encoding())
+            .and_then(|e| e.map(c))
+        {
+            if g.to_u32() != 0 {
                 return Some(g);
             }
         }
@@ -746,54 +752,40 @@ impl LoadedFont {
 
     fn sfnt_simple_gid(
         &self,
-        face: &ttf_parser::Face,
+        font: &Font,
         names: &HashMap<String, u16>,
         code: u32,
         has_cmap: bool,
         has_glyf: bool,
     ) -> Option<GlyphId> {
         let c = code as u8;
-        let cmap = face.tables().cmap.as_ref();
+        // The cmap subtables, each addressable on its own — `map_code` reads
+        // the code as stored in that subtable (no symbol offset, no Mac Roman
+        // conversion) and treats a mapping to glyph 0 as none, which is what
+        // the three lookups below want.
+        let cm = font.charmap();
+        let subtables: Vec<Encoding> = cm.encodings().filter(|e| e.sfnt_ids().is_some()).collect();
         let symbol_lookup = |code: u32| -> Option<GlyphId> {
-            let cm = cmap?;
-            for sub in cm.subtables {
-                if sub.platform_id == ttf_parser::PlatformId::Windows && sub.encoding_id == 0 {
-                    for probe in [code, 0xF000 + code, 0xF100 + code, 0xF200 + code] {
-                        if let Some(g) = sub.glyph_index(probe) {
-                            if g.0 != 0 {
-                                return Some(g);
-                            }
-                        }
-                    }
-                }
-            }
-            None
+            subtables
+                .iter()
+                .filter(|e| e.sfnt_ids() == Some((3, 0)))
+                .find_map(|e| {
+                    [code, 0xF000 + code, 0xF100 + code, 0xF200 + code]
+                        .into_iter()
+                        .find_map(|probe| cm.map_code(*e, probe))
+                })
         };
         let mac_lookup = |code: u32| -> Option<GlyphId> {
-            let cm = cmap?;
-            for sub in cm.subtables {
-                if sub.platform_id == ttf_parser::PlatformId::Macintosh {
-                    if let Some(g) = sub.glyph_index(code) {
-                        if g.0 != 0 {
-                            return Some(g);
-                        }
-                    }
-                }
-            }
-            None
+            subtables
+                .iter()
+                .filter(|e| e.sfnt_ids().is_some_and(|(p, _)| p == 1))
+                .find_map(|e| cm.map_code(*e, code))
         };
         let unicode_lookup = |ch: char| -> Option<GlyphId> {
-            let cm = cmap?;
-            for sub in cm.subtables {
-                if sub.is_unicode() {
-                    if let Some(g) = sub.glyph_index(ch as u32) {
-                        if g.0 != 0 {
-                            return Some(g);
-                        }
-                    }
-                }
-            }
-            None
+            subtables
+                .iter()
+                .filter(|e| e.kind() == EncodingKind::Unicode)
+                .find_map(|e| cm.map_code(*e, ch as u32))
         };
         let name = self.glyph_name(code);
         let symbolic_path = self.symbolic || !self.has_base_encoding && name.is_none();
@@ -816,16 +808,16 @@ impl LoadedFont {
             }
             if let Some(g) = names
                 .get(n)
-                .map(|g| GlyphId(*g))
-                .or_else(|| face.glyph_index_by_name(n))
+                .map(|g| gid16(*g))
+                .or_else(|| font.glyph_by_name(n))
             {
-                if g.0 != 0 {
+                if g.to_u32() != 0 {
                     return Some(g);
                 }
             }
             // `gXX` / `glyphXX` / `index XX` names address glyphs directly.
             if let Some(g) = gid_from_name(n) {
-                return Some(GlyphId(g));
+                return Some(gid16(g));
             }
         }
         if !symbolic_path {
@@ -843,19 +835,20 @@ impl LoadedFont {
                 }
             }
         }
-        if !has_cmap || face.tables().cmap.is_none() {
+        if !has_cmap || subtables.is_empty() {
             // No usable cmap: the code is the glyph index.
             let _ = has_glyf;
-            return Some(GlyphId(code as u16));
+            return Some(gid16(code as u16));
         }
         None
     }
 
-    fn fallback_gid(&self, face: &ttf_parser::Face, code: u32, cid: u32) -> Option<GlyphId> {
+    fn fallback_gid(&self, font: &Font, code: u32, cid: u32) -> Option<GlyphId> {
+        let cm = font.charmap();
         // Symbol / Dingbats faces are addressed by glyph name.
         if !self.composite && (self.is_symbol_face || self.is_dingbats) {
             if let Some(n) = self.glyph_name(code) {
-                if let Some(g) = face.glyph_index_by_name(n) {
+                if let Some(g) = font.glyph_by_name(n) {
                     return Some(g);
                 }
             }
@@ -863,18 +856,28 @@ impl LoadedFont {
         if !self.composite {
             if let Some(n) = self.glyph_name(code) {
                 if let Some(ch) = crate::textparse::glyph_name_to_char(n.as_bytes()) {
-                    if let Some(g) = face.glyph_index(ch) {
+                    if let Some(g) = cm.map_unicode(ch) {
                         return Some(g);
                     }
                 }
-                if let Some(g) = face.glyph_index_by_name(n) {
+                if let Some(g) = font.glyph_by_name(n) {
                     return Some(g);
                 }
             }
         }
         let ch = self.unicode_of(code, cid)?;
-        face.glyph_index(ch)
+        cm.map_unicode(ch)
     }
+}
+
+/// A 16-bit glyph index as the font model's identifier.
+fn gid16(g: u16) -> GlyphId {
+    GlyphId::new(u32::from(g))
+}
+
+/// The CFF program behind `font` — a bare CFF, or an OpenType `CFF ` table.
+fn cff_font(font: &Font) -> Option<&CffFontRef<'_>> {
+    font.outline_glyphs().cff_font()
 }
 
 fn map_cid(map: &[u8], cid: u32) -> u32 {
@@ -908,7 +911,7 @@ fn agl_name(ch: char) -> Option<&'static str> {
 
 struct Builder(tiny_skia::PathBuilder);
 
-impl ttf_parser::OutlineBuilder for Builder {
+impl PathSink for Builder {
     fn move_to(&mut self, x: f32, y: f32) {
         self.0.move_to(x, y);
     }
@@ -926,53 +929,33 @@ impl ttf_parser::OutlineBuilder for Builder {
     }
 }
 
-fn outline_face(face: &ttf_parser::Face, gid: GlyphId) -> Option<GlyphPath> {
-    let mut b = Builder(tiny_skia::PathBuilder::new());
-    let bbox = face.outline_glyph(gid, &mut b);
-    let advance = face
-        .glyph_hor_advance(gid)
-        .map(f64::from)
-        .or_else(|| {
-            face.tables()
-                .cff
-                .as_ref()
-                .and_then(|c| c.glyph_width(gid))
-                .map(f64::from)
-        })
-        .unwrap_or(0.0);
-    if bbox.is_none() && gid.0 >= face.number_of_glyphs() {
+/// The outline of `gid` in font units with its advance: `hmtx`'s where the
+/// program has one, the charstring's for a bare CFF. `None` for a glyph index
+/// the program does not have; a glyph that fails part-way through keeps what
+/// it drew, as the renderer always did.
+fn outline_glyph(font: &Font, gid: GlyphId) -> Option<GlyphPath> {
+    if gid.to_u32() >= font.num_glyphs() {
         return None;
     }
+    let mut b = Builder(tiny_skia::PathBuilder::new());
+    if let Some(glyph) = font.outline_glyphs().get(gid) {
+        let _ = glyph.draw(&DrawOptions::new(), DrawMemory::Scratch, &mut b);
+    }
+    let advance = f64::from(font.glyph_metrics().h_advance(gid));
     Some(GlyphPath {
         path: b.0.finish(),
         advance,
     })
 }
 
-fn outline_cff(table: &ttf_parser::cff::Table, gid: GlyphId) -> Option<GlyphPath> {
-    let mut b = Builder(tiny_skia::PathBuilder::new());
-    let ok = table.outline(gid, &mut b).is_ok();
-    let advance = table.glyph_width(gid).map(f64::from).unwrap_or(0.0);
-    if !ok && gid.0 >= table.number_of_glyphs() {
-        return None;
-    }
-    Some(GlyphPath {
-        path: b.0.finish(),
-        advance,
-    })
-}
-
-fn cff_matrix(m: ttf_parser::cff::Matrix) -> Mat {
-    let mat = Mat::new(
-        f64::from(m.sx),
-        f64::from(m.ky),
-        f64::from(m.kx),
-        f64::from(m.sy),
-        f64::from(m.tx),
-        f64::from(m.ty),
-    );
-    if mat.is_finite() && mat.det().abs() > 1e-12 {
-        mat
+/// glyph units → text space for a program: 1/unitsPerEm. For a CFF program
+/// the em is the one read-fonts normalized the FontMatrix into (a matrix
+/// that is not a plain scale is applied to the outline itself), so the plain
+/// factor is exact for both; a degenerate em falls back to 1/1000.
+fn em_matrix(font: &Font) -> Mat {
+    let upem = f64::from(font.units_per_em());
+    if upem.is_finite() && upem > 0.0 {
+        Mat::scale(1.0 / upem, 1.0 / upem)
     } else {
         Mat::scale(0.001, 0.001)
     }
@@ -980,19 +963,20 @@ fn cff_matrix(m: ttf_parser::cff::Matrix) -> Mat {
 
 fn sfnt_program(mut data: Vec<u8>) -> Option<Program> {
     dotsection::strip_sfnt(&mut data);
-    let face = ttf_parser::Face::parse(&data, 0).ok()?;
-    let tables = face.tables();
-    let has_glyf = tables.glyf.is_some();
-    let has_cmap = tables.cmap.is_some();
-    let (matrix, cid_to_gid, names) = match &tables.cff {
-        Some(cff) if !has_glyf => (cff_matrix(cff.matrix()), cid_map(cff), cff_names(cff)),
-        _ => {
-            let upem = f64::from(face.units_per_em()).max(1.0);
-            (Mat::scale(1.0 / upem, 1.0 / upem), None, HashMap::new())
-        }
+    let font = Font::new(data, 0)?;
+    if !matches!(font.kind(), skrifa::font::Kind::Sfnt(..)) {
+        return None;
+    }
+    let outlines = font.outline_glyphs();
+    let has_glyf = outlines.source() == Some(OutlineSource::Glyf);
+    let has_cmap = font.charmap().encodings().any(|e| e.sfnt_ids().is_some());
+    let (cid_to_gid, names) = match outlines.cff_font() {
+        Some(cff) if !has_glyf => (cid_map(cff), cff_names(cff)),
+        _ => (None, HashMap::new()),
     };
+    let matrix = em_matrix(&font);
     Some(Program::Sfnt {
-        data,
+        font,
         matrix,
         cid_to_gid,
         has_cmap,
@@ -1003,12 +987,17 @@ fn sfnt_program(mut data: Vec<u8>) -> Option<Program> {
 
 fn cff_program(mut data: Vec<u8>) -> Option<Program> {
     dotsection::strip(&mut data);
-    let table = ttf_parser::cff::Table::parse(&data)?;
-    let matrix = cff_matrix(table.matrix());
-    let cid_to_gid = cid_map(&table);
-    let names = cff_names(&table);
+    let font = Font::new(data, 0)?;
+    if !matches!(font.kind(), skrifa::font::Kind::Cff(..)) {
+        return None;
+    }
+    let (cid_to_gid, names) = match cff_font(&font) {
+        Some(cff) => (cid_map(cff), cff_names(cff)),
+        None => (None, HashMap::new()),
+    };
+    let matrix = em_matrix(&font);
     Some(Program::Cff {
-        data,
+        font,
         matrix,
         cid_to_gid,
         names,
@@ -1016,28 +1005,38 @@ fn cff_program(mut data: Vec<u8>) -> Option<Program> {
 }
 
 /// glyph name → glyph index over the whole charset (name-keyed fonts only).
-fn cff_names(table: &ttf_parser::cff::Table) -> HashMap<String, u16> {
+fn cff_names(cff: &CffFontRef<'_>) -> HashMap<String, u16> {
     let mut map = HashMap::new();
-    if table.glyph_cid(GlyphId(0)).is_some() {
+    if cff.is_cid() {
         return map;
     }
-    for g in 0..table.number_of_glyphs() {
-        if let Some(n) = table.glyph_name(GlyphId(g)) {
-            map.entry(n.to_string()).or_insert(g);
+    let Some(charset) = cff.charset() else {
+        return map;
+    };
+    for g in 0..cff.num_glyphs().min(u32::from(u16::MAX)) {
+        let Some(sid) = charset.string_id(GlyphId::new(g)) else {
+            continue;
+        };
+        if let Some(n) = cff.string(sid) {
+            map.entry(String::from_utf8_lossy(n).into_owned())
+                .or_insert(g as u16);
         }
     }
     map
 }
 
-/// CID → GID for a CID-keyed CFF (`None` for a name-keyed one).
-fn cid_map(table: &ttf_parser::cff::Table) -> Option<HashMap<u16, u16>> {
-    let n = table.number_of_glyphs();
-    // A name-keyed font has no CIDs: probe glyph 1.
-    table.glyph_cid(GlyphId(0))?;
+/// CID → GID for a CID-keyed CFF (`None` for a name-keyed one): the charset
+/// of a CID-keyed font maps each glyph to its CID.
+fn cid_map(cff: &CffFontRef<'_>) -> Option<HashMap<u16, u16>> {
+    if !cff.is_cid() {
+        return None;
+    }
+    let charset = cff.charset()?;
+    let n = cff.num_glyphs().min(u32::from(u16::MAX));
     let mut map = HashMap::with_capacity(n as usize);
     for g in 0..n {
-        if let Some(cid) = table.glyph_cid(GlyphId(g)) {
-            map.entry(cid).or_insert(g);
+        if let Some(cid) = charset.string_id(GlyphId::new(g)) {
+            map.entry(cid.to_u16()).or_insert(g as u16);
         }
     }
     Some(map)
