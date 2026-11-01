@@ -152,8 +152,14 @@ says `… and the password is wrong`).
   unresolvable glyph as its thin blue box.
 * **Fonts** (`render/font/`): TrueType/OpenType and bare CFF through
   `skrifa` / `read-fonts` (Google Fonts' fontations; `ttf-parser` until
-  #952, when its author declared it unmaintained — RUSTSEC-2026-0192; the
-  port keeps the renders pixel-identical on the corpus, see the #952 PR) —
+  #952, when its author declared it unmaintained — RUSTSEC-2026-0192. The
+  port rendered 99 of the corpus's 113 pages pixel-identically; the other
+  14 — `multi_page`, `normal_4pages` p1, `redp5110` pp7–15 — differ in
+  ≤ 0.013 % of their pixels, the anti-aliasing of a TrueType bullet's
+  edge and of CFF italics (read-fonts applies the FontMatrix in 16.16
+  fixed point where the old path multiplied f64), and every one of them
+  is as close to the docling-parse shim as before or closer, `multi_page`
+  0.676 → 0.669 mean |Δ|) —
   with the Type 2 `dotsection` operator (`12 0`, a Type 1 hint Adobe's
   converters leave in front of every dot) stripped from the charstrings
   first (`dotsection.rs`, #531): the spec says to ignore it, and skrifa
