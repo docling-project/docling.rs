@@ -41,7 +41,7 @@ xnnpack = ["ort/xnnpack"]
 load-dynamic = ["ort/load-dynamic", "dep:libloading"]
 
 [dependencies]
-docling-core = { path = "../docling-core", version = "2.62.0" }
+docling-core = { path = "../docling-core", version = "2.63.0" }
 # Same ort build as docling-pdf/docling-asr so the workspace keeps a single
 # ONNX Runtime.
 ort = { version = "2.0.0-rc.14", default-features = false, features = ["std", "download-binaries", "tls-rustls"] }

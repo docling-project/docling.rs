@@ -1442,7 +1442,7 @@ dependencies = [
 
 [[package]]
 name = "docling"
-version = "2.62.0"
+version = "2.63.0"
 dependencies = [
  "aes 0.9.2",
  "base64 0.22.1",
@@ -1483,7 +1483,7 @@ dependencies = [
 
 [[package]]
 name = "docling-asr"
-version = "2.62.0"
+version = "2.63.0"
 dependencies = [
  "docling-core",
  "docling-onnx",
@@ -1494,7 +1494,7 @@ dependencies = [
 
 [[package]]
 name = "docling-cli"
-version = "2.62.0"
+version = "2.63.0"
 dependencies = [
  "axum",
  "docling",
@@ -1510,7 +1510,7 @@ dependencies = [
 
 [[package]]
 name = "docling-core"
-version = "2.62.0"
+version = "2.63.0"
 dependencies = [
  "libc",
  "png 0.18.1",
@@ -1524,7 +1524,7 @@ dependencies = [
 
 [[package]]
 name = "docling-ffi"
-version = "2.62.0"
+version = "2.63.0"
 dependencies = [
  "docling",
  "serde",
@@ -1533,7 +1533,7 @@ dependencies = [
 
 [[package]]
 name = "docling-node"
-version = "2.62.0"
+version = "2.63.0"
 dependencies = [
  "docling",
  "napi",
@@ -1545,7 +1545,7 @@ dependencies = [
 
 [[package]]
 name = "docling-onnx"
-version = "2.62.0"
+version = "2.63.0"
 dependencies = [
  "docling-core",
  "libloading 0.8.9",
@@ -1554,7 +1554,7 @@ dependencies = [
 
 [[package]]
 name = "docling-pdf"
-version = "2.62.0"
+version = "2.63.0"
 dependencies = [
  "docling-core",
  "docling-onnx",
@@ -1580,7 +1580,7 @@ dependencies = [
 
 [[package]]
 name = "docling-rag"
-version = "2.62.0"
+version = "2.63.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -1615,7 +1615,7 @@ dependencies = [
 
 [[package]]
 name = "docling-serve"
-version = "2.62.0"
+version = "2.63.0"
 dependencies = [
  "axum",
  "docling",
@@ -1642,7 +1642,7 @@ dependencies = [
 
 [[package]]
 name = "docling-wasm"
-version = "2.62.0"
+version = "2.63.0"
 dependencies = [
  "console_error_panic_hook",
  "docling",
