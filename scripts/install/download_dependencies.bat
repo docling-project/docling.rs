@@ -178,8 +178,6 @@ rem --- INT8 variants (preferred automatically when present; DOCLING_RS_FP32=1 o
 if %WITH_INT8%==1 (
   call :fetch_opt "%BASE_URL%/layout_heron_int8.onnx"   .models\layout_heron_int8.onnx
   call :fetch_opt "%BASE_URL%/decoder_int8.onnx"        .models\tableformer\decoder_int8.onnx
-  call :fetch_opt "%BASE_URL%/decoder_kv_int8.onnx"     .models\tableformer\decoder_kv_int8.onnx
-  call :fetch_opt "%BASE_URL%/decoder_kv_int8.onnx.data" .models\tableformer\decoder_kv_int8.onnx.data
   if exist .models\layout_heron_int8.onnx echo int8 models present - used by default ^(DOCLING_RS_FP32=1 forces full precision^)
 )
 

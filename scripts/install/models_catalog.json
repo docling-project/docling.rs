@@ -392,65 +392,6 @@
       ]
     },
     {
-      "id": "tableformer_decoder_kv_int8",
-      "name": "TableFormer decoder, hoisted KV cache, dynamic INT8",
-      "license": "CDLA-Permissive-2.0 AND Apache-2.0",
-      "provenance": "quantization",
-      "upstream": {
-        "repository": "https://huggingface.co/docling-project/docling-models",
-        "revision": "2199320848bb9a8a519d22e4b528185a4f9a6f64",
-        "files": [
-          "model_artifacts/tableformer/accurate/tableformer_accurate.safetensors",
-          "model_artifacts/tableformer/accurate/tm_config.json"
-        ]
-      },
-      "tool": "scripts/install/quantize_models.py tableformer-decoder",
-      "derived_from": "decoder_kv.onnx",
-      "note": "A post-training dynamic quantization of decoder_kv.onnx; no retraining.",
-      "lineage": {
-        "model_card": "https://huggingface.co/docling-project/docling-models",
-        "training": [
-          {
-            "record": "TableFormer: Table Structure Understanding with Transformers (arXiv 2203.01017) — architecture, training data (PubTabNet, FinTabNet, TableBank), evaluation",
-            "url": "https://arxiv.org/abs/2203.01017"
-          },
-          {
-            "record": "PubTabNet (arXiv 1911.10683; the OTSL-annotated copy ds4sd/PubTabNet_OTSL)",
-            "url": "https://huggingface.co/datasets/ds4sd/PubTabNet_OTSL"
-          },
-          {
-            "record": "FinTabNet, OTSL-annotated (ds4sd/FinTabNet_OTSL)",
-            "url": "https://huggingface.co/datasets/ds4sd/FinTabNet_OTSL"
-          },
-          {
-            "record": "docling-ibm-models — the TableFormer model code the checkpoint loads into",
-            "url": "https://github.com/docling-project/docling-ibm-models/tree/main/docling_ibm_models/tableformer"
-          },
-          {
-            "record": "Docling Technical Report (arXiv 2408.09869) — the models in docling's pipeline",
-            "url": "https://arxiv.org/abs/2408.09869"
-          }
-        ],
-        "unavailable": [
-          "the training run: logs, intermediate checkpoints and hyper-parameters beyond the paper — the model card (docling-models) describes the layout model and cites the papers; TableFormer's own record is the paper"
-        ]
-      },
-      "files": [
-        {
-          "asset": "decoder_kv_int8.onnx",
-          "path": ".models/tableformer/decoder_kv_int8.onnx",
-          "role": "graph",
-          "data": "decoder_kv_int8.onnx.data"
-        },
-        {
-          "asset": "decoder_kv_int8.onnx.data",
-          "path": ".models/tableformer/decoder_kv_int8.onnx.data",
-          "role": "external-data",
-          "of": "decoder_kv_int8.onnx"
-        }
-      ]
-    },
-    {
       "id": "tableformer_bbox",
       "name": "TableFormer bbox decoder",
       "license": "CDLA-Permissive-2.0 AND Apache-2.0",

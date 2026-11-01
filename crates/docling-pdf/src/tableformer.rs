@@ -67,7 +67,6 @@ pub fn resolved_paths() -> (String, String, String) {
             ]
         } else {
             &[
-                ".models/tableformer/decoder_kv_int8.onnx",
                 ".models/tableformer/decoder_kv_layers.onnx",
                 ".models/tableformer/decoder_kv.onnx",
                 ".models/tableformer/decoder_int8.onnx",

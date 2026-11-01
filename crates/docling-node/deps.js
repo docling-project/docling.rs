@@ -123,7 +123,6 @@ function resolvePaths(dir) {
         fp32Forced()
           ? [tf('decoder_kv_layers.onnx'), tf('decoder_kv.onnx'), tf('decoder.onnx')]
           : [
-              tf('decoder_kv_int8.onnx'),
               tf('decoder_kv_layers.onnx'),
               tf('decoder_kv.onnx'),
               tf('decoder_int8.onnx'),

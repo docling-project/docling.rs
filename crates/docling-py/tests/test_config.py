@@ -643,7 +643,7 @@ def test_ensure_env_pins_no_model_file(tmp_path, monkeypatch):
     for rel in (
         "models/layout_heron.onnx",
         "models/layout_heron_int8.onnx",
-        "models/tableformer/decoder_kv_int8.onnx",
+        "models/tableformer/decoder_int8.onnx",
         "models/picture_classifier.onnx",
     ):
         p = cache / rel
