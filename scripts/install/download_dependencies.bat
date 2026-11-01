@@ -111,9 +111,9 @@ echo fetching docling.rs ML dependencies from %BASE_URL%
 
 rem --- required models --------------------------------------------------------
 rem The attribution records (#942) - the notice, the digest-bound models.json
-rem manifest and the licence texts - kept beside the files; a tag that
-rem predates them has none.
-for %%r in (MODELS_NOTICE.md models.json LICENSE-Apache-2.0.txt LICENSE-CDLA-Permissive-2.0.txt LICENSE-MIT.txt LICENSE-BSD-3-Clause.txt LICENSE-pdfium-binaries.txt) do call :fetch_opt "%BASE_URL%/%%r" .models\%%r
+rem manifest, the publish run's export_record.json (#955) and the licence
+rem texts - kept beside the files; a tag that predates them has none.
+for %%r in (MODELS_NOTICE.md models.json export_record.json LICENSE-Apache-2.0.txt LICENSE-CDLA-Permissive-2.0.txt LICENSE-MIT.txt LICENSE-BSD-3-Clause.txt LICENSE-pdfium-binaries.txt) do call :fetch_opt "%BASE_URL%/%%r" .models\%%r
 call :fetch "%BASE_URL%/layout_heron.onnx"              .models\layout_heron.onnx           || goto :fail
 call :fetch "%BASE_URL%/ocr_rec.onnx"                   .models\ocr_rec.onnx                || goto :fail
 call :fetch "%BASE_URL%/ppocr_keys_v1.txt"              .models\ppocr_keys_v1.txt           || goto :fail

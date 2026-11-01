@@ -11,14 +11,20 @@
 #                      external-weights sidecar is one artifact), upstream
 #                      repository + revision, how the bytes were produced
 #                      (export / quantization / repack / rehost / build), the
-#                      SPDX licence and the notice/licence files that apply;
+#                      SPDX licence, its `lineage` (#955: the upstream model
+#                      card, training records, the producer's conversion,
+#                      and what is unavailable) and the notice/licence files
+#                      that apply — plus `execution`: the publish run's
+#                      export_record.json (scripts/ci/export_record.py),
+#                      linked and digest-bound when the release has one;
 #   MODELS_NOTICE.md   docs/MODELS_NOTICE.md, the attribution notice;
 #   LICENSE-<SPDX>.txt docs/licenses/<SPDX>.txt, the licence texts the
 #                      catalog names.
 #
 #   scripts/ci/models_manifest.sh models-v1          # GITHUB_REPOSITORY or docling-project/docling.rs
-#   scripts/ci/models_manifest.sh --check SHA256SUMS # offline: print the models.json a
-#                                                    # release with these sums would get
+#   scripts/ci/models_manifest.sh --check SHA256SUMS [export_record.json]
+#                                                    # offline: print the models.json a
+#                                                    # release with these sums (and record) would get
 #
 # Every workflow that uploads into a `models-v*` release ends with this
 # (publish-models.yml, docling-parse-render.yml, onnxruntime-s390x.yml), so
@@ -51,7 +57,7 @@ CATALOG="$ROOT/scripts/install/models_catalog.json"
 NOTICE_SRC="$ROOT/docs/MODELS_NOTICE.md"
 LICENSES_SRC="$ROOT/docs/licenses"
 
-# build_models_json <tag> <repo> <sums-file> <sizes-tsv> > models.json
+# build_models_json <tag> <repo> <sums-file> <sizes-tsv> <record-file> > models.json
 #
 # The catalog's artifacts with each file's `sha256` (+ `size` when known)
 # filled in from the release; a catalog file the release does not host (an
@@ -60,18 +66,26 @@ LICENSES_SRC="$ROOT/docs/licenses"
 # `pattern` artifacts (the per-platform tarballs other workflows upload)
 # collect every asset their regex matches. Fails, naming them, on release
 # assets no artifact covers — the records themselves excepted.
+#
+# <record-file> is the release's export_record.json (#955) or /dev/null:
+# with one, `execution` names it, its digest, the run and the commit, and
+# every export / quantization / repack artifact points at it; without one
+# (a release whose assets predate the record) `execution` is null with a
+# note saying so, rather than silent.
 build_models_json() {
-  local tag=$1 repo=$2 sums=$3 sizes=$4
+  local tag=$1 repo=$2 sums=$3 sizes=$4 record=$5
   jq -n \
     --arg tag "$tag" --arg repo "$repo" \
     --arg generated "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --slurpfile catalog "$CATALOG" \
+    --slurpfile record "$record" \
     --rawfile sums "$sums" --rawfile sizes "$sizes" '
     ($sums | split("\n") | map(select(length > 0) | capture("^(?<hash>[0-9a-f]{64}) [ *](?<name>.+)$"))
       | map({(.name): .hash}) | add // {}) as $hash
     | ($sizes | split("\n") | map(select(length > 0) | split("\t") | {(.[0]): (.[1] | tonumber)})
       | add // {}) as $size
     | $catalog[0] as $cat
+    | (($record | length) > 0) as $has_record
     | ($cat.licenses | to_entries | map(.value)) as $license_files
     | ($hash | keys) as $assets
     | ($cat.artifacts | map(
@@ -83,20 +97,35 @@ build_models_json() {
             | . + {sha256: $hash[.asset]} + (if $size[.asset] then {size: $size[.asset]} else {} end)))
         | select(.files | length > 0)
         | del(.pattern, .install_dir)
+        | if (.provenance | IN("export", "quantization", "repack")) then
+            . + {execution: (if $has_record then "export_record.json" else null end)}
+          else . end
       )) as $artifacts
     | ($artifacts | map(.files[].asset)) as $covered
-    | ($assets - $covered - ["SHA256SUMS", "models.json", $cat.notice] - $license_files) as $uncovered
+    | ($assets - $covered - ["SHA256SUMS", "models.json", "export_record.json", $cat.notice] - $license_files) as $uncovered
     | if ($uncovered | length) > 0 then
         error("release assets missing from scripts/install/models_catalog.json: " + ($uncovered | join(", ")))
       else . end
+    | (if $has_record then {
+          record: "export_record.json",
+          sha256: $hash["export_record.json"],
+          run: $record[0].workflow.url,
+          commit: $record[0].workflow.commit,
+          generated: $record[0].generated,
+          covers: "the artifacts whose provenance is export, quantization or repack — produced by this run, which also fetched the rehost assets at the catalog revisions; what upstream published about each model is its `lineage`"
+        } else {
+          record: null,
+          note: "no export_record.json in the release: its assets predate the execution record (#955), so the run that produced them is not recoverable from the release — the next publish-models.yml run writes one"
+        } end) as $execution
     | {
-        "$comment": "Digest-bound manifest of the docling.rs models release (scripts/ci/models_manifest.sh, from scripts/install/models_catalog.json). Each artifact lists the release assets that form it, with their sha256 and byte size, the upstream repository and revision the bytes come from, how they were produced and the SPDX licence; `notice` and `licenses` name the attribution notice and licence texts hosted beside the assets.",
+        "$comment": "Digest-bound manifest of the docling.rs models release (scripts/ci/models_manifest.sh, from scripts/install/models_catalog.json). Each artifact lists the release assets that form it, with their sha256 and byte size, the upstream repository and revision the bytes come from, how they were produced, the SPDX licence and its lineage (the upstream model card, the published training records, the producer conversion of a re-hosted file, and what no public record exists for); `execution` is the publish run that produced the export/quantization/repack assets (export_record.json: run, runner, toolchain versions, input and output digests), null with a note when the release predates it; `notice` and `licenses` name the attribution notice and licence texts hosted beside the assets.",
         schema: $cat.schema,
         release: $tag,
         repository: ("https://github.com/" + $repo),
         generated: $generated,
         notice: $cat.notice,
         licenses: $cat.licenses,
+        execution: $execution,
         artifacts: $artifacts
       }'
 }
@@ -113,8 +142,8 @@ stage_records() {
 }
 
 if [ "${1:-}" = --check ]; then
-  SUMS="${2:?usage: models_manifest.sh --check <SHA256SUMS>}"
-  build_models_json "$(jq -r .release "$CATALOG")" "docling-project/docling.rs" "$SUMS" /dev/null
+  SUMS="${2:?usage: models_manifest.sh --check <SHA256SUMS> [export_record.json]}"
+  build_models_json "$(jq -r .release "$CATALOG")" "docling-project/docling.rs" "$SUMS" /dev/null "${3:-/dev/null}"
   exit 0
 fi
 
@@ -154,10 +183,19 @@ if [ ! -s "$tmp/unsorted" ]; then
   exit 1
 fi
 
+# The publish run's execution record (#955), when the release hosts one:
+# an ordinary asset in SHA256SUMS above, read here so models.json can name
+# the run and bind the record by its digest.
+record=/dev/null
+if grep -q $'^export_record.json\t' "$tmp/assets.tsv"; then
+  gh release download "$TAG" --repo "$REPO" --pattern export_record.json --dir "$tmp" --clobber
+  record="$tmp/export_record.json"
+fi
+
 # The records: models.json from the model assets' digests (fails on an
 # uncovered asset, before any upload), the notice and the licence texts.
 mkdir -p "$tmp/records"
-build_models_json "$TAG" "$REPO" "$tmp/unsorted" "$tmp/sizes.tsv" > "$tmp/records/models.json"
+build_models_json "$TAG" "$REPO" "$tmp/unsorted" "$tmp/sizes.tsv" "$record" > "$tmp/records/models.json"
 stage_records "$tmp/records"
 for f in "$tmp"/records/*; do
   printf '%s  %s\n' "$(sha256sum "$f" | cut -d' ' -f1)" "$(basename "$f")" >> "$tmp/unsorted"
@@ -167,6 +205,7 @@ LC_ALL=C sort -k2 "$tmp/unsorted" > "$tmp/SHA256SUMS"
 echo "records for $TAG ($(wc -l < "$tmp/SHA256SUMS" | tr -d ' ') assets):"
 cat "$tmp/SHA256SUMS"
 jq -r '.artifacts[] | "  \(.id): \(.files | map(.asset) | join(" + "))"' "$tmp/records/models.json"
+jq -r '"  execution: \(.execution.record // "none") \(.execution.run // .execution.note)"' "$tmp/records/models.json"
 # The records first, so the SHA256SUMS that lands covers the copies that are
 # actually hosted.
 gh release upload "$TAG" "$tmp"/records/* --repo "$REPO" --clobber

@@ -1,5 +1,5 @@
 {
-  "$comment": "The provenance catalog of the models release (docs/MODELS_NOTICE.md, #942): every asset the release hosts, grouped into the artifacts they form (an ONNX graph with its `.onnx.data` external-weights sidecar is one artifact), with the upstream repository and revision the bytes come from, how they were produced (export | quantization | repack | rehost | build), the tool that did it and the SPDX licence. scripts/ci/models_manifest.sh joins it with the release's digests into the digest-bound `models.json` asset and refuses a release asset this file does not cover; scripts/install/export_*.py pin their upstream revision from it; publish-models.yml fetches the re-hosted files at the revisions recorded here.",
+  "$comment": "The provenance catalog of the models release (docs/MODELS_NOTICE.md, #942): every asset the release hosts, grouped into the artifacts they form (an ONNX graph with its `.onnx.data` external-weights sidecar is one artifact), with the upstream repository and revision the bytes come from, how they were produced (export | quantization | repack | rehost | build), the tool that did it and the SPDX licence — and, per artifact, `lineage` (#955): the upstream model card, the published records of how the weights were trained (reports, papers, datasets), for a re-hosted file how its producer made it (`upstream_conversion`), and `unavailable`, what no public record exists for. scripts/ci/models_manifest.sh joins it with the release's digests into the digest-bound `models.json` asset (plus `execution`, the publish run's own record, export_record.json) and refuses a release asset this file does not cover; scripts/install/export_*.py pin their upstream revision from it; publish-models.yml fetches the re-hosted files at the revisions recorded here.",
   "schema": 1,
   "release": "models-v1",
   "notice": "MODELS_NOTICE.md",
@@ -26,6 +26,30 @@
       },
       "tool": "scripts/install/export_layout.py",
       "note": "A PyTorch→ONNX export (torch.onnx.export) of the upstream weights; nothing retrained or fine-tuned.",
+      "lineage": {
+        "model_card": "https://huggingface.co/docling-project/docling-layout-heron",
+        "training": [
+          {
+            "record": "Advanced Layout Analysis Models for Docling (arXiv 2509.11720) — architecture, training datasets, evaluation",
+            "url": "https://arxiv.org/abs/2509.11720"
+          },
+          {
+            "record": "DocLayNet dataset (arXiv 2206.01062; Hugging Face ds4sd/DocLayNet)",
+            "url": "https://huggingface.co/datasets/ds4sd/DocLayNet"
+          },
+          {
+            "record": "RT-DETR architecture (arXiv 2304.08069)",
+            "url": "https://arxiv.org/abs/2304.08069"
+          },
+          {
+            "record": "Docling Technical Report (arXiv 2408.09869) — the models in docling's pipeline",
+            "url": "https://arxiv.org/abs/2408.09869"
+          }
+        ],
+        "unavailable": [
+          "the training run itself: logs, intermediate checkpoints, hyper-parameters beyond the report, and the exact data mix — upstream publishes the report and the final weights only"
+        ]
+      },
       "files": [
         {
           "asset": "layout_heron.onnx",
@@ -51,6 +75,30 @@
       "tool": "scripts/install/quantize_models.py layout",
       "derived_from": "layout_heron.onnx",
       "note": "A post-training quantization of layout_heron.onnx (a numeric re-encoding of the same weights, calibrated on the repository's PDF corpus); no retraining.",
+      "lineage": {
+        "model_card": "https://huggingface.co/docling-project/docling-layout-heron",
+        "training": [
+          {
+            "record": "Advanced Layout Analysis Models for Docling (arXiv 2509.11720) — architecture, training datasets, evaluation",
+            "url": "https://arxiv.org/abs/2509.11720"
+          },
+          {
+            "record": "DocLayNet dataset (arXiv 2206.01062; Hugging Face ds4sd/DocLayNet)",
+            "url": "https://huggingface.co/datasets/ds4sd/DocLayNet"
+          },
+          {
+            "record": "RT-DETR architecture (arXiv 2304.08069)",
+            "url": "https://arxiv.org/abs/2304.08069"
+          },
+          {
+            "record": "Docling Technical Report (arXiv 2408.09869) — the models in docling's pipeline",
+            "url": "https://arxiv.org/abs/2408.09869"
+          }
+        ],
+        "unavailable": [
+          "the training run itself: logs, intermediate checkpoints, hyper-parameters beyond the report, and the exact data mix — upstream publishes the report and the final weights only"
+        ]
+      },
       "files": [
         {
           "asset": "layout_heron_int8.onnx",
@@ -74,6 +122,34 @@
       },
       "tool": "scripts/install/export_tableformer.py",
       "note": "A PyTorch→ONNX export of docling-ibm-models' TableFormer `accurate` checkpoint; the `.onnx.data` sidecar holds the graph's weights (ONNX external data) and is read by the graph that names it in `data` — the two files are one artifact and travel together. (The encoder export fits in one file; its sidecar is listed for the exports that need it.)",
+      "lineage": {
+        "model_card": "https://huggingface.co/docling-project/docling-models",
+        "training": [
+          {
+            "record": "TableFormer: Table Structure Understanding with Transformers (arXiv 2203.01017) — architecture, training data (PubTabNet, FinTabNet, TableBank), evaluation",
+            "url": "https://arxiv.org/abs/2203.01017"
+          },
+          {
+            "record": "PubTabNet (arXiv 1911.10683; the OTSL-annotated copy ds4sd/PubTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/PubTabNet_OTSL"
+          },
+          {
+            "record": "FinTabNet, OTSL-annotated (ds4sd/FinTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/FinTabNet_OTSL"
+          },
+          {
+            "record": "docling-ibm-models — the TableFormer model code the checkpoint loads into",
+            "url": "https://github.com/docling-project/docling-ibm-models/tree/main/docling_ibm_models/tableformer"
+          },
+          {
+            "record": "Docling Technical Report (arXiv 2408.09869) — the models in docling's pipeline",
+            "url": "https://arxiv.org/abs/2408.09869"
+          }
+        ],
+        "unavailable": [
+          "the training run: logs, intermediate checkpoints and hyper-parameters beyond the paper — the model card (docling-models) describes the layout model and cites the papers; TableFormer's own record is the paper"
+        ]
+      },
       "files": [
         {
           "asset": "encoder.onnx",
@@ -105,6 +181,34 @@
       "tool": "scripts/install/quantize_models.py tableformer-encoder-fp16",
       "derived_from": "encoder.onnx",
       "note": "encoder.onnx with its weights stored as fp16 and cast back to fp32 at run time (#374): half the download, the same computation.",
+      "lineage": {
+        "model_card": "https://huggingface.co/docling-project/docling-models",
+        "training": [
+          {
+            "record": "TableFormer: Table Structure Understanding with Transformers (arXiv 2203.01017) — architecture, training data (PubTabNet, FinTabNet, TableBank), evaluation",
+            "url": "https://arxiv.org/abs/2203.01017"
+          },
+          {
+            "record": "PubTabNet (arXiv 1911.10683; the OTSL-annotated copy ds4sd/PubTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/PubTabNet_OTSL"
+          },
+          {
+            "record": "FinTabNet, OTSL-annotated (ds4sd/FinTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/FinTabNet_OTSL"
+          },
+          {
+            "record": "docling-ibm-models — the TableFormer model code the checkpoint loads into",
+            "url": "https://github.com/docling-project/docling-ibm-models/tree/main/docling_ibm_models/tableformer"
+          },
+          {
+            "record": "Docling Technical Report (arXiv 2408.09869) — the models in docling's pipeline",
+            "url": "https://arxiv.org/abs/2408.09869"
+          }
+        ],
+        "unavailable": [
+          "the training run: logs, intermediate checkpoints and hyper-parameters beyond the paper — the model card (docling-models) describes the layout model and cites the papers; TableFormer's own record is the paper"
+        ]
+      },
       "files": [
         {
           "asset": "encoder_fp16.onnx",
@@ -128,6 +232,34 @@
       },
       "tool": "scripts/install/export_tableformer.py",
       "note": "A PyTorch→ONNX export of docling-ibm-models' TableFormer `accurate` checkpoint; the `.onnx.data` sidecar holds the graph's weights (ONNX external data) and is read by the graph that names it in `data` — the two files are one artifact and travel together.",
+      "lineage": {
+        "model_card": "https://huggingface.co/docling-project/docling-models",
+        "training": [
+          {
+            "record": "TableFormer: Table Structure Understanding with Transformers (arXiv 2203.01017) — architecture, training data (PubTabNet, FinTabNet, TableBank), evaluation",
+            "url": "https://arxiv.org/abs/2203.01017"
+          },
+          {
+            "record": "PubTabNet (arXiv 1911.10683; the OTSL-annotated copy ds4sd/PubTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/PubTabNet_OTSL"
+          },
+          {
+            "record": "FinTabNet, OTSL-annotated (ds4sd/FinTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/FinTabNet_OTSL"
+          },
+          {
+            "record": "docling-ibm-models — the TableFormer model code the checkpoint loads into",
+            "url": "https://github.com/docling-project/docling-ibm-models/tree/main/docling_ibm_models/tableformer"
+          },
+          {
+            "record": "Docling Technical Report (arXiv 2408.09869) — the models in docling's pipeline",
+            "url": "https://arxiv.org/abs/2408.09869"
+          }
+        ],
+        "unavailable": [
+          "the training run: logs, intermediate checkpoints and hyper-parameters beyond the paper — the model card (docling-models) describes the layout model and cites the papers; TableFormer's own record is the paper"
+        ]
+      },
       "files": [
         {
           "asset": "decoder.onnx",
@@ -159,6 +291,34 @@
       "tool": "scripts/install/quantize_models.py tableformer-decoder",
       "derived_from": "decoder.onnx",
       "note": "A post-training dynamic quantization of decoder.onnx (+ its .data); no retraining.",
+      "lineage": {
+        "model_card": "https://huggingface.co/docling-project/docling-models",
+        "training": [
+          {
+            "record": "TableFormer: Table Structure Understanding with Transformers (arXiv 2203.01017) — architecture, training data (PubTabNet, FinTabNet, TableBank), evaluation",
+            "url": "https://arxiv.org/abs/2203.01017"
+          },
+          {
+            "record": "PubTabNet (arXiv 1911.10683; the OTSL-annotated copy ds4sd/PubTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/PubTabNet_OTSL"
+          },
+          {
+            "record": "FinTabNet, OTSL-annotated (ds4sd/FinTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/FinTabNet_OTSL"
+          },
+          {
+            "record": "docling-ibm-models — the TableFormer model code the checkpoint loads into",
+            "url": "https://github.com/docling-project/docling-ibm-models/tree/main/docling_ibm_models/tableformer"
+          },
+          {
+            "record": "Docling Technical Report (arXiv 2408.09869) — the models in docling's pipeline",
+            "url": "https://arxiv.org/abs/2408.09869"
+          }
+        ],
+        "unavailable": [
+          "the training run: logs, intermediate checkpoints and hyper-parameters beyond the paper — the model card (docling-models) describes the layout model and cites the papers; TableFormer's own record is the paper"
+        ]
+      },
       "files": [
         {
           "asset": "decoder_int8.onnx",
@@ -182,6 +342,34 @@
       },
       "tool": "scripts/install/export_tableformer.py",
       "note": "A PyTorch→ONNX export of docling-ibm-models' TableFormer `accurate` checkpoint; the `.onnx.data` sidecar holds the graph's weights (ONNX external data) and is read by the graph that names it in `data` — the two files are one artifact and travel together. decoder_kv_layers.onnx (#871) is the same export with per-layer cache inputs — it reads the same decoder_kv.onnx.data, so the three files are one artifact.",
+      "lineage": {
+        "model_card": "https://huggingface.co/docling-project/docling-models",
+        "training": [
+          {
+            "record": "TableFormer: Table Structure Understanding with Transformers (arXiv 2203.01017) — architecture, training data (PubTabNet, FinTabNet, TableBank), evaluation",
+            "url": "https://arxiv.org/abs/2203.01017"
+          },
+          {
+            "record": "PubTabNet (arXiv 1911.10683; the OTSL-annotated copy ds4sd/PubTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/PubTabNet_OTSL"
+          },
+          {
+            "record": "FinTabNet, OTSL-annotated (ds4sd/FinTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/FinTabNet_OTSL"
+          },
+          {
+            "record": "docling-ibm-models — the TableFormer model code the checkpoint loads into",
+            "url": "https://github.com/docling-project/docling-ibm-models/tree/main/docling_ibm_models/tableformer"
+          },
+          {
+            "record": "Docling Technical Report (arXiv 2408.09869) — the models in docling's pipeline",
+            "url": "https://arxiv.org/abs/2408.09869"
+          }
+        ],
+        "unavailable": [
+          "the training run: logs, intermediate checkpoints and hyper-parameters beyond the paper — the model card (docling-models) describes the layout model and cites the papers; TableFormer's own record is the paper"
+        ]
+      },
       "files": [
         {
           "asset": "decoder_kv.onnx",
@@ -219,6 +407,34 @@
       "tool": "scripts/install/quantize_models.py tableformer-decoder",
       "derived_from": "decoder_kv.onnx",
       "note": "A post-training dynamic quantization of decoder_kv.onnx; no retraining.",
+      "lineage": {
+        "model_card": "https://huggingface.co/docling-project/docling-models",
+        "training": [
+          {
+            "record": "TableFormer: Table Structure Understanding with Transformers (arXiv 2203.01017) — architecture, training data (PubTabNet, FinTabNet, TableBank), evaluation",
+            "url": "https://arxiv.org/abs/2203.01017"
+          },
+          {
+            "record": "PubTabNet (arXiv 1911.10683; the OTSL-annotated copy ds4sd/PubTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/PubTabNet_OTSL"
+          },
+          {
+            "record": "FinTabNet, OTSL-annotated (ds4sd/FinTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/FinTabNet_OTSL"
+          },
+          {
+            "record": "docling-ibm-models — the TableFormer model code the checkpoint loads into",
+            "url": "https://github.com/docling-project/docling-ibm-models/tree/main/docling_ibm_models/tableformer"
+          },
+          {
+            "record": "Docling Technical Report (arXiv 2408.09869) — the models in docling's pipeline",
+            "url": "https://arxiv.org/abs/2408.09869"
+          }
+        ],
+        "unavailable": [
+          "the training run: logs, intermediate checkpoints and hyper-parameters beyond the paper — the model card (docling-models) describes the layout model and cites the papers; TableFormer's own record is the paper"
+        ]
+      },
       "files": [
         {
           "asset": "decoder_kv_int8.onnx",
@@ -249,6 +465,34 @@
       },
       "tool": "scripts/install/export_tableformer.py",
       "note": "A PyTorch→ONNX export of docling-ibm-models' TableFormer `accurate` checkpoint; the `.onnx.data` sidecar holds the graph's weights (ONNX external data) and is read by the graph that names it in `data` — the two files are one artifact and travel together.",
+      "lineage": {
+        "model_card": "https://huggingface.co/docling-project/docling-models",
+        "training": [
+          {
+            "record": "TableFormer: Table Structure Understanding with Transformers (arXiv 2203.01017) — architecture, training data (PubTabNet, FinTabNet, TableBank), evaluation",
+            "url": "https://arxiv.org/abs/2203.01017"
+          },
+          {
+            "record": "PubTabNet (arXiv 1911.10683; the OTSL-annotated copy ds4sd/PubTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/PubTabNet_OTSL"
+          },
+          {
+            "record": "FinTabNet, OTSL-annotated (ds4sd/FinTabNet_OTSL)",
+            "url": "https://huggingface.co/datasets/ds4sd/FinTabNet_OTSL"
+          },
+          {
+            "record": "docling-ibm-models — the TableFormer model code the checkpoint loads into",
+            "url": "https://github.com/docling-project/docling-ibm-models/tree/main/docling_ibm_models/tableformer"
+          },
+          {
+            "record": "Docling Technical Report (arXiv 2408.09869) — the models in docling's pipeline",
+            "url": "https://arxiv.org/abs/2408.09869"
+          }
+        ],
+        "unavailable": [
+          "the training run: logs, intermediate checkpoints and hyper-parameters beyond the paper — the model card (docling-models) describes the layout model and cites the papers; TableFormer's own record is the paper"
+        ]
+      },
       "files": [
         {
           "asset": "bbox.onnx",
@@ -277,6 +521,28 @@
         ]
       },
       "note": "Upstream's own ONNX graph, re-hosted unmodified. Upstream declares the licence in its model card (`license: mit`); it ships no LICENSE file of its own, so the SPDX MIT text is the one bundled here.",
+      "lineage": {
+        "model_card": "https://huggingface.co/docling-project/DocumentFigureClassifier-v2.5",
+        "training": [
+          {
+            "record": "EfficientNet (arXiv 1905.11946) — the architecture (EfficientNet-B0)",
+            "url": "https://arxiv.org/abs/1905.11946"
+          },
+          {
+            "record": "Docling Technical Report (arXiv 2408.09869) — the models in docling's pipeline",
+            "url": "https://arxiv.org/abs/2408.09869"
+          }
+        ],
+        "upstream_conversion": {
+          "by": "docling-project — the model card publishes model.onnx beside the PyTorch weights and shows it run under onnxruntime",
+          "record": null,
+          "note": "no export script, tool or toolchain version is published with the graph"
+        },
+        "unavailable": [
+          "the training dataset: the card states it is ten times v2.0's and names the evaluation set (finepdfs), nothing is published",
+          "the training run and the ONNX export's toolchain"
+        ]
+      },
       "files": [
         {
           "asset": "picture_classifier.onnx",
@@ -301,6 +567,35 @@
       },
       "tool": "scripts/install/export_code_formula.py",
       "note": "A PyTorch→ONNX export of the upstream weights in three graphs; cf_tokenizer.json is upstream's tokenizer.json re-hosted unmodified. Upstream declares the licence in its model card (`license: cdla-permissive-2.0`).",
+      "lineage": {
+        "model_card": "https://huggingface.co/docling-project/CodeFormulaV2",
+        "training": [
+          {
+            "record": "SynthFormulaNet — training dataset named by the model card",
+            "url": "https://huggingface.co/datasets/ds4sd/SynthFormulaNet"
+          },
+          {
+            "record": "SynthCodeNet — training dataset named by the model card",
+            "url": "https://huggingface.co/datasets/ds4sd/SynthCodeNet"
+          },
+          {
+            "record": "SmolDocling (arXiv 2503.11576) — the paper the model card cites",
+            "url": "https://arxiv.org/abs/2503.11576"
+          },
+          {
+            "record": "Idefics3 (arXiv 2408.12637) — the base architecture",
+            "url": "https://arxiv.org/abs/2408.12637"
+          },
+          {
+            "record": "Docling Technical Report (arXiv 2408.09869) — the models in docling's pipeline",
+            "url": "https://arxiv.org/abs/2408.09869"
+          }
+        ],
+        "unavailable": [
+          "the training run: logs, checkpoints and hyper-parameters — the card names the two datasets and the paper only",
+          "the base checkpoint's own lineage beyond its model card"
+        ]
+      },
       "files": [
         {
           "asset": "cf_vision.onnx",
@@ -341,6 +636,35 @@
       "tool": "scripts/install/quantize_models.py code-formula-decoder",
       "derived_from": "cf_decoder_kv.onnx",
       "note": "A post-training dynamic quantization of cf_decoder_kv.onnx; no retraining.",
+      "lineage": {
+        "model_card": "https://huggingface.co/docling-project/CodeFormulaV2",
+        "training": [
+          {
+            "record": "SynthFormulaNet — training dataset named by the model card",
+            "url": "https://huggingface.co/datasets/ds4sd/SynthFormulaNet"
+          },
+          {
+            "record": "SynthCodeNet — training dataset named by the model card",
+            "url": "https://huggingface.co/datasets/ds4sd/SynthCodeNet"
+          },
+          {
+            "record": "SmolDocling (arXiv 2503.11576) — the paper the model card cites",
+            "url": "https://arxiv.org/abs/2503.11576"
+          },
+          {
+            "record": "Idefics3 (arXiv 2408.12637) — the base architecture",
+            "url": "https://arxiv.org/abs/2408.12637"
+          },
+          {
+            "record": "Docling Technical Report (arXiv 2408.09869) — the models in docling's pipeline",
+            "url": "https://arxiv.org/abs/2408.09869"
+          }
+        ],
+        "unavailable": [
+          "the training run: logs, checkpoints and hyper-parameters — the card names the two datasets and the paper only",
+          "the base checkpoint's own lineage beyond its model card"
+        ]
+      },
       "files": [
         {
           "asset": "cf_decoder_kv_int8.onnx",
@@ -362,6 +686,32 @@
         ]
       },
       "note": "PaddleOCR's model as the ready ONNX conversion SWHL/RapidOCR re-hosts, unmodified. The dictionary is PaddleOCR's own ppocr/utils/ppocr_keys_v1.txt (https://github.com/PaddlePaddle/PaddleOCR, fetched from `main`; the released copy is bound by its digest).",
+      "lineage": {
+        "model_card": "https://huggingface.co/SWHL/RapidOCR",
+        "training": [
+          {
+            "record": "PaddleOCR — PP-OCRv3: architecture and training recipe",
+            "url": "https://paddlepaddle.github.io/PaddleOCR/main/en/version2.x/ppocr/blog/PP-OCRv3_introduction.html"
+          },
+          {
+            "record": "RapidOCR — the project that converts PaddleOCR's models to ONNX",
+            "url": "https://github.com/RapidAI/RapidOCR"
+          },
+          {
+            "record": "PaddleOCR repository (training code, public datasets the recipes name)",
+            "url": "https://github.com/PaddlePaddle/PaddleOCR"
+          }
+        ],
+        "upstream_conversion": {
+          "by": "SWHL/RapidOCR — ONNX graphs converted from PaddleOCR's released inference models (the card: it hosts the ONNX models converted from the PaddleOCR project, PP-OCRv1–v4); the RapidOCR project's README describes the conversion as its own",
+          "record": null,
+          "note": "the hub records the converted files and their digests; the conversion command, tool and version are not published at that revision"
+        },
+        "unavailable": [
+          "PaddleOCR's training runs and the private part of its data for the released inference models — the docs describe the recipe and the public datasets",
+          "the exact Paddle→ONNX conversion execution of the hosted graph (tool, version, options)"
+        ]
+      },
       "files": [
         {
           "asset": "ocr_rec.onnx",
@@ -388,6 +738,32 @@
         ]
       },
       "note": "As ocr_rec_v3_ch; the dictionary is PaddleOCR's ppocr/utils/en_dict.txt.",
+      "lineage": {
+        "model_card": "https://huggingface.co/SWHL/RapidOCR",
+        "training": [
+          {
+            "record": "PaddleOCR — PP-OCRv3: architecture and training recipe",
+            "url": "https://paddlepaddle.github.io/PaddleOCR/main/en/version2.x/ppocr/blog/PP-OCRv3_introduction.html"
+          },
+          {
+            "record": "RapidOCR — the project that converts PaddleOCR's models to ONNX",
+            "url": "https://github.com/RapidAI/RapidOCR"
+          },
+          {
+            "record": "PaddleOCR repository (training code, public datasets the recipes name)",
+            "url": "https://github.com/PaddlePaddle/PaddleOCR"
+          }
+        ],
+        "upstream_conversion": {
+          "by": "SWHL/RapidOCR — ONNX graphs converted from PaddleOCR's released inference models (the card: it hosts the ONNX models converted from the PaddleOCR project, PP-OCRv1–v4); the RapidOCR project's README describes the conversion as its own",
+          "record": null,
+          "note": "the hub records the converted files and their digests; the conversion command, tool and version are not published at that revision"
+        },
+        "unavailable": [
+          "PaddleOCR's training runs and the private part of its data for the released inference models — the docs describe the recipe and the public datasets",
+          "the exact Paddle→ONNX conversion execution of the hosted graph (tool, version, options)"
+        ]
+      },
       "files": [
         {
           "asset": "ocr_rec_en.onnx",
@@ -418,6 +794,32 @@
         }
       },
       "note": "RapidOCR's recognizer (derived from PaddleOCR), re-hosted unmodified from RapidOCR's model hub (#570).",
+      "lineage": {
+        "model_card": "https://www.modelscope.cn/models/RapidAI/RapidOCR",
+        "training": [
+          {
+            "record": "PaddleOCR — PP-OCRv6: architecture and training recipe",
+            "url": "https://paddlepaddle.github.io/PaddleOCR/main/en/version3.x/algorithm/PP-OCRv6/PP-OCRv6.html"
+          },
+          {
+            "record": "RapidOCR — the project that converts PaddleOCR's models to ONNX",
+            "url": "https://github.com/RapidAI/RapidOCR"
+          },
+          {
+            "record": "PaddleOCR repository (training code, public datasets the recipes name)",
+            "url": "https://github.com/PaddlePaddle/PaddleOCR"
+          }
+        ],
+        "upstream_conversion": {
+          "by": "RapidAI/RapidOCR model hub — PaddleOCR's PP-OCRv4/v5/v6 releases in PaddlePaddle, ONNX, MNN and PyTorch formats, converted and collected by the RapidOCR project (its model list: https://rapidai.github.io/RapidOCRDocs/main/model_list/)",
+          "record": null,
+          "note": "the hub records the converted files and their digests; the conversion command, tool and version are not published at that revision"
+        },
+        "unavailable": [
+          "PaddleOCR's training runs and the private part of its data for the released inference models — the docs describe the recipe and the public datasets",
+          "the exact Paddle→ONNX conversion execution of the hosted graph (tool, version, options)"
+        ]
+      },
       "files": [
         {
           "asset": "ocr_rec_v6.onnx",
@@ -447,6 +849,32 @@
         }
       },
       "note": "RapidOCR's DB detector (derived from PaddleOCR), re-hosted unmodified (#429).",
+      "lineage": {
+        "model_card": "https://www.modelscope.cn/models/RapidAI/RapidOCR",
+        "training": [
+          {
+            "record": "PaddleOCR — PP-OCRv6: architecture and training recipe",
+            "url": "https://paddlepaddle.github.io/PaddleOCR/main/en/version3.x/algorithm/PP-OCRv6/PP-OCRv6.html"
+          },
+          {
+            "record": "RapidOCR — the project that converts PaddleOCR's models to ONNX",
+            "url": "https://github.com/RapidAI/RapidOCR"
+          },
+          {
+            "record": "PaddleOCR repository (training code, public datasets the recipes name)",
+            "url": "https://github.com/PaddlePaddle/PaddleOCR"
+          }
+        ],
+        "upstream_conversion": {
+          "by": "RapidAI/RapidOCR model hub — PaddleOCR's PP-OCRv4/v5/v6 releases in PaddlePaddle, ONNX, MNN and PyTorch formats, converted and collected by the RapidOCR project (its model list: https://rapidai.github.io/RapidOCRDocs/main/model_list/)",
+          "record": null,
+          "note": "the hub records the converted files and their digests; the conversion command, tool and version are not published at that revision"
+        },
+        "unavailable": [
+          "PaddleOCR's training runs and the private part of its data for the released inference models — the docs describe the recipe and the public datasets",
+          "the exact Paddle→ONNX conversion execution of the hosted graph (tool, version, options)"
+        ]
+      },
       "files": [
         {
           "asset": "ocr_det.onnx",
@@ -471,6 +899,36 @@
         }
       },
       "note": "Re-hosted unmodified from RapidOCR's model hub (#666).",
+      "lineage": {
+        "model_card": "https://www.modelscope.cn/models/RapidAI/RapidOCR",
+        "training": [
+          {
+            "record": "PaddleOCR — PP-OCRv6 (the text-line orientation classifier ships with the PP-OCR v5/v6 pipelines): architecture and training recipe",
+            "url": "https://paddlepaddle.github.io/PaddleOCR/main/en/version3.x/algorithm/PP-OCRv6/PP-OCRv6.html"
+          },
+          {
+            "record": "PP-LCNet (arXiv 2109.15099) — the classifier's backbone",
+            "url": "https://arxiv.org/abs/2109.15099"
+          },
+          {
+            "record": "RapidOCR — the project that converts PaddleOCR's models to ONNX",
+            "url": "https://github.com/RapidAI/RapidOCR"
+          },
+          {
+            "record": "PaddleOCR repository (training code, public datasets the recipes name)",
+            "url": "https://github.com/PaddlePaddle/PaddleOCR"
+          }
+        ],
+        "upstream_conversion": {
+          "by": "RapidAI/RapidOCR model hub — PaddleOCR's PP-OCRv4/v5/v6 releases in PaddlePaddle, ONNX, MNN and PyTorch formats, converted and collected by the RapidOCR project (its model list: https://rapidai.github.io/RapidOCRDocs/main/model_list/)",
+          "record": null,
+          "note": "the hub records the converted files and their digests; the conversion command, tool and version are not published at that revision"
+        },
+        "unavailable": [
+          "PaddleOCR's training runs and the private part of its data for the released inference models — the docs describe the recipe and the public datasets",
+          "the exact Paddle→ONNX conversion execution of the hosted graph (tool, version, options)"
+        ]
+      },
       "files": [
         {
           "asset": "ocr_textline_ori.onnx",
@@ -495,6 +953,32 @@
         ]
       },
       "note": "The community ONNX export of openai/whisper-tiny, re-hosted unmodified under the asr_ prefix.",
+      "lineage": {
+        "model_card": "https://huggingface.co/onnx-community/whisper-tiny",
+        "training": [
+          {
+            "record": "openai/whisper-tiny — the original weights and model card",
+            "url": "https://huggingface.co/openai/whisper-tiny"
+          },
+          {
+            "record": "Robust Speech Recognition via Large-Scale Weak Supervision (arXiv 2212.04356) — architecture, the 680k-hour training corpus in aggregate, evaluation",
+            "url": "https://arxiv.org/abs/2212.04356"
+          },
+          {
+            "record": "openai/whisper — the model code and the released checkpoints",
+            "url": "https://github.com/openai/whisper"
+          }
+        ],
+        "upstream_conversion": {
+          "by": "onnx-community (Hugging Face) — the ONNX weights of openai/whisper-tiny for Transformers.js, per the card",
+          "record": null,
+          "note": "the card names the purpose, not the converter or its version"
+        },
+        "unavailable": [
+          "OpenAI's training data and run records — the paper describes the corpus in aggregate only",
+          "the ONNX conversion's toolchain and options"
+        ]
+      },
       "files": [
         {
           "asset": "asr_encoder_model.onnx",
@@ -531,6 +1015,25 @@
         ]
       },
       "note": "A tokenizer definition, no weights; re-hosted unmodified.",
+      "lineage": {
+        "model_card": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2",
+        "training": [
+          {
+            "record": "the model card's Training procedure section and the repository's train_script.py — base model, 1B-pair contrastive fine-tuning, hardware, hyper-parameters",
+            "url": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2"
+          },
+          {
+            "record": "nreimers/MiniLM-L6-H384-uncased — the pre-trained base",
+            "url": "https://huggingface.co/nreimers/MiniLM-L6-H384-uncased"
+          },
+          {
+            "record": "MiniLM (arXiv 2002.10957) — the architecture and distillation",
+            "url": "https://arxiv.org/abs/2002.10957"
+          }
+        ],
+        "unavailable": [],
+        "note": "A tokenizer definition, not weights: what the file carries is the vocabulary and normalization, whose lineage is the base model's; the card documents the embedding model's training fully."
+      },
       "files": [
         {
           "asset": "chunk_tokenizer.json",
@@ -552,6 +1055,18 @@
         ]
       },
       "note": "Not a model: Google's PDFium (BSD-3-Clause) as built and released by bblanchon/pdfium-binaries, re-hosted unmodified for docling-pdf's opt-in `pdfium` feature and its oracle tests; the default pipeline renders in pure Rust. The build's own LICENSE and the third-party notices of its dependencies ship inside the upstream tarball (`LICENSE`, `licenses/`) — LICENSE-pdfium-binaries.txt is that LICENSE.",
+      "lineage": {
+        "model_card": "https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium%2F8100",
+        "training": [],
+        "upstream_conversion": {
+          "by": "bblanchon/pdfium-binaries — builds PDFium from Chromium's source at the tagged revision in its GitHub Actions workflow",
+          "record": "https://github.com/bblanchon/pdfium-binaries/blob/master/.github/workflows/build.yml",
+          "note": "the release page lists the assets and the pdfium/chromium revision; the workflow run that built the tag is not retained by GitHub beyond its log retention"
+        },
+        "unavailable": [
+          "the build run itself (logs) — the release's assets and the tarball's VERSION are the durable record"
+        ]
+      },
       "files": [
         {
           "asset": "libpdfium.so",
@@ -574,6 +1089,13 @@
       },
       "tool": ".github/workflows/docling-parse-render.yml",
       "note": "Not a model: docling-parse's Blend2D renderer compiled as a dlopen-able shim (#478), one tarball per platform (lib/ + pdf_resources/). Only the conformance scripts load it (DOCLING_RS_RENDERER=docling-parse).",
+      "lineage": {
+        "model_card": "https://github.com/docling-project/docling-parse",
+        "training": [],
+        "unavailable": [
+          "the run of the building workflow — not recorded in models.json; the tarball carries the upstream VERSION and LICENSE, the workflow file at the recorded commit the recipe"
+        ]
+      },
       "pattern": "^docling-parse-render-.*\\.tar\\.gz$",
       "files": [],
       "install_dir": ".docling-parse/"
@@ -592,6 +1114,13 @@
       },
       "tool": ".github/workflows/onnxruntime-s390x.yml",
       "note": "Not a model: the runtime an `ort-load-dynamic` build dlopens where no prebuilt ORT exists (#504); the tarball carries upstream's LICENSE and VERSION.",
+      "lineage": {
+        "model_card": "https://github.com/microsoft/onnxruntime",
+        "training": [],
+        "unavailable": [
+          "the run of the building workflow — not recorded in models.json; the tarball carries the upstream VERSION and LICENSE, the workflow file at the recorded commit the recipe"
+        ]
+      },
       "pattern": "^onnxruntime-linux-.*\\.tar\\.gz$",
       "files": [],
       "install_dir": ".models/onnxruntime/"

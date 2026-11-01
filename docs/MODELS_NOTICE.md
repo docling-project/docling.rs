@@ -46,7 +46,11 @@ publishes everything as GitHub Release assets on this repo (tag `models-v1`),
 fetched by `scripts/install/download_dependencies.sh` — see that script and
 `crates/docling-node/deps.js` — purely to spare downstream users the
 PyTorch/`transformers`/`docling_ibm_models` toolchain needed to export them
-locally.
+locally. Which toolchain, on which run, from which input bytes — the
+execution a source revision and a script name alone do not pin — is
+`export_record.json` (below, #955); what upstream published about training
+the weights, how the producer of a re-hosted file made it, and what no
+public record exists for, is each artifact's `lineage` in `models.json`.
 
 ## Records
 
@@ -60,7 +64,26 @@ The release's attribution travels with its bytes (#942):
   were produced (`export`, `quantization`, `repack`, `rehost`, `build`) and
   by which script, and the SPDX licence; `notice` and `licenses` name the
   files below. A release asset the catalog does not cover fails the
-  generation, so nothing is hosted unattributed.
+  generation, so nothing is hosted unattributed. Each artifact's `lineage`
+  (#955) links the upstream model card and the published records of how
+  the weights were trained — technical reports, papers, dataset cards —
+  and, for a re-hosted file, how its producer made it
+  (`upstream_conversion`); `unavailable` names what no public record
+  exists for (a training run's logs and checkpoints, a hub's exact
+  Paddle→ONNX invocation), stated rather than left to inference. The
+  manifest's `execution` names the record below, its digest, the run and
+  the commit; it is `null`, with a note, for a release whose assets
+  predate the record.
+- `export_record.json` — the execution record of the `publish-models.yml`
+  run that produced the `export`, `quantization` and `repack` assets and
+  fetched the re-hosted ones (`scripts/ci/export_record.py`, #955): the
+  run's URL, id, attempt, commit and actor, the runner image and CPU, the
+  Python and the version of every package the conversions ran with, the
+  sha256 of every upstream input file the exports read (the Hugging Face
+  hub's snapshot at the catalog's revision) and of every asset staged. A
+  run's logs and artifacts expire; the asset does not. The export steps
+  pin their toolchain, so the record also says what the next run must
+  install to compare.
 - `MODELS_NOTICE.md` — this file.
 - `LICENSE-Apache-2.0.txt`, `LICENSE-CDLA-Permissive-2.0.txt`,
   `LICENSE-MIT.txt`, `LICENSE-BSD-3-Clause.txt` — the licence texts

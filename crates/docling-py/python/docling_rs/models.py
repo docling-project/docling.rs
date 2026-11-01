@@ -115,13 +115,16 @@ _OPTIONAL = {
 # redistributed cache carries them: the third-party notice, the digest-bound
 # ``models.json`` manifest (every asset's sha256 and artifact grouping, the
 # upstream repository + revision the bytes come from, how they were produced,
-# the SPDX licence) and the licence texts it names. Optional — a tag that
-# predates them has none.
+# the SPDX licence, each artifact's upstream lineage), the publish run's
+# ``export_record.json`` (#955: the run, runner, toolchain versions and the
+# input/output digests behind the exported bytes) and the licence texts it
+# names. Optional — a tag that predates them has none.
 _RECORDS = {
     name: f"models/{name}"
     for name in (
         "MODELS_NOTICE.md",
         "models.json",
+        "export_record.json",
         "LICENSE-Apache-2.0.txt",
         "LICENSE-CDLA-Permissive-2.0.txt",
         "LICENSE-MIT.txt",
