@@ -1093,7 +1093,7 @@
         "model_card": "https://github.com/docling-project/docling-parse",
         "training": [],
         "unavailable": [
-          "the run of the building workflow — not recorded in models.json; the tarball carries the upstream VERSION and LICENSE, the workflow file at the recorded commit the recipe"
+          "an upstream SBOM or attestation — Microsoft publishes none for ONNX Runtime; the tarball's GIT_COMMIT_ID and BUILD_INFO (#954; a tarball built before them carries VERSION and LICENSE only) record the commit, the library's sha256, the toolchain and the workflow run, the workflow file at the recorded commit the recipe"
         ]
       },
       "pattern": "^docling-parse-render-.*\\.tar\\.gz$",
@@ -1113,12 +1113,12 @@
         ]
       },
       "tool": ".github/workflows/onnxruntime-s390x.yml",
-      "note": "Not a model: the runtime an `ort-load-dynamic` build dlopens where no prebuilt ORT exists (#504); the tarball carries upstream's LICENSE and VERSION.",
+      "note": "Not a model: the runtime an `ort-load-dynamic` build dlopens where no prebuilt ORT exists (#504); the tarball carries upstream's LICENSE, ThirdPartyNotices.txt and VERSION, plus GIT_COMMIT_ID (the upstream commit built) and BUILD_INFO (tag, commit, library sha256, compiler, glibc floor, recipe commit, workflow run — #954, from the first rebuild after it; docs/IBMZ.md 'Runtime provenance & advisories').",
       "lineage": {
         "model_card": "https://github.com/microsoft/onnxruntime",
         "training": [],
         "unavailable": [
-          "the run of the building workflow — not recorded in models.json; the tarball carries the upstream VERSION and LICENSE, the workflow file at the recorded commit the recipe"
+          "an upstream SBOM or attestation — Microsoft publishes none for ONNX Runtime; the tarball's GIT_COMMIT_ID and BUILD_INFO (#954; a tarball built before them carries VERSION and LICENSE only) record the commit, the library's sha256, the toolchain and the workflow run, the workflow file at the recorded commit the recipe"
         ]
       },
       "pattern": "^onnxruntime-linux-.*\\.tar\\.gz$",

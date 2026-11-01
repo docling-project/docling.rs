@@ -121,6 +121,18 @@ Mozilla roots in `webpki-roots`, the distrusted-key list in `rustls-webpki`,
 both pinned in `Cargo.lock` and bumped on a root-program incident). The `docling.rs-cuda` npm package
 verifies its binaries the same way (`manifest.json` of its release).
 
+The one native dependency that is *not* a release asset of this repository
+on most platforms is the ONNX Runtime an `ort-load-dynamic` build `dlopen`s
+(#504): for that build the supported runtime is Microsoft's own release
+archive of the version the linked builds carry, pinned by archive digest,
+library digest and upstream commit in `download_dependencies.sh`
+(`--with-onnxruntime` fetches, checks and installs it), and the s390x build
+of this repository carries its own `GIT_COMMIT_ID` / `BUILD_INFO` record.
+Which bytes are supported, how to verify an install, and where its
+advisories live (Microsoft's, outside `cargo audit`'s reach):
+[`IBMZ.md` → Runtime provenance & advisories](IBMZ.md#runtime-provenance--advisories)
+(#954).
+
 ### External programs
 
 Some inputs and options run a program the converter does not ship, on
