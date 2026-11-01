@@ -159,7 +159,12 @@ says `… and the password is wrong`).
   edge and of CFF italics (read-fonts applies the FontMatrix in 16.16
   fixed point where the old path multiplied f64), and every one of them
   is as close to the docling-parse shim as before or closer, `multi_page`
-  0.676 → 0.669 mean |Δ|) —
+  0.676 → 0.669 mean |Δ|. Through the models, 45 of the 46 corpus PDFs
+  convert to byte-identical Markdown with the Rust renderer; `redp5110`
+  moves on two borderline regions of its italic/monospace CFF pages — a
+  SQL listing's TableFormer cells regroup, keeping two tokens the old
+  render dropped, and a code listing heron had called a picture is read
+  as text — the shim-rendered snapshot baselines being untouched) —
   with the Type 2 `dotsection` operator (`12 0`, a Type 1 hint Adobe's
   converters leave in front of every dot) stripped from the charstrings
   first (`dotsection.rs`, #531): the spec says to ignore it, and skrifa
