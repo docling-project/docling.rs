@@ -59,7 +59,7 @@ on:
         type: boolean
         default: true
       latest:
-        description: "Mark the GitHub Release latest once every channel succeeded (needs the CLI binaries on it)."
+        description: "Mark the GitHub Release latest once every channel succeeded (needs the CLI binaries on it). With every channel unticked, marks it on its own — the repair path after channels were re-run individually."
         type: boolean
         default: true
 
@@ -209,10 +209,16 @@ jobs:
             exit 1
           fi
 
+  # Runs after a successful publish matrix — or after no matrix at all: a
+  # dispatch with every channel unticked and only `latest` on is the repair
+  # path once failed channels were re-run on their own (the v2.62.0 release:
+  # the macOS 14 brownout failed three channels, they were repaired one by
+  # one, and this job then skipped because `publish` was skipped, not
+  # succeeded). The CLI-asset check below is what guards it either way.
   latest:
     name: mark the release latest
     needs: [plan, cut, publish]
-    if: ${{ !cancelled() && inputs.latest && needs.publish.result == 'success' }}
+    if: ${{ !cancelled() && inputs.latest && (needs.publish.result == 'success' || needs.publish.result == 'skipped') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write # gh release edit
