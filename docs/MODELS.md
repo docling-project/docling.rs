@@ -74,6 +74,23 @@ model directory carries its attribution. The manifest refuses a release
 asset the catalog does not cover, so a new export lands with its upstream,
 revision and licence recorded or not at all.
 
+**Lineage and execution records (#955).** Each artifact in `models.json`
+also carries `lineage`: the upstream model card, the published records of
+how its weights were trained (the Heron technical report, the TableFormer
+paper, dataset cards, PaddleOCR's PP-OCR docs…), for a re-hosted file how
+its producer made it (`upstream_conversion` — RapidOCR's conversion of
+PaddleOCR's models, the community ONNX export of Whisper), and
+`unavailable`: what no public record exists for, such as a training run's
+logs or a hub's exact Paddle→ONNX invocation. The manifest's `execution`
+names `export_record.json`, the record `publish-models.yml` writes beside
+the assets (`scripts/ci/export_record.py`): the run that produced the
+export / quantization / repack assets, its commit, the runner image and
+CPU, the Python and package versions the conversions ran with (the export
+steps pin them), and the sha256 of every upstream input read and every
+asset staged. `execution` is `null`, with a note, for a release whose
+assets predate the record; the downloaders keep the record beside the
+other records (`.models/export_record.json`).
+
 | Asset | Destination |
 | --- | --- |
 | RT-DETR layout | `.models/layout_heron.onnx` |

@@ -76,8 +76,11 @@
 #   .models/models.json          (the digest-bound manifest: every asset's
 #     sha256, its artifact — an ONNX graph with its .onnx.data sidecar is one
 #     — the upstream repository and revision the bytes come from, how they
-#     were produced, the SPDX licence; scripts/ci/models_manifest.sh builds it
-#     from scripts/install/models_catalog.json)
+#     were produced, the SPDX licence, each artifact's upstream lineage;
+#     scripts/ci/models_manifest.sh builds it from
+#     scripts/install/models_catalog.json)
+#   .models/export_record.json   (the publish run that produced the exported
+#     bytes: run, runner, toolchain versions, input and output digests, #955)
 #   .models/LICENSE-<SPDX>.txt   (the licence texts the manifest names)
 # so a redistributed .models/ carries its attribution. Upstream revisions of
 # the exports at this writing (the catalog is authoritative):
@@ -494,9 +497,9 @@ if [ "$WITH_FONTS" = true ]; then
 fi
 # The attribution records (#942), first so a run that stops early still
 # leaves the notice beside what it fetched; a tag that predates them has none.
-for record in MODELS_NOTICE.md models.json LICENSE-Apache-2.0.txt \
-  LICENSE-CDLA-Permissive-2.0.txt LICENSE-MIT.txt LICENSE-BSD-3-Clause.txt \
-  LICENSE-pdfium-binaries.txt; do
+for record in MODELS_NOTICE.md models.json export_record.json \
+  LICENSE-Apache-2.0.txt LICENSE-CDLA-Permissive-2.0.txt LICENSE-MIT.txt \
+  LICENSE-BSD-3-Clause.txt LICENSE-pdfium-binaries.txt; do
   fetch_optional "$BASE_URL/$record" ".models/$record"
 done
 fetch "$BASE_URL/layout_heron.onnx" .models/layout_heron.onnx
