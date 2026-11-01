@@ -232,18 +232,32 @@ CURL_TIMEOUTS="--connect-timeout 30 --speed-limit 1024 --speed-time 60 --retry 8
 # and warns about a release without one or an asset missing from it (a tag
 # that predates the manifest, an asset uploaded by hand since); `require`
 # fails on either; `off` skips the check.
+# DOCLING_RS_MODELS_SUMS (#951): a SHA256SUMS file (path or URL) to check
+# against INSTEAD of the release's own. models-v1 is a rolling release whose
+# assets get replaced, so its own SHA256SUMS only ever describes today's
+# bytes; a pinned copy of the file (saved from the release, or from an
+# immutable snapshot release, scripts/ci/models_snapshot.sh) makes a replaced
+# asset fail loudly here, and DOCLING_RS_MODELS_URL pointed at the snapshot
+# retrieves the pinned bytes again.
 VERIFY="${DOCLING_RS_MODELS_VERIFY:-auto}"
 MANIFEST=
 case "$VERIFY" in
   off) ;;
   auto | require)
     MANIFEST="$(mktemp)"
+    SUMS_SRC="${DOCLING_RS_MODELS_SUMS:-$BASE_URL/SHA256SUMS}"
+    if [ -n "${DOCLING_RS_MODELS_SUMS:-}" ] && [ -f "$DOCLING_RS_MODELS_SUMS" ]; then
+      cp "$DOCLING_RS_MODELS_SUMS" "$MANIFEST"
+    elif [ -n "${DOCLING_RS_MODELS_SUMS:-}" ] && [ "${DOCLING_RS_MODELS_SUMS#http}" = "$DOCLING_RS_MODELS_SUMS" ]; then
+      # a pin that names no file and no URL must not silently turn the check off
+      echo "error: DOCLING_RS_MODELS_SUMS=$DOCLING_RS_MODELS_SUMS is neither a file nor an http(s) URL" >&2
+      exit 2
     # shellcheck disable=SC2086
-    if ! curl -fsSL $CURL_TIMEOUTS -o "$MANIFEST" "$BASE_URL/SHA256SUMS" 2>/dev/null; then
+    elif ! curl -fsSL $CURL_TIMEOUTS -o "$MANIFEST" "$SUMS_SRC" 2>/dev/null; then
       rm -f "$MANIFEST"
       MANIFEST=
-      if [ "$VERIFY" = require ]; then
-        echo "error: $BASE_URL/SHA256SUMS unavailable and DOCLING_RS_MODELS_VERIFY=require" >&2
+      if [ "$VERIFY" = require ] || [ -n "${DOCLING_RS_MODELS_SUMS:-}" ]; then
+        echo "error: $SUMS_SRC unavailable (DOCLING_RS_MODELS_VERIFY=$VERIFY${DOCLING_RS_MODELS_SUMS:+, pinned via DOCLING_RS_MODELS_SUMS})" >&2
         exit 1
       fi
       echo "  ! $BASE_URL hosts no SHA256SUMS — downloads from it are not integrity-checked" >&2
@@ -298,7 +312,7 @@ verify() { # <url> <downloaded-file> — a release asset against SHA256SUMS; a m
   fi
   if [ "$got" != "$want" ]; then
     rm -f "$2"
-    echo "error: $name: sha256 mismatch (expected $want, got $got) — a corrupted download or a tampered mirror; re-run, and only if it repeats set DOCLING_RS_MODELS_VERIFY=off to bypass the check at your own risk" >&2
+    echo "error: $name: sha256 mismatch (expected $want, got $got) — a corrupted download, a tampered mirror, or — with a pinned DOCLING_RS_MODELS_SUMS — a release asset replaced since the pin (fetch the pinned bytes from a snapshot release via DOCLING_RS_MODELS_URL); re-run, and only if it repeats set DOCLING_RS_MODELS_VERIFY=off to bypass the check at your own risk" >&2
     exit 1
   fi
 }

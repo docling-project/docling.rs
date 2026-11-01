@@ -1,0 +1,30 @@
+# Freeze a models release into an immutable content-addressed copy
+# (scripts/ci/models_snapshot.sh, #951) — run after publish-models.yml /
+# models-manifest.yml changed the rolling release:
+#
+#   gh workflow run models-snapshot.yml                   # tag = models-v1
+#   gh workflow run models-snapshot.yml -f tag=models-v2
+
+name: models snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Rolling models release whose current assets to freeze."
+        required: false
+        default: "models-v1"
+
+permissions:
+  contents: write # gh release create
+
+jobs:
+  snapshot:
+    name: snapshot of ${{ inputs.tag }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: scripts/ci/models_snapshot.sh "${{ inputs.tag }}"

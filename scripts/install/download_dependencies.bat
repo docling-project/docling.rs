@@ -78,10 +78,22 @@ if "%VERIFY%"=="" set "VERIFY=auto"
 set "MANIFEST="
 if /i not "%VERIFY%"=="off" (
   set "MANIFEST=%TEMP%\docling-rs-SHA256SUMS.%RANDOM%.txt"
-  curl -fsSL %CURL_TIMEOUTS% -o "!MANIFEST!" "%BASE_URL%/SHA256SUMS" >nul 2>nul
+  rem DOCLING_RS_MODELS_SUMS (#951): a pinned SHA256SUMS (file or URL) instead of the release's own.
+  set "SUMS_SRC=%BASE_URL%/SHA256SUMS"
+  if defined DOCLING_RS_MODELS_SUMS set "SUMS_SRC=%DOCLING_RS_MODELS_SUMS%"
+  if defined DOCLING_RS_MODELS_SUMS if exist "%DOCLING_RS_MODELS_SUMS%" (
+    copy /y "%DOCLING_RS_MODELS_SUMS%" "!MANIFEST!" >nul
+  ) else (
+    curl -fsSL %CURL_TIMEOUTS% -o "!MANIFEST!" "!SUMS_SRC!" >nul 2>nul
+  )
+  if not defined DOCLING_RS_MODELS_SUMS curl -fsSL %CURL_TIMEOUTS% -o "!MANIFEST!" "!SUMS_SRC!" >nul 2>nul
   if errorlevel 1 (
     del "!MANIFEST!" 2>nul
     set "MANIFEST="
+    if defined DOCLING_RS_MODELS_SUMS (
+      echo error: !SUMS_SRC! unavailable ^(pinned via DOCLING_RS_MODELS_SUMS^)
+      exit /b 1
+    )
     if /i "!VERIFY!"=="require" (
       echo error: %BASE_URL%/SHA256SUMS unavailable and DOCLING_RS_MODELS_VERIFY=require
       exit /b 1
