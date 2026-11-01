@@ -297,22 +297,34 @@ fields.
 
 ## Known residual
 
-- **`quick-xml` DoS advisories (RUSTSEC-2026-0194 / -0195) via `calamine`.**
-  Our direct XML parsing is on `quick-xml` ≥ 0.41 (patched). The XLSX reader
-  `calamine` still pins `quick-xml` 0.31 transitively; until `calamine`
-  upstream bumps, a crafted **XLSX** can still trigger the quadratic-attribute
-  / namespace-allocation DoS. Impact is bounded by the process/deployment
-  (single-document DoS, not RCE); mitigate by not exposing XLSX conversion to
-  untrusted callers without a per-request resource bound, or run conversions
-  in a resource-limited sandbox.
-- **`zip` 8.x advisories (RUSTSEC-2026-0367 / -0368 / -0369) via `calamine`.**
-  They concern symlink and permission handling when `ZipArchive::extract` /
-  `ZipStreamReader::extract` write an archive to disk. Our direct `zip` is 9
-  (patched, #749); `calamine` still requires `zip ^8.6`, so 8.6 stays in the
-  tree beside it until `calamine` upstream bumps (tafia/calamine#746). Not
-  reachable: neither `calamine` nor docling calls either `extract` — every
-  ZIP-based format and archive input is read in memory, entry by entry, and
-  nothing is extracted to disk.
+No open vulnerability advisory in either lockfile at this writing: the
+`quick-xml` (RUSTSEC-2026-0194 / -0195) and `zip` 8.x
+(RUSTSEC-2026-0367 / -0368 / -0369) residuals of earlier releases are gone —
+`calamine` 0.37 moved to `quick-xml` 0.41 and `zip` 9, and the last
+`quick-xml` 0.38 came through `object_store` 0.12, bumped to 0.14 (#952).
+
+One *maintenance* warning (`INFO unmaintained`, not a vulnerability) remains
+and is tracked, not suppressed (#952):
+
+- **`paste` 1.0.15 (RUSTSEC-2024-0436).** A build-time proc-macro, reached
+  only through `tokenizers` 0.20 (the `chunking` feature's token counter) —
+  the OpenEXR / AVIF codecs that also pulled it in through `image`'s default
+  features were dropped (#952; nothing here decodes either). It runs at
+  compile time only and never sees input; `tokenizers` 1.0 (release
+  candidates at this writing) drops it, and the bump follows its stable
+  release.
+
+`ttf-parser` (RUSTSEC-2026-0192, unmaintained since June 2026) left the tree
+with #952 too: the page renderer's font programs — embedded TrueType /
+OpenType and bare CFF (Type1C) — are read by `skrifa` / `read-fonts`
+(Google Fonts' `fontations`, the advisory's recommendation), which is
+maintained and fuzzed; it is reachable from a crafted PDF, like every parser
+here, and bounded the same way (`DOCLING_RS_MAX_RENDER_PIXELS`, the
+per-document timeouts).
+
+`instant` and `rustls-pemfile` (unmaintained) left the tree with
+`lapin` 2 → 4 (#952), whose rustls is pinned to `ring` so no `aws-lc-sys`
+C build enters it.
 
 ## Running the audit
 
@@ -321,8 +333,9 @@ cargo audit         # known-CVE scan of the dependency tree
 ```
 
 CI runs the same scan weekly over both committed lockfiles (the `audit` job in
-`.github/workflows/deps-update.yml`, with the "Known residual" advisories
-above passed as `--ignore`; keep the two lists in sync). A new finding fails
+`.github/workflows/deps-update.yml`; an accepted residual advisory goes into
+its `AUDIT_IGNORES` *and* the "Known residual" section above — keep the two
+in sync; the list is empty at this writing). A new finding fails
 that job — the red run is the alarm — and triggers `audit-fix`, which runs
 `cargo audit fix` on both lockfiles and opens a `fix(deps):` PR with the
 semver-compatible bump when one exists; an advisory that needs a new major

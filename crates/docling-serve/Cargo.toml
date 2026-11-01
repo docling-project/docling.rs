@@ -19,7 +19,7 @@ chunking = ["docling/chunking"]
 # Blob / GCS request sources and output targets through `object_store`. Off
 # by default — the kinds still parse without it and answer a clear
 # rebuild-with-the-feature error.
-cloud = ["dep:object_store"]
+cloud = ["dep:object_store", "dep:reqwest-cloud", "dep:rustls-cloud"]
 # GPU execution providers for the PDF/image ML pipeline (#74) — pass-through
 # to docling → docling-pdf; select at runtime with DOCLING_RS_EP.
 cuda = ["docling/cuda"]
@@ -55,7 +55,17 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "net",
 tokio-stream = "0.1"
 # Cloud passthrough (#139): one uniform client for S3/GCS/Azure, only in the
 # graph under the opt-in `cloud` feature (it brings its own HTTP stack).
-object_store = { version = "0.12", features = ["aws", "azure", "gcp"], optional = true }
+# object_store 0.14 (#952: 0.12 carried quick-xml 0.38's two DoS advisories and
+# the unmaintained rustls-pemfile). Its `aws` / `azure` / `gcp` umbrella
+# features hard-wire the `aws-lc-rs` crypto provider — a cmake + C build the
+# rest of the workspace does not need — so the backends are composed from
+# their `*-base` halves with its `ring` feature (SigV4 / GCP JWT signing have
+# ring paths), and TLS for its reqwest 0.13 comes from the `rustls-no-provider`
+# flavour below with `ring` the only provider compiled in, which rustls then
+# installs as the process default.
+object_store = { version = "0.14", default-features = false, features = ["aws-base", "azure-base", "gcp-base", "reqwest", "ring"], optional = true }
+reqwest-cloud = { package = "reqwest", version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "charset"], optional = true }
+rustls-cloud = { package = "rustls", version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"], optional = true }
 # URL inputs are fetched with the same blocking client the converter already
 # uses for remote <img src> (keeps the dependency graph to a single HTTP stack).
 ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }

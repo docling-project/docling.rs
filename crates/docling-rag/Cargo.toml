@@ -94,7 +94,11 @@ ort = { version = "2.0.0-rc.14", default-features = false, features = ["std", "d
 tokenizers = { version = "0.20", default-features = false, features = ["onig"], optional = true }
 suppaftp = { version = "10.0.2", optional = true }
 ssh2 = { version = "0.9", optional = true }
-lapin = { version = "2", optional = true }
+# lapin 4 (#952: lapin 2's async-io 1 stack carried the unmaintained `instant`
+# and `rustls-pemfile`); its default TLS provider is aws-lc-rs — a cmake/C
+# build — so pin rustls to `ring`, the provider the rest of the workspace
+# (reqwest, sqlx, ort) already links.
+lapin = { version = "4", default-features = false, features = ["tokio", "rustls--ring", "rustls-native-certs"], optional = true }
 futures-lite = { version = "2", optional = true }
 redis = { version = "0.27", default-features = false, features = ["tokio-comp"], optional = true }
 

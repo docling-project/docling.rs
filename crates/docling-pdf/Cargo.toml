@@ -51,7 +51,8 @@ render = [
     "dep:regex",
     "dep:libloading",
     "dep:tiny-skia",
-    "dep:ttf-parser",
+    "dep:skrifa",
+    "dep:read-fonts",
     "dep:hayro-jpeg2000",
     "dep:hayro-jbig2",
 ]
@@ -95,7 +96,12 @@ pdfium-render = { version = "0.8", optional = true }
 # `dparse_render.rs`) — the same mechanism pdfium-render uses for libpdfium.
 libloading = { version = "0.8", optional = true }
 ort = { version = "2.0.0-rc.14", default-features = false, features = ["std", "download-binaries", "tls-rustls"], optional = true }
-image = { version = "0.25", optional = true }
+# The formats the image input accepts (docling's `format.rs` list; HEIC goes
+# through libheif behind `heif`), not `image`'s default set: the defaults also
+# pull the OpenEXR and AVIF codecs (`exr` → `pulp`, `ravif` → `rav1e`) — two
+# routes to the unmaintained `paste` proc-macro (RUSTSEC-2024-0436, #952) and
+# rav1e's minutes of compile time, for formats nothing here decodes.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "webp"], optional = true }
 flate2 = { version = "1", optional = true }
 tar = { version = "0.4", optional = true }
 regex = { version = "1.11", optional = true }
@@ -109,8 +115,8 @@ weezl = { version = "0.2", optional = true }
 # The pure-Rust page renderer (`render/`, phase 3 of retiring pdfium): the
 # anti-aliased path rasterizer, masks, gradients and image blits are
 # tiny-skia's (a Skia port, already in the tree through resvg), the TrueType /
-# OpenType / bare-CFF glyph outlines ttf-parser's; Type 1 programs are read in
-# `render/font/type1.rs`.
+# OpenType / bare-CFF glyph outlines skrifa's (below); Type 1 programs are
+# read in `render/font/type1.rs`.
 tiny-skia = { version = "0.12", default-features = false, features = ["std", "simd"], optional = true }
 # `JPXDecode` images for the page renderer (`render/jpx.rs`, #598): a photo
 # stored as JPEG 2000 used to draw as a mid-gray block, and the layout model
@@ -126,7 +132,14 @@ hayro-jpeg2000 = { version = "0.4.1", default-features = false, features = ["sim
 # in the crate; `simd` only speeds up halftone regions), its `image` glue not
 # needed.
 hayro-jbig2 = { version = "0.3.1", default-features = false, features = ["std", "simd"], optional = true }
-ttf-parser = { version = "0.25", default-features = false, features = ["std", "glyph-names", "opentype-layout"], optional = true }
+# Font programs for the page renderer (#952): skrifa / read-fonts — Google
+# Fonts' `fontations`, the advisory's own successor to the unmaintained
+# ttf-parser (RUSTSEC-2026-0192) — read the embedded TrueType / OpenType and
+# bare CFF (Type1C) programs: cmap subtables by platform, post / charset
+# glyph names, CID charsets, the built-in CFF encoding, and the outlines with
+# the CFF FontMatrix folded into the em (FreeType's normalization).
+skrifa = { version = "0.49", default-features = false, features = ["std"], optional = true }
+read-fonts = { version = "0.46", default-features = false, features = ["std"], optional = true }
 # CodeFormula enrichment decodes its VLM output with the HF tokenizer
 # (.models/code_formula/tokenizer.json) — same crate/features as docling-core's
 # chunking tokenizer.
@@ -143,7 +156,7 @@ lopdf = { version = "0.45", features = ["wasm_js"] }
 # failure apart from "loaded, but no text came out".
 [dev-dependencies]
 # Decodes the corpus figures the picture-classifier test (#517) feeds the model.
-image = "0.25"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "webp"] }
 lopdf = "0.45"
 
 [lib]

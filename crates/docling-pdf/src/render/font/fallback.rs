@@ -43,7 +43,8 @@ pub struct Style {
 
 /// A face file loaded once per process.
 pub struct FallbackFace {
-    pub data: Vec<u8>,
+    /// The parsed program (read-fonts' font model; cloning it is cheap).
+    pub font: skrifa::font::Font,
     pub path: PathBuf,
 }
 
@@ -294,9 +295,9 @@ pub fn face(style: Style) -> Option<Arc<FallbackFace>> {
     for cand in candidates(style) {
         if let Some(p) = idx.files.get(&cand) {
             if let Ok(data) = std::fs::read(p) {
-                if ttf_parser::Face::parse(&data, 0).is_ok() {
+                if let Some(font) = skrifa::font::Font::new(data, 0) {
                     found = Some(Arc::new(FallbackFace {
-                        data,
+                        font,
                         path: p.clone(),
                     }));
                     break;
