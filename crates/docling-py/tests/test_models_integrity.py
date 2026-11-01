@@ -130,3 +130,34 @@ def test_manifest_parser_accepts_sha256sum_binary_marker(models):
     digest = "a" * 64
     (models._release / "SHA256SUMS").write_text(f"{digest} *bbox.onnx\n{'b' * 64}  encoder.onnx\n")
     assert models._manifest(models.BASE_URL) == {"bbox.onnx": digest, "encoder.onnx": "b" * 64}
+
+
+def test_pinned_sums_catch_a_replaced_asset(models, monkeypatch, tmp_path):
+    """#951: models-v1 is rolling — a replaced asset carries a matching
+    SHA256SUMS of its own, so only a pinned copy of the old file notices."""
+    old = hashlib.sha256(b"frozen").hexdigest()
+    pin = tmp_path / "pinned.sums"
+    pin.write_text(f"{old}  bbox.onnx\n")
+    _publish(models._release, "bbox.onnx", b"replaced")  # release SHA256SUMS agrees with the new bytes
+    monkeypatch.setenv("DOCLING_RS_MODELS_SUMS", str(pin))
+    dest = tmp_path / "cache" / "bbox.onnx"
+    with pytest.raises(models.IntegrityError, match="replaced since the pin"):
+        models._fetch(f"{models.BASE_URL}/bbox.onnx", dest, optional=False, progress=False)
+    assert not dest.exists()
+
+
+def test_pinned_sums_accept_the_frozen_bytes(models, monkeypatch, tmp_path):
+    pin = tmp_path / "pinned.sums"
+    pin.write_text(f"{hashlib.sha256(b'frozen').hexdigest()}  bbox.onnx\n")
+    (models._release / "bbox.onnx").write_bytes(b"frozen")  # e.g. served by a snapshot release
+    monkeypatch.setenv("DOCLING_RS_MODELS_SUMS", str(pin))
+    dest = tmp_path / "cache" / "bbox.onnx"
+    assert models._fetch(f"{models.BASE_URL}/bbox.onnx", dest, optional=False, progress=False)
+    assert dest.read_bytes() == b"frozen"
+
+
+def test_unreadable_pin_is_fatal(models, monkeypatch, tmp_path):
+    _publish(models._release, "bbox.onnx", b"x")
+    monkeypatch.setenv("DOCLING_RS_MODELS_SUMS", str(tmp_path / "missing.sums"))
+    with pytest.raises(models.IntegrityError, match="unreadable"):
+        models._fetch(f"{models.BASE_URL}/bbox.onnx", tmp_path / "bbox.onnx", optional=False, progress=False)

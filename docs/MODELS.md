@@ -41,6 +41,20 @@ one or an asset missing from it; `require` fails on either — what a
 locked-down build should set; `off` skips the check. A mirror serves its
 own `SHA256SUMS` next to its assets (`sha256sum * > SHA256SUMS`).
 
+**Pinning and snapshots (#951).** `models-v1` is a rolling release: when an
+export changes its asset is replaced, and the release's own `SHA256SUMS`
+follows, so the check above only proves the download matches *today's*
+release. To replay a measurement later, save the `SHA256SUMS` you used and
+set `DOCLING_RS_MODELS_SUMS=<file or URL>` (all three downloaders): a replaced
+asset then fails with a mismatch instead of being accepted. The bytes
+themselves come from an immutable snapshot — `models-snapshot.yml`
+(`scripts/ci/models_snapshot.sh`) copies the release's assets into a
+`models-v1-<12 hex of sha256(SHA256SUMS)>` prerelease, never modified
+afterwards; point `DOCLING_RS_MODELS_URL` at
+`.../releases/download/models-v1-<id>` to fetch from it. Snapshots exist only
+from the first run of the workflow on; bytes replaced before that cannot be
+recovered.
+
 **Attribution records (#942).** Next to `SHA256SUMS` the release hosts
 `models.json` — the digest-bound manifest `scripts/ci/models_manifest.sh`
 builds from the provenance catalog `scripts/install/models_catalog.json`:

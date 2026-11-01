@@ -35,7 +35,9 @@ RapidOCR's hub) are outside the manifest. ``$DOCLING_RS_MODELS_VERIFY``:
 ``auto`` (default) checks what the manifest lists and warns, once, about a
 release without one or an asset missing from it; ``require`` raises on
 either; ``off`` skips the check — the same knob
-``download_dependencies.sh`` reads.
+``download_dependencies.sh`` reads. ``$DOCLING_RS_MODELS_SUMS`` (#951) pins a
+``SHA256SUMS`` file (path or URL) to check against instead of the release's
+own, so an asset the rolling ``models-v1`` release replaced since fails.
 """
 
 from __future__ import annotations
@@ -268,15 +270,23 @@ def _manifest(base_url: str) -> "dict[str, str] | None":
     if base_url in _manifests:
         return _manifests[base_url]
     entries: "dict[str, str] | None" = None
+    pin = os.environ.get("DOCLING_RS_MODELS_SUMS", "").strip()
     try:
-        with urllib.request.urlopen(f"{base_url}/{_MANIFEST_NAME}") as r:
-            text = r.read().decode("utf-8", "replace")
+        if pin and os.path.isfile(pin):
+            text = Path(pin).read_text("utf-8", "replace")
+        elif pin and not pin.startswith(("http://", "https://")):
+            raise ValueError(f"DOCLING_RS_MODELS_SUMS={pin} is neither a file nor an http(s) URL")
+        else:
+            with urllib.request.urlopen(pin or f"{base_url}/{_MANIFEST_NAME}") as r:
+                text = r.read().decode("utf-8", "replace")
         entries = {}
         for line in text.splitlines():
             parts = line.split()
             if len(parts) >= 2 and len(parts[0]) == 64:
                 entries[parts[-1].lstrip("*")] = parts[0].lower()
-    except Exception:
+    except Exception as e:
+        if pin:  # a pin that cannot be read must not silently turn the check off
+            raise IntegrityError(f"DOCLING_RS_MODELS_SUMS={pin} unreadable: {e}") from e
         entries = None
     if entries is None:
         if _verify_mode() == "require":
@@ -334,7 +344,9 @@ def _fetch(url: str, dest: Path, optional: bool, progress: bool, force: bool = F
         if want is not None and digest.hexdigest() != want:
             raise IntegrityError(
                 f"{url}: sha256 mismatch (expected {want}, got {digest.hexdigest()}) — a corrupted "
-                "download or a tampered mirror; retry, and only if it repeats set "
+                "download, a tampered mirror, or (with a pinned DOCLING_RS_MODELS_SUMS) a release asset "
+                "replaced since the pin — fetch the pinned bytes from a snapshot release via "
+                "DOCLING_RS_MODELS_URL; retry, and only if it repeats set "
                 "DOCLING_RS_MODELS_VERIFY=off to bypass the check at your own risk"
             )
         tmp.rename(dest)
