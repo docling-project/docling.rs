@@ -80,7 +80,8 @@
 #     scripts/ci/models_manifest.sh builds it from
 #     scripts/install/models_catalog.json)
 #   .models/export_record.json   (the publish run that produced the exported
-#     bytes: run, runner, toolchain versions, input and output digests, #955)
+#     bytes: run, runner, per-stage outcomes and toolchain versions, input
+#     and output digests, #955/#961)
 #   .models/LICENSE-<SPDX>.txt   (the licence texts the manifest names)
 # so a redistributed .models/ carries its attribution. Upstream revisions of
 # the exports at this writing (the catalog is authoritative):

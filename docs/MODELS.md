@@ -85,9 +85,10 @@ logs or a hub's exact Paddle→ONNX invocation. The manifest's `execution`
 names `export_record.json`, the record `publish-models.yml` writes beside
 the assets (`scripts/ci/export_record.py`): the run that produced the
 export / quantization / repack assets, its commit, the runner image and
-CPU, the Python and package versions the conversions ran with (the export
-steps pin them), and the sha256 of every upstream input read and every
-asset staged. `execution` is `null`, with a note, for a release whose
+CPU, one stage per conversion step with its outcome and the Python and
+package versions installed when that step ran (the export steps pin them,
+differently per step — #961), and the sha256 of every upstream input read
+and every asset staged, each bound to its stage. `execution` is `null`, with a note, for a release whose
 assets predate the record; the downloaders keep the record beside the
 other records (`.models/export_record.json`).
 
