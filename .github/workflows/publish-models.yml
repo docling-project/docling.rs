@@ -175,10 +175,9 @@ jobs:
         run: |
           python scripts/ci/export_record.py stage --dir release-stages \
             --name quantize_tableformer_decoder --kind quantization \
-            --artifacts tableformer_decoder_int8 tableformer_decoder_kv_int8 \
+            --artifacts tableformer_decoder_int8 \
             --outcome "${{ steps.quant-tf.outcome }}" --deps-outcome "${{ steps.quant-deps.outcome }}" \
-            --inputs .models/tableformer/decoder.onnx .models/tableformer/decoder_kv.onnx \
-            --outputs .models/tableformer/decoder_int8.onnx .models/tableformer/decoder_kv_int8.onnx
+            --inputs .models/tableformer/decoder.onnx --outputs .models/tableformer/decoder_int8.onnx
 
       # fp16-weight repack of the encoder (#374): a size lever, not a
       # quantization — fp32 compute, ~half the download. Self-gated on the
@@ -355,7 +354,6 @@ jobs:
           stage .models/tableformer/decoder_kv.onnx decoder_kv.onnx
           # Its per-layer-cache graph (#871) — references decoder_kv.onnx.data.
           stage .models/tableformer/decoder_kv_layers.onnx decoder_kv_layers.onnx
-          stage .models/tableformer/decoder_kv_int8.onnx decoder_kv_int8.onnx
           stage .models/tableformer/bbox.onnx bbox.onnx
           stage third-party/picture_classifier.onnx picture_classifier.onnx
           stage third-party/ocr_rec_en.onnx ocr_rec_en.onnx

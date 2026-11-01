@@ -816,8 +816,6 @@ if [ "$WITH_INT8" = true ]; then
   # forces the fp32 models at runtime.
   fetch_optional "$BASE_URL/layout_heron_int8.onnx" .models/layout_heron_int8.onnx
   fetch_optional "$BASE_URL/decoder_int8.onnx" .models/tableformer/decoder_int8.onnx
-  fetch_optional "$BASE_URL/decoder_kv_int8.onnx" .models/tableformer/decoder_kv_int8.onnx
-  fetch_optional "$BASE_URL/decoder_kv_int8.onnx.data" .models/tableformer/decoder_kv_int8.onnx.data
   # fp16-weight repack of the TableFormer encoder (#374): fp32 compute, half
   # the download; preferred when present, DOCLING_RS_FP32=1 opts out.
   fetch_optional "$BASE_URL/encoder_fp16.onnx" .models/tableformer/encoder_fp16.onnx
