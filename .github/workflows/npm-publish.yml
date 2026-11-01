@@ -98,7 +98,8 @@ jobs:
           # ONNX/ort build). Requires the arm64 runner image to be available.
           - target: aarch64-unknown-linux-gnu
             host: ubuntu-24.04-arm
-          # Apple Silicon (#816), native on the hosted `macos-14` runner —
+          # Apple Silicon (#816), native on the hosted `macos-15` runner (`macos-14`
+          # retired 2026-11-02, actions/runner-images#13518) —
           # the same runner ci.yml's coreml check job uses; the "macOS runners
           # are blocked" note this matrix carried dated from the repository's
           # previous home. The triple is also listed in package.json's
@@ -114,7 +115,7 @@ jobs:
           # for; docling-onnx's build.rs links the compiler-rt builtins the
           # CoreML-enabled ONNX Runtime needs under thin LTO.
           - target: aarch64-apple-darwin
-            host: macos-14
+            host: macos-15
             macos_min: "13.0"
           - target: x86_64-pc-windows-msvc
             host: windows-latest

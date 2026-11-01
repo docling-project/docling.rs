@@ -128,15 +128,17 @@ jobs:
             arch: aarch64
           - host: windows-latest
             arch: AMD64
-          # Apple Silicon (#816), native on the hosted `macos-14` runner (the
-          # one ci.yml's coreml check job uses; the "macOS runners are blocked"
+          # Apple Silicon (#816), native on the hosted `macos-15` runner
+          # (`macos-14` retired 2026-11-02 — its brownout failed the v2.62.0
+          # wheel job; actions/runner-images#13518; the image family ci.yml's
+          # coreml check job uses; the "macOS runners are blocked"
           # note this matrix carried dated from the repository's previous
           # home). Intel macs install the sdist, which builds from source
           # and, pyke shipping no `x86_64-apple-darwin` ONNX Runtime, only as
           # an `ort-load-dynamic` build (cli-binaries.yml's header).
           # docling-onnx's build.rs links the compiler-rt builtins the
           # CoreML-enabled ONNX Runtime needs under docling-py's thin LTO.
-          - host: macos-14
+          - host: macos-15
             arch: arm64
     steps:
       - name: Download sdist
