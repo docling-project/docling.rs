@@ -77,13 +77,20 @@ The release's attribution travels with its bytes (#942):
 - `export_record.json` — the execution record of the `publish-models.yml`
   run that produced the `export`, `quantization` and `repack` assets and
   fetched the re-hosted ones (`scripts/ci/export_record.py`, #955): the
-  run's URL, id, attempt, commit and actor, the runner image and CPU, the
-  Python and the version of every package the conversions ran with, the
-  sha256 of every upstream input file the exports read (the Hugging Face
-  hub's snapshot at the catalog's revision) and of every asset staged. A
-  run's logs and artifacts expire; the asset does not. The export steps
-  pin their toolchain, so the record also says what the next run must
-  install to compare.
+  run's URL, id, attempt, commit and actor, the runner image and CPU, and
+  one **stage** per conversion step (#961) — its outcome as the workflow
+  reports it, the Python and the version of every package installed when
+  *that* step ran (the pins differ between steps), the sha256 of the
+  upstream input files it read (the Hugging Face hub's snapshot at the
+  catalog's revision), of the local graphs a quantization or repack
+  consumed, and of every file it produced. The catalog's inputs and the
+  staged assets are bound to those stages, and an input's `status` states
+  the evidence rather than an inference: `hashed`; `not_fetched` (the
+  stage ran and did not download the file); `stage_skipped` /
+  `stage_failed`; `unrecorded` (no stage snapshot for that step). A run's
+  logs and artifacts expire; the asset does not. The export steps pin
+  their toolchain, so the record also says what the next run must install
+  to compare.
 - `MODELS_NOTICE.md` — this file.
 - `LICENSE-Apache-2.0.txt`, `LICENSE-CDLA-Permissive-2.0.txt`,
   `LICENSE-MIT.txt`, `LICENSE-BSD-3-Clause.txt` — the licence texts

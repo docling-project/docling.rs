@@ -20,10 +20,14 @@
 # Every export/quantization step pins its toolchain to the set the
 # 2026-10-31 publish ran with (#955), and the run ends by writing
 # export_record.json beside the assets (scripts/ci/export_record.py): the
-# run, the runner, the versions actually installed, the sha256 of every
-# upstream input read and of every asset staged — the record of *how* the
-# released bytes were made, which outlives this run's logs. Bump a pin
-# deliberately, with the re-export it implies.
+# run, the runner, one stage per conversion step — its outcome, the
+# versions installed when *it* ran (the pins change between steps, #961),
+# the sha256 of the upstream inputs it read and of the files it produced —
+# and the staged assets bound to those stages: the record of *how* the
+# released bytes were made, which outlives this run's logs. Each step is
+# followed by a "Record stage: …" step (`if: always()`, so a failed or
+# skipped step is recorded as such); a new conversion step needs one.
+# Bump a pin deliberately, with the re-export it implies.
 #
 # Trigger: manual only (workflow_dispatch) — it installs torch and exports two
 # models, several GB and 10-20 minutes, not something to run on every push.
@@ -68,7 +72,20 @@ jobs:
         run: pip install --upgrade pip && pip install torch==2.15.0 transformers==5.22.1 onnx==1.23.2
 
       - name: Export layout model
+        id: layout-export
         run: python scripts/install/export_layout.py .models/layout_heron.onnx
+
+      # The stage snapshot (#961): the step's outcome, the packages
+      # installed right now — before the next step re-pins them — and the
+      # digests of what it read from the hub cache and wrote.
+      - name: "Record stage: layout export"
+        if: always()
+        continue-on-error: true
+        run: |
+          python scripts/ci/export_record.py stage --dir release-stages \
+            --name export_layout --kind export --artifacts layout_heron \
+            --outcome "${{ steps.layout-export.outcome }}" \
+            --outputs .models/layout_heron.onnx
 
       # --- TableFormer (optional — a failure here doesn't block layout) ---
       # huggingface_hub is left to the resolver: docling_ibm_models and
@@ -83,6 +100,18 @@ jobs:
         continue-on-error: true
         id: tf-export
         run: python scripts/install/export_tableformer.py .models/tableformer
+
+      - name: "Record stage: TableFormer export"
+        if: always()
+        continue-on-error: true
+        run: |
+          python scripts/ci/export_record.py stage --dir release-stages \
+            --name export_tableformer --kind export \
+            --artifacts tableformer_encoder tableformer_decoder tableformer_decoder_kv tableformer_bbox \
+            --outcome "${{ steps.tf-export.outcome }}" --deps-outcome "${{ steps.tf-deps.outcome }}" \
+            --outputs .models/tableformer/encoder.onnx .models/tableformer/decoder.onnx \
+              .models/tableformer/decoder_kv.onnx .models/tableformer/decoder_kv_layers.onnx \
+              .models/tableformer/bbox.onnx
 
       # --- INT8 quantization (optional — fp32 assets publish regardless) ---
       # Conv-only static INT8 of the layout model (calibrated on the repo's PDF
@@ -110,6 +139,7 @@ jobs:
         run: pip install onnx==1.22.0 onnxruntime==1.27.0 sympy==1.14.0 pypdfium2==5.12.0 pillow==12.3.0 numpy==2.4.6
 
       - name: Quantize layout model (static INT8, conv-only)
+        id: quant-layout
         if: steps.quant-deps.outcome == 'success'
         continue-on-error: true
         run: |
@@ -120,19 +150,50 @@ jobs:
           echo "int8 ISA: $(grep -o -m1 'avx512_vnni\|avx_vnni\|avx2' /proc/cpuinfo | sort -u | tr '\n' ' ')"
           python scripts/install/quantize_models.py layout
 
+      - name: "Record stage: layout quantization"
+        if: always()
+        continue-on-error: true
+        run: |
+          python scripts/ci/export_record.py stage --dir release-stages \
+            --name quantize_layout --kind quantization --artifacts layout_heron_int8 \
+            --outcome "${{ steps.quant-layout.outcome }}" --deps-outcome "${{ steps.quant-deps.outcome }}" \
+            --inputs .models/layout_heron.onnx --outputs .models/layout_heron_int8.onnx
+
       - name: Quantize TableFormer decoder (dynamic INT8)
+        id: quant-tf
         if: steps.quant-deps.outcome == 'success' && steps.tf-export.outcome == 'success'
         continue-on-error: true
         run: python scripts/install/quantize_models.py tableformer-decoder
+
+      - name: "Record stage: TableFormer decoder quantization"
+        if: always()
+        continue-on-error: true
+        run: |
+          python scripts/ci/export_record.py stage --dir release-stages \
+            --name quantize_tableformer_decoder --kind quantization \
+            --artifacts tableformer_decoder_int8 tableformer_decoder_kv_int8 \
+            --outcome "${{ steps.quant-tf.outcome }}" --deps-outcome "${{ steps.quant-deps.outcome }}" \
+            --inputs .models/tableformer/decoder.onnx .models/tableformer/decoder_kv.onnx \
+            --outputs .models/tableformer/decoder_int8.onnx .models/tableformer/decoder_kv_int8.onnx
 
       # fp16-weight repack of the encoder (#374): a size lever, not a
       # quantization — fp32 compute, ~half the download. Self-gated on the
       # calibration pages (deletes its output on a fidelity miss, so the
       # release simply ships without it).
       - name: Repack TableFormer encoder (fp16 weights)
+        id: repack-tf
         if: steps.quant-deps.outcome == 'success' && steps.tf-export.outcome == 'success'
         continue-on-error: true
         run: python scripts/install/quantize_models.py tableformer-encoder-fp16
+
+      - name: "Record stage: TableFormer encoder fp16 repack"
+        if: always()
+        continue-on-error: true
+        run: |
+          python scripts/ci/export_record.py stage --dir release-stages \
+            --name repack_tableformer_encoder_fp16 --kind repack --artifacts tableformer_encoder_fp16 \
+            --outcome "${{ steps.repack-tf.outcome }}" --deps-outcome "${{ steps.quant-deps.outcome }}" \
+            --inputs .models/tableformer/encoder.onnx --outputs .models/tableformer/encoder_fp16.onnx
 
       # --- CodeFormula VLM (optional — the enrichment models are opt-in) ---
       # CodeFormulaV2 (Idefics3/SmolVLM-class, CDLA-Permissive-2.0) exported to the
@@ -152,10 +213,30 @@ jobs:
         id: cf-export
         run: python scripts/install/export_code_formula.py .models/code_formula
 
+      - name: "Record stage: CodeFormula export"
+        if: always()
+        continue-on-error: true
+        run: |
+          python scripts/ci/export_record.py stage --dir release-stages \
+            --name export_code_formula --kind export --artifacts code_formula \
+            --outcome "${{ steps.cf-export.outcome }}" --deps-outcome "${{ steps.cf-deps.outcome }}" \
+            --outputs .models/code_formula/vision.onnx .models/code_formula/embed.onnx \
+              .models/code_formula/decoder_kv.onnx .models/code_formula/tokenizer.json
+
       - name: Quantize CodeFormula decoder (dynamic INT8)
+        id: quant-cf
         if: steps.cf-export.outcome == 'success' && steps.quant-deps.outcome == 'success'
         continue-on-error: true
         run: python scripts/install/quantize_models.py code-formula-decoder
+
+      - name: "Record stage: CodeFormula decoder quantization"
+        if: always()
+        continue-on-error: true
+        run: |
+          python scripts/ci/export_record.py stage --dir release-stages \
+            --name quantize_code_formula_decoder --kind quantization --artifacts code_formula_decoder_int8 \
+            --outcome "${{ steps.quant-cf.outcome }}" --deps-outcome "${{ steps.quant-deps.outcome }}" \
+            --inputs .models/code_formula/decoder_kv.onnx --outputs .models/code_formula/decoder_kv_int8.onnx
 
       # --- pdfium + OCR + chunk tokenizer (re-hosted third-party assets) ---
       # The tokenizer is all-MiniLM-L6-v2's tokenizer.json (Apache-2.0), the
@@ -296,17 +377,19 @@ jobs:
           echo "staged:"
           ls -la release-assets/
 
-      # The run's execution record (#955): this run, the runner, the
-      # toolchain as installed now, the sha256 of every upstream input the
-      # exports read (from the hub cache they filled) and of every staged
-      # asset. Uploaded with the assets — a release asset outlives this
-      # run's logs and artifacts — and linked from models.json as
-      # `execution` by models_manifest.sh below.
+      # The run's execution record (#955, #961): this run, the runner, the
+      # stage snapshots above merged — each conversion step's outcome, the
+      # toolchain it ran with, what it read and produced — and the catalog
+      # inputs and staged assets bound to those stages. Uploaded with the
+      # assets — a release asset outlives this run's logs and artifacts —
+      # and linked from models.json as `execution` by models_manifest.sh
+      # below.
       - name: Write the execution record
         run: |
           python scripts/ci/export_record.py --tag "$TAG" --assets release-assets \
-            --out release-assets/export_record.json
-          jq '{workflow, runner, python, packages, inputs: (.inputs | length), outputs: (.outputs | length)}' \
+            --stages release-stages --out release-assets/export_record.json
+          jq '{workflow, runner, stages: [.stages[] | {name, outcome, packages: .environment.packages}],
+               inputs: [.inputs[] | {artifact, file, status, stage}], outputs: [.outputs[] | {asset, stage}]}' \
             release-assets/export_record.json
 
       - name: Publish release
