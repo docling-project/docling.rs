@@ -96,6 +96,15 @@ build_models_json() {
         | .files = (.files | map(select($hash[.asset] != null)
             | . + {sha256: $hash[.asset]} + (if $size[.asset] then {size: $size[.asset]} else {} end)))
         | select(.files | length > 0)
+        # A sidecar the release does not host (#973: the encoder export fits
+        # in one file, so there is no encoder.onnx.data) must not stay
+        # declared by the graph that could name it: drop every `data` / `of`
+        # reference to a file that did not survive, so models.json never
+        # points at an asset the release lacks.
+        | (.files | map(.asset)) as $kept
+        | .files |= map(
+            (if has("data") and ((.data | IN($kept[])) | not) then del(.data) else . end)
+            | (if has("of") and ((.of | IN($kept[])) | not) then del(.of) else . end))
         | del(.pattern, .install_dir)
         | if (.provenance | IN("export", "quantization", "repack")) then
             . + {execution: (if $has_record then "export_record.json" else null end)}
