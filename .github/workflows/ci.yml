@@ -79,6 +79,9 @@ jobs:
       - name: Format
         run: cargo fmt --all --check
 
+      - name: Models manifest (no dangling external-data refs, #973)
+        run: scripts/ci/test_models_manifest.sh
+
       - name: Clippy
         shell: bash
         run: scripts/ci/cargo_retry_ort.sh cargo clippy --workspace --all-targets -- -D warnings
