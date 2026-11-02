@@ -1,3 +1,4 @@
+#![cfg(feature = "preserve-order")] // asserts docling's field order (#970)
 //! Peak heap of `export_to_json_value` on a long document.
 //!
 //! The export's `json!` constructors deep-copy every interpolated `Value`

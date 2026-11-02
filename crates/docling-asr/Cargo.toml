@@ -25,7 +25,7 @@ xnnpack = ["docling-onnx/xnnpack"]
 ort-load-dynamic = ["docling-onnx/load-dynamic", "ort/load-dynamic"]
 
 [dependencies]
-docling-core = { path = "../docling-core", version = "2.63.0" }
+docling-core = { path = "../docling-core", version = "2.63.0", default-features = false }
 # Shared ONNX execution-provider selection (DOCLING_RS_EP, #288) — routes the
 # Whisper encoder/decoder sessions through the same switch as docling-pdf.
 docling-onnx = { path = "../docling-onnx", version = "2.63.0" }

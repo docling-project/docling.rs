@@ -2867,6 +2867,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "preserve-order")] // field-order assertions (#970)
     fn empty_document_is_a_valid_pandoc_document() {
         let (s, artifacts) =
             to_pandoc(&DoclingDocument::new("e"), &PandocExportOptions::default()).unwrap();
