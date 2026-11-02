@@ -503,7 +503,11 @@ pub fn parse_data_url(url: &str) -> Result<DataUrl, ConversionError> {
         }
     }
     let bytes = if base64 {
-        docling_core::base64::decode(payload.trim()).ok_or_else(|| {
+        // The payload is percent-encoded like any URL text, base64 or not
+        // (the WHATWG fetch `data:` URL processor decodes it first):
+        // `encodeURIComponent` turns base64's `+ / =` into `%2B %2F %3D`.
+        let payload = String::from_utf8_lossy(&percent_decode(payload.trim())).into_owned();
+        docling_core::base64::decode(&payload).ok_or_else(|| {
             ConversionError::Fetch("malformed data: URL: invalid base64 payload".to_string())
         })?
     } else {
@@ -836,5 +840,15 @@ mod tests {
         // The scheme is case-insensitive.
         let doc = from_data_url("DATA:text/html,%3Cp%3Ex%3C/p%3E").unwrap();
         assert_eq!(doc.format, InputFormat::Html);
+    }
+
+    #[test]
+    fn data_url_base64_payload_may_be_percent_encoded() {
+        // `encodeURIComponent` of a base64 payload: `+ / =` escaped.
+        let data = parse_data_url("data:text/plain;base64,Pj4%2BPz8%2F").unwrap();
+        assert_eq!(data.bytes, b">>>???");
+        let doc = from_data_url("data:text/html;base64,PGgxPkhpPC9oMT4%3D").unwrap();
+        assert_eq!(doc.format, InputFormat::Html);
+        assert_eq!(doc.bytes, b"<h1>Hi</h1>");
     }
 }
