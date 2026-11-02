@@ -345,6 +345,11 @@ class HybridChunker(_BaseChunker):
         self.merge_peers = merge_peers
 
     def chunk(self, dl_doc: Any) -> Iterator[DocChunk]:
+        # The document goes to the engine as docling-JSON (``_document_json``)
+        # and is re-imported there, so a picture's ``meta.description`` — a
+        # vision model's or the picture OCR's text — reaches the chunks only
+        # because the JSON backend reads it back (#975): it is the picture's
+        # chunk text, after its caption.
         tokenizer = self.tokenizer
         if tokenizer is None and not Path(".models/chunk/tokenizer.json").exists():
             # The native resolver checks ./.models/chunk/tokenizer.json; when
