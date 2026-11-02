@@ -684,9 +684,68 @@ fn picture_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
         caption_location: None,
         caption_href: None,
         image: picture_image(item),
-        classification: None,
-        description: None,
+        classification: picture_classification(item),
+        description: picture_description(item),
     });
+}
+
+/// The picture's description (#975): docling's `meta.description`
+/// (`DescriptionMetaField`: `text`, `created_by`), else the deprecated
+/// `PictureDescriptionData` annotation (`kind: "description"`, `text`,
+/// `provenance`) older documents carry alone. A description a picture-
+/// description or picture-OCR pass computed is part of the document, and a
+/// docling-JSON fed back in — to chunk it, to re-export it — keeps it; it
+/// used to come back as `None`, so a document whose only text was its
+/// pictures' descriptions chunked to nothing.
+fn picture_description(item: &Value) -> Option<docling_core::PictureDescription> {
+    let text_of = |v: &Value| {
+        v["text"]
+            .as_str()
+            .filter(|t| !t.trim().is_empty())
+            .map(str::to_string)
+    };
+    let meta = &item["meta"]["description"];
+    if let Some(text) = text_of(meta) {
+        return Some(docling_core::PictureDescription {
+            text,
+            provenance: meta["created_by"].as_str().unwrap_or_default().to_string(),
+        });
+    }
+    item["annotations"]
+        .as_array()?
+        .iter()
+        .find(|a| a["kind"].as_str() == Some("description"))
+        .and_then(|a| {
+            Some(docling_core::PictureDescription {
+                text: text_of(a)?,
+                provenance: a["provenance"].as_str().unwrap_or_default().to_string(),
+            })
+        })
+}
+
+/// The classifier's predictions (#975): `meta.classification.predictions`,
+/// else the deprecated `classification` annotation's `predicted_classes`
+/// (`class_name`, `confidence` each).
+fn picture_classification(item: &Value) -> Option<Vec<docling_core::PictureClass>> {
+    let preds = item["meta"]["classification"]["predictions"]
+        .as_array()
+        .or_else(|| {
+            item["annotations"]
+                .as_array()?
+                .iter()
+                .find(|a| a["kind"].as_str() == Some("classification"))?["predicted_classes"]
+                .as_array()
+        })?;
+    let classes: Vec<_> = preds
+        .iter()
+        .filter_map(|p| {
+            Some(docling_core::PictureClass {
+                class_name: p["class_name"].as_str()?.to_string(),
+                confidence: p["confidence"].as_f64().unwrap_or(0.0) as f32,
+            })
+        })
+        .collect();
+    (!classes.is_empty()).then_some(classes)
 }
 
 /// Where the item's first caption hangs in the source tree, so a re-export
@@ -1114,6 +1173,99 @@ mod tests {
                 "#/pictures/2"
             ]
         );
+    }
+
+    /// #975: a picture's description and classification come back from
+    /// `meta` (docling 2.x) or from the deprecated annotations alone (an
+    /// older document), so a described document fed back in chunks and
+    /// re-exports with its descriptions; a picture carrying neither keeps
+    /// `None`.
+    #[test]
+    fn a_pictures_description_and_classification_survive_the_round_trip() {
+        let json_with = |pictures: &str| {
+            format!(
+                r##"{{"name":"t","body":{{"children":[{{"$ref":"#/pictures/0"}}]}},
+                  "texts":[],"groups":[],"tables":[],"pictures":[{pictures}]}}"##
+            )
+        };
+        let picture_of = |doc: &DoclingDocument| {
+            doc.nodes
+                .iter()
+                .find_map(|n| match n {
+                    Node::Picture {
+                        description,
+                        classification,
+                        ..
+                    } => Some((description.clone(), classification.clone())),
+                    _ => None,
+                })
+                .expect("a picture")
+        };
+        let convert = |pictures: &str| {
+            DoclingJsonBackend
+                .convert(&SourceDocument::from_bytes(
+                    "t.json",
+                    InputFormat::JsonDocling,
+                    json_with(pictures).into_bytes(),
+                ))
+                .unwrap()
+        };
+        // docling 2.x: `meta` carries both, the annotations repeat them.
+        let doc = convert(
+            r##"{"self_ref":"#/pictures/0","label":"picture","captions":[],"children":[],
+                 "meta":{"description":{"created_by":"mock-vision","text":"A cat on a mat."},
+                         "classification":{"predictions":[{"confidence":0.9,"created_by":"DocumentPictureClassifier","class_name":"natural_image"}]}},
+                 "annotations":[{"kind":"description","text":"A cat on a mat.","provenance":"mock-vision"}]}"##,
+        );
+        let (desc, classes) = picture_of(&doc);
+        let desc = desc.expect("the description");
+        assert_eq!(
+            (desc.text.as_str(), desc.provenance.as_str()),
+            ("A cat on a mat.", "mock-vision")
+        );
+        let classes = classes.expect("the classification");
+        assert_eq!(classes[0].class_name, "natural_image");
+        assert!((classes[0].confidence - 0.9).abs() < 1e-6);
+        // The description is text the chunker sees: a document whose only
+        // text is a picture description chunks to that description.
+        let chunks = docling_core::chunker::HierarchicalChunker.chunk(&doc);
+        assert!(
+            chunks.iter().any(|c| c.text.contains("A cat on a mat.")),
+            "{chunks:?}"
+        );
+        // …and the re-export carries it the way the input did.
+        let out: serde_json::Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+        assert_eq!(
+            out["pictures"][0]["meta"]["description"]["text"],
+            "A cat on a mat."
+        );
+        assert_eq!(
+            out["pictures"][0]["meta"]["description"]["created_by"],
+            "mock-vision"
+        );
+
+        // An older document: the deprecated annotations alone.
+        let doc = convert(
+            r##"{"self_ref":"#/pictures/0","label":"picture","captions":[],"children":[],
+                 "annotations":[{"kind":"classification","provenance":"DocumentPictureClassifier",
+                                 "predicted_classes":[{"class_name":"logo","confidence":0.75}]},
+                                {"kind":"description","text":"Old style.","provenance":"old-model"}]}"##,
+        );
+        let (desc, classes) = picture_of(&doc);
+        assert_eq!(
+            desc.map(|d| (d.text, d.provenance)),
+            Some(("Old style.".into(), "old-model".into()))
+        );
+        assert_eq!(
+            classes.map(|c| c[0].class_name.clone()).as_deref(),
+            Some("logo")
+        );
+
+        // Neither: nothing invented.
+        let doc = convert(
+            r##"{"self_ref":"#/pictures/0","label":"picture","captions":[],"children":[],"annotations":[]}"##,
+        );
+        assert_eq!(picture_of(&doc), (None, None));
     }
 
     /// #403: a picture's `image` (docling's `ImageRef`, a `data:` URI) comes
