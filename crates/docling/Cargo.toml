@@ -25,7 +25,12 @@ heif = ["pdf", "docling-pdf/heif"]
 # client are feature-sliced so `--no-default-features` leaves the pure-Rust
 # declarative converters (DOCX/HTML/MD/XLSX/PPTX/… → md/json) — a set that
 # compiles for wasm32-unknown-unknown (issue #79, see crates/docling-wasm).
-default = ["pdf", "asr", "fetch-images", "fetch-url", "vlm", "ner", "youtube"]
+default = ["preserve-order", "pdf", "asr", "fetch-images", "fetch-url", "vlm", "ner", "youtube"]
+# docling's JSON field order (#970): forwards docling-core's `preserve-order`,
+# which enables `serde_json/preserve_order` for the whole build. A consumer that
+# needs sorted `serde_json::Map`s elsewhere disables it and gets a key-sorted
+# JSON export.
+preserve-order = ["docling-core/preserve-order"]
 # PDF/image/METS-GBS ML pipeline (the pure-Rust renderer + ONNX Runtime via
 # docling-pdf). resvg rides along so SVG input (#212) can rasterize into the
 # same image pipeline; the non-ML SVG path (direct <text> extraction) needs
@@ -96,7 +101,7 @@ headless_chrome = { version = "1.0", optional = true }
 # (avoids a predictable /tmp path a local attacker could pre-plant a symlink at).
 tempfile = { version = "3", optional = true }
 docling-asr = { path = "../docling-asr", version = "2.63.0", optional = true }
-docling-core = { path = "../docling-core", version = "2.63.0" }
+docling-core = { path = "../docling-core", version = "2.63.0", default-features = false }
 docling-pdf = { path = "../docling-pdf", version = "2.63.0", optional = true, default-features = false }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "webp"] }
 # EXIF of JPEG/PNG/TIFF/WebP/HEIF inputs for the document metadata (#679);

@@ -1634,7 +1634,12 @@ impl Builder {
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect();
             for (k, _) in &tail {
+                // Without `preserve-order` the map is sorted and the position
+                // is moot (#970); `remove` is the only removal it has.
+                #[cfg(feature = "preserve-order")]
                 obj.shift_remove(k);
+                #[cfg(not(feature = "preserve-order"))]
+                obj.remove(k);
             }
             obj.insert("comments".into(), Value::Array(comment_refs));
             for (k, v) in tail {
@@ -3055,9 +3060,11 @@ fn fnv1a(s: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        CaptionParent, ContentLayer, DoclingDocument, ImageMode, Node, PictureImage, Table,
-    };
+    #[cfg(feature = "preserve-order")]
+    use crate::ImageMode;
+    #[cfg(feature = "preserve-order")]
+    use crate::PictureImage;
+    use crate::{CaptionParent, ContentLayer, DoclingDocument, Node, Table};
     use serde_json::Value;
 
     fn cell_at(text: &str, row: usize, col: usize, col_span: usize) -> crate::TableCell {
@@ -3122,6 +3129,7 @@ mod tests {
         assert_eq!(data["grid"][0].as_array().unwrap().len(), 2);
     }
 
+    #[cfg(feature = "preserve-order")]
     fn doc_with_image() -> DoclingDocument {
         let mut doc = DoclingDocument::new("t");
         doc.push(Node::Picture {
@@ -3579,6 +3587,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "preserve-order")] // field-order assertions (#970)
     fn picture_image_in_markdown_modes_and_json() {
         let doc = doc_with_image();
         // placeholder (default) ignores the image
@@ -3733,6 +3742,7 @@ mod tests {
     /// numbered, `comments` back-refs sit between `prov` and `orig`, and a
     /// chart picture carries `classification` plus `tabular_chart`.
     #[test]
+    #[cfg(feature = "preserve-order")] // field-order assertions (#970)
     fn deleted_items_comment_refs_and_chart_meta_in_the_tree() {
         use crate::tree::{ItemTree, TreeKind};
         let mut t = ItemTree::default();
@@ -4111,6 +4121,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "preserve-order")] // field-order assertions (#970)
     fn a_backend_item_tree_is_written_verbatim() {
         use crate::tree::{Formatting, ItemTree, ListMeta, TreeKind};
         let mut t = ItemTree::default();
@@ -4432,6 +4443,7 @@ mod tests {
     /// holding the note text, and a `comments` back-ref on the annotated item —
     /// keyed between `prov` and `orig`, the slot docling emits it in.
     #[test]
+    #[cfg(feature = "preserve-order")] // field-order assertions (#970)
     fn comment_sections_link_back_to_their_items() {
         let doc = DoclingDocument {
             name: "c".into(),

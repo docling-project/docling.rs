@@ -16,8 +16,12 @@ rust-version = "1.85"
 [dependencies]
 # serde_json builds the docling-core-compatible DoclingDocument JSON wire format
 # (export_to_json); the model itself stays plain (walked into `Value` by json.rs).
-# `preserve_order` keeps docling's field order (schema_name, version, …).
-serde_json = { version = "1", features = ["preserve_order"] }
+# The `preserve-order` feature (default, #970) turns on `serde_json/preserve_order`
+# to keep docling's field order (schema_name, version, …). Cargo unifies features
+# across the whole build, so it also changes every other `serde_json::Map` in the
+# consumer's graph — a consumer that needs sorted maps disables the default
+# features (`default-features = false`) and takes the sorted JSON export.
+serde_json = { version = "1" }
 # `Serialize` for the export's typed items (`json::write_json` streams them
 # without building a `Value`).
 serde = { version = "1", features = ["derive"] }
@@ -44,6 +48,10 @@ pulldown-cmark = { version = "0.13", default-features = false, optional = true }
 libc = "0.2"
 
 [features]
+default = ["preserve-order"]
+# docling's JSON field order in the export; insertion-ordered `serde_json::Map`
+# for the whole build (see the `serde_json` dependency above).
+preserve-order = ["serde_json/preserve_order"]
 # Tokenization-aware chunking (HybridChunker's HuggingFaceTokenizer) and the
 # Markdown window chunker (WindowChunker).
 chunking = ["dep:tokenizers", "dep:pulldown-cmark"]
