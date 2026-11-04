@@ -2,6 +2,6 @@
 
 <!-- image -->
 
-Chunking. Llamalndex, LangChain
+Chunking. Llamalndex. LangChain
 
 <!-- image -->
