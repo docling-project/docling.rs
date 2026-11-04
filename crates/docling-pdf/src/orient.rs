@@ -44,7 +44,7 @@ use image::RgbImage;
 use crate::layout::Region;
 use crate::ocr::OcrModel;
 use crate::ocr_det::DetBox;
-use crate::ocr_prep::{prep_region_lines, prep_region_lines_det, PrepLine};
+use crate::ocr_prep::{prep_region_lines, prep_region_lines_det_boxed, PrepLine};
 use crate::Recognizer;
 use docling_core::debug_log;
 
@@ -127,11 +127,16 @@ fn probe(img: &RgbImage, ocr: &mut OcrModel, boxes: &[DetBox]) -> Result<Score, 
         r: img.width() as f32,
         b: img.height() as f32,
     };
+    // The *boxed* crops, not the page OCR's warped ones (#981): the probe
+    // asks whether the raster is sideways, and `rotate_crop` would answer
+    // it before the question is put — a sideways line's tall box comes out
+    // of the warp already turned upright, so the 0° hypothesis reads a 90°
+    // page fine and the page is never un-rotated.
     let (_, mut lines) = crate::timing::timed("orient.prep", || {
         if boxes.is_empty() {
             prep_region_lines(img, std::slice::from_ref(&page), 1.0)
         } else {
-            prep_region_lines_det(img, std::slice::from_ref(&page), 1.0, boxes)
+            prep_region_lines_det_boxed(img, std::slice::from_ref(&page), 1.0, boxes)
         }
     });
     // Widest first — most characters per recognition run. Stable order (width,

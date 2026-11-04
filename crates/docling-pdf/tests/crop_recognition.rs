@@ -41,7 +41,7 @@ fn detector_boxes_recognize_index_aligned_without_layout() {
     // The same pixels through the plain crop entry point read identically.
     let crops: Vec<_> = boxes
         .iter()
-        .map(|d| det_box_crop(&img, d, false).expect("crop"))
+        .map(|d| det_box_crop(&img, d).expect("crop"))
         .collect();
     assert_eq!(ocr.recognize_crops(&crops).expect("crops"), read);
 

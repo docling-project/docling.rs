@@ -296,6 +296,38 @@ pub fn prep_region_lines_det(
     scale: f32,
     detected: &[crate::ocr_det::DetBox],
 ) -> (Vec<LineBox>, Vec<PrepLine>) {
+    prep_region_lines_det_by(img, regions, scale, detected, |img, _, d| {
+        rotate_crop(img, &d.quad)
+    })
+}
+
+/// [`prep_region_lines_det`] with each detected line cropped as its
+/// axis-aligned pixel rectangle — the pre-#981 crop, kept for the page
+/// orientation probe (`orient`): the probe scores these crops at 0° against
+/// the page turned three ways to tell a sideways raster, and the warp would
+/// defeat it — a sideways line's tall box comes out of [`rotate_crop`]
+/// already turned upright, so a page rotated 90° read as upright and was
+/// never un-rotated (the `ocr_test_raster_rot_90` fixture, whose two lines
+/// then came out in the sideways order). The page OCR itself never uses
+/// this crop.
+pub fn prep_region_lines_det_boxed(
+    img: &RgbImage,
+    regions: &[crate::layout::Region],
+    scale: f32,
+    detected: &[crate::ocr_det::DetBox],
+) -> (Vec<LineBox>, Vec<PrepLine>) {
+    prep_region_lines_det_by(img, regions, scale, detected, |img, (l, t, r, b), _| {
+        Some(imageops::crop_imm(img, l, t, r - l, b - t).to_image())
+    })
+}
+
+fn prep_region_lines_det_by(
+    img: &RgbImage,
+    regions: &[crate::layout::Region],
+    scale: f32,
+    detected: &[crate::ocr_det::DetBox],
+    crop: impl Fn(&RgbImage, PxRect, &crate::ocr_det::DetBox) -> Option<RgbImage>,
+) -> (Vec<LineBox>, Vec<PrepLine>) {
     let (iw, ih) = img.dimensions();
     let mut bboxes = Vec::new();
     let mut lines = Vec::new();
@@ -318,7 +350,7 @@ pub fn prep_region_lines_det(
             continue;
         }
         for ((dl, dt, dr, db), d) in inside {
-            let Some(pl) = rotate_crop(img, &d.quad).as_ref().and_then(prep_line) else {
+            let Some(pl) = crop(img, (dl, dt, dr, db), d).as_ref().and_then(prep_line) else {
                 continue;
             };
             bboxes.push((
