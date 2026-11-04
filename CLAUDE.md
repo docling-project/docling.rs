@@ -146,8 +146,11 @@ cargo test -p docling-pdf --features pdfium --lib raster:: pdfium_backend::  # t
   `DOCLING_RS_PICTURE_OCR_SCALE` (#666; the picture OCR's px per picture
   pixel under the 2000 px cap — `1.0` = RapidOCR's native pixels; unset =
   the image-input rule), `DOCLING_RS_OCR_TEXTLINE_ORIENTATION` (#666; off —
-  RapidOCR's oriented line crops, 90° turn of tall lines and 0/180
-  classifier, `.models/ocr_textline_ori.onnx` / `DOCLING_OCR_TEXTLINE_ORI_ONNX`),
+  RapidOCR's 0/180 classifier on the line crops, `.models/ocr_textline_ori.onnx`
+  / `DOCLING_OCR_TEXTLINE_ORI_ONNX`; the crops themselves are always
+  RapidOCR's since #981 — the detector's rotated rectangle warped upright,
+  tall lines turned 90°, never the axis-aligned box, which garbled long
+  small-print lines on skewed scans),
   `DOCLING_RS_NER_DIR` (#621; `.models/ner` — the token-classification
   model + `tokenizer.json` + `config.json` the opt-in PII redaction pass
   `redact_pii` / `--redact-pii` reads names, organizations and locations

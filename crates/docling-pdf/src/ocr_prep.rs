@@ -14,6 +14,17 @@ use image::{imageops, imageops::FilterType, Rgb, RgbImage};
 /// PP-OCRv3's fixed input height.
 pub const REC_HEIGHT: u32 = 48;
 
+/// Cap on the recognizer input width — a sanity bound only (#981). RapidOCR
+/// resizes every crop to `48 × ceil(48 · w/h)` with no cap, and the CTC
+/// recognizer reads any width; the 2400 px (50:1) cap this held before
+/// squeezed every longer line horizontally — a 700 px full-width line of
+/// 12 px print at 800 px page width, which the detector boxes tighter than
+/// the projection strips — and the recognizer then dropped letters and
+/// glued words along the whole line (`Baccalaatpoesne accurlatci usgers`)
+/// while short lines on the same page read fine. 16384 (341:1) is past any
+/// text line a page can carry at the render sizes allowed.
+pub const REC_MAX_WIDTH: u32 = 16384;
+
 /// Cap on lines per recognition run: bounds peak input-tensor memory
 /// (16 × 3 × 48 × 2400 px ≈ 22 MB f32) without costing measurable batching
 /// benefit — same-width groups are rarely larger.
@@ -36,7 +47,7 @@ pub fn prep_line(line: &RgbImage) -> Option<PrepLine> {
     }
     let new_w = ((w as f32) * REC_HEIGHT as f32 / h as f32)
         .round()
-        .clamp(8.0, 2400.0) as u32;
+        .clamp(8.0, REC_MAX_WIDTH as f32) as u32;
     let resized = imageops::resize(line, new_w, REC_HEIGHT, FilterType::Triangle);
     let n = (REC_HEIGHT * new_w) as usize;
     // Normalise to [-1, 1]: (x/255 - 0.5) / 0.5.
@@ -268,6 +279,17 @@ pub fn prep_region_lines(
 /// docling's engine, recognizes the detector's own boxes, each a single text
 /// run with the detector's margin around it. On FUNSD this is the difference
 /// between 0.61 and 0.85 word recall (see the issue's measurements).
+///
+/// The crop is the detector's rotated rectangle warped upright
+/// ([`rotate_crop`], RapidOCR's `get_rotate_crop_image`), not its
+/// axis-aligned bounding box (#981): a scan is never quite straight, and the
+/// bounding box of a line skewed by θ is `width · tan θ` taller than the
+/// line — at 0.6° a 700 px line of 12 px print gains 7 px, a third of its
+/// height — so the recognizer got the long lines squeezed to two thirds of
+/// their width and slanted, and dropped letters and glued words along them
+/// (`Baccalaatpoesne accurlatci usgers`) while the short lines on the same
+/// page read fine; the same crops read 0 garbled lines in RapidOCR with the
+/// identical models. The cell keeps the axis-aligned box as its geometry.
 pub fn prep_region_lines_det(
     img: &RgbImage,
     regions: &[crate::layout::Region],
@@ -295,9 +317,8 @@ pub fn prep_region_lines_det(
             lines.extend(pl);
             continue;
         }
-        for ((dl, dt, dr, db), _) in inside {
-            let line = imageops::crop_imm(img, dl, dt, dr - dl, db - dt).to_image();
-            let Some(pl) = prep_line(&line) else {
+        for ((dl, dt, dr, db), d) in inside {
+            let Some(pl) = rotate_crop(img, &d.quad).as_ref().and_then(prep_line) else {
                 continue;
             };
             bboxes.push((
@@ -431,19 +452,17 @@ pub fn prep_table_words_det(
         if r <= l || b <= t {
             continue;
         }
-        let inside: Vec<_> = det_boxes_inside(detected, l, t, r, b, iw, ih)
-            .into_iter()
-            .map(|(rect, _)| rect)
-            .collect();
+        let inside = det_boxes_inside(detected, l, t, r, b, iw, ih);
         if inside.is_empty() {
             let (bb, pl) = prep_table_words(img, std::slice::from_ref(region), scale);
             bboxes.extend(bb);
             lines.extend(pl);
             continue;
         }
-        for (dl, dt, dr, db) in inside {
-            let word = imageops::crop_imm(img, dl, dt, dr - dl, db - dt).to_image();
-            let Some(pl) = prep_line(&word) else {
+        // The quad's warp, as for the text lines (#981): a skewed table's
+        // long cells squeeze the same way.
+        for ((dl, dt, dr, db), d) in inside {
+            let Some(pl) = rotate_crop(img, &d.quad).as_ref().and_then(prep_line) else {
                 continue;
             };
             bboxes.push((
@@ -459,10 +478,11 @@ pub fn prep_table_words_det(
 }
 
 /// The detected boxes whose center lies in the `l..r × t..b` image-pixel
-/// rectangle, in the detector's reading order. A box is taken whole (clipped
-/// to the image, not to the region): the layout box is often tight on the
-/// ink while the detector's unclip margin reaches past it, and cutting that
-/// margin off clips the first and last glyphs — RapidOCR recognizes the
+/// rectangle, in the detector's reading order, each with its axis-aligned
+/// pixel rectangle clamped to the image (the cell's geometry). A box is
+/// taken whole, not clipped to the region: the layout box is often tight on
+/// the ink while the detector's unclip margin reaches past it, and cutting
+/// that margin off clips the first and last glyphs — RapidOCR recognizes the
 /// detector's box as drawn. The crop may thus poke a little outside the
 /// region; the cell keeps the box geometry and assembly assigns it by
 /// overlap, as for any cell.
@@ -500,24 +520,19 @@ fn det_box_px(d: &crate::ocr_det::DetBox, iw: u32, ih: u32) -> Option<PxRect> {
 }
 
 /// The recognizer's crop of one detector box on `img` (#939), exactly as the
-/// page OCR takes it: `oriented` = RapidOCR's warp of the box's quad
-/// ([`rotate_crop`], tall lines turned 90°) as under
-/// `ocr_textline_orientation`, else the axis-aligned box clamped to the
-/// image. `None` for a box with nothing left inside the image.
-pub fn det_box_crop(
-    img: &RgbImage,
-    d: &crate::ocr_det::DetBox,
-    oriented: bool,
-) -> Option<RgbImage> {
-    // Intersection first, oriented or not (#947): `rotate_crop` replicates
-    // border pixels, so a box wholly outside the image would otherwise come
-    // back as edge-colored pixels — the same box the plain path (and
-    // `det_boxes_inside`, which feeds the page OCR) drops.
-    let (l, t, r, b) = det_box_px(d, img.width(), img.height())?;
-    if oriented {
-        return rotate_crop(img, &d.quad);
-    }
-    Some(imageops::crop_imm(img, l, t, r - l, b - t).to_image())
+/// page OCR takes it: RapidOCR's warp of the box's quad ([`rotate_crop`] —
+/// upright out of the detector's rotated rectangle, tall lines turned 90°;
+/// the plain pixels for an upright box). `None` for a box with nothing
+/// inside the image. Until #981 this was the axis-aligned box unless
+/// `ocr_textline_orientation` was on; the warp is now the crop for every
+/// detected line, the option adds only the 0/180° classifier.
+pub fn det_box_crop(img: &RgbImage, d: &crate::ocr_det::DetBox) -> Option<RgbImage> {
+    // Intersection first (#947): `rotate_crop` replicates border pixels, so
+    // a box wholly outside the image would otherwise come back as
+    // edge-colored pixels — the same box `det_boxes_inside`, which feeds
+    // the page OCR, drops.
+    det_box_px(d, img.width(), img.height())?;
+    rotate_crop(img, &d.quad)
 }
 
 /// A text line's pixels before recognition prep: an oriented crop still to
@@ -527,13 +542,12 @@ pub enum LineSrc {
     Prepared(PrepLine),
 }
 
-/// [`prep_region_lines_det`] for `ocr_textline_orientation` (#666):
-/// RapidOCR's crops — each detected line warped upright out of its
-/// minimum-area rectangle and turned when tall ([`rotate_crop`]) — left
-/// unprepared so the orientation classifier can see them first. The boxes
-/// are the same axis-aligned ones, so reading order and geometry do not
-/// move; a region without detected lines falls back to the projection split
-/// as there.
+/// [`prep_region_lines_det`] for `ocr_textline_orientation` (#666): the
+/// same crops — each detected line warped upright out of its minimum-area
+/// rectangle and turned when tall ([`rotate_crop`]) — left unprepared so
+/// the orientation classifier can see them first. The boxes are the same
+/// axis-aligned ones, so reading order and geometry do not move; a region
+/// without detected lines falls back to the projection split as there.
 pub fn region_line_crops_det(
     img: &RgbImage,
     regions: &[crate::layout::Region],
@@ -858,38 +872,121 @@ mod tests {
         );
     }
 
-    /// #939: a detector box's recognizer crop — the axis-aligned box
-    /// truncated and clamped to the image, or (oriented) the quad's warp,
-    /// which for an integer rectangle is the same pixels; nothing left
-    /// inside the image → `None`.
+    /// #939: a detector box's recognizer crop — the quad's warp, which for
+    /// an integer rectangle is exactly its pixels; a box reaching past the
+    /// image edge warps whole (replicated border, RapidOCR's
+    /// `warpPerspective`), one with nothing inside the image → `None` (#947).
     #[test]
     fn det_box_crop_matches_the_page_ocr_crop() {
         let img = RgbImage::from_fn(60, 40, |x, y| Rgb([(x * 4) as u8, (y * 6) as u8, 7]));
         let d = crate::ocr_det::DetBox::rect(10.0, 5.0, 30.0, 25.0, 0.9);
-        let plain = det_box_crop(&img, &d, false).expect("crop");
+        let plain = det_box_crop(&img, &d).expect("crop");
         assert_eq!(plain.dimensions(), (20, 20));
         assert_eq!(plain.get_pixel(0, 0), img.get_pixel(10, 5));
-        assert_eq!(det_box_crop(&img, &d, true), Some(plain));
-        let edge = crate::ocr_det::DetBox::rect(50.7, -3.0, 80.0, 10.0, 0.9);
         assert_eq!(
-            det_box_crop(&img, &edge, false).unwrap().dimensions(),
-            (10, 10)
+            plain,
+            image::imageops::crop_imm(&img, 10, 5, 20, 20).to_image()
         );
+        let edge = crate::ocr_det::DetBox::rect(50.7, -3.0, 80.0, 10.0, 0.9);
+        assert_eq!(det_box_crop(&img, &edge).unwrap().dimensions(), (29, 13));
         let off = crate::ocr_det::DetBox::rect(70.0, 0.0, 90.0, 10.0, 0.9);
-        assert_eq!(det_box_crop(&img, &off, false), None);
-        // #947: wholly outside is `None` oriented too, not replicated edge pixels.
-        assert_eq!(det_box_crop(&img, &off, true), None);
+        assert_eq!(det_box_crop(&img, &off), None);
         let tiny = RgbImage::from_pixel(2, 2, Rgb([255, 255, 255]));
         let outside = crate::ocr_det::DetBox::rect(3.0, 0.0, 5.0, 2.0, 0.9);
-        assert_eq!(det_box_crop(&tiny, &outside, false), None);
-        assert_eq!(det_box_crop(&tiny, &outside, true), None);
+        assert_eq!(det_box_crop(&tiny, &outside), None);
         let inside = crate::ocr_det::DetBox::rect(0.0, 0.0, 2.0, 2.0, 0.9);
-        assert_eq!(
-            det_box_crop(&tiny, &inside, true).unwrap().dimensions(),
-            (2, 2)
+        assert_eq!(det_box_crop(&tiny, &inside).unwrap().dimensions(), (2, 2));
+    }
+
+    /// #981: a detected line on a skewed scan is cropped out of the
+    /// detector's rotated rectangle, not its axis-aligned bounding box — a
+    /// 60 × 12 bar at 8° has a 62 × 20 bounding box, whose crop would reach
+    /// the recognizer squeezed to 146 px wide and slanted; the warp gives
+    /// the bar's own 60 × 12, i.e. 240 px at the 48 px height. The cell's
+    /// geometry stays the bounding box.
+    #[test]
+    fn a_skewed_detected_line_is_warped_upright_not_boxed() {
+        let (cx, cy, hw, hh, a) = (60.0f32, 40.0f32, 30.0f32, 6.0f32, 8.0f32.to_radians());
+        let img = RgbImage::from_fn(120, 80, |x, y| {
+            let (dx, dy) = (x as f32 + 0.5 - cx, y as f32 + 0.5 - cy);
+            let (u, v) = (dx * a.cos() + dy * a.sin(), -dx * a.sin() + dy * a.cos());
+            if u.abs() <= hw && v.abs() <= hh {
+                Rgb([0, 0, 0])
+            } else {
+                Rgb([255, 255, 255])
+            }
+        });
+        let corner = |su: f32, sv: f32| {
+            (
+                cx + su * hw * a.cos() - sv * hh * a.sin(),
+                cy + su * hw * a.sin() + sv * hh * a.cos(),
+            )
+        };
+        let quad = crate::ocr_det::order_corners([
+            corner(-1.0, -1.0),
+            corner(1.0, -1.0),
+            corner(1.0, 1.0),
+            corner(-1.0, 1.0),
+        ]);
+        let (xs, ys): (Vec<f32>, Vec<f32>) = quad.iter().copied().unzip();
+        let (l, t) = (
+            xs.iter().cloned().fold(f32::MAX, f32::min),
+            ys.iter().cloned().fold(f32::MAX, f32::min),
         );
-        // partially overlapping oriented boxes still crop
-        assert!(det_box_crop(&img, &edge, true).is_some());
+        let (r, b) = (
+            xs.iter().cloned().fold(f32::MIN, f32::max),
+            ys.iter().cloned().fold(f32::MIN, f32::max),
+        );
+        let det = crate::ocr_det::DetBox {
+            l,
+            t,
+            r,
+            b,
+            score: 0.9,
+            quad,
+        };
+        let region = crate::layout::Region {
+            label: "text",
+            score: 0.9,
+            l: 0.0,
+            t: 0.0,
+            r: 120.0,
+            b: 80.0,
+        };
+        let (boxes, lines) =
+            prep_region_lines_det(&img, std::slice::from_ref(&region), 1.0, &[det]);
+        assert_eq!(lines.len(), 1);
+        let bbox_w = (((r.floor() - l.floor()) * 48.0) / (b.floor() - t.floor())).round() as usize;
+        assert!(bbox_w < 160, "bounding box would give {bbox_w}");
+        assert!(
+            (236..=240).contains(&lines[0].w),
+            "warped width {}",
+            lines[0].w
+        );
+        // Geometry: the bounding box, in whole pixels.
+        assert_eq!(
+            boxes,
+            vec![(
+                l as u32 as f32,
+                t as u32 as f32,
+                r as u32 as f32,
+                b as u32 as f32
+            )]
+        );
+        let (words, _) = prep_table_words_det(
+            &img,
+            &[crate::layout::Region {
+                label: "table",
+                score: 0.9,
+                l: 0.0,
+                t: 0.0,
+                r: 120.0,
+                b: 80.0,
+            }],
+            1.0,
+            &[det],
+        );
+        assert_eq!(words, boxes);
     }
 
     /// RapidOCR's `text_score` default, the pre-#570 "keep everything" with

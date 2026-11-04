@@ -536,7 +536,7 @@ impl OcrModel {
     /// assembly, no detector: each image is taken to be one upright text
     /// line (dark ink on light ground, as the recognizer was trained),
     /// resized to the recognizer's 48 px height at its aspect ratio (width
-    /// clamped to 8–2400 px) and read with the same deterministic
+    /// clamped to 8 px–[`crate::ocr_prep::REC_MAX_WIDTH`]) and read with the same deterministic
     /// width-batching and recognition lanes as the page OCR — so a crop
     /// yields what the page OCR would read from the same pixels.
     ///
@@ -553,11 +553,11 @@ impl OcrModel {
     /// Recognize the lines a text detector found on `img` (#939) — the
     /// boxes [`DetModel::detect`](crate::ocr_det::DetModel) returns, in
     /// `img` pixels — without running page layout. Each box is cropped as
-    /// the page OCR crops it ([`crate::ocr_prep::det_box_crop`]): with
-    /// [`Self::set_textline_orientation`] on, RapidOCR's warp of the box's
-    /// quad (tall lines turned 90°) and a 180° turn where the orientation
-    /// classifier reads it upside down; off (the default), the axis-aligned
-    /// box clamped to the image.
+    /// the page OCR crops it ([`crate::ocr_prep::det_box_crop`]): RapidOCR's
+    /// warp of the box's quad, upright out of the detector's rotated
+    /// rectangle (tall lines turned 90°; #981) and, with
+    /// [`Self::set_textline_orientation`] on, a 180° turn where the
+    /// orientation classifier reads it upside down.
     ///
     /// One [`RecognizedLine`] per box, in input order (so `boxes[i]` is the
     /// geometry of result `i`, in `img` pixels); a box with nothing inside
@@ -571,7 +571,7 @@ impl OcrModel {
         let oriented = self.orient;
         let mut crops: Vec<Option<RgbImage>> = boxes
             .iter()
-            .map(|d| crate::ocr_prep::det_box_crop(img, d, oriented))
+            .map(|d| crate::ocr_prep::det_box_crop(img, d))
             .collect();
         if oriented {
             self.upright(crops.iter_mut().flatten().collect())?;
