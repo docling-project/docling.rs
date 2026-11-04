@@ -1496,6 +1496,7 @@ exact, 389 diff lines**, the rest close — see `PDF_CONFORMANCE.md`. A determin
 **Status:** the same pipeline, image as a single page
 
 - docling#4247 (2.128): the EXIF orientation tag is applied when the frame is loaded (`ImageOps.exif_transpose`), so a portrait photo no longer reaches layout and OCR on its side
+- #981: a detected line is cropped out of the detector's rotated rectangle (RapidOCR's `get_rotate_crop_image`), not its axis-aligned bounding box — on a scan skewed by 0.6° the box of a 700 px line of 12 px print was a third taller than the line, and the recognizer, fed the line squeezed and slanted, dropped letters and glued words along every long line (`Baccalaatpoesne accurlatci usgers`) while RapidOCR read the same page clean with the identical models; the recognizer input width is no longer capped at 2400 px either (RapidOCR has no cap)
 - #570: OCR reads an image at docling's effective resolution (3 px/pt within RapidOCR's 2000 px longer side) and recognizes the text detector's boxes
   - on FUNSD's 199 scanned forms word recall against the annotations (the issue's `funsd_repro.py` scoring, `text_items`) is **0.896**, median 0.933, 29 forms under 0.8 (docling-rs 1.96: 0.613 / 150 under 0.8; Python docling 2.133 with RapidOCR: 0.852 / 39 under 0.8)
   - 0.914 on the nine forms #571 lists against Python's 0.915
@@ -2024,17 +2025,20 @@ These are deliberate or unavoidable divergences, not bugs.
      docling's own RapidOCR default since 2.127 — else PP-OCRv3 recognition.
      Since #570 the recognizer reads the detector's boxes inside layout
      regions (RapidOCR's crops; projection strips only as the fallback) and
-     drops lines under RapidOCR's `text_score`; the remaining differences are
-     the crop geometry (axis-aligned box vs RapidOCR's perspective crop of the
-     quad), RapidOCR's batch width padding and its angle classifier — the
-     first and last of which `ocr_textline_orientation` (#666, off by
-     default, every surface) closes: the perspective crop of the quad
+     drops lines under RapidOCR's `text_score`, and since #981 crops each
+     detected line as RapidOCR does — the perspective crop of the quad
      (`get_rotate_crop_image`, bicubic, replicated borders), the 90° turn of
-     crops ≥ 1.5× taller than wide, and the PP-LCNet text-line orientation
-     classifier (`ocr_textline_ori.onnx`, RapidOCR's `Cls` for PP-OCRv5:
-     80 × 160 BGR, batches of 6 by aspect ratio, `180` above 0.9). The
-     reported boxes stay axis-aligned. Python maps docling's
-     `RapidOcrOptions.use_cls` onto it when set. **Tesseract**
+     crops ≥ 1.5× taller than wide — instead of its axis-aligned bounding
+     box, which on a slightly skewed scan was taller than the line by
+     `width · tan θ` and garbled the long small-print lines (a 0.6° page:
+     7 of 32 lines destroyed, 0 in RapidOCR with the identical models). The
+     remaining differences are RapidOCR's batch width padding and its angle
+     classifier, which `ocr_textline_orientation` (#666, off by default,
+     every surface) adds: the PP-LCNet text-line orientation classifier
+     (`ocr_textline_ori.onnx`, RapidOCR's `Cls` for PP-OCRv5: 80 × 160 BGR,
+     batches of 6 by aspect ratio, `180` above 0.9). The reported boxes stay
+     axis-aligned. Python maps docling's `RapidOcrOptions.use_cls` onto it
+     when set. **Tesseract**
      (#460, `--ocr-engine tesseract` / `ocr_engine` on every surface) is the
      alternative — docling's `TesseractCliOcrOptions` port: the system binary,
      one subprocess per layout-region crop with `tsv` output, its own
@@ -2582,10 +2586,10 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
   reports), never the detector score — and drops nothing:
   `passes_text_score()` is the page OCR's RapidOCR `text_score` filter.
   A detector box is cropped exactly as the page OCR crops it
-  (`ocr_prep::det_box_crop`: the clamped box, or under
-  `set_textline_orientation(true)` the quad's warp plus the 180°
-  classifier), and the width batching and lanes are the page OCR's, so the
-  same pixels read the same. Python docling exposes no such entry point.
+  (`ocr_prep::det_box_crop`: the quad's warp, #981, plus under
+  `set_textline_orientation(true)` the 180° classifier), and the width
+  batching and lanes are the page OCR's, so the same pixels read the same.
+  Python docling exposes no such entry point.
 - **`extract_diagrams=mermaid`** (#858) — a DOCX DrawingML flowchart as a
   `mermaid` code item after its picture: the labelled shapes are the nodes,
   the connectors that name their two end shapes (`a:stCxn` / `a:endCxn`)

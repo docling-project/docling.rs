@@ -270,20 +270,25 @@ codec or copybook when the conversion runs.
   `picture_ocr_scale` (#666) sets their own: px per picture pixel under the
   same 2000 px cap, `1.0` being RapidOCR's native-pixel reading — a 720 ×
   180 screenshot reads at 720 × 180 instead of 2000 × 500.
+- **Line crops** (#981). Every line the text detector finds — on scanned
+  pages, images and in tables — reaches the recognizer the way RapidOCR
+  crops it: warped upright out of the detector's rotated rectangle
+  (`get_rotate_crop_image`: bicubic, replicated borders), a crop at least
+  1.5× taller than wide turned 90° counter-clockwise. The crop used to be
+  the box's axis-aligned bounding rectangle, which on a scan skewed by even
+  half a degree is `width · tan θ` taller than the line: the long
+  small-print lines reached the recognizer squeezed and slanted and came
+  back with letters dropped and words glued while the short ones read fine.
+  The reported boxes stay axis-aligned, so reading order and geometry do
+  not move.
 - **Line orientation** (#666, off by default). `ocr_textline_orientation`
-  ports RapidOCR's line handling around the recognizer: each detected line
-  is warped upright out of the detector's rotated rectangle
-  (`get_rotate_crop_image`: bicubic, replicated borders) instead of cropped
-  as its axis-aligned box, a crop at least 1.5× taller than wide is turned
-  90° counter-clockwise, and PaddleOCR's `PP-LCNet_x0_25_textline_ori`
-  classifier (`.models/ocr_textline_ori.onnx`, `DOCLING_OCR_TEXTLINE_ORI_ONNX`;
-  80 × 160 BGR input, batches of 6, `180` above 0.9) turns upside-down
-  lines. Vertical axis titles, rotated headers, skewed and upside-down lines
-  then read; the reported boxes stay axis-aligned, so reading order does not
-  move. It applies to every PP-OCR line read off the detector — scanned
-  pages and images change too when on — but not to table words, the
-  projection fallback or Tesseract. A missing classifier warns once and
-  keeps the crop and the 90° turn.
+  adds PaddleOCR's `PP-LCNet_x0_25_textline_ori` classifier
+  (`.models/ocr_textline_ori.onnx`, `DOCLING_OCR_TEXTLINE_ORI_ONNX`;
+  80 × 160 BGR input, batches of 6, `180` above 0.9) on top of those crops,
+  turning upside-down lines so they read too. It applies to every PP-OCR
+  line read off the detector inside the layout regions, not to table words,
+  the projection fallback or Tesseract. A missing classifier warns once and
+  keeps the crops.
 - **Detector and recognizer knobs** (env): `DOCLING_RS_OCR_DET_MAX_SIDE`
   (2000 = RapidOCR's `max_side_len`; `0` lifts the cap, 960 — PaddleOCR's
   budget — is about a third of the time at ~0.02 recall on FUNSD),

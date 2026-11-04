@@ -20,14 +20,19 @@
 //! scaled up to 736 (`limit_type: min`), sides rounded to multiples of 32,
 //! BGR channel order (cv2 input), `(x/255 − 0.5)/0.5`; probability threshold
 //! 0.3, 2×2 dilation, per-blob minimum-area rectangle, `box_score_fast` ≥ 0.5,
-//! unclip ratio 1.6, RapidOCR's row-then-column box order. Two deliberate
-//! simplifications: only outer blob boundaries are considered (OpenCV's
+//! unclip ratio 1.6, RapidOCR's row-then-column box order. One deliberate
+//! simplification: only outer blob boundaries are considered (OpenCV's
 //! `RETR_LIST` also walks hole contours, whose boxes fail the score gate
-//! anyway), and a detected quad is handed on as its axis-aligned bounding
-//! box — the recognizer's line prep crops rectangles, and rotated lines are
-//! not what documents lose today. The quad rides along on [`DetBox::quad`]:
-//! with `ocr_textline_orientation` on (#666) the line prep warps it upright
-//! the way RapidOCR's `get_rotate_crop_image` does.
+//! anyway). A detected line's geometry is its axis-aligned bounding box
+//! ([`DetBox`]'s `l t r b` — what the cell and the reading order use), and
+//! its *crop* is the quad ([`DetBox::quad`], the detector's rotated
+//! rectangle) warped upright the way RapidOCR's `get_rotate_crop_image`
+//! does (`ocr_prep::rotate_crop`). Until #981 the crop was the bounding box
+//! too, with the warp only under `ocr_textline_orientation` (#666): on a
+//! scan skewed by half a degree that box is `width · tan θ` taller than the
+//! line, so the long small-print lines reached the recognizer squeezed and
+//! slanted and came back with letters dropped and words glued, while
+//! RapidOCR read the same page clean with the identical models.
 //!
 //! Since #570 the detector is also the recognizer's *line source* inside the
 //! layout regions (`ocr_prep::prep_region_lines_det`), as it is for RapidOCR:
