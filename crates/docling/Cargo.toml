@@ -90,7 +90,7 @@ xnnpack = ["pdf", "docling-pdf/xnnpack", "docling-asr?/xnnpack"]
 ort-load-dynamic = ["pdf", "docling-pdf/ort-load-dynamic", "docling-asr?/ort-load-dynamic"]
 
 [dependencies]
-calamine = { version = "0.37", features = ["dates"] }
+calamine = { version = "0.38", features = ["dates"] }
 csv = "1.4.0"
 # DjVu input (#434): pure-Rust decoder — hidden text layer + JB2/IW44 raster —
 # MIT, no GPL deps (written from the public spec), so no DjVuLibre binary or

@@ -147,4 +147,51 @@ mod tests {
         let src = SourceDocument::from_bytes("x.xls", InputFormat::Xls, vec![0u8; 64]);
         assert!(XlsBackend::default().convert(&src).is_err());
     }
+
+    /// RUSTSEC-2026-0436 (#979, calamine < 0.38): the CFB/OLE2 reader panicked
+    /// on a directory stream whose length is not a multiple of 128 and grew
+    /// the DIFAT without bound along a self-referential chain. Both must be
+    /// plain errors now — crafted `.xls` input is a DoS vector otherwise.
+    fn cfb_header(num_fat: u32, dir_start: u32, difat_start: u32, num_difat: u32) -> Vec<u8> {
+        let mut h = vec![0u8; 512];
+        h[..8].copy_from_slice(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]);
+        h[24..26].copy_from_slice(&0x003Eu16.to_le_bytes());
+        h[26..28].copy_from_slice(&3u16.to_le_bytes());
+        h[28..30].copy_from_slice(&0xFFFEu16.to_le_bytes());
+        h[30..32].copy_from_slice(&9u16.to_le_bytes());
+        h[32..34].copy_from_slice(&6u16.to_le_bytes());
+        h[44..48].copy_from_slice(&num_fat.to_le_bytes());
+        h[48..52].copy_from_slice(&dir_start.to_le_bytes());
+        h[56..60].copy_from_slice(&4096u32.to_le_bytes());
+        h[60..64].copy_from_slice(&0xFFFF_FFFEu32.to_le_bytes());
+        h[68..72].copy_from_slice(&difat_start.to_le_bytes());
+        h[72..76].copy_from_slice(&num_difat.to_le_bytes());
+        for i in 0..109 {
+            h[76 + i * 4..80 + i * 4].copy_from_slice(&0xFFFF_FFFFu32.to_le_bytes());
+        }
+        h
+    }
+
+    #[test]
+    fn crafted_ole2_is_an_error_not_a_panic_or_oom() {
+        // Self-referential DIFAT: sector 0 chains to itself.
+        let mut selfref = cfb_header(1, 0, 0, u32::MAX);
+        let mut sector = vec![0xFFu8; 512];
+        sector[508..512].copy_from_slice(&0u32.to_le_bytes());
+        selfref.extend(sector);
+        // Directory stream (one FAT sector at 0 → dir at 1) cut to 64 bytes:
+        // a short final `chunks(128)` entry.
+        let mut shortdir = cfb_header(1, 1, 0xFFFF_FFFE, 0);
+        shortdir[76..80].copy_from_slice(&0u32.to_le_bytes());
+        let mut fat = vec![0xFFu8; 512];
+        fat[0..4].copy_from_slice(&0xFFFF_FFFDu32.to_le_bytes());
+        fat[4..8].copy_from_slice(&0xFFFF_FFFEu32.to_le_bytes());
+        shortdir.extend(fat);
+        shortdir.extend(vec![0u8; 64]);
+        for bytes in [selfref, shortdir] {
+            let src = SourceDocument::from_bytes("x.xls", InputFormat::Xls, bytes);
+            let r = std::panic::catch_unwind(|| XlsBackend::default().convert(&src).is_err());
+            assert_eq!(r.ok(), Some(true), "crafted OLE2 must be a plain error");
+        }
+    }
 }
