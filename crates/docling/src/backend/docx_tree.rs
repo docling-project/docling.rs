@@ -1637,13 +1637,14 @@ impl Walker {
             .filter(|n| n.has_tag_name("tr") && row_kept(*n, ctx))
             .collect();
         let num_rows = rows.len();
-        // python-docx's `len(table.columns)` is the `w:tblGrid` column count.
-        // Upstream drops a table without a grid (it fails to load) and cuts
-        // every cell past the declared grid (docling#5006); we keep them (a
-        // deliberate divergence, docs/MIGRATION.md): the grid is at least as wide as
-        // the widest row — `w:gridBefore` + the cells' `w:gridSpan`s +
-        // `w:gridAfter`, the flat walk's width — so nothing the document
-        // holds is lost, and a grid that covers every cell is upstream's.
+        // python-docx's `len(table.columns)` is the `w:tblGrid` column count,
+        // and upstream used to drop a table without a grid (it failed to
+        // load) and cut every cell past the declared grid (docling#5006).
+        // Since docling#5179 (2026-11-05) its `_handle_tables` takes the
+        // same width as here: the grid is at least as wide as the widest
+        // row — `w:gridBefore` + the cells' `w:gridSpan`s + `w:gridAfter`,
+        // the flat walk's width — so nothing the document holds is lost,
+        // and a grid that covers every cell is the declared one.
         let grid = tbl.children().find(|n| n.has_tag_name("tblGrid"));
         let grid_cols = grid.map_or(0, |g| {
             g.children().filter(|n| n.has_tag_name("gridCol")).count()
