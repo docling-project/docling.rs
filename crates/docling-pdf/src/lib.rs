@@ -408,6 +408,7 @@ pub fn convert_text_layer_pages_opts(
         let enrich_out = vec![None; regions.len()];
         let (mut nodes, links) =
             assemble::assemble_page(&page, regions, &table_rows, &enrich_out, None);
+        assemble::float_running_head(&mut nodes, &page.cells);
         assemble::stamp_page_no(&mut nodes, i + 1);
         doc.nodes.extend(nodes);
         doc.links.extend(links);
