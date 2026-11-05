@@ -3169,6 +3169,57 @@ pub fn stamp_page_no(nodes: &mut [Node], page_no: usize) {
     }
 }
 
+/// Text-layer path only (#984): put a page's running head back first. With no
+/// layout model nothing is labelled `page_header`, and docling's rule-based
+/// reading order treats a short line far to one side (the EU Official
+/// Journal's right-aligned `02014R0537 — DE — … — 7`) as a separate head of
+/// its own: the body column under the left-hand `▼B` marker is read through
+/// first and the header lands at the end of its own page — in the text
+/// export, after the page's body and ahead of the next page's. The line that
+/// lies entirely above every other cell of the page is the first thing on it
+/// whatever the graph says, so it is moved to the front of the page's nodes
+/// (after the page marker). Pages whose top line is already first (the usual
+/// case) and pages whose top line shares its rows with other text (columns)
+/// are untouched.
+pub fn float_running_head(nodes: &mut [Node], cells: &[TextCell]) {
+    let mut lines = cells.iter().filter(|c| !c.text.trim().is_empty());
+    let Some(first) = lines.next() else { return };
+    let mut top = first;
+    let mut rest_t = f32::INFINITY;
+    for c in lines {
+        if c.t < top.t {
+            rest_t = rest_t.min(top.t);
+            top = c;
+        } else {
+            rest_t = rest_t.min(c.t);
+        }
+    }
+    if top.b > rest_t {
+        return;
+    }
+    let key = |t: &str| -> String { t.chars().filter(|c| c.is_alphanumeric()).collect() };
+    let want = key(&clean_text(&top.text));
+    if want.is_empty() {
+        return;
+    }
+    let body = usize::from(matches!(nodes.first(), Some(Node::PageInfo { .. })));
+    let Some(at) = nodes
+        .iter()
+        .position(|n| as_paragraph(n).is_some_and(|t| key(t) == want))
+    else {
+        return;
+    };
+    // A margin page number already floated to the front (`is_page_number`,
+    // docling parity) keeps the first slot.
+    let numbered = nodes.get(body).and_then(as_paragraph).is_some_and(|t| {
+        let t = t.trim();
+        !t.is_empty() && t.chars().all(|c| c.is_ascii_digit())
+    });
+    if !numbered && at > body && !nodes[body..at].iter().all(is_merge_trailer) {
+        nodes[body..=at].rotate_right(1);
+    }
+}
+
 /// A dense table grid plus its first-class cells (#240): `rows` is the text
 /// grid every serializer renders (spans replicate their anchor's text);
 /// `cells` are the docling-parity per-cell records (text, page-point bbox,
@@ -4290,7 +4341,10 @@ mod tests {
             vec![("picture", 10.0), ("table", 0.0), ("text", 5.0)]
         );
     }
-    use super::{code_region_text, merge_continuations, resolve_link_anchors, StreamAssembler};
+    use super::{
+        code_region_text, float_running_head, merge_continuations, resolve_link_anchors,
+        StreamAssembler,
+    };
     use crate::layout::Region;
     use crate::pdfium_backend::{LinkAnnot, PdfPage, TextCell};
     use docling_core::Node;
@@ -5464,6 +5518,28 @@ mod tests {
         got.extend(asm.push(nodes[start..].to_vec()));
         got.extend(asm.finish());
         assert_eq!(got, want, "stream assembly diverged (splits={splits:?})");
+    }
+
+    #[test]
+    fn running_head_floats_to_page_front() {
+        let cells = vec![
+            cell("HEAD — 7", 350.0, 40.0, 500.0, 50.0),
+            cell("marker", 70.0, 70.0, 90.0, 80.0),
+            cell("body", 100.0, 90.0, 300.0, 100.0),
+        ];
+        let mut nodes = vec![
+            Node::PageInfo {
+                page_no: 1,
+                width: 600.0,
+                height: 800.0,
+            },
+            para("marker"),
+            para("body"),
+            para("HEAD — 7"),
+        ];
+        float_running_head(&mut nodes, &cells);
+        assert_eq!(nodes[1], para("HEAD — 7"));
+        assert_eq!(nodes[3], para("body"));
     }
 
     #[test]
