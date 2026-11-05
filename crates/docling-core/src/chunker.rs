@@ -1378,32 +1378,47 @@ impl<T: ChunkTokenizer> HybridChunker<T> {
         }
         let available = max - other_len;
 
-        let segments =
-            if chunk.doc_items.len() == 1 && chunk.doc_items[0].kind == ChunkItemKind::Table {
-                // Table: split line-based, repeating headers. The triplet
-                // serializer has no header lines, so this is a line-preserving
-                // split of the table text. (docling constructs the line chunker
-                // with the *tokenizer's* max_tokens — the `max_tokens=available`
-                // argument is silently dropped by pydantic — so the line budget is
-                // the full window, not `available`.)
-                let lines: Vec<String> = chunk
-                    .text
-                    .split('\n')
-                    .filter(|l| !l.trim().is_empty())
-                    .map(|l| l.to_string())
-                    .collect();
-                line_chunk_text(&lines, &self.tokenizer, max)
-            } else {
-                semchunk(&chunk.text, available, &self.tokenizer)
-            };
-        segments
-            .into_iter()
-            .map(|s| DocChunk {
-                text: s,
-                headings: chunk.headings.clone(),
-                doc_items: chunk.doc_items.clone(),
-            })
-            .collect()
+        let make = |segments: Vec<String>| -> Vec<DocChunk> {
+            segments
+                .into_iter()
+                .map(|s| DocChunk {
+                    text: s,
+                    headings: chunk.headings.clone(),
+                    doc_items: chunk.doc_items.clone(),
+                })
+                .collect()
+        };
+        if chunk.doc_items.len() == 1 && chunk.doc_items[0].kind == ChunkItemKind::Table {
+            // Table: split line-based. The triplet serializer has no header
+            // lines, so this is a line-preserving split of the table text.
+            // docling-core ≥ 2.103 (docling-core#690, docling.rs#987) budgets
+            // the pieces at `available` (the window minus the heading path),
+            // like text, and re-splits with a smaller budget when a piece's
+            // `contextualize()` still overshoots — token counts are not
+            // additive, so the subtraction alone can leave a piece a token
+            // or two over. (≤ 2.102 packed the full window, so every piece
+            // overran by the heading length — a deliberate fix here.)
+            let lines: Vec<String> = chunk
+                .text
+                .split('\n')
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| l.to_string())
+                .collect();
+            let mut budget = available;
+            loop {
+                let pieces = make(line_chunk_text(&lines, &self.tokenizer, budget));
+                let overflow = pieces
+                    .iter()
+                    .map(|p| self.count_chunk_tokens(p).saturating_sub(max))
+                    .max()
+                    .unwrap_or(0);
+                if overflow == 0 || budget <= overflow {
+                    return pieces;
+                }
+                budget -= overflow;
+            }
+        }
+        make(semchunk(&chunk.text, available, &self.tokenizer))
     }
 
     /// One step of docling's `_merge_chunks_with_matching_metadata`, streamed:
@@ -2451,6 +2466,35 @@ mod tests {
         ]);
         let chunks = HierarchicalChunker.chunk(&doc);
         assert_eq!(chunks[0].headings.as_deref(), Some(&["B".into()][..]));
+    }
+
+    /// docling.rs#987 (docling-core#690): table pieces are budgeted at the
+    /// window minus the heading path, so `contextualize()` stays in budget.
+    #[test]
+    fn split_table_pieces_fit_with_headings() {
+        let rows: Vec<Vec<String>> = std::iter::once(vec!["".to_string(), "A".into(), "B".into()])
+            .chain((0..40).map(|i| vec![format!("R{i}"), format!("{i}"), format!("v{i}")]))
+            .collect();
+        let doc = doc_with(vec![
+            Node::Heading {
+                level: 1,
+                text: "one two three four five six".into(),
+            },
+            Node::Table(Table {
+                rows,
+                ..Default::default()
+            }),
+        ]);
+        let h = HybridChunker::new(WordTok(20));
+        let chunks = h.chunk(&doc);
+        assert!(chunks.len() > 1);
+        for c in &chunks {
+            assert!(
+                h.count_chunk_tokens(c) <= 20,
+                "over budget: {}",
+                h.count_chunk_tokens(c)
+            );
+        }
     }
 
     #[test]
