@@ -336,12 +336,14 @@ diff lines and recovers content docling drops):
   lands — is dropped before the contraction
   (`textparse::drop_overprinted_spaces`), and a word that starts only on a
   baseline shift with no horizontal gap (docling-parse's
-  `word_baselines_compatible`) joins the line text without a space while
-  staying its own word cell (`dp_lines`). Arbortext sets EUR-Lex's footnote
-  markers as `( 1 )` with cancelled spaces around a raised digit; the page
-  shows `(1)`, pdftotext and pdfium read `(1)`, docling-parse 7.24.2 reads
-  `( 1 )` — and `( 1 )` for a raised digit drawn with no spaces at all, and
-  `H 2 O` for a subscript. A space the next glyph merely kerns into, and a
+  `word_baselines_compatible`) *inside a bracket* joins the line text
+  without a space while staying its own word cell (`dp_lines`). Arbortext
+  sets EUR-Lex's footnote markers as `( 1 )` with cancelled spaces around a
+  raised digit; the page shows `(1)`, pdftotext and pdfium read `(1)`,
+  docling-parse 7.24.2 reads `( 1 )` — and `( 1 )` for a raised digit drawn
+  with no spaces at all. Outside brackets docling's space stays
+  (`SynthTabNet 1 .`, `1 https://…`): with no bracket test the join cost
+  five groundtruth files. A space the next glyph merely kerns into, and a
   trailing space before the cursor jumps to the next line, stay.
 * **Text panels** (#157): an *uncaptioned* `picture` that is really a dense,
   wide, multi-line text panel is demoted to per-paragraph `text` regions

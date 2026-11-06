@@ -2479,15 +2479,19 @@ These are deliberate or unavoidable divergences, not bugs.
     keep their space. (b) A word that starts only because its first glyph
     sits on another baseline than the glyph before it — docling-parse's
     `word_baselines_compatible`, a shift beyond 0.35 × the smaller height
-    outside a math face — with no horizontal gap between the two joins the
-    *line* text without a space (`dp_lines`, the `glued` word): the raised
-    `1` is still its own word cell, as in docling-parse, but the line reads
-    `(1)`, `H2O`, `Lysak[0000-…]` where docling-parse's line cell reads `(
-    1 )`, `H 2 O`, `Lysak [0000-…]` — docling-parse keeps the space glyphs
-    of (a) as characters and joins the words of (b) with a space, and its
-    line cell on page 19 of the EUR-Lex file is `( 1 )` both ways. The
-    page shows `(1)`, and pdftotext and pdfium, which break words by
-    geometry alone, read `(1)`.
+    outside a math face — with no horizontal gap between the two, and
+    *inside a bracket* (after an opening `(` `[` `{`, or itself starting
+    with a closing one), joins the *line* text without a space
+    (`dp_lines`, the `glued` word): the raised `1` is still its own word
+    cell, as in docling-parse, but the line reads `(1)` where
+    docling-parse's line cell reads `( 1 )` — and `( 1 )` even for a raised
+    digit drawn with no spaces at all, so (a) alone does not reach the
+    page's reading. Outside brackets docling's space stays: `SynthTabNet
+    1 .`, a footnote line's `1 https://…`, `상해 1) 나`, the `1 /4`
+    fraction and the ORCID's `Lysak[…] ,` read as docling reads them
+    (joining those cost five groundtruth files when the rule had no
+    bracket test). The page shows `(1)`, and pdftotext and pdfium, which
+    break words by geometry alone, read `(1)`.
 ---
 
 ## 5. Not migrated / out of scope

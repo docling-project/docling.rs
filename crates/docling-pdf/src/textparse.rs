@@ -1703,7 +1703,7 @@ fn drop_overprinted_spaces(glyphs: &mut Vec<Glyph>) {
             return false;
         }
         let width = sp.lr - sp.ll;
-        if !(width > 0.0) || !next.ll.is_finite() {
+        if !width.is_finite() || width <= 0.0 || !next.ll.is_finite() {
             return false;
         }
         // Same line: the loose boxes overlap vertically (a raised digit's box
