@@ -2476,7 +2476,8 @@ These are deliberate or unavoidable divergences, not bugs.
     the space's advance; a kerned pair (`−100/1000 em` into a space still
     leaves two thirds of it), a justified word gap pulled in a little, and
     a trailing space before the cursor jumps to the next line's margin all
-    keep their space. (b) A word that starts only because its first glyph
+    keep their space, and a rotated run (a landscape slide drawn through a
+    90° `cm`, whose glyph boxes stack on one edge) is left alone. (b) A word that starts only because its first glyph
     sits on another baseline than the glyph before it — docling-parse's
     `word_baselines_compatible`, a shift beyond 0.35 × the smaller height
     outside a math face — with no horizontal gap between the two, and
@@ -2491,7 +2492,10 @@ These are deliberate or unavoidable divergences, not bugs.
     fraction and the ORCID's `Lysak[…] ,` read as docling reads them
     (joining those cost five groundtruth files when the rule had no
     bracket test). The page shows `(1)`, and pdftotext and pdfium, which
-    break words by geometry alone, read `(1)`.
+    break words by geometry alone, read `(1)`. On the corpus: the PDF
+    groundtruth is unchanged (7 / 18, 407), and one snapshot moves — a
+    LaTeX figure's math, `𝐤𝑡𝑅 ]}` → `𝐤𝑡𝑅]}`, the closing bracket after a
+    raised index.
 ---
 
 ## 5. Not migrated / out of scope

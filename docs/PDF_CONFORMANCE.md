@@ -343,8 +343,11 @@ diff lines and recovers content docling drops):
   docling-parse 7.24.2 reads `( 1 )` — and `( 1 )` for a raised digit drawn
   with no spaces at all. Outside brackets docling's space stays
   (`SynthTabNet 1 .`, `1 https://…`): with no bracket test the join cost
-  five groundtruth files. A space the next glyph merely kerns into, and a
-  trailing space before the cursor jumps to the next line, stay.
+  five groundtruth files. A space the next glyph merely kerns into, a
+  trailing space before the cursor jumps to the next line, and every space
+  of a rotated run (its loose boxes stack on one edge) stay. The groundtruth
+  table is unchanged; one snapshot moves (a LaTeX figure's `𝐤𝑡𝑅 ]}` →
+  `𝐤𝑡𝑅]}`).
 * **Text panels** (#157): an *uncaptioned* `picture` that is really a dense,
   wide, multi-line text panel is demoted to per-paragraph `text` regions
   instead of shipping as pixels (`assemble::recover_text_panels`); a

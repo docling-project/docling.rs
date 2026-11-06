@@ -1702,6 +1702,14 @@ fn drop_overprinted_spaces(glyphs: &mut Vec<Glyph>) {
         if sp.ch != ' ' || next.ch == ' ' {
             return false;
         }
+        // Upright glyphs only: a rotated run's loose boxes are the extents
+        // of its quads, every glyph of a 90° line shares one left edge and
+        // the advance runs along y, so the test below would read every
+        // space of a landscape slide drawn through a 90° `cm` as
+        // overprinted (`Nullammollis`, odf_presentation_02).
+        if sp.quad.is_some() || next.quad.is_some() {
+            return false;
+        }
         let width = sp.lr - sp.ll;
         if !width.is_finite() || width <= 0.0 || !next.ll.is_finite() {
             return false;
@@ -3773,6 +3781,13 @@ mod base14_fonts {
         assert_eq!(
             lines(b"BT /F1 12 Tf 72 700 Td (first line ) Tj 0 -14 Td (second) Tj ET\n"),
             ["first line", "second"]
+        );
+        // A line drawn rotated 90° (a landscape slide on a portrait page,
+        // #528): its glyphs' loose boxes stack on one left edge, which is
+        // not an overprint — the space stays.
+        assert_eq!(
+            lines(b"BT 0 1 -1 0 300 100 Tm /F1 12 Tf (Nullam mollis) Tj ET\n"),
+            ["Nullam mollis"]
         );
     }
 
