@@ -330,6 +330,24 @@ diff history of each port lives in the git log of these files).
 **Deliberate deviations** (completeness over the metric; each costs a few
 diff lines and recovers content docling drops):
 
+* **Superscripts and subscripts** (#992): a space glyph the next glyph on
+  the line is drawn over — its advance taken back by a negative `TJ`
+  offset, so the pen is at or before the space's start when the next glyph
+  lands — is dropped before the contraction
+  (`textparse::drop_overprinted_spaces`), and a word that starts only on a
+  baseline shift with no horizontal gap (docling-parse's
+  `word_baselines_compatible`) *inside a bracket* joins the line text
+  without a space while staying its own word cell (`dp_lines`). Arbortext
+  sets EUR-Lex's footnote markers as `( 1 )` with cancelled spaces around a
+  raised digit; the page shows `(1)`, pdftotext and pdfium read `(1)`,
+  docling-parse 7.24.2 reads `( 1 )` — and `( 1 )` for a raised digit drawn
+  with no spaces at all. Outside brackets docling's space stays
+  (`SynthTabNet 1 .`, `1 https://…`): with no bracket test the join cost
+  five groundtruth files. A space the next glyph merely kerns into, a
+  trailing space before the cursor jumps to the next line, and every space
+  of a rotated run (its loose boxes stack on one edge) stay. The groundtruth
+  table is unchanged; one snapshot moves (a LaTeX figure's `𝐤𝑡𝑅 ]}` →
+  `𝐤𝑡𝑅]}`).
 * **Text panels** (#157): an *uncaptioned* `picture` that is really a dense,
   wide, multi-line text panel is demoted to per-paragraph `text` regions
   instead of shipping as pixels (`assemble::recover_text_panels`); a

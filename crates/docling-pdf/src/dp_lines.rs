@@ -1081,14 +1081,22 @@ struct Agg {
     text: String,
     ltr: bool,
     q: [f64; 8],
+    /// A word that starts only because its first glyph sits on another
+    /// baseline than the glyph before it, with no horizontal gap between
+    /// them, *inside a bracket* — a raised footnote marker after `(`, the
+    /// `)` after it, a citation's `]` — joins the line text without a space
+    /// (#992, a deliberate divergence from docling-parse's `( 1 )`; the
+    /// word cell is still its own).
+    glued: bool,
 }
 
 impl Agg {
-    fn of(c: &Cell) -> Self {
+    fn of(c: &Cell, glued: bool) -> Self {
         Agg {
             text: c.text.clone(),
             ltr: c.ltr,
             q: [c.rx0, c.ry0, c.rx1, c.ry1, c.rx2, c.ry2, c.rx3, c.ry3],
+            glued,
         }
     }
 
@@ -1236,6 +1244,7 @@ fn contract_runs(cells: &[Cell], gap: WordGap, page_h: f32) -> (Vec<TextCell>, V
                 continue;
             }
             let mut starts = words.is_empty() || boundary;
+            let mut glued = false;
             // A TOC leader may omit the boundary before its first dot while
             // spacing every later one: keep that dot with the leader.
             if !starts
@@ -1250,11 +1259,28 @@ fn contract_runs(cells: &[Cell], gap: WordGap, page_h: f32) -> (Vec<TextCell>, V
                 starts = true;
             }
             if let (false, Some(p)) = (starts, prev) {
-                starts = !baselines_compatible(p, c)
-                    || (!tracked[i] && normalized_gap(p, c) > threshold);
+                let shifted = !baselines_compatible(p, c);
+                let gapped = !tracked[i] && normalized_gap(p, c) > threshold;
+                starts = shifted || gapped;
+                // A baseline shift with the glyphs touching, inside a
+                // bracket: docling-parse starts a word
+                // (`word_baselines_compatible`) and its line text then reads
+                // `Richtlinie 2003/71/EG ( 1 )` for a raised footnote marker
+                // where the page shows `(1)` and pdftotext / pdfium read it
+                // so (#992). The word stays its own cell; the line text
+                // joins it as the page does. Only after an opening bracket
+                // or before a closing one: elsewhere docling's space is the
+                // more useful reading — `SynthTabNet 1 .`, `1 https://…`,
+                // `상해 1) 나`, the `1 /4` fraction — and joining them cost
+                // five groundtruth files when this rule had no bracket test.
+                let opens = |s: &str| matches!(s.chars().last(), Some('(' | '[' | '{'));
+                let closes = |s: &str| matches!(s.chars().next(), Some(')' | ']' | '}'));
+                glued = shifted
+                    && !gapped
+                    && (words.last().is_some_and(|w| opens(&w.text)) || closes(&c.cell.text));
             }
             if starts {
-                words.push(Agg::of(c.cell));
+                words.push(Agg::of(c.cell, glued));
             } else {
                 let q = [
                     c.cell.rx0, c.cell.ry0, c.cell.rx1, c.cell.ry1, c.cell.rx2, c.cell.ry2,
@@ -1278,10 +1304,11 @@ fn contract_runs(cells: &[Cell], gap: WordGap, page_h: f32) -> (Vec<TextCell>, V
             text: first.text.clone(),
             ltr: first.ltr,
             q: first.q,
+            glued: false,
         };
         words_out.push(first.into_cell(page_h));
         for w in it {
-            line.append(&w.text, w.ltr, &w.q, true);
+            line.append(&w.text, w.ltr, &w.q, !w.glued);
             words_out.push(w.into_cell(page_h));
         }
         lines_out.push(line.into_cell(page_h));
@@ -1476,17 +1503,68 @@ mod tests {
                     .enumerate()
                     .map(|(k, ch)| at(ch, 125.0 + 3.5 * k as f32, 600.0 + rise, 7.0, math, pen)),
             );
-            let (lines, _) = line_and_word_cells_with(&g, 792.0, true, WordGap::Adaptive);
-            lines[0].text.clone()
+            let (lines, words) = line_and_word_cells_with(&g, 792.0, true, WordGap::Adaptive);
+            (
+                lines[0].text.clone(),
+                words.iter().map(|w| w.text.clone()).collect::<Vec<_>>(),
+            )
+        };
+        let one = |s: &str| (s.to_string(), vec![s.to_string()]);
+        let two = |s: &str| {
+            (
+                s.to_string(),
+                vec!["Lysak".to_string(), "[0000".to_string()],
+            )
         };
         // 2305.03393v1's ORCID: 3.6 pt up is more than 0.35 × 7 pt, a new word
         // unless it is a local attachment, which a TeX face (`cmr`) makes it.
-        assert_eq!(line(3.6, true, true), "Lysak[0000");
-        assert_eq!(line(3.6, false, true), "Lysak [0000");
+        // Not a math face: two words, spaced — the raised run *opens* a
+        // bracket, which is not the #992 join (that is for a run after an
+        // opening bracket or before a closing one).
+        assert_eq!(line(3.6, true, true), one("Lysak[0000"));
+        assert_eq!(line(3.6, false, true), two("Lysak [0000"));
         // 2 pt up: on the pens 2.0 ≤ 0.35 × 7, one word; the boxes' bottoms
         // differ by the descents too (2.6 pt), which read it as two.
-        assert_eq!(line(2.0, false, true), "Lysak[0000");
-        assert_eq!(line(2.0, false, false), "Lysak [0000");
+        assert_eq!(line(2.0, false, true), one("Lysak[0000"));
+        assert_eq!(line(2.0, false, false), two("Lysak [0000"));
+    }
+
+    /// #992: a raised footnote marker between parentheses — `(`, a 6.8 pt
+    /// `1` 3.5 pt up, `)` — is three word cells (the baseline rule) but the
+    /// line reads `(1)` as the page does; with a real gap before the marker
+    /// (`EG (1)`) the space is the gap's, as before. The same raised `1`
+    /// right after a letter keeps docling's space (`EG 1`): only a bracket
+    /// joins.
+    #[test]
+    fn a_touching_superscript_joins_the_line_text_inside_brackets_only() {
+        let at = |ch: char, l: f32, w: f32, y: f32, size: f32| Glyph {
+            lb: y - 0.2 * size,
+            lt: y + 0.8 * size,
+            b: y - 0.2 * size,
+            t: y + 0.8 * size,
+            pen: Some([l, y, size]),
+            ..glyph(ch, l, l + w)
+        };
+        let g = [
+            at('E', 100.0, 6.0, 600.0, 10.5),
+            at('G', 106.0, 6.9, 600.0, 10.5),
+            at('(', 115.3, 3.2, 600.0, 10.5),
+            at('1', 118.5, 3.1, 603.5, 6.8),
+            at(')', 121.6, 3.2, 600.0, 10.5),
+            at('e', 127.2, 5.0, 600.0, 10.5),
+        ];
+        let (lines, words) = line_and_word_cells_with(&g, 792.0, true, WordGap::Adaptive);
+        assert_eq!(lines[0].text, "EG (1) e");
+        let words: Vec<&str> = words.iter().map(|w| w.text.as_str()).collect();
+        assert_eq!(words, ["EG", "(", "1", ")", "e"]);
+        // `EG` then the raised `1` touching the `G`: docling's `EG 1`.
+        let g = [
+            at('E', 100.0, 6.0, 600.0, 10.5),
+            at('G', 106.0, 6.9, 600.0, 10.5),
+            at('1', 112.9, 3.1, 603.5, 6.8),
+        ];
+        let (lines, _) = line_and_word_cells_with(&g, 792.0, true, WordGap::Adaptive);
+        assert_eq!(lines[0].text, "EG 1");
     }
 
     #[test]

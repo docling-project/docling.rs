@@ -1672,8 +1672,61 @@ fn page_glyphs_and_inks(
             &mut inks,
         );
         out.retain(|g| on_page(g, pb.w, pb.h));
+        drop_overprinted_spaces(&mut out);
     }
     (out, inks)
+}
+
+/// Drop a space glyph the next glyph is drawn over (#992). A typesetter
+/// that sets a superscript footnote marker as `( 1 )` — space glyphs around
+/// the raised digit — and then cancels each space's advance with a negative
+/// `TJ` offset (Arbortext on EUR-Lex: the `1` starts 0.05 pt *before* its
+/// space begins) renders `(1)`; the spaces exist in the content stream
+/// only. docling-parse keeps them as characters and its line cell reads
+/// `( 1 )`; pdftotext and pdfium, which break words by geometry alone,
+/// read `(1)`, and so does the page. A deliberate divergence
+/// (`docs/MIGRATION.md` §4 item 22): a space whose successor in stream
+/// order sits on the same line and starts within the first 30 % of the
+/// space's advance — the pen went back to (or before) where the space
+/// began, so it left no gap — is not a character of the text. A space
+/// followed by a glyph on another line (a trailing space before the
+/// cursor jumps to the next line's left margin, far to the left of it) or
+/// by one that starts past that mark (a kerned pair, a justified word gap
+/// pulled in a little) is kept; the word-gap rules then see the geometry
+/// as before.
+fn drop_overprinted_spaces(glyphs: &mut Vec<Glyph>) {
+    if glyphs.len() < 2 {
+        return;
+    }
+    let overprinted = |sp: &Glyph, next: &Glyph| {
+        if sp.ch != ' ' || next.ch == ' ' {
+            return false;
+        }
+        // Upright glyphs only: a rotated run's loose boxes are the extents
+        // of its quads, every glyph of a 90° line shares one left edge and
+        // the advance runs along y, so the test below would read every
+        // space of a landscape slide drawn through a 90° `cm` as
+        // overprinted (`Nullammollis`, odf_presentation_02).
+        if sp.quad.is_some() || next.quad.is_some() {
+            return false;
+        }
+        let width = sp.lr - sp.ll;
+        if !width.is_finite() || width <= 0.0 || !next.ll.is_finite() {
+            return false;
+        }
+        // Same line: the loose boxes overlap vertically (a raised digit's box
+        // still overlaps its neighbours' em boxes).
+        let same_line = next.lb < sp.lt && next.lt > sp.lb;
+        same_line && next.ll >= sp.ll - 0.1 * width && next.ll <= sp.ll + 0.3 * width
+    };
+    let mut keep = vec![true; glyphs.len()];
+    for i in 0..glyphs.len() - 1 {
+        if overprinted(&glyphs[i], &glyphs[i + 1]) {
+            keep[i] = false;
+        }
+    }
+    let mut it = keep.into_iter();
+    glyphs.retain(|_| it.next().unwrap_or(true));
 }
 
 /// Whether a glyph is on the page (#529): docling-parse keeps a character
@@ -3692,6 +3745,50 @@ mod base14_fonts {
         };
         assert_eq!(lines(crate::dp_lines::WordGap::Legacy), ["Total:", "42"]);
         assert_eq!(lines(crate::dp_lines::WordGap::Adaptive), ["Total:42"]);
+    }
+
+    /// #992: a space glyph whose advance the next `TJ` offset takes back —
+    /// EUR-Lex's superscript footnote marker `( 1 )`, set with spaces the
+    /// digit is then drawn over — is not a character of the text: the page
+    /// shows `(1)`, pdftotext and pdfium read `(1)`, and so does the line
+    /// cell here (docling-parse keeps the spaces, `( 1 )`). A space the next
+    /// glyph only kerns into (−100/1000 em, well past the space's start) is
+    /// a real gap and stays, as does one before a jump to the next line.
+    #[test]
+    fn a_space_the_next_glyph_is_drawn_over_is_not_a_character() {
+        let f1 = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>";
+        let lines = |content: &[u8]| {
+            let pdf = pdf_with_content(f1, content);
+            super::PageTextParser::open(&pdf)
+                .expect("opens")
+                .cells(0)
+                .prose
+                .into_iter()
+                .map(|c| c.text)
+                .collect::<Vec<_>>()
+        };
+        // Helvetica's space is 278/1000 em: an offset of 300 moves the pen
+        // back past where the space began, 100 leaves two thirds of it.
+        assert_eq!(
+            lines(b"BT /F1 12 Tf 72 700 Td [(EG \\() ( ) 300 (1) ( ) 300 (\\) erf)] TJ ET\n"),
+            ["EG (1) erf"]
+        );
+        assert_eq!(
+            lines(b"BT /F1 12 Tf 72 700 Td [(EG \\() ( ) 100 (1) ( ) 100 (\\) erf)] TJ ET\n"),
+            ["EG ( 1 ) erf"]
+        );
+        // A trailing space, then the next line starts at the left margin.
+        assert_eq!(
+            lines(b"BT /F1 12 Tf 72 700 Td (first line ) Tj 0 -14 Td (second) Tj ET\n"),
+            ["first line", "second"]
+        );
+        // A line drawn rotated 90° (a landscape slide on a portrait page,
+        // #528): its glyphs' loose boxes stack on one left edge, which is
+        // not an overprint — the space stays.
+        assert_eq!(
+            lines(b"BT 0 1 -1 0 300 100 Tm /F1 12 Tf (Nullam mollis) Tj ET\n"),
+            ["Nullam mollis"]
+        );
     }
 
     /// The identity follows docling-parse's precedence: a `/FontDescriptor/FontName`

@@ -60,7 +60,7 @@ Cached During Inference
 
 Multi-Head Attention 𝐤𝐤𝑡𝑡𝑅𝑅
 
-{[𝐤𝐤𝑡𝑡,𝑖𝑖 𝐶𝐶 ; 𝐤𝐤𝑡𝑡𝑅𝑅 ]}
+{[𝐤𝐤𝑡𝑡,𝑖𝑖 𝐶𝐶 ; 𝐤𝐤𝑡𝑡𝑅𝑅]}
 
 {𝐪𝐪𝑡𝑡,𝑖𝑖 𝐶𝐶 } {𝐪𝐪𝑡𝑡,𝑖𝑖 𝑅𝑅 }
 
