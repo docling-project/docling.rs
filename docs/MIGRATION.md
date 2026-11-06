@@ -2464,6 +2464,22 @@ These are deliberate or unavoidable divergences, not bugs.
     as drawn, so a German citation's `„Gewinn“` stays distinguishable from
     a straight quote in code or data. Line order is untouched by it.
 
+22. **Overprinted space glyphs are not text** (#992). A space glyph whose
+    advance the content stream takes back — a negative `TJ` offset after
+    it that puts the pen at or before the space's start, so the next glyph
+    is drawn over it — is dropped from the text layer
+    (`textparse::drop_overprinted_spaces`): the page shows no gap there.
+    Arbortext sets EUR-Lex's superscript footnote markers as `( 1 )` with
+    exactly such cancelled spaces around the raised digit; the page reads
+    `(1)`, as do pdftotext and pdfium, which break words by geometry alone
+    and never by space characters. docling-parse (7.24.2) keeps every
+    space glyph as a character, so docling's line cell is `( 1 )` and this
+    is a divergence from it, on purpose. The rule is narrow: the next glyph
+    must sit on the same line and start within the first 30 % of the
+    space's advance; a kerned pair (`−100/1000 em` into a space still
+    leaves two thirds of it), a justified word gap pulled in a little, and
+    a trailing space before the cursor jumps to the next line's margin all
+    keep their space.
 ---
 
 ## 5. Not migrated / out of scope

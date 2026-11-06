@@ -330,6 +330,15 @@ diff history of each port lives in the git log of these files).
 **Deliberate deviations** (completeness over the metric; each costs a few
 diff lines and recovers content docling drops):
 
+* **Overprinted space glyphs** (#992): a space glyph the next glyph on the
+  line is drawn over — its advance taken back by a negative `TJ` offset, so
+  the pen is at or before the space's start when the next glyph lands — is
+  dropped before the contraction (`textparse::drop_overprinted_spaces`).
+  Arbortext sets EUR-Lex's superscript footnote markers as `( 1 )` that way
+  and the page shows `(1)`; docling-parse 7.24.2 keeps the characters and
+  its line cell reads `( 1 )`, pdftotext and pdfium read `(1)`. A space the
+  next glyph merely kerns into, and a trailing space before the cursor
+  jumps to the next line, stay.
 * **Text panels** (#157): an *uncaptioned* `picture` that is really a dense,
   wide, multi-line text panel is demoted to per-paragraph `text` regions
   instead of shipping as pixels (`assemble::recover_text_panels`); a
