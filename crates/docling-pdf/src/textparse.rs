@@ -13,7 +13,7 @@
 //! sanitizer ([`crate::dp_lines`]). Only the digital text layer is handled here;
 //! pages without one still fall back to OCR upstream.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use lopdf::{Dictionary, Document, Object};
@@ -32,6 +32,16 @@ use crate::pdfium_backend::Glyph;
 struct DocCaches {
     fonts: HashMap<(lopdf::ObjectId, Vec<u8>), Arc<Font>>,
     forms: HashMap<lopdf::ObjectId, Arc<lopdf::content::Content>>,
+    /// Forms decoded once and not (yet) cached (#994). A form enters
+    /// [`Self::forms`] on its *second* sighting: a shared header/footer form
+    /// is decoded twice and then hits the cache on every later page, while
+    /// a generator's one-form-per-page body (each page's chart in its own
+    /// form, used once) is dropped with its page instead of every decoded
+    /// `Content` — many times its stream's size — living until the document
+    /// ends. Caching on first use made peak RSS grow ~45 MB per page on such
+    /// files (7 GiB at 60 pages of the issue's repro, flat ~0.6 GiB now).
+    /// Only ids are kept here, so the set itself stays tiny.
+    forms_seen: HashSet<lopdf::ObjectId>,
 }
 
 /// A 2×3 affine matrix `[a b c d e f]`: maps `(x,y)` → `(a·x+c·y+e, b·x+d·y+f)`.
@@ -2050,8 +2060,9 @@ fn run_content(
                 if !is_form {
                     continue;
                 }
-                // Decode the form's content once per document (headers/footers
-                // and bulk body text invoke the same form on every page).
+                // Decode a reused form's content once per document
+                // (headers/footers and bulk body text invoke the same form on
+                // every page); see `DocCaches::forms_seen` for single-use ones.
                 let cached = form_id.and_then(|id| caches.forms.get(&id).cloned());
                 let form_content = match cached {
                     Some(c) => c,
@@ -2064,7 +2075,9 @@ fn run_content(
                         };
                         let c = Arc::new(c);
                         if let Some(id) = form_id {
-                            caches.forms.insert(id, Arc::clone(&c));
+                            if !caches.forms_seen.insert(id) {
+                                caches.forms.insert(id, Arc::clone(&c));
+                            }
                         }
                         c
                     }
@@ -3930,5 +3943,85 @@ mod vestigial_layer {
             "Do not distribute",
         ])];
         assert!(!super::text_layer_is_vestigial(&one_pager));
+    }
+}
+
+/// #994: decoded Form XObject content is cached per document only from a
+/// form's second sighting, so one-form-per-page documents do not hold every
+/// page's decoded form until the document ends.
+#[cfg(test)]
+mod form_cache {
+    use lopdf::content::{Content, Operation};
+    use lopdf::{dictionary, Document, Object, Stream};
+
+    fn form(doc: &mut Document, text: &str) -> lopdf::ObjectId {
+        let ops = vec![
+            Operation::new("BT", vec![]),
+            Operation::new("Tf", vec!["F1".into(), 12.into()]),
+            Operation::new("Td", vec![40.into(), 500.into()]),
+            Operation::new("Tj", vec![Object::string_literal(text)]),
+            Operation::new("ET", vec![]),
+        ];
+        let data = Content { operations: ops }.encode().unwrap();
+        doc.add_object(Stream::new(
+            dictionary! { "Type" => "XObject", "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 595.into(), 842.into()] },
+            data,
+        ))
+    }
+
+    #[test]
+    fn single_use_forms_are_not_retained_shared_ones_are() {
+        let mut doc = Document::with_version("1.5");
+        let pages_id = doc.new_object_id();
+        let font = doc.add_object(
+            dictionary! { "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "Helvetica" },
+        );
+        let header = form(&mut doc, "Header");
+        let mut kids = Vec::new();
+        let mut own_forms = Vec::new();
+        for p in 0..3 {
+            let own = form(&mut doc, &format!("Body{p}"));
+            own_forms.push(own);
+            let content = doc.add_object(Stream::new(
+                dictionary! {},
+                b"q /Hd Do Q q /Fx Do Q".to_vec(),
+            ));
+            kids.push(Object::Reference(doc.add_object(dictionary! {
+                "Type" => "Page", "Parent" => pages_id,
+                "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
+                "Contents" => content,
+                "Resources" => dictionary! {
+                    "Font" => dictionary! { "F1" => font },
+                    "XObject" => dictionary! { "Hd" => header, "Fx" => own },
+                },
+            })));
+        }
+        doc.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! { "Type" => "Pages", "Kids" => kids, "Count" => 3 }),
+        );
+        let catalog = doc.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages_id });
+        doc.trailer.set("Root", catalog);
+
+        let mut caches = super::DocCaches::default();
+        let mut pages: Vec<_> = doc.get_pages().into_iter().collect();
+        pages.sort_by_key(|(n, _)| *n);
+        for (i, (_, pid)) in pages.iter().enumerate() {
+            let text: String = super::page_glyphs_cached(&doc, *pid, &mut caches)
+                .iter()
+                .map(|g| g.ch)
+                .collect();
+            // Both forms' text is still read, cached or not.
+            assert!(text.contains("Header"), "page {i}: {text:?}");
+            assert!(text.contains(&format!("Body{i}")), "page {i}: {text:?}");
+        }
+        // The shared header form is cached from its second page on; the
+        // per-page forms, each used once, are not held.
+        assert!(caches.forms.contains_key(&header));
+        for own in &own_forms {
+            assert!(!caches.forms.contains_key(own));
+        }
+        assert_eq!(caches.forms.len(), 1);
     }
 }
