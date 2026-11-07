@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "html_rich_table_cells",
   "origin": {
     "mimetype": "text/plain",
@@ -390,7 +390,7 @@
       "label": "text",
       "prov": [],
       "orig": "Large",
-      "text": "Large",
+      "text": "Large ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -409,7 +409,7 @@
       "label": "text",
       "prov": [],
       "orig": ",",
-      "text": ","
+      "text": ", "
     },
     {
       "self_ref": "#/texts/5",
@@ -421,7 +421,7 @@
       "label": "text",
       "prov": [],
       "orig": "loud",
-      "text": "loud",
+      "text": "loud ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -440,7 +440,7 @@
       "label": "text",
       "prov": [],
       "orig": ",",
-      "text": ","
+      "text": ", "
     },
     {
       "self_ref": "#/texts/7",
@@ -452,7 +452,7 @@
       "label": "text",
       "prov": [],
       "orig": "noisy",
-      "text": "noisy",
+      "text": "noisy ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -471,7 +471,7 @@
       "label": "text",
       "prov": [],
       "orig": ",",
-      "text": ","
+      "text": ", "
     },
     {
       "self_ref": "#/texts/9",
@@ -651,7 +651,7 @@
       "label": "text",
       "prov": [],
       "orig": "Gracefully glide on H",
-      "text": "Gracefully glide on H"
+      "text": "Gracefully glide on H "
     },
     {
       "self_ref": "#/texts/22",
@@ -663,7 +663,7 @@
       "label": "text",
       "prov": [],
       "orig": "2",
-      "text": "2",
+      "text": "2 ",
       "formatting": {
         "bold": false,
         "italic": false,

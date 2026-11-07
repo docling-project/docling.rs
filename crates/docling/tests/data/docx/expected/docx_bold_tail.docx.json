@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "docx_bold_tail",
   "origin": {
     "mimetype": "text/plain",
@@ -81,7 +81,7 @@
       "label": "text",
       "prov": [],
       "orig": "Case 1: bold text then a plain text run.",
-      "text": "Case 1: bold text then a plain text run.",
+      "text": "Case 1: bold text then a plain text run. ",
       "formatting": {
         "bold": true,
         "italic": false,

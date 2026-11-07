@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "escaped_pipes",
   "origin": {
     "mimetype": "text/plain",
@@ -61,7 +61,7 @@
       "label": "text",
       "prov": [],
       "orig": "Not a table: a",
-      "text": "Not a table: a"
+      "text": "Not a table: a "
     },
     {
       "self_ref": "#/texts/1",
@@ -73,7 +73,7 @@
       "label": "text",
       "prov": [],
       "orig": "|",
-      "text": "|"
+      "text": "| "
     },
     {
       "self_ref": "#/texts/2",

@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "pandoc_footnotes",
   "origin": {
     "mimetype": "text/plain",
@@ -166,7 +166,7 @@
       "label": "text",
       "prov": [],
       "orig": "Plain start,",
-      "text": "Plain start,",
+      "text": "Plain start, ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -185,7 +185,7 @@
       "label": "text",
       "prov": [],
       "orig": "bold run",
-      "text": "bold run",
+      "text": "bold run ",
       "formatting": {
         "bold": true,
         "italic": false,

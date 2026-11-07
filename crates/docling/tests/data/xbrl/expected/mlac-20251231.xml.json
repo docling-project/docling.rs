@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "mlac-20251231",
   "origin": {
     "mimetype": "text/plain",
@@ -3505,7 +3505,7 @@
       "label": "text",
       "prov": [],
       "orig": "Preference Shares",
-      "text": "Preference Shares",
+      "text": "Preference Shares ",
       "formatting": {
         "bold": true,
         "italic": true,
@@ -3524,7 +3524,7 @@
       "label": "text",
       "prov": [],
       "orig": "—",
-      "text": "-",
+      "text": "- ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -3555,7 +3555,7 @@
       "label": "text",
       "prov": [],
       "orig": "Class A Ordinary Shares",
-      "text": "Class A Ordinary Shares",
+      "text": "Class A Ordinary Shares ",
       "formatting": {
         "bold": true,
         "italic": true,
@@ -3574,7 +3574,7 @@
       "label": "text",
       "prov": [],
       "orig": "—",
-      "text": "-",
+      "text": "- ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -3605,7 +3605,7 @@
       "label": "text",
       "prov": [],
       "orig": "Class B Ordinary Shares",
-      "text": "Class B Ordinary Shares",
+      "text": "Class B Ordinary Shares ",
       "formatting": {
         "bold": true,
         "italic": true,
@@ -3624,7 +3624,7 @@
       "label": "text",
       "prov": [],
       "orig": "—",
-      "text": "-",
+      "text": "- ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -3789,7 +3789,7 @@
       "label": "text",
       "prov": [],
       "orig": "Market adjustment",
-      "text": "Market adjustment"
+      "text": "Market adjustment "
     },
     {
       "self_ref": "#/texts/190",
@@ -3894,7 +3894,7 @@
       "label": "text",
       "prov": [],
       "orig": "Market adjustment",
-      "text": "Market adjustment"
+      "text": "Market adjustment "
     },
     {
       "self_ref": "#/texts/197",

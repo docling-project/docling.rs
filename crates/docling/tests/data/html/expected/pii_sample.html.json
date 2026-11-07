@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "pii_sample",
   "origin": {
     "mimetype": "text/plain",
@@ -110,7 +110,7 @@
       "label": "text",
       "prov": [],
       "orig": "Contact",
-      "text": "Contact"
+      "text": "Contact "
     },
     {
       "self_ref": "#/texts/3",
@@ -122,7 +122,7 @@
       "label": "text",
       "prov": [],
       "orig": "john.doe@example.com",
-      "text": "john.doe@example.com",
+      "text": "john.doe@example.com ",
       "hyperlink": "mailto:john.doe@example.com"
     },
     {
@@ -135,7 +135,7 @@
       "label": "text",
       "prov": [],
       "orig": "or",
-      "text": "or"
+      "text": "or "
     },
     {
       "self_ref": "#/texts/5",
@@ -147,7 +147,7 @@
       "label": "text",
       "prov": [],
       "orig": "+1 (555) 123-4567",
-      "text": "+1 (555) 123-4567",
+      "text": "+1 (555) 123-4567 ",
       "formatting": {
         "bold": true,
         "italic": false,

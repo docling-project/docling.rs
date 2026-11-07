@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "staroffice_writer_01",
   "origin": {
     "mimetype": "text/plain",
@@ -187,7 +187,7 @@
       "label": "text",
       "prov": [],
       "orig": "Dieses Dokument stammt aus einer OpenOffice.org 1.x Registratur und wurde ohne Konvertierung übernommen. Es enthält ",
-      "text": "Dieses Dokument stammt aus einer OpenOffice.org 1.x Registratur und wurde ohne Konvertierung übernommen. Es enthält "
+      "text": "Dieses Dokument stammt aus einer OpenOffice.org 1.x Registratur und wurde ohne Konvertierung übernommen. Es enthält  "
     },
     {
       "self_ref": "#/texts/4",
@@ -199,7 +199,7 @@
       "label": "text",
       "prov": [],
       "orig": "fette",
-      "text": "fette",
+      "text": "fette ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -218,7 +218,7 @@
       "label": "text",
       "prov": [],
       "orig": " und ",
-      "text": " und "
+      "text": " und  "
     },
     {
       "self_ref": "#/texts/6",
@@ -230,7 +230,7 @@
       "label": "text",
       "prov": [],
       "orig": "kursive",
-      "text": "kursive",
+      "text": "kursive ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -249,7 +249,7 @@
       "label": "text",
       "prov": [],
       "orig": " Stellen, ",
-      "text": " Stellen, "
+      "text": " Stellen,  "
     },
     {
       "self_ref": "#/texts/8",
@@ -261,7 +261,7 @@
       "label": "text",
       "prov": [],
       "orig": "gestrichenen",
-      "text": "gestrichenen",
+      "text": "gestrichenen ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -280,7 +280,7 @@
       "label": "text",
       "prov": [],
       "orig": " sowie ",
-      "text": " sowie "
+      "text": " sowie  "
     },
     {
       "self_ref": "#/texts/10",
@@ -292,7 +292,7 @@
       "label": "text",
       "prov": [],
       "orig": "unterstrichenen",
-      "text": "unterstrichenen",
+      "text": "unterstrichenen ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -311,7 +311,7 @@
       "label": "text",
       "prov": [],
       "orig": " Text und eine Fußnote",
-      "text": " Text und eine Fußnote"
+      "text": " Text und eine Fußnote "
     },
     {
       "self_ref": "#/texts/12",
@@ -323,7 +323,7 @@
       "label": "text",
       "prov": [],
       "orig": "1",
-      "text": "1",
+      "text": "1 ",
       "formatting": {
         "bold": false,
         "italic": false,

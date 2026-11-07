@@ -678,7 +678,25 @@ fn text_with_notes(text: &str, notes: &[Value]) -> Vec<Value> {
     out
 }
 
-/// Inline lists joined by single `Space`s (an inline group's runs) — none
+/// Concatenated inline runs: consecutive `Space`s (one run's trailing
+/// whitespace, the next one's leading) collapse to one, and none is left at
+/// either edge.
+fn concat_runs(runs: Vec<Value>) -> Vec<Value> {
+    let is_space = |v: &Value| v.get("t").and_then(Value::as_str) == Some("Space");
+    let mut out: Vec<Value> = Vec::with_capacity(runs.len());
+    for v in runs {
+        if is_space(&v) && out.last().is_none_or(is_space) {
+            continue;
+        }
+        out.push(v);
+    }
+    while out.last().is_some_and(is_space) {
+        out.pop();
+    }
+    out
+}
+
+/// Inline lists joined by single `Space`s (captions, a term's parts) — none
 /// before a run that opens with closing punctuation (`.`, `,`, `)`, …) or
 /// after one that ends with opening punctuation: docling keeps each
 /// formatting run as its own item and its serializers join them with a
@@ -1452,13 +1470,14 @@ impl<'a> Serializer<'a> {
         inlines
     }
 
-    /// An inline group's runs as inlines joined by `Space`; anything in it
-    /// that has no inline form (a nested list, a table) comes back as
+    /// An inline group's runs as inlines, concatenated as they are — each
+    /// run's edge whitespace becomes the `Space` between it and its
+    /// neighbour (#997); anything in it that has no inline form (a nested list, a table) comes back as
     /// blocks for after the paragraph.
     fn inline_group(&mut self, group: &'a Value) -> (Vec<Value>, Vec<Value>) {
         let mut nodes = Vec::new();
         self.descendants(group, &mut nodes);
-        let mut runs: Vec<Vec<Value>> = Vec::new();
+        let mut runs: Vec<Value> = Vec::new();
         let mut rest: Vec<Value> = Vec::new();
         for node in nodes {
             let r = Self::self_ref(node).to_string();
@@ -1477,19 +1496,29 @@ impl<'a> Serializer<'a> {
                     .iter()
                     .map(|id| ast::anchor(id))
                     .collect();
-                run.append(&mut self.formatted(node));
-                runs.push(run);
+                // The run's own edge whitespace is the separator (#997); a
+                // code span keeps its text verbatim inside the delimiters.
+                let (lead, _, trail) = crate::inline::split_edges(Self::text(node));
+                let edges = Self::label(node) != "code";
+                if edges && !lead.is_empty() {
+                    runs.push(ast::space());
+                }
+                runs.append(&mut run);
+                runs.append(&mut self.formatted(node));
+                if edges && !trail.is_empty() {
+                    runs.push(ast::space());
+                }
                 continue;
             }
             if Self::is_group(node) && Self::label(node) == "inline" {
-                let (inl, mut more) = self.inline_group(node);
-                runs.push(inl);
+                let (mut inl, mut more) = self.inline_group(node);
+                runs.append(&mut inl);
                 rest.append(&mut more);
                 continue;
             }
             rest.extend(self.serialize(node));
         }
-        (join_inlines(runs), rest)
+        (concat_runs(runs), rest)
     }
 
     fn text_item(&mut self, item: &'a Value) -> Vec<Value> {
@@ -2194,7 +2223,12 @@ mod tests {
                     "",
                     json!({"children": [{"$ref": "#/groups/0"}]})
                 ),
-                text(1, "text", "Table 1:", json!({"formatting": {"bold": true}})),
+                text(
+                    1,
+                    "text",
+                    "Table 1: ",
+                    json!({"formatting": {"bold": true}})
+                ),
                 text(
                     2,
                     "text",
@@ -2207,7 +2241,7 @@ mod tests {
                     "",
                     json!({"level": 1, "children": [{"$ref": "#/groups/1"}, {"$ref": "#/texts/6"}]})
                 ),
-                text(4, "text", "1.1", json!({"formatting": {"bold": true}})),
+                text(4, "text", "1.1 ", json!({"formatting": {"bold": true}})),
                 text(5, "text", "Formatted header", json!({})),
                 text(6, "text", "Body under header.", json!({})),
                 text(
@@ -2216,7 +2250,12 @@ mod tests {
                     "",
                     json!({"children": [{"$ref": "#/groups/3"}, {"$ref": "#/groups/4"}]})
                 ),
-                text(8, "text", "Bold run", json!({"formatting": {"bold": true}})),
+                text(
+                    8,
+                    "text",
+                    "Bold run ",
+                    json!({"formatting": {"bold": true}})
+                ),
                 text(9, "text", "and tail", json!({})),
                 text(10, "list_item", "Nested child", json!({})),
                 text(

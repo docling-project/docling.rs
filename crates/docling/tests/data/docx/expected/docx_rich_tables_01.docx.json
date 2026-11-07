@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "docx_rich_tables_01",
   "origin": {
     "mimetype": "text/plain",
@@ -382,7 +382,7 @@
       "label": "text",
       "prov": [],
       "orig": "Phase 1",
-      "text": "Phase 1",
+      "text": "Phase 1 ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -438,7 +438,7 @@
       "label": "text",
       "prov": [],
       "orig": "Phase 2",
-      "text": "Phase 2",
+      "text": "Phase 2 ",
       "formatting": {
         "bold": true,
         "italic": false,

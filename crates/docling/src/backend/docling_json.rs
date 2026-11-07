@@ -39,6 +39,10 @@ impl DeclarativeBackend for DoclingJsonBackend {
             return crate::backend::text::convert_json_text(source);
         }
         check_table_budget(&root)?;
+        // A document saved before schema 1.11.0 has trimmed inline runs its
+        // producer expected joined with `" "`; put that join back in the
+        // runs, as docling-core does on load (#997), before the faithful join.
+        docling_core::inline::migrate_legacy_json(&mut root);
         // Referenced images resolve against the JSON file's directory (#403).
         inline_referenced_images(
             &mut root,
@@ -115,17 +119,44 @@ fn ref_kind(reference: &Value) -> &str {
     reference["$ref"].as_str().unwrap_or("")
 }
 
+/// An inline group child's Markdown: a run's formatted text, a nested
+/// inline group's runs concatenated (docling-core's `_collect_subtree_text`
+/// joins an inline group with `""`), anything else empty.
 fn text_of(reference: &Value, root: &Value) -> String {
-    resolve(reference, root)
-        .map(formatted_text)
-        .unwrap_or_default()
+    inline_text(reference, root, 0)
+}
+
+fn inline_text(reference: &Value, root: &Value, depth: usize) -> String {
+    let Some(item) = resolve(reference, root) else {
+        return String::new();
+    };
+    if ref_kind(reference).starts_with("#/groups/") {
+        if item["label"].as_str() != Some("inline") || depth >= MAX_DEPTH {
+            return String::new();
+        }
+        let empty = Vec::new();
+        return item["children"]
+            .as_array()
+            .unwrap_or(&empty)
+            .iter()
+            .map(|c| inline_text(c, root, depth + 1))
+            .collect();
+    }
+    formatted_text(item)
 }
 
 /// Escaped item text with docling-core's inline markers applied in order:
 /// bold → italic → strikethrough → hyperlink (underline/script are no-ops in
-/// Markdown).
+/// Markdown), the run's edge whitespace hoisted outside them all and a
+/// whitespace-only run left undecorated (`hoist_decoration_whitespace`, #997).
 fn formatted_text(item: &Value) -> String {
-    let mut res = escape_text(item["text"].as_str().unwrap_or(""));
+    docling_core::inline::hoist(item["text"].as_str().unwrap_or(""), |core| {
+        decorate(core, item)
+    })
+}
+
+fn decorate(text: &str, item: &Value) -> String {
+    let mut res = escape_text(text);
     let fmt = &item["formatting"];
     if fmt["bold"].as_bool() == Some(true) {
         res = format!("**{res}**");
@@ -479,12 +510,11 @@ fn group_item(item: &Value, root: &Value, level: u8, doc: &mut DoclingDocument, 
     match label {
         "list" | "ordered_list" => list_group(children, root, level, doc, g),
         "inline" => {
-            // An inline group is one line: serialize each child and join with " ".
-            let joined = children
-                .iter()
-                .map(|c| text_of(c, root))
-                .collect::<Vec<_>>()
-                .join(" ");
+            // An inline group is one line: its runs carry their own
+            // whitespace (schema 1.11.0, #997) and are concatenated as they
+            // are; an older document's were migrated on load.
+            let joined: String = children.iter().map(|c| text_of(c, root)).collect();
+            let joined = joined.trim().to_string();
             if !joined.is_empty() {
                 doc.push(Node::Paragraph { text: joined });
             }

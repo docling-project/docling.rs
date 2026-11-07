@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "html_nested_block_in_list_item",
   "origin": {
     "mimetype": "text/plain",
@@ -404,7 +404,7 @@
       "label": "text",
       "prov": [],
       "orig": "Item with",
-      "text": "Item with"
+      "text": "Item with "
     },
     {
       "self_ref": "#/texts/10",
@@ -416,7 +416,7 @@
       "label": "text",
       "prov": [],
       "orig": "bold",
-      "text": "bold",
+      "text": "bold ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -465,7 +465,7 @@
       "label": "text",
       "prov": [],
       "orig": "Another item in",
-      "text": "Another item in"
+      "text": "Another item in "
     },
     {
       "self_ref": "#/texts/14",
@@ -493,7 +493,7 @@
       "label": "text",
       "prov": [],
       "orig": "language",
-      "text": "language"
+      "text": " language"
     },
     {
       "self_ref": "#/texts/16",

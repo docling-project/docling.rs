@@ -50,7 +50,10 @@ impl DeclarativeBackend for DoclangBackend {
         // The JSON export reads docling's item tree (see `doclang_tree`);
         // the deserializer lays every document out on 512×512 pages, one
         // per `<page_break>`, which the export's page map is built from.
-        let (tree, pages) = super::doclang_tree::build(root, pkg.as_mut());
+        let (mut tree, pages) = super::doclang_tree::build(root, pkg.as_mut());
+        // DocLang's reading rules give every run its own whitespace — the
+        // runs schema 1.11.0 expects (#997).
+        tree.inline_whitespace = true;
         doc.tree = Some(tree);
         for page_no in 1..=pages {
             doc.push(Node::PageInfo {

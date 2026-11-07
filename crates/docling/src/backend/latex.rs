@@ -81,6 +81,9 @@ impl DeclarativeBackend for LatexBackend {
         // does (#884); the flat nodes lose footnote labels, inline formulas
         // in captions and cells, and raw text.
         tree.doclang = true;
+        // The walker keeps each run's own whitespace (docling's LaTeX
+        // backend always did): the runs are schema 1.11.0's (#997).
+        tree.inline_whitespace = true;
         doc.nodes = nodes;
         doc.tree = Some(tree);
         Ok(doc)

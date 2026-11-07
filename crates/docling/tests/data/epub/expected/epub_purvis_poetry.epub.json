@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "epub_purvis_poetry",
   "origin": {
     "mimetype": "text/plain",
@@ -546,7 +546,7 @@
       "label": "text",
       "prov": [],
       "orig": "By",
-      "text": "By"
+      "text": "By "
     },
     {
       "self_ref": "#/texts/2",
@@ -558,7 +558,7 @@
       "label": "text",
       "prov": [],
       "orig": "Sarah Louisa Forten Purvis",
-      "text": "Sarah Louisa Forten Purvis",
+      "text": "Sarah Louisa Forten Purvis ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -630,7 +630,7 @@
       "label": "text",
       "prov": [],
       "orig": "This ebook is the product of many hours of hard work by volunteers for",
-      "text": "This ebook is the product of many hours of hard work by volunteers for"
+      "text": "This ebook is the product of many hours of hard work by volunteers for "
     },
     {
       "self_ref": "#/texts/7",
@@ -642,7 +642,7 @@
       "label": "text",
       "prov": [],
       "orig": "Standard Ebooks",
-      "text": "Standard Ebooks",
+      "text": "Standard Ebooks ",
       "hyperlink": "https://standardebooks.org/"
     },
     {
@@ -667,7 +667,7 @@
       "label": "text",
       "prov": [],
       "orig": "This particular ebook is based on digital scans from the",
-      "text": "This particular ebook is based on digital scans from the"
+      "text": "This particular ebook is based on digital scans from the "
     },
     {
       "self_ref": "#/texts/10",
@@ -679,7 +679,7 @@
       "label": "text",
       "prov": [],
       "orig": "Internet Archive",
-      "text": "Internet Archive",
+      "text": "Internet Archive ",
       "hyperlink": "https://standardebooks.org/ebooks/sarah-louisa-forten-purvis/poetry#page-scans"
     },
     {
@@ -704,7 +704,7 @@
       "label": "text",
       "prov": [],
       "orig": "The source text and artwork in this ebook are believed to be in the United States public domain; that is, they are believed to be free of copyright restrictions in the United States. They may still be copyrighted in other countries, so users located outside of the United States must check their local laws before using this ebook. The creators of, and contributors to, this ebook dedicate their contributions to the worldwide public domain via the terms in the",
-      "text": "The source text and artwork in this ebook are believed to be in the United States public domain; that is, they are believed to be free of copyright restrictions in the United States. They may still be copyrighted in other countries, so users located outside of the United States must check their local laws before using this ebook. The creators of, and contributors to, this ebook dedicate their contributions to the worldwide public domain via the terms in the"
+      "text": "The source text and artwork in this ebook are believed to be in the United States public domain; that is, they are believed to be free of copyright restrictions in the United States. They may still be copyrighted in other countries, so users located outside of the United States must check their local laws before using this ebook. The creators of, and contributors to, this ebook dedicate their contributions to the worldwide public domain via the terms in the "
     },
     {
       "self_ref": "#/texts/13",
@@ -716,7 +716,7 @@
       "label": "text",
       "prov": [],
       "orig": "CC0 1.0 Universal Public Domain Dedication",
-      "text": "CC0 1.0 Universal Public Domain Dedication",
+      "text": "CC0 1.0 Universal Public Domain Dedication ",
       "hyperlink": "https://creativecommons.org/publicdomain/zero/1.0/"
     },
     {
@@ -729,7 +729,7 @@
       "label": "text",
       "prov": [],
       "orig": ". For full license information, see the",
-      "text": ". For full license information, see the"
+      "text": ". For full license information, see the "
     },
     {
       "self_ref": "#/texts/15",
@@ -741,7 +741,7 @@
       "label": "text",
       "prov": [],
       "orig": "Uncopyright",
-      "text": "Uncopyright",
+      "text": "Uncopyright ",
       "hyperlink": "uncopyright.xhtml"
     },
     {
@@ -766,7 +766,7 @@
       "label": "text",
       "prov": [],
       "orig": "Standard Ebooks is a volunteer-driven project that produces ebook editions of public domain literature using modern typography, technology, and editorial standards, and distributes them free of cost. You can download this and other ebooks carefully produced for true book lovers at",
-      "text": "Standard Ebooks is a volunteer-driven project that produces ebook editions of public domain literature using modern typography, technology, and editorial standards, and distributes them free of cost. You can download this and other ebooks carefully produced for true book lovers at"
+      "text": "Standard Ebooks is a volunteer-driven project that produces ebook editions of public domain literature using modern typography, technology, and editorial standards, and distributes them free of cost. You can download this and other ebooks carefully produced for true book lovers at "
     },
     {
       "self_ref": "#/texts/18",
@@ -778,7 +778,7 @@
       "label": "text",
       "prov": [],
       "orig": "standardebooks.org",
-      "text": "standardebooks.org",
+      "text": "standardebooks.org ",
       "hyperlink": "https://standardebooks.org/"
     },
     {
@@ -942,7 +942,7 @@
       "label": "text",
       "prov": [],
       "orig": "Oh! ye who boast of Freedom’s sacred claims,\nDo ye not blush to see our galling chains;\nTo hear that sounding word﻿—“that all are free”﻿—\nWhen thousands groan in hopeless",
-      "text": "Oh! ye who boast of Freedom's sacred claims,\nDo ye not blush to see our galling chains;\nTo hear that sounding word-\"that all are free\"-\nWhen thousands groan in hopeless"
+      "text": "Oh! ye who boast of Freedom's sacred claims,\nDo ye not blush to see our galling chains;\nTo hear that sounding word-\"that all are free\"-\nWhen thousands groan in hopeless "
     },
     {
       "self_ref": "#/texts/30",
@@ -954,7 +954,7 @@
       "label": "text",
       "prov": [],
       "orig": "slavery",
-      "text": "slavery",
+      "text": "slavery ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -1104,7 +1104,7 @@
       "label": "text",
       "prov": [],
       "orig": "His home﻿—ah! that lov’d name recalls\nAll that was dear to him;\nBut",
-      "text": "His home-ah! that lov'd name recalls\nAll that was dear to him;\nBut"
+      "text": "His home-ah! that lov'd name recalls\nAll that was dear to him;\nBut "
     },
     {
       "self_ref": "#/texts/41",
@@ -1116,7 +1116,7 @@
       "label": "text",
       "prov": [],
       "orig": "these",
-      "text": "these",
+      "text": "these ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -1135,7 +1135,7 @@
       "label": "text",
       "prov": [],
       "orig": "were scenes he’ll know no more﻿—\nHe only",
-      "text": "were scenes he'll know no more-\nHe only"
+      "text": "were scenes he'll know no more-\nHe only "
     },
     {
       "self_ref": "#/texts/43",
@@ -1147,7 +1147,7 @@
       "label": "text",
       "prov": [],
       "orig": "feels",
-      "text": "feels",
+      "text": "feels ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -1269,7 +1269,7 @@
       "label": "text",
       "prov": [],
       "orig": "Our sires who once in freedom’s cause,\nTheir boasted freedom sought and won,\nFor deeds of glory gained applause,\nWhen patriot feelings led them on.\nAnd can their sons now speak with pride,\nOf rights for which they bled and died﻿—\nOr while the captive is oppressed,\nThink of the wrongs they once redress’d?\nOh, surely they have quite forgot,\nThat bondage once had been their lot;\nThe sweets of freedom now they know,\nThey care not for the captive’s woe.\nThe poor wronged slave can bear no part\nIn feelings dearest to his heart;\nHe cannot speak on freedom’s side,\nNor dare he own a freeman’s pride,\nHis soul is dark, ay dark as night,\nO’er which is shed no gleam of light;\nA cloud of error, doubt and fear,\nO’er him is ever hovering near;\nAnd sad and hard his lot must be,\nTo know that he can ne’er be free;\nTo feel that",
-      "text": "Our sires who once in freedom's cause,\nTheir boasted freedom sought and won,\nFor deeds of glory gained applause,\nWhen patriot feelings led them on.\nAnd can their sons now speak with pride,\nOf rights for which they bled and died-\nOr while the captive is oppressed,\nThink of the wrongs they once redress'd?\nOh, surely they have quite forgot,\nThat bondage once had been their lot;\nThe sweets of freedom now they know,\nThey care not for the captive's woe.\nThe poor wronged slave can bear no part\nIn feelings dearest to his heart;\nHe cannot speak on freedom's side,\nNor dare he own a freeman's pride,\nHis soul is dark, ay dark as night,\nO'er which is shed no gleam of light;\nA cloud of error, doubt and fear,\nO'er him is ever hovering near;\nAnd sad and hard his lot must be,\nTo know that he can ne'er be free;\nTo feel that"
+      "text": "Our sires who once in freedom's cause,\nTheir boasted freedom sought and won,\nFor deeds of glory gained applause,\nWhen patriot feelings led them on.\nAnd can their sons now speak with pride,\nOf rights for which they bled and died-\nOr while the captive is oppressed,\nThink of the wrongs they once redress'd?\nOh, surely they have quite forgot,\nThat bondage once had been their lot;\nThe sweets of freedom now they know,\nThey care not for the captive's woe.\nThe poor wronged slave can bear no part\nIn feelings dearest to his heart;\nHe cannot speak on freedom's side,\nNor dare he own a freeman's pride,\nHis soul is dark, ay dark as night,\nO'er which is shed no gleam of light;\nA cloud of error, doubt and fear,\nO'er him is ever hovering near;\nAnd sad and hard his lot must be,\nTo know that he can ne'er be free;\nTo feel that "
     },
     {
       "self_ref": "#/texts/52",
@@ -1281,7 +1281,7 @@
       "label": "text",
       "prov": [],
       "orig": "his",
-      "text": "his",
+      "text": "his ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -1457,7 +1457,7 @@
       "label": "text",
       "prov": [],
       "orig": "There’s nothing left for me to love\nThis earth holds nothing dear,\nSince",
-      "text": "There's nothing left for me to love\nThis earth holds nothing dear,\nSince"
+      "text": "There's nothing left for me to love\nThis earth holds nothing dear,\nSince "
     },
     {
       "self_ref": "#/texts/64",
@@ -1469,7 +1469,7 @@
       "label": "text",
       "prov": [],
       "orig": "he",
-      "text": "he",
+      "text": "he ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -1850,7 +1850,7 @@
       "label": "text",
       "prov": [],
       "orig": "Oh! speak not of heathenish darkness again,\nNor tell me of lands held in error’s dread chain!\nWhere﻿—where is the nation so erring as we,\nWho claim the proud name of the “",
-      "text": "Oh! speak not of heathenish darkness again,\nNor tell me of lands held in error's dread chain!\nWhere-where is the nation so erring as we,\nWho claim the proud name of the \""
+      "text": "Oh! speak not of heathenish darkness again,\nNor tell me of lands held in error's dread chain!\nWhere-where is the nation so erring as we,\nWho claim the proud name of the \" "
     },
     {
       "self_ref": "#/texts/91",
@@ -1862,7 +1862,7 @@
       "label": "text",
       "prov": [],
       "orig": "home of the free",
-      "text": "home of the free",
+      "text": "home of the free ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1881,7 +1881,7 @@
       "label": "text",
       "prov": [],
       "orig": "”!\nWhat a throb do the lov’d ties of country awake\nIn the heart of the exile!﻿—for time cannot break\nThe sweet vision of home, and all he loved well,\nWhich has thrown o’er his pathway a magical spell.\nCan the name of “",
-      "text": "\"!\nWhat a throb do the lov'd ties of country awake\nIn the heart of the exile!-for time cannot break\nThe sweet vision of home, and all he loved well,\nWhich has thrown o'er his pathway a magical spell.\nCan the name of \""
+      "text": "\"!\nWhat a throb do the lov'd ties of country awake\nIn the heart of the exile!-for time cannot break\nThe sweet vision of home, and all he loved well,\nWhich has thrown o'er his pathway a magical spell.\nCan the name of \" "
     },
     {
       "self_ref": "#/texts/93",
@@ -1893,7 +1893,7 @@
       "label": "text",
       "prov": [],
       "orig": "my country",
-      "text": "my country",
+      "text": "my country ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -2158,7 +2158,7 @@
       "label": "text",
       "prov": [],
       "orig": "I knew not",
-      "text": "I knew not"
+      "text": "I knew not "
     },
     {
       "self_ref": "#/texts/111",
@@ -2170,7 +2170,7 @@
       "label": "text",
       "prov": [],
       "orig": "then",
-      "text": "then",
+      "text": "then ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -2370,7 +2370,7 @@
       "label": "text",
       "prov": [],
       "orig": "Poetry",
-      "text": "Poetry",
+      "text": "Poetry ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -2389,7 +2389,7 @@
       "label": "text",
       "prov": [],
       "orig": "was compiled from poems published between 1831 and 1836 by",
-      "text": "was compiled from poems published between 1831 and 1836 by"
+      "text": "was compiled from poems published between 1831 and 1836 by "
     },
     {
       "self_ref": "#/texts/126",
@@ -2401,7 +2401,7 @@
       "label": "text",
       "prov": [],
       "orig": "Sarah Louisa Forten Purvis",
-      "text": "Sarah Louisa Forten Purvis",
+      "text": "Sarah Louisa Forten Purvis ",
       "hyperlink": "https://en.wikipedia.org/wiki/Sarah_Louisa_Forten_Purvis"
     },
     {
@@ -2426,7 +2426,7 @@
       "label": "text",
       "prov": [],
       "orig": "This ebook was transcribed and produced for",
-      "text": "This ebook was transcribed and produced for"
+      "text": "This ebook was transcribed and produced for "
     },
     {
       "self_ref": "#/texts/129",
@@ -2438,7 +2438,7 @@
       "label": "text",
       "prov": [],
       "orig": "Standard Ebooks",
-      "text": "Standard Ebooks",
+      "text": "Standard Ebooks ",
       "hyperlink": "https://standardebooks.org/"
     },
     {
@@ -2451,7 +2451,7 @@
       "label": "text",
       "prov": [],
       "orig": "by",
-      "text": "by"
+      "text": "by "
     },
     {
       "self_ref": "#/texts/131",
@@ -2463,7 +2463,7 @@
       "label": "text",
       "prov": [],
       "orig": "Weijia Cheng",
-      "text": "Weijia Cheng",
+      "text": "Weijia Cheng ",
       "hyperlink": "https://weijiarhymeswith.asia/"
     },
     {
@@ -2476,7 +2476,7 @@
       "label": "text",
       "prov": [],
       "orig": ",\nand is based on digital scans from the",
-      "text": ",\nand is based on digital scans from the"
+      "text": ",\nand is based on digital scans from the "
     },
     {
       "self_ref": "#/texts/133",
@@ -2488,7 +2488,7 @@
       "label": "text",
       "prov": [],
       "orig": "Internet Archive",
-      "text": "Internet Archive",
+      "text": "Internet Archive ",
       "hyperlink": "https://standardebooks.org/ebooks/sarah-louisa-forten-purvis/poetry#page-scans"
     },
     {
@@ -2513,7 +2513,7 @@
       "label": "text",
       "prov": [],
       "orig": "The cover page is adapted from",
-      "text": "The cover page is adapted from"
+      "text": "The cover page is adapted from "
     },
     {
       "self_ref": "#/texts/136",
@@ -2525,7 +2525,7 @@
       "label": "text",
       "prov": [],
       "orig": "Sunday Morning",
-      "text": "Sunday Morning",
+      "text": "Sunday Morning ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -2544,7 +2544,7 @@
       "label": "text",
       "prov": [],
       "orig": ",\na painting completed in 1877 by",
-      "text": ",\na painting completed in 1877 by"
+      "text": ",\na painting completed in 1877 by "
     },
     {
       "self_ref": "#/texts/138",
@@ -2556,7 +2556,7 @@
       "label": "text",
       "prov": [],
       "orig": "Thomas Waterman Wood",
-      "text": "Thomas Waterman Wood",
+      "text": "Thomas Waterman Wood ",
       "hyperlink": "https://en.wikipedia.org/wiki/Thomas_Waterman_Wood"
     },
     {
@@ -2569,7 +2569,7 @@
       "label": "text",
       "prov": [],
       "orig": ".\nThe cover and title pages feature the",
-      "text": ".\nThe cover and title pages feature the"
+      "text": ".\nThe cover and title pages feature the "
     },
     {
       "self_ref": "#/texts/140",
@@ -2581,7 +2581,7 @@
       "label": "text",
       "prov": [],
       "orig": "League Spartan",
-      "text": "League Spartan",
+      "text": "League Spartan ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -2600,7 +2600,7 @@
       "label": "text",
       "prov": [],
       "orig": "and",
-      "text": "and"
+      "text": "and "
     },
     {
       "self_ref": "#/texts/142",
@@ -2612,7 +2612,7 @@
       "label": "text",
       "prov": [],
       "orig": "Sorts Mill Goudy",
-      "text": "Sorts Mill Goudy",
+      "text": "Sorts Mill Goudy ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -2631,7 +2631,7 @@
       "label": "text",
       "prov": [],
       "orig": "typefaces created in 2014 and 2009 by",
-      "text": "typefaces created in 2014 and 2009 by"
+      "text": "typefaces created in 2014 and 2009 by "
     },
     {
       "self_ref": "#/texts/144",
@@ -2643,7 +2643,7 @@
       "label": "text",
       "prov": [],
       "orig": "The League of Moveable Type",
-      "text": "The League of Moveable Type",
+      "text": "The League of Moveable Type ",
       "hyperlink": "https://www.theleagueofmoveabletype.com/"
     },
     {
@@ -2668,7 +2668,7 @@
       "label": "text",
       "prov": [],
       "orig": "This edition was released on",
-      "text": "This edition was released on"
+      "text": "This edition was released on "
     },
     {
       "self_ref": "#/texts/147",
@@ -2680,7 +2680,7 @@
       "label": "text",
       "prov": [],
       "orig": "May 21, 2026, 6:29 p.m.",
-      "text": "May 21, 2026, 6:29 p.m.",
+      "text": "May 21, 2026, 6:29 p.m. ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -2699,7 +2699,7 @@
       "label": "text",
       "prov": [],
       "orig": "and is based on",
-      "text": "and is based on"
+      "text": "and is based on "
     },
     {
       "self_ref": "#/texts/149",
@@ -2711,7 +2711,7 @@
       "label": "text",
       "prov": [],
       "orig": "revision 936122b",
-      "text": "revision 936122b",
+      "text": "revision 936122b ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -2730,7 +2730,7 @@
       "label": "text",
       "prov": [],
       "orig": ".\nThe first edition of this ebook was released on\nDecember 6, 2023, 8:52 p.m.\nYou can check for updates to this ebook, view its revision history, or download it for different ereading systems at",
-      "text": ".\nThe first edition of this ebook was released on\nDecember 6, 2023, 8:52 p.m.\nYou can check for updates to this ebook, view its revision history, or download it for different ereading systems at"
+      "text": ".\nThe first edition of this ebook was released on\nDecember 6, 2023, 8:52 p.m.\nYou can check for updates to this ebook, view its revision history, or download it for different ereading systems at "
     },
     {
       "self_ref": "#/texts/151",
@@ -2742,7 +2742,7 @@
       "label": "text",
       "prov": [],
       "orig": "standardebooks.org/ebooks/sarah-louisa-forten-purvis/poetry",
-      "text": "standardebooks.org/ebooks/sarah-louisa-forten-purvis/poetry",
+      "text": "standardebooks.org/ebooks/sarah-louisa-forten-purvis/poetry ",
       "hyperlink": "https://standardebooks.org/ebooks/sarah-louisa-forten-purvis/poetry"
     },
     {
@@ -2767,7 +2767,7 @@
       "label": "text",
       "prov": [],
       "orig": "The volunteer-driven Standard Ebooks project relies on readers like you to submit typos, corrections, and other improvements. Anyone can contribute at",
-      "text": "The volunteer-driven Standard Ebooks project relies on readers like you to submit typos, corrections, and other improvements. Anyone can contribute at"
+      "text": "The volunteer-driven Standard Ebooks project relies on readers like you to submit typos, corrections, and other improvements. Anyone can contribute at "
     },
     {
       "self_ref": "#/texts/154",
@@ -2779,7 +2779,7 @@
       "label": "text",
       "prov": [],
       "orig": "standardebooks.org",
-      "text": "standardebooks.org",
+      "text": "standardebooks.org ",
       "hyperlink": "https://standardebooks.org/"
     },
     {
@@ -2842,7 +2842,7 @@
       "label": "text",
       "prov": [],
       "orig": "Copyright pages exist to tell you that you",
-      "text": "Copyright pages exist to tell you that you"
+      "text": "Copyright pages exist to tell you that you "
     },
     {
       "self_ref": "#/texts/159",
@@ -2854,7 +2854,7 @@
       "label": "text",
       "prov": [],
       "orig": "can’t",
-      "text": "can't",
+      "text": "can't ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -2897,7 +2897,7 @@
       "label": "text",
       "prov": [],
       "orig": "Non-authorship activities performed on items that are in the public domain﻿—so-called “sweat of the brow” work﻿—don’t create a new copyright. That means that nobody can claim a new copyright on an item that is in the public domain for, among other things, work like digitization, markup, or typography. Regardless, the contributors to this ebook release their contributions under the terms in the",
-      "text": "Non-authorship activities performed on items that are in the public domain-so-called \"sweat of the brow\" work-don't create a new copyright. That means that nobody can claim a new copyright on an item that is in the public domain for, among other things, work like digitization, markup, or typography. Regardless, the contributors to this ebook release their contributions under the terms in the"
+      "text": "Non-authorship activities performed on items that are in the public domain-so-called \"sweat of the brow\" work-don't create a new copyright. That means that nobody can claim a new copyright on an item that is in the public domain for, among other things, work like digitization, markup, or typography. Regardless, the contributors to this ebook release their contributions under the terms in the "
     },
     {
       "self_ref": "#/texts/163",
@@ -2909,7 +2909,7 @@
       "label": "text",
       "prov": [],
       "orig": "CC0 1.0 Universal Public Domain Dedication",
-      "text": "CC0 1.0 Universal Public Domain Dedication",
+      "text": "CC0 1.0 Universal Public Domain Dedication ",
       "hyperlink": "https://creativecommons.org/publicdomain/zero/1.0/"
     },
     {

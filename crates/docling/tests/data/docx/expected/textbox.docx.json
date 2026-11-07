@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "textbox",
   "origin": {
     "mimetype": "text/plain",
@@ -1030,7 +1030,7 @@
       "label": "text",
       "prov": [],
       "orig": "The Health Bureau will handle",
-      "text": "The Health Bureau will handle",
+      "text": "The Health Bureau will handle ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1049,7 +1049,7 @@
       "label": "text",
       "prov": [],
       "orig": "reporting and specimen collection",
-      "text": "reporting and specimen collection",
+      "text": "reporting and specimen collection ",
       "formatting": {
         "bold": true,
         "italic": false,

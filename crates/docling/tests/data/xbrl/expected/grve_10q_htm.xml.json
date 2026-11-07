@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "grve_10q_htm",
   "origin": {
     "mimetype": "text/plain",
@@ -555,7 +555,7 @@
       "label": "text",
       "prov": [],
       "orig": "Recent Accounting Standard Adopted",
-      "text": "Recent Accounting Standard Adopted",
+      "text": "Recent Accounting Standard Adopted ",
       "formatting": {
         "bold": true,
         "italic": false,

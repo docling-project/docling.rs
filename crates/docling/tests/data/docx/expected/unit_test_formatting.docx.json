@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "unit_test_formatting",
   "origin": {
     "mimetype": "text/plain",
@@ -415,7 +415,7 @@
       "label": "text",
       "prov": [],
       "orig": "Normal",
-      "text": "Normal",
+      "text": "Normal ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -434,7 +434,7 @@
       "label": "text",
       "prov": [],
       "orig": "italic",
-      "text": "italic",
+      "text": "italic ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -453,7 +453,7 @@
       "label": "text",
       "prov": [],
       "orig": "bold",
-      "text": "bold",
+      "text": "bold ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -472,7 +472,7 @@
       "label": "text",
       "prov": [],
       "orig": "underline",
-      "text": "underline",
+      "text": "underline ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -491,7 +491,7 @@
       "label": "text",
       "prov": [],
       "orig": "and",
-      "text": "and",
+      "text": "and ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -510,7 +510,7 @@
       "label": "text",
       "prov": [],
       "orig": "hyperlink",
-      "text": "hyperlink",
+      "text": "hyperlink ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -645,7 +645,7 @@
       "label": "text",
       "prov": [],
       "orig": "Some",
-      "text": "Some",
+      "text": "Some ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -664,7 +664,7 @@
       "label": "text",
       "prov": [],
       "orig": "italic",
-      "text": "italic",
+      "text": "italic ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -683,7 +683,7 @@
       "label": "text",
       "prov": [],
       "orig": "bold",
-      "text": "bold",
+      "text": "bold ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -739,7 +739,7 @@
       "label": "text",
       "prov": [],
       "orig": "Nested",
-      "text": "Nested",
+      "text": "Nested ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -758,7 +758,7 @@
       "label": "text",
       "prov": [],
       "orig": "italic",
-      "text": "italic",
+      "text": "italic ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -851,7 +851,7 @@
       "label": "text",
       "prov": [],
       "orig": "This text carries a",
-      "text": "This text carries a",
+      "text": "This text carries a ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -870,7 +870,7 @@
       "label": "text",
       "prov": [],
       "orig": "complex-script bold",
-      "text": "complex-script bold",
+      "text": "complex-script bold ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -1008,7 +1008,7 @@
       "label": "text",
       "prov": [],
       "orig": "Another",
-      "text": "Another",
+      "text": "Another ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1027,7 +1027,7 @@
       "label": "text",
       "prov": [],
       "orig": "header",
-      "text": "header",
+      "text": "header ",
       "formatting": {
         "bold": true,
         "italic": false,

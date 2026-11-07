@@ -94,6 +94,9 @@ impl DeclarativeBackend for WebVttBackend {
             }
         }
         append_cues(&mut doc, &mut tree, body);
+        // A cue's runs keep their own whitespace, as docling-core's WebVTT
+        // reader gives them (schema 1.11.0, #997).
+        tree.inline_whitespace = true;
         doc.tree = Some(tree);
         Ok(doc)
     }

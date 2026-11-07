@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "equations",
   "origin": {
     "mimetype": "text/plain",
@@ -370,7 +370,7 @@
       "label": "text",
       "prov": [],
       "orig": "This is a word document and this is an inline equation: ",
-      "text": "This is a word document and this is an inline equation: "
+      "text": "This is a word document and this is an inline equation:  "
     },
     {
       "self_ref": "#/texts/1",
@@ -394,7 +394,7 @@
       "label": "text",
       "prov": [],
       "orig": ".",
-      "text": "."
+      "text": " ."
     },
     {
       "self_ref": "#/texts/3",
@@ -424,7 +424,7 @@
       "label": "text",
       "prov": [],
       "orig": "First item with inline equation: ",
-      "text": "First item with inline equation: "
+      "text": "First item with inline equation:  "
     },
     {
       "self_ref": "#/texts/5",
@@ -448,7 +448,7 @@
       "label": "text",
       "prov": [],
       "orig": "is the area formula.",
-      "text": "is the area formula."
+      "text": " is the area formula."
     },
     {
       "self_ref": "#/texts/7",
@@ -478,7 +478,7 @@
       "label": "text",
       "prov": [],
       "orig": "Second item with equations: ",
-      "text": "Second item with equations: "
+      "text": "Second item with equations:  "
     },
     {
       "self_ref": "#/texts/9",
@@ -502,7 +502,7 @@
       "label": "text",
       "prov": [],
       "orig": " and ",
-      "text": " and "
+      "text": "  and  "
     },
     {
       "self_ref": "#/texts/11",
@@ -526,7 +526,7 @@
       "label": "text",
       "prov": [],
       "orig": "are physics formulas.",
-      "text": "are physics formulas."
+      "text": " are physics formulas."
     },
     {
       "self_ref": "#/texts/13",
@@ -556,7 +556,7 @@
       "label": "text",
       "prov": [],
       "orig": "The formula ",
-      "text": "The formula "
+      "text": "The formula  "
     },
     {
       "self_ref": "#/texts/15",
@@ -580,7 +580,7 @@
       "label": "text",
       "prov": [],
       "orig": "is the Pythagorean theorem.",
-      "text": "is the Pythagorean theorem."
+      "text": " is the Pythagorean theorem."
     },
     {
       "self_ref": "#/texts/17",
@@ -752,7 +752,7 @@
       "label": "text",
       "prov": [],
       "orig": "This is a word document and this is an inline equation: ",
-      "text": "This is a word document and this is an inline equation: "
+      "text": "This is a word document and this is an inline equation:  "
     },
     {
       "self_ref": "#/texts/29",
@@ -776,7 +776,7 @@
       "label": "text",
       "prov": [],
       "orig": ". If instead, I want an equation by line, I can do this:",
-      "text": ". If instead, I want an equation by line, I can do this:"
+      "text": " . If instead, I want an equation by line, I can do this:"
     },
     {
       "self_ref": "#/texts/31",
@@ -953,7 +953,7 @@
       "label": "text",
       "prov": [],
       "orig": "This is a word document and these are inline equations: ",
-      "text": "This is a word document and these are inline equations: "
+      "text": "This is a word document and these are inline equations:  "
     },
     {
       "self_ref": "#/texts/44",
@@ -977,7 +977,7 @@
       "label": "text",
       "prov": [],
       "orig": "/",
-      "text": "/"
+      "text": " / "
     },
     {
       "self_ref": "#/texts/46",
@@ -1001,7 +1001,7 @@
       "label": "text",
       "prov": [],
       "orig": "​. If instead, I want an equation by line, I can do this:",
-      "text": "​. If instead, I want an equation by line, I can do this:"
+      "text": " ​. If instead, I want an equation by line, I can do this:"
     },
     {
       "self_ref": "#/texts/48",

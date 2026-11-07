@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "textbox_repeated_lines",
   "origin": {
     "mimetype": "text/plain",

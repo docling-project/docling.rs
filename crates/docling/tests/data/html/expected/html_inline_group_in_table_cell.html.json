@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "html_inline_group_in_table_cell",
   "origin": {
     "mimetype": "text/plain",
@@ -164,7 +164,13 @@
           "$ref": "#/texts/13"
         },
         {
+          "$ref": "#/texts/18"
+        },
+        {
           "$ref": "#/texts/14"
+        },
+        {
+          "$ref": "#/texts/17"
         },
         {
           "$ref": "#/texts/15"
@@ -224,7 +230,7 @@
       "label": "text",
       "prov": [],
       "orig": "See",
-      "text": "See"
+      "text": "See "
     },
     {
       "self_ref": "#/texts/3",
@@ -236,7 +242,7 @@
       "label": "text",
       "prov": [],
       "orig": "Page A",
-      "text": "Page A",
+      "text": "Page A ",
       "hyperlink": "https://example.com/a"
     },
     {
@@ -249,7 +255,7 @@
       "label": "text",
       "prov": [],
       "orig": "and",
-      "text": "and"
+      "text": "and "
     },
     {
       "self_ref": "#/texts/5",
@@ -261,7 +267,7 @@
       "label": "text",
       "prov": [],
       "orig": "Page B",
-      "text": "Page B",
+      "text": "Page B ",
       "hyperlink": "https://example.com/b"
     },
     {
@@ -286,7 +292,7 @@
       "label": "text",
       "prov": [],
       "orig": "Bold",
-      "text": "Bold",
+      "text": "Bold ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -305,7 +311,7 @@
       "label": "text",
       "prov": [],
       "orig": "and",
-      "text": "and"
+      "text": "and "
     },
     {
       "self_ref": "#/texts/9",
@@ -317,7 +323,7 @@
       "label": "text",
       "prov": [],
       "orig": "italic",
-      "text": "italic",
+      "text": "italic ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -430,6 +436,30 @@
       "prov": [],
       "orig": "Outro paragraph.",
       "text": "Outro paragraph."
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/groups/7"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": " ",
+      "text": " "
+    },
+    {
+      "self_ref": "#/texts/18",
+      "parent": {
+        "$ref": "#/groups/7"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": " ",
+      "text": " "
     }
   ],
   "pictures": [],

@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "hyperlink_01",
   "origin": {
     "mimetype": "text/plain",
@@ -74,7 +74,7 @@
       "label": "text",
       "prov": [],
       "orig": "Please follow the link to:",
-      "text": "Please follow the link to:"
+      "text": "Please follow the link to: "
     },
     {
       "self_ref": "#/texts/2",
@@ -86,7 +86,7 @@
       "label": "text",
       "prov": [],
       "orig": "This page",
-      "text": "This page",
+      "text": "This page ",
       "hyperlink": "#"
     },
     {

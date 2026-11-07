@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "docx_list_item_runs_in_cell",
   "origin": {
     "mimetype": "text/plain",
@@ -127,7 +127,7 @@
       "label": "text",
       "prov": [],
       "orig": "First item text",
-      "text": "First item text",
+      "text": "First item text ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -146,7 +146,7 @@
       "label": "text",
       "prov": [],
       "orig": "[Required]",
-      "text": "[Required]",
+      "text": "[Required] ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -202,7 +202,7 @@
       "label": "text",
       "prov": [],
       "orig": "Second item text",
-      "text": "Second item text",
+      "text": "Second item text ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -221,7 +221,7 @@
       "label": "text",
       "prov": [],
       "orig": "[Optional]",
-      "text": "[Optional]",
+      "text": "[Optional] ",
       "formatting": {
         "bold": false,
         "italic": true,

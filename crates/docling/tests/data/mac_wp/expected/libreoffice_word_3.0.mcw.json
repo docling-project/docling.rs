@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "libreoffice_word_3.0",
   "origin": {
     "mimetype": "text/plain",

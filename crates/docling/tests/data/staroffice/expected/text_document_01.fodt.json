@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "text_document_01",
   "origin": {
     "mimetype": "text/plain",
@@ -409,7 +409,7 @@
       "label": "text",
       "prov": [],
       "orig": "Contrary to popular belief, ",
-      "text": "Contrary to popular belief, "
+      "text": "Contrary to popular belief,  "
     },
     {
       "self_ref": "#/texts/16",
@@ -421,7 +421,7 @@
       "label": "text",
       "prov": [],
       "orig": "Lorem Ipsum is not simply random text",
-      "text": "Lorem Ipsum is not simply random text",
+      "text": "Lorem Ipsum is not simply random text ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -440,7 +440,7 @@
       "label": "text",
       "prov": [],
       "orig": ". Richard McClintock, ",
-      "text": ". Richard McClintock, "
+      "text": ". Richard McClintock,  "
     },
     {
       "self_ref": "#/texts/18",
@@ -452,7 +452,7 @@
       "label": "text",
       "prov": [],
       "orig": "a Latin professor at Hampden-Sydney College in Virginia",
-      "text": "a Latin professor at Hampden-Sydney College in Virginia",
+      "text": "a Latin professor at Hampden-Sydney College in Virginia ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -471,7 +471,7 @@
       "label": "text",
       "prov": [],
       "orig": ", looked up one of the more obscure Latin words, consectetur, from a Lorem Ipsum passage, ",
-      "text": ", looked up one of the more obscure Latin words, consectetur, from a Lorem Ipsum passage, "
+      "text": ", looked up one of the more obscure Latin words, consectetur, from a Lorem Ipsum passage,  "
     },
     {
       "self_ref": "#/texts/20",
@@ -483,7 +483,7 @@
       "label": "text",
       "prov": [],
       "orig": "and going through the cites of the word in classical literature",
-      "text": "and going through the cites of the word in classical literature",
+      "text": "and going through the cites of the word in classical literature ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -502,7 +502,7 @@
       "label": "text",
       "prov": [],
       "orig": ", discovered the undoubtable source. Lorem Ipsum comes from sections 1.10.32 and 1.10.33 of \"de Finibus Bonorum et Malorum\" (",
-      "text": ", discovered the undoubtable source. Lorem Ipsum comes from sections 1.10.32 and 1.10.33 of \"de Finibus Bonorum et Malorum\" ("
+      "text": ", discovered the undoubtable source. Lorem Ipsum comes from sections 1.10.32 and 1.10.33 of \"de Finibus Bonorum et Malorum\" ( "
     },
     {
       "self_ref": "#/texts/22",
@@ -514,7 +514,7 @@
       "label": "text",
       "prov": [],
       "orig": "The Extremes of Good and Evil",
-      "text": "The Extremes of Good and Evil",
+      "text": "The Extremes of Good and Evil ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -545,7 +545,7 @@
       "label": "text",
       "prov": [],
       "orig": "X",
-      "text": "X"
+      "text": "X "
     },
     {
       "self_ref": "#/texts/25",
@@ -557,7 +557,7 @@
       "label": "text",
       "prov": [],
       "orig": "2",
-      "text": "2",
+      "text": "2 ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -576,7 +576,7 @@
       "label": "text",
       "prov": [],
       "orig": " + Y",
-      "text": " + Y"
+      "text": " + Y "
     },
     {
       "self_ref": "#/texts/27",
@@ -588,7 +588,7 @@
       "label": "text",
       "prov": [],
       "orig": "2",
-      "text": "2",
+      "text": "2 ",
       "formatting": {
         "bold": false,
         "italic": false,

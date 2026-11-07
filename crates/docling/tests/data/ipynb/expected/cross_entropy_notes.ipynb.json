@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "cross_entropy_notes.md",
   "origin": {
     "mimetype": "text/plain",
@@ -170,7 +170,7 @@
       "label": "text",
       "prov": [],
       "orig": "It is never negative, and it is 0 only when $y = \\hat{y}$ — see",
-      "text": "It is never negative, and it is 0 only when $y = \\hat{y}$ — see"
+      "text": "It is never negative, and it is 0 only when $y = \\hat{y}$ — see "
     },
     {
       "self_ref": "#/texts/8",
@@ -182,7 +182,7 @@
       "label": "text",
       "prov": [],
       "orig": "$$E=mc^2$$",
-      "text": "$$E=mc^2$$",
+      "text": "$$E=mc^2$$ ",
       "hyperlink": "https://en.wikipedia.org/wiki/Mass%E2%80%93energy_equivalence"
     },
     {

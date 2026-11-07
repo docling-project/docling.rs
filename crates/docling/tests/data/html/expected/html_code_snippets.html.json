@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "html_code_snippets",
   "origin": {
     "mimetype": "text/plain",
@@ -256,7 +256,7 @@
       "label": "text",
       "prov": [],
       "orig": "The Pythagorean theorem can be written as an equation relating the lengths of the sides",
-      "text": "The Pythagorean theorem can be written as an equation relating the lengths of the sides"
+      "text": "The Pythagorean theorem can be written as an equation relating the lengths of the sides "
     },
     {
       "self_ref": "#/texts/3",
@@ -268,7 +268,7 @@
       "label": "text",
       "prov": [],
       "orig": "a",
-      "text": "a",
+      "text": "a ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -287,7 +287,7 @@
       "label": "text",
       "prov": [],
       "orig": ",",
-      "text": ","
+      "text": ", "
     },
     {
       "self_ref": "#/texts/5",
@@ -299,7 +299,7 @@
       "label": "text",
       "prov": [],
       "orig": "b",
-      "text": "b",
+      "text": "b ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -318,7 +318,7 @@
       "label": "text",
       "prov": [],
       "orig": "and the hypotenuse",
-      "text": "and the hypotenuse"
+      "text": "and the hypotenuse "
     },
     {
       "self_ref": "#/texts/7",
@@ -330,7 +330,7 @@
       "label": "text",
       "prov": [],
       "orig": "c",
-      "text": "c",
+      "text": "c ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -361,7 +361,7 @@
       "label": "text",
       "prov": [],
       "orig": "To use Docling, simply install",
-      "text": "To use Docling, simply install"
+      "text": "To use Docling, simply install "
     },
     {
       "self_ref": "#/texts/10",
@@ -389,7 +389,7 @@
       "label": "text",
       "prov": [],
       "orig": "from your package manager, e.g. pip:",
-      "text": "from your package manager, e.g. pip:"
+      "text": " from your package manager, e.g. pip: "
     },
     {
       "self_ref": "#/texts/12",
@@ -417,7 +417,7 @@
       "label": "text",
       "prov": [],
       "orig": "To convert individual documents with python, use",
-      "text": "To convert individual documents with python, use"
+      "text": "To convert individual documents with python, use "
     },
     {
       "self_ref": "#/texts/14",
@@ -445,7 +445,7 @@
       "label": "text",
       "prov": [],
       "orig": ", for example:",
-      "text": ", for example:"
+      "text": " , for example:"
     },
     {
       "self_ref": "#/texts/16",
@@ -473,7 +473,7 @@
       "label": "text",
       "prov": [],
       "orig": "The program will output:",
-      "text": "The program will output:"
+      "text": "The program will output: "
     },
     {
       "self_ref": "#/texts/18",
@@ -531,7 +531,7 @@
       "label": "text",
       "prov": [],
       "orig": "Use the",
-      "text": "Use the"
+      "text": "Use the "
     },
     {
       "self_ref": "#/texts/22",
@@ -559,7 +559,7 @@
       "label": "text",
       "prov": [],
       "orig": "utility:",
-      "text": "utility:"
+      "text": " utility:"
     },
     {
       "self_ref": "#/texts/24",
@@ -589,7 +589,7 @@
       "label": "text",
       "prov": [],
       "orig": "Alternatively, models can be programmatically downloaded using",
-      "text": "Alternatively, models can be programmatically downloaded using"
+      "text": "Alternatively, models can be programmatically downloaded using "
     },
     {
       "self_ref": "#/texts/26",
@@ -617,7 +617,7 @@
       "label": "text",
       "prov": [],
       "orig": ".",
-      "text": "."
+      "text": " ."
     },
     {
       "self_ref": "#/texts/28",
@@ -647,7 +647,7 @@
       "label": "text",
       "prov": [],
       "orig": "Also, you can use download-hf-repo parameter to download arbitrary models from HuggingFace by specifying repo id:",
-      "text": "Also, you can use download-hf-repo parameter to download arbitrary models from HuggingFace by specifying repo id:"
+      "text": "Also, you can use download-hf-repo parameter to download arbitrary models from HuggingFace by specifying repo id: "
     },
     {
       "self_ref": "#/texts/30",

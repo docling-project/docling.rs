@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "word_image_anchors",
   "origin": {
     "mimetype": "text/plain",
@@ -151,7 +151,7 @@
       "label": "text",
       "prov": [],
       "orig": "This is test 1",
-      "text": "This is test 1",
+      "text": "This is test 1 ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -201,7 +201,7 @@
       "label": "text",
       "prov": [],
       "orig": "This is test 2",
-      "text": "This is test 2",
+      "text": "This is test 2 ",
       "formatting": {
         "bold": true,
         "italic": false,

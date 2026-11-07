@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "pmc2231364",
   "origin": {
     "mimetype": "text/plain",
@@ -184,7 +184,7 @@
       "label": "text",
       "prov": [],
       "orig": "Environmental modulation of gene expression in",
-      "text": "Environmental modulation of gene expression in"
+      "text": "Environmental modulation of gene expression in "
     },
     {
       "self_ref": "#/texts/5",
@@ -196,7 +196,7 @@
       "label": "text",
       "prov": [],
       "orig": "Yersinia pestis",
-      "text": "Yersinia pestis",
+      "text": "Yersinia pestis ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -215,7 +215,7 @@
       "label": "text",
       "prov": [],
       "orig": "is critical for its life style and pathogenesis. Using cDNA microarray technology, we have analyzed the global gene expression of this deadly pathogen when grown under different stress conditions",
-      "text": "is critical for its life style and pathogenesis. Using cDNA microarray technology, we have analyzed the global gene expression of this deadly pathogen when grown under different stress conditions"
+      "text": "is critical for its life style and pathogenesis. Using cDNA microarray technology, we have analyzed the global gene expression of this deadly pathogen when grown under different stress conditions "
     },
     {
       "self_ref": "#/texts/7",
@@ -227,7 +227,7 @@
       "label": "text",
       "prov": [],
       "orig": "in vitro",
-      "text": "in vitro",
+      "text": "in vitro ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -275,7 +275,7 @@
       "label": "text",
       "prov": [],
       "orig": "To provide us with a comprehensive view of environmental modulation of global gene expression in",
-      "text": "To provide us with a comprehensive view of environmental modulation of global gene expression in"
+      "text": "To provide us with a comprehensive view of environmental modulation of global gene expression in "
     },
     {
       "self_ref": "#/texts/11",
@@ -287,7 +287,7 @@
       "label": "text",
       "prov": [],
       "orig": "Y. pestis",
-      "text": "Y. pestis",
+      "text": "Y. pestis ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -306,7 +306,7 @@
       "label": "text",
       "prov": [],
       "orig": ", we have analyzed the gene expression profiles of 25 different stress conditions. Almost all known virulence genes of",
-      "text": ", we have analyzed the gene expression profiles of 25 different stress conditions. Almost all known virulence genes of"
+      "text": ", we have analyzed the gene expression profiles of 25 different stress conditions. Almost all known virulence genes of "
     },
     {
       "self_ref": "#/texts/13",
@@ -318,7 +318,7 @@
       "label": "text",
       "prov": [],
       "orig": "Y. pestis",
-      "text": "Y. pestis",
+      "text": "Y. pestis ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -366,7 +366,7 @@
       "label": "text",
       "prov": [],
       "orig": "The comparative transcriptomics analysis we present here not only benefits our understanding of the molecular determinants of pathogenesis and cellular regulatory circuits in",
-      "text": "The comparative transcriptomics analysis we present here not only benefits our understanding of the molecular determinants of pathogenesis and cellular regulatory circuits in"
+      "text": "The comparative transcriptomics analysis we present here not only benefits our understanding of the molecular determinants of pathogenesis and cellular regulatory circuits in "
     },
     {
       "self_ref": "#/texts/17",
@@ -378,7 +378,7 @@
       "label": "text",
       "prov": [],
       "orig": "Y. pestis",
-      "text": "Y. pestis",
+      "text": "Y. pestis ",
       "formatting": {
         "bold": false,
         "italic": true,

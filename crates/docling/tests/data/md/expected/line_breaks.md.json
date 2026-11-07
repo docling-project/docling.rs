@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "line_breaks",
   "origin": {
     "mimetype": "text/plain",
@@ -361,7 +361,7 @@
       "label": "text",
       "prov": [],
       "orig": "Author",
-      "text": "Author"
+      "text": "Author "
     },
     {
       "self_ref": "#/texts/14",
@@ -373,7 +373,7 @@
       "label": "text",
       "prov": [],
       "orig": "John",
-      "text": "John",
+      "text": "John ",
       "formatting": {
         "bold": true,
         "italic": false,

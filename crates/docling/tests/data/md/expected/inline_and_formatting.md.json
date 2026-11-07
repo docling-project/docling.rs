@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "inline_and_formatting",
   "origin": {
     "mimetype": "text/plain",
@@ -647,7 +647,7 @@
       "label": "text",
       "prov": [],
       "orig": "Foo",
-      "text": "Foo"
+      "text": "Foo "
     },
     {
       "self_ref": "#/texts/3",
@@ -659,7 +659,7 @@
       "label": "text",
       "prov": [],
       "orig": "emphasis",
-      "text": "emphasis",
+      "text": "emphasis ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -678,7 +678,7 @@
       "label": "text",
       "prov": [],
       "orig": "strong emphasis",
-      "text": "strong emphasis",
+      "text": "strong emphasis ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -697,7 +697,7 @@
       "label": "text",
       "prov": [],
       "orig": "both",
-      "text": "both",
+      "text": "both ",
       "formatting": {
         "bold": true,
         "italic": true,
@@ -728,7 +728,7 @@
       "label": "text",
       "prov": [],
       "orig": "Create your feature branch:",
-      "text": "Create your feature branch:"
+      "text": "Create your feature branch: "
     },
     {
       "self_ref": "#/texts/8",
@@ -756,7 +756,7 @@
       "label": "text",
       "prov": [],
       "orig": ".",
-      "text": "."
+      "text": " ."
     },
     {
       "self_ref": "#/texts/10",
@@ -786,7 +786,7 @@
       "label": "text",
       "prov": [],
       "orig": "Pull the",
-      "text": "Pull the"
+      "text": "Pull the "
     },
     {
       "self_ref": "#/texts/12",
@@ -798,7 +798,7 @@
       "label": "text",
       "prov": [],
       "orig": "repository",
-      "text": "repository",
+      "text": "repository ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -848,7 +848,7 @@
       "label": "text",
       "prov": [],
       "orig": "Create your feature branch (",
-      "text": "Create your feature branch ("
+      "text": "Create your feature branch ( "
     },
     {
       "self_ref": "#/texts/16",
@@ -876,7 +876,7 @@
       "label": "text",
       "prov": [],
       "orig": ")",
-      "text": ")"
+      "text": " )"
     },
     {
       "self_ref": "#/texts/18",
@@ -906,7 +906,7 @@
       "label": "text",
       "prov": [],
       "orig": "Commit your changes (",
-      "text": "Commit your changes ("
+      "text": "Commit your changes ( "
     },
     {
       "self_ref": "#/texts/20",
@@ -934,7 +934,7 @@
       "label": "text",
       "prov": [],
       "orig": ")",
-      "text": ")"
+      "text": " )"
     },
     {
       "self_ref": "#/texts/22",
@@ -964,7 +964,7 @@
       "label": "text",
       "prov": [],
       "orig": "Push to the branch (",
-      "text": "Push to the branch ("
+      "text": "Push to the branch ( "
     },
     {
       "self_ref": "#/texts/24",
@@ -992,7 +992,7 @@
       "label": "text",
       "prov": [],
       "orig": ")",
-      "text": ")"
+      "text": " )"
     },
     {
       "self_ref": "#/texts/26",
@@ -1057,7 +1057,7 @@
       "label": "text",
       "prov": [],
       "orig": "List item has",
-      "text": "List item has"
+      "text": "List item has "
     },
     {
       "self_ref": "#/texts/30",
@@ -1069,7 +1069,7 @@
       "label": "text",
       "prov": [],
       "orig": "mixed or partial",
-      "text": "mixed or partial",
+      "text": "mixed or partial ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -1137,7 +1137,7 @@
       "label": "text",
       "prov": [],
       "orig": "First",
-      "text": "First",
+      "text": "First ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1186,7 +1186,7 @@
       "label": "text",
       "prov": [],
       "orig": "Second",
-      "text": "Second",
+      "text": "Second ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1205,7 +1205,7 @@
       "label": "text",
       "prov": [],
       "orig": ": Dolor",
-      "text": ": Dolor"
+      "text": ": Dolor "
     },
     {
       "self_ref": "#/texts/39",
@@ -1233,7 +1233,7 @@
       "label": "text",
       "prov": [],
       "orig": "amet.",
-      "text": "amet."
+      "text": " amet."
     },
     {
       "self_ref": "#/texts/41",
@@ -1245,7 +1245,7 @@
       "label": "text",
       "prov": [],
       "orig": "Some",
-      "text": "Some"
+      "text": "Some "
     },
     {
       "self_ref": "#/texts/42",
@@ -1297,7 +1297,7 @@
       "label": "text",
       "prov": [],
       "orig": "Partially formatted",
-      "text": "Partially formatted",
+      "text": "Partially formatted ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -1316,7 +1316,7 @@
       "label": "text",
       "prov": [],
       "orig": "heading to_escape",
-      "text": "heading to_escape"
+      "text": "heading to_escape "
     },
     {
       "self_ref": "#/texts/46",
@@ -1344,7 +1344,7 @@
       "label": "text",
       "prov": [],
       "orig": "This is",
-      "text": "This is"
+      "text": "This is "
     },
     {
       "self_ref": "#/texts/48",
@@ -1356,7 +1356,7 @@
       "label": "text",
       "prov": [],
       "orig": "old",
-      "text": "old",
+      "text": "old ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1463,7 +1463,7 @@
       "label": "text",
       "prov": [],
       "orig": "C",
-      "text": "C",
+      "text": "C ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1494,7 +1494,7 @@
       "label": "text",
       "prov": [],
       "orig": "foo",
-      "text": "foo"
+      "text": "foo "
     },
     {
       "self_ref": "#/texts/58",
@@ -1525,7 +1525,7 @@
       "label": "text",
       "prov": [],
       "orig": "A",
-      "text": "A",
+      "text": "A ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1563,7 +1563,7 @@
       "label": "text",
       "prov": [],
       "orig": "italic",
-      "text": "italic",
+      "text": "italic ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -1582,7 +1582,7 @@
       "label": "text",
       "prov": [],
       "orig": "and",
-      "text": "and"
+      "text": "and "
     },
     {
       "self_ref": "#/texts/63",
@@ -1594,7 +1594,7 @@
       "label": "text",
       "prov": [],
       "orig": "bold",
-      "text": "bold",
+      "text": "bold ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1613,7 +1613,7 @@
       "label": "text",
       "prov": [],
       "orig": "and",
-      "text": "and"
+      "text": "and "
     },
     {
       "self_ref": "#/texts/65",
@@ -1644,7 +1644,7 @@
       "label": "text",
       "prov": [],
       "orig": "run",
-      "text": "run"
+      "text": "run "
     },
     {
       "self_ref": "#/texts/67",
@@ -1672,7 +1672,7 @@
       "label": "text",
       "prov": [],
       "orig": "now",
-      "text": "now"
+      "text": " now"
     },
     {
       "self_ref": "#/texts/69",
@@ -1684,7 +1684,7 @@
       "label": "text",
       "prov": [],
       "orig": "visit",
-      "text": "visit"
+      "text": "visit "
     },
     {
       "self_ref": "#/texts/70",

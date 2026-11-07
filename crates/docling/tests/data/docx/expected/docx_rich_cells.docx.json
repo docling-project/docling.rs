@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "docx_rich_cells",
   "origin": {
     "mimetype": "text/plain",
@@ -967,7 +967,7 @@
       "label": "text",
       "prov": [],
       "orig": "B",
-      "text": "B",
+      "text": "B ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1023,7 +1023,7 @@
       "label": "text",
       "prov": [],
       "orig": "B",
-      "text": "B",
+      "text": "B ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1079,7 +1079,7 @@
       "label": "text",
       "prov": [],
       "orig": "B",
-      "text": "B",
+      "text": "B ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1777,7 +1777,7 @@
       "label": "text",
       "prov": [],
       "orig": "After table with",
-      "text": "After table with",
+      "text": "After table with ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1796,7 +1796,7 @@
       "label": "text",
       "prov": [],
       "orig": "bold",
-      "text": "bold",
+      "text": "bold ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1815,7 +1815,7 @@
       "label": "text",
       "prov": [],
       "orig": ",",
-      "text": ",",
+      "text": ", ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1834,7 +1834,7 @@
       "label": "text",
       "prov": [],
       "orig": "underline",
-      "text": "underline",
+      "text": "underline ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1853,7 +1853,7 @@
       "label": "text",
       "prov": [],
       "orig": ",",
-      "text": ",",
+      "text": ", ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1872,7 +1872,7 @@
       "label": "text",
       "prov": [],
       "orig": "strikethrough",
-      "text": "strikethrough",
+      "text": "strikethrough ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1891,7 +1891,7 @@
       "label": "text",
       "prov": [],
       "orig": ", and",
-      "text": ", and",
+      "text": ", and ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1910,7 +1910,7 @@
       "label": "text",
       "prov": [],
       "orig": "italic",
-      "text": "italic",
+      "text": "italic ",
       "formatting": {
         "bold": false,
         "italic": true,

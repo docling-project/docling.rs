@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "pandoc_inlines",
   "origin": {
     "mimetype": "text/plain",
@@ -182,7 +182,7 @@
       "label": "text",
       "prov": [],
       "orig": "Bold run",
-      "text": "Bold run",
+      "text": "Bold run ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -201,7 +201,7 @@
       "label": "text",
       "prov": [],
       "orig": "and",
-      "text": "and"
+      "text": "and "
     },
     {
       "self_ref": "#/texts/6",
@@ -213,7 +213,7 @@
       "label": "text",
       "prov": [],
       "orig": "italic run",
-      "text": "italic run",
+      "text": "italic run ",
       "formatting": {
         "bold": false,
         "italic": true,

@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "example_06",
   "origin": {
     "mimetype": "text/plain",
@@ -177,7 +177,7 @@
       "label": "text",
       "prov": [],
       "orig": "This is a fourth div with a",
-      "text": "This is a fourth div with a"
+      "text": "This is a fourth div with a "
     },
     {
       "self_ref": "#/texts/8",
@@ -189,7 +189,7 @@
       "label": "text",
       "prov": [],
       "orig": "bold",
-      "text": "bold",
+      "text": "bold ",
       "formatting": {
         "bold": true,
         "italic": false,
