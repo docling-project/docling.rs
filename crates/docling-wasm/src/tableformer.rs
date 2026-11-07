@@ -83,9 +83,10 @@ async fn predict_structure(
             break;
         }
     }
-    // A runaway row (tf_core::BboxBook::runaway) is rejected like native:
-    // the region takes the geometric fallback.
-    if book.n == 0 || book.runaway() {
+    // A degenerate structure (tf_core::BboxBook::degenerate_reason — the
+    // runaway row, no row break, cut at the step budget) is rejected like
+    // native: the region takes the geometric fallback.
+    if book.n == 0 || book.degenerate_reason().is_some() {
         return Ok(Vec::new());
     }
 

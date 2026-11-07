@@ -365,6 +365,13 @@ diff lines and recovers content docling drops):
 * **Runaway TableFormer rows**: a decode that emits `lcel` until `MAX_STEPS`
   without a row break is rejected once a row passes 256 tags and the region
   takes the geometric table path (docling ends at a 1 × 1 table there).
+* **Degenerate TableFormer sequences** (docling#4592, #1000): a predicted
+  OTSL with no row break at all, or one that stops within two tags of the
+  1024-step budget without a final `nl` (cut mid-row), is discarded with a
+  warning, as docling does. docling then emits an empty table whose
+  uncovered in-box words become one text child; the port keeps its
+  geometric table path for the region instead, which keeps every word and
+  still yields a grid.
 * **Picture-in-table captions**: a picture inside a table that pairs with a
   caption stays a standalone figure (upstream nests it and loses the
   caption).
@@ -612,7 +619,9 @@ kept). `BboxBook` now stops once a row reaches `MAX_ROW_TAGS` (256; a 448-px
 input cannot resolve that many columns, and real tables stay far below it) and
 the structure is rejected, so the region takes the geometric table path: 12 ×
 17 with all 272 words, and 2.8 s of decoding instead of 14.3 s. A long table
-that fills `MAX_STEPS` with ordinary rows is unaffected. Snapshots 97/97
+that fills `MAX_STEPS` with ordinary rows keeps its structure when the budget
+ends on a row break; since docling#4592 (#1000) one cut mid-row is rejected
+like a sequence with no row break at all. Snapshots 97/97
 byte-identical; groundtruth unchanged.
 
 **Heading levels (#302, opt-in).** With `--heading-hierarchy` (off by default —
