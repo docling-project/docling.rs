@@ -1156,38 +1156,32 @@ fn wrap_last_commented(doc: &mut DoclingDocument, slots: Vec<usize>) {
     }
 }
 
-/// Merge adjacent same-format runs, serialize each (markers), join with spaces —
-/// docling-core's inline-group serialization (un-stripped, so spaces double up).
+/// Merge adjacent same-format runs, trim the paragraph's two ends
+/// (docling's `_normalize_odf_text_runs`, `trim_run_edges` since
+/// docling#3891), serialize each with its edge whitespace hoisted outside
+/// the markers, and concatenate — docling-core 2.106's inline group (#997).
+/// A hyperlink boundary is not special: its space stays in the run that
+/// owns it (`Watch [the example talk](…) for context.`).
 fn runs_to_text(mut runs: Vec<Run>) -> String {
     // merge adjacent same-fmt (and same-link) runs
     let mut merged: Vec<Run> = Vec::new();
-    for mut r in runs.drain(..) {
+    for r in runs.drain(..) {
         if let Some(last) = merged.last_mut() {
             if last.fmt == r.fmt && last.href == r.href {
                 last.text.push_str(&r.text);
                 continue;
             }
-            // docling's `_normalize_odf_text_runs`: a hyperlink boundary is a
-            // hard edge — the whitespace right at it is stripped so it doesn't
-            // double up with the separator the inline serializer inserts
-            // (`Watch [the example talk](…) for context.`).
-            if last.href != r.href {
-                last.text = last.text.trim_end().to_string();
-                r.text = r.text.trim_start().to_string();
-            }
         }
         merged.push(r);
     }
-    merged
+    docling_core::inline::trim_run_edges(merged, |r| r.text.as_str(), |r, t| r.text = t, |_| true)
         .iter()
-        .map(|r| serialize_run(&r.text, r.fmt, r.href.as_deref()))
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ")
-        // docling's `_normalize_odf_text_runs` strips the paragraph at both ends
-        // (e.g. a leading `<text:line-break/>`), keeping only internal breaks.
-        .trim()
-        .to_string()
+        .map(|r| {
+            docling_core::inline::hoist(&r.text, |core| {
+                serialize_run(core, r.fmt, r.href.as_deref())
+            })
+        })
+        .collect()
 }
 
 /// The structured [`InlineRun`]s for a paragraph — one per format group, the

@@ -747,7 +747,7 @@
       "label": "text",
       "prov": [],
       "orig": "B ",
-      "text": "B  "
+      "text": "B "
     },
     {
       "self_ref": "#/texts/8",
@@ -796,7 +796,7 @@
       "label": "text",
       "prov": [],
       "orig": "B ",
-      "text": "B  "
+      "text": "B "
     },
     {
       "self_ref": "#/texts/11",
@@ -845,7 +845,7 @@
       "label": "text",
       "prov": [],
       "orig": "B ",
-      "text": "B  "
+      "text": "B "
     },
     {
       "self_ref": "#/texts/14",
@@ -1003,7 +1003,7 @@
       "label": "text",
       "prov": [],
       "orig": "After table with ",
-      "text": "After table with  "
+      "text": "After table with "
     },
     {
       "self_ref": "#/texts/26",
@@ -1015,7 +1015,7 @@
       "label": "text",
       "prov": [],
       "orig": "bold",
-      "text": "bold ",
+      "text": "bold",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1034,7 +1034,7 @@
       "label": "text",
       "prov": [],
       "orig": ", ",
-      "text": ",  "
+      "text": ", "
     },
     {
       "self_ref": "#/texts/28",
@@ -1046,7 +1046,7 @@
       "label": "text",
       "prov": [],
       "orig": "underline",
-      "text": "underline ",
+      "text": "underline",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1065,7 +1065,7 @@
       "label": "text",
       "prov": [],
       "orig": ", ",
-      "text": ",  "
+      "text": ", "
     },
     {
       "self_ref": "#/texts/30",
@@ -1077,7 +1077,7 @@
       "label": "text",
       "prov": [],
       "orig": "strikethrough",
-      "text": "strikethrough ",
+      "text": "strikethrough",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1096,7 +1096,7 @@
       "label": "text",
       "prov": [],
       "orig": ", and ",
-      "text": ", and  "
+      "text": ", and "
     },
     {
       "self_ref": "#/texts/32",
@@ -1108,7 +1108,7 @@
       "label": "text",
       "prov": [],
       "orig": "italic",
-      "text": "italic ",
+      "text": "italic",
       "formatting": {
         "bold": false,
         "italic": true,
