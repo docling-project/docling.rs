@@ -1729,6 +1729,7 @@ fn clean_text_keep_wrap(text: &str) -> String {
     // justified double spaces); preserve internal runs of spaces, only
     // normalizing line breaks/tabs and trimming the ends.
     let out = replaced.replace(['\n', '\r', '\t'], " ").trim().to_string();
+    let out = fold_presentation_forms(&out);
     let mut out = fix_arabic_lam_alef(&out);
     if wrap && !out.is_empty() {
         out.push('\u{ad}');
@@ -1783,6 +1784,87 @@ fn fold_typography(text: &str) -> String {
         .replace('\u{2044}', "/") // ⁄ fraction slash → /
         .replace('\u{2022}', "\u{b7}") // • → · (docling never emits •; inline CCS-concept separators)
         .replace('\u{2026}', "...") // … → ...
+}
+
+/// The character folds of docling's `normalize_extracted_text` (docling#3929,
+/// docling#5069) beyond [`fold_typography`]: Latin ligatures spelled out
+/// (`ﬁ` → `fi`, `ﬅ`/`ﬆ` → `st`, Dutch `Ĳ`/`ĳ` → `IJ`/`ij`), the spurious
+/// private-use glyph U+F0A0 some fonts emit dropped, and runs of Arabic
+/// Presentation Forms-A/B (U+FB50–FDFF, U+FE70–FEFF) NFKC-folded back to the
+/// canonical letters, so shaped Arabic (`ﻣﺎﺮﺱ` → `مارس`) is searchable. The
+/// NFKC is per run, never global, so `x²`, `H₂O` and full-width forms
+/// survive. The text layer already spells out U+FB00–FB06
+/// (`textparse::decompose_ligatures`); folding them here too covers the
+/// other text sources. Not typography: `pdf_keep_typography` keeps these.
+pub(crate) fn fold_presentation_forms(text: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    let is_arabic_form = |c: char| matches!(c, '\u{FB50}'..='\u{FDFF}' | '\u{FE70}'..='\u{FEFF}');
+    let needs = |c: char| {
+        matches!(
+            c,
+            '\u{FB00}'..='\u{FB06}' | '\u{132}' | '\u{133}' | '\u{F0A0}'
+        ) || is_arabic_form(c)
+    };
+    if !text.chars().any(needs) {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut run = String::new();
+    for c in text.chars() {
+        if is_arabic_form(c) {
+            run.push(c);
+            continue;
+        }
+        if !run.is_empty() {
+            out.extend(run.nfkc());
+            run.clear();
+        }
+        match c {
+            '\u{FB00}' => out.push_str("ff"),
+            '\u{FB01}' => out.push_str("fi"),
+            '\u{FB02}' => out.push_str("fl"),
+            '\u{FB03}' => out.push_str("ffi"),
+            '\u{FB04}' => out.push_str("ffl"),
+            '\u{FB05}' | '\u{FB06}' => out.push_str("st"),
+            '\u{132}' => out.push_str("IJ"),
+            '\u{133}' => out.push_str("ij"),
+            '\u{F0A0}' => {}
+            _ => out.push(c),
+        }
+    }
+    if !run.is_empty() {
+        out.extend(run.nfkc());
+    }
+    out
+}
+
+/// docling's `normalize_extracted_text` for a TableFormer cell (docling#5069):
+/// cells get the same folds as body text — before, only `@ ` joined, so a
+/// cell kept `it’s`, `“quoted”` and `• dot` where the paragraph beside it
+/// read `it's`, `"quoted"`, `· dot`. The typography half honours
+/// `pdf_keep_typography` like [`clean_text_keep_wrap`]; the Arabic lam-alef
+/// reordering stays a body-text step (pdfium's visual-order runs).
+fn normalize_table_text(text: &str) -> String {
+    let text = if KEEP_TYPOGRAPHY.with(std::cell::Cell::get) {
+        text.to_string()
+    } else {
+        fold_typography(text)
+    };
+    fold_presentation_forms(&text)
+}
+
+/// [`normalize_table_text`] over a TableFormer grid: the dense `rows` text and
+/// the first-class `cells` the JSON / DocLang exports read.
+fn normalize_grid(mut grid: TableGrid) -> TableGrid {
+    for row in &mut grid.rows {
+        for cell in row.iter_mut() {
+            *cell = normalize_table_text(cell);
+        }
+    }
+    for cell in &mut grid.cells {
+        cell.text = normalize_table_text(&cell.text);
+    }
+    grid
 }
 
 /// pdfium decomposes the Arabic lam-alef ligature (لا / لإ / لأ / لآ) into its
@@ -3701,7 +3783,7 @@ pub fn assemble_page(
                 // the public model, and the DocLang structure overlay derives
                 // from them so DCLX emits real span/header tokens. The
                 // geometric fallback has no per-cell records.
-                let (mut rows, cells, structure) = match table_rows[i].clone() {
+                let (mut rows, cells, structure) = match table_rows[i].clone().map(normalize_grid) {
                     Some(grid) => {
                         let nrows = grid.rows.len();
                         let ncols = grid.rows.first().map_or(0, Vec::len);
@@ -6021,5 +6103,77 @@ mod tests {
             &cell("perfect", 302.0, 98.0, 330.0, 106.0),
             &host
         ));
+    }
+
+    /// docling#3929 `TestSanitizeTextArabicPresentationForms` (#1001): shaped
+    /// Arabic folds to the canonical letters, per run — other scripts' NFKC
+    /// compatibility forms are left alone.
+    #[test]
+    fn arabic_presentation_forms_fold_like_docling() {
+        assert_eq!(clean_text("ﻣﺎﺮﺱ"), "مارس");
+        assert_eq!(clean_text("ﻻ"), "لا");
+        assert_eq!(clean_text("ﭘ"), "پ");
+        assert!(clean_text("ﺍﻟﺤﺮﺱ").contains("الحرس"));
+        assert_eq!(clean_text("مرحبا"), "مرحبا");
+        assert_eq!(clean_text("x²"), "x²");
+        assert_eq!(clean_text("H₂O"), "H₂O");
+        let fullwidth: String = [0xFF46, 0xFF55, 0xFF4C, 0xFF4C]
+            .iter()
+            .map(|&c| char::from_u32(c).unwrap())
+            .collect();
+        assert_eq!(clean_text(&fullwidth), fullwidth);
+        assert_eq!(clean_text("2024 ﻣﺎﺮﺱ x²"), "2024 مارس x²");
+    }
+
+    /// docling#5069's ligature map (#1001): `ﬅ` is `ſt` → `st`, Dutch `Ĳ`/`ĳ`
+    /// spell out, the spurious U+F0A0 glyph goes and a real word boundary
+    /// after it stays.
+    #[test]
+    fn ligatures_and_the_private_use_glyph_fold_like_docling() {
+        assert_eq!(clean_text("\u{FB05}ar \u{FB06}op"), "star stop");
+        assert_eq!(clean_text("\u{132} is \u{133}s"), "IJ is ijs");
+        assert_eq!(clean_text("hello\u{F0A0} world"), "hello world");
+        assert_eq!(clean_text("con\u{FB01}gure"), "configure");
+    }
+
+    /// docling#5069: TableFormer cells get body text's folds (they kept
+    /// `it’s`, `“quoted”`, `• dot` and shaped Arabic), unless
+    /// `pdf_keep_typography` keeps the typography.
+    #[test]
+    fn table_cells_are_normalized_like_body_text() {
+        use super::{normalize_grid, TableGrid, TypographyScope};
+        let grid = || TableGrid {
+            rows: vec![vec![
+                "it\u{2019}s".into(),
+                "\u{201c}quoted\u{201d}".into(),
+                "\u{2022} dot".into(),
+                "ﻣﺎﺮﺱ".into(),
+            ]],
+            cells: vec![docling_core::TableCell {
+                text: "\u{201c}a\u{FB01}\u{201d}".into(),
+                bbox: None,
+                start_row: 0,
+                start_col: 0,
+                row_span: 1,
+                col_span: 1,
+                column_header: false,
+                row_header: false,
+                row_section: false,
+            }],
+        };
+        let g = normalize_grid(grid());
+        assert_eq!(g.rows[0], ["it's", "\"quoted\"", "\u{b7} dot", "مارس"]);
+        assert_eq!(g.cells[0].text, "\"afi\"");
+        let _keep = TypographyScope::set(true);
+        let g = normalize_grid(grid());
+        assert_eq!(
+            g.rows[0],
+            [
+                "it\u{2019}s",
+                "\u{201c}quoted\u{201d}",
+                "\u{2022} dot",
+                "مارس"
+            ]
+        );
     }
 }

@@ -106,6 +106,9 @@ flate2 = { version = "1", optional = true }
 tar = { version = "0.4", optional = true }
 regex = { version = "1.11", optional = true }
 lopdf = "0.45"
+# Scoped NFKC of Arabic presentation-form runs in extracted text
+# (docling#3929, #1001) — pure Rust, already in the workspace lock (docling).
+unicode-normalization = "0.1"
 fast_image_resize = { version = "5.1.4", optional = true }
 # `/LZWDecode` image data for the pure-Rust raster of image-only pages
 # (`raster/filters.rs`) — lopdf's own LZW crate. (The raster's JPEG decoder
