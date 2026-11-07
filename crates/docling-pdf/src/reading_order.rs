@@ -66,6 +66,11 @@ impl Bl {
         let (i0, i1) = (self.b.max(o.b), self.t.min(o.t));
         (i1 - i0) / (u1 - u0) > iou
     }
+    /// `overlaps` (docling_core `BoundingBox`): the boxes share area — both
+    /// spans overlap, touching edges do not count.
+    fn overlaps(&self, o: &Bl) -> bool {
+        self.overlaps_h(o) && !(self.t <= o.b || o.t <= self.b)
+    }
     /// `PageElement.__lt__` for same-page elements: a horizontally-overlapping
     /// pair reads higher-first (larger bottom edge in bottom-left), otherwise the
     /// left-most reads first. Returns whether `self` reads before `other`.
@@ -201,12 +206,50 @@ fn dilate(orig: &[Bl], up: &[Vec<usize>], dn: &[Vec<usize>], page_w: f32) -> Vec
                 }
             }
         }
+        // docling#5131: a widening that would make the box overlap any other
+        // element is dropped — the widened box would reach over a neighbouring
+        // column and become a parent of its elements. (Upstream's check ran
+        // after the box was already written, so it never fired; our earlier
+        // port had no check at all, matching that.) The test is against the
+        // undilated boxes, as upstream's `page_elems`.
         if !skip {
-            dil[i].l = x0;
-            dil[i].r = x1;
+            let wide = Bl {
+                l: x0,
+                r: x1,
+                ..orig[i]
+            };
+            let overlaps_rest = orig
+                .iter()
+                .enumerate()
+                .any(|(j, o)| j != i && o.overlaps(&wide));
+            if !overlaps_rest {
+                dil[i].l = x0;
+                dil[i].r = x1;
+            }
         }
     }
     dil
+}
+
+/// `_is_separated_above` (docling#4438): `upper` reads before `lower` although
+/// the two share no column, because a third element lies strictly between
+/// them vertically and spans both horizontally — they sit in successive bands
+/// of the page (centred headings over full-width legal text), not in
+/// side-by-side columns. Upstream queries an rtree over the query box first;
+/// the predicates alone already confine `w` to that box, so a scan matches.
+fn is_separated_above(elems: &[Bl], upper: usize, lower: usize) -> bool {
+    let (u, d) = (&elems[upper], &elems[lower]);
+    if u.overlaps_h(d) || !u.strictly_above(d) {
+        return false;
+    }
+    elems.iter().enumerate().any(|(w, ew)| {
+        w != upper
+            && w != lower
+            && u.strictly_above(ew)
+            && ew.strictly_above(d)
+            && ew.overlaps_h(u)
+            && ew.overlaps_h(d)
+    })
 }
 
 /// Iterative `_depth_first_search_upwards`: climb `up` edges to the top-most
@@ -277,8 +320,19 @@ fn predict(orig: &[Bl], cids: &[usize], page_w: f32) -> Vec<usize> {
 
     let by_geom = |a: usize, b: usize| orig[a].before(&orig[b]);
 
+    // Heads sort by `_find_heads`' comparator (docling#4438): a head separated
+    // above the other by spanning text reads first, else the geometric
+    // `__lt__`. Children keep the plain `__lt__` (`_sort_ud_maps`).
     let mut heads: Vec<usize> = (0..n).filter(|&i| up[i].is_empty()).collect();
-    py_sort(&mut heads, by_geom);
+    py_sort(&mut heads, |a, b| {
+        if is_separated_above(orig, a, b) {
+            true
+        } else if is_separated_above(orig, b, a) {
+            false
+        } else {
+            by_geom(a, b)
+        }
+    });
     for children in dn.iter_mut() {
         py_sort(children, by_geom);
     }
@@ -515,5 +569,74 @@ mod tests {
         let unlinked = order_page(&boxes, &[0, 5, 1], &flags, &flags, 517.6, 666.4);
         assert_eq!(linked, unlinked);
         assert_eq!(linked, [0, 1, 2]);
+    }
+
+    /// Upstream's `_box(cid, label, b, t, l=, r=)` elements are bottom-left on
+    /// a US-letter page; `order_page` takes top-left boxes, so flip them, and
+    /// number the cids in input order as `_predicted_cids` does.
+    fn predicted(bl: &[(f32, f32, f32, f32)]) -> Vec<usize> {
+        const H: f32 = 792.0;
+        let boxes: Vec<_> = bl
+            .iter()
+            .map(|&(b, t, l, r)| (l, H - t, r, H - b))
+            .collect();
+        let cids: Vec<usize> = (0..boxes.len()).collect();
+        let flags = vec![false; boxes.len()];
+        order_page(&boxes, &cids, &flags, &flags, 612.0, H)
+    }
+
+    /// docling#5131 `test_horizontal_dilation_skips_a_widening_that_overlaps_a_neighbour`.
+    #[test]
+    fn horizontal_dilation_skips_a_widening_that_overlaps_a_neighbour() {
+        let order = predicted(&[
+            (740.0, 760.0, 240.0, 360.0),
+            (705.0, 720.0, 60.0, 220.0),
+            (600.0, 690.0, 40.0, 290.0),
+            (500.0, 590.0, 40.0, 290.0),
+            (640.0, 730.0, 310.0, 560.0),
+        ]);
+        assert_eq!(order, [0, 1, 2, 3, 4]);
+    }
+
+    /// docling#5131 `test_horizontal_dilation_skips_a_widening_to_a_wide_caption_below`.
+    #[test]
+    fn horizontal_dilation_skips_a_widening_to_a_wide_caption_below() {
+        let order = predicted(&[
+            (600.0, 700.0, 40.0, 290.0),
+            (480.0, 590.0, 40.0, 290.0),
+            (620.0, 700.0, 310.0, 560.0),
+            (540.0, 610.0, 310.0, 560.0),
+            (450.0, 530.0, 350.0, 560.0),
+            (420.0, 440.0, 40.0, 340.0),
+        ]);
+        assert_eq!(order, [0, 1, 2, 3, 4, 5]);
+    }
+
+    /// docling#4438 `test_heads_separated_by_full_width_text_are_read_top_down`
+    /// (docling#4433, page 4 of OJ L 2025/492).
+    #[test]
+    fn heads_separated_by_full_width_text_are_read_top_down() {
+        let order = predicted(&[
+            (561.8, 570.1, 67.4, 482.7),
+            (521.4, 528.8, 67.4, 194.5),
+            (480.9, 488.4, 278.0, 317.3),
+            (405.6, 414.2, 285.4, 309.8),
+            (322.0, 387.9, 67.4, 529.9),
+            (263.5, 272.1, 274.6, 320.7),
+            (237.4, 245.8, 67.4, 202.0),
+            (190.4, 219.7, 67.4, 529.9),
+        ]);
+        assert_eq!(order, [0, 1, 2, 3, 4, 5, 6, 7]);
+    }
+
+    /// docling#4438 `test_heads_in_side_by_side_columns_keep_column_order`.
+    #[test]
+    fn heads_in_side_by_side_columns_keep_column_order() {
+        let order = predicted(&[
+            (700.0, 720.0, 320.0, 560.0),
+            (450.0, 680.0, 320.0, 560.0),
+            (100.0, 400.0, 50.0, 290.0),
+        ]);
+        assert_eq!(order, [2, 0, 1]);
     }
 }
