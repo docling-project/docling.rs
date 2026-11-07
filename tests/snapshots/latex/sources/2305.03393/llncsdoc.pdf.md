@@ -28,12 +28,6 @@ The llncs class is invoked by replacing article by llncs in the first line of yo
 \begin{document} <Your contribution> \end{document} If your file is already coded with LATEX, you can easily adapt it to the llncs document class by replacing \documentclass{article} with \documentclass{llncs}
 ```
 
-\thanks
-
-\fnmsep
-
-\titlerunning
-
 ## 3 How to Code the Header of Your Paper
 
 ## 3.1 Title
@@ -73,6 +67,12 @@ Numbers referring to different addresses or affiliations should be attached to \
 ORCID identifiers can be included with \orcidID
 
 \orcidID{&lt;ORCID identifier&gt;}
+
+\thanks
+
+\fnmsep
+
+\titlerunning
 
 \authorrunning
 
@@ -151,8 +151,6 @@ If you need blackboard bold characters, i.e. for sets of numbers, please load th
 
 Please note that all these characters are only available in math mode.
 
-## \spnewtheorem
-
 ## 5 Theorems, Definitions, and Proofs
 
 ## 5.1 Predefined Theorem-Like Environments
@@ -188,6 +186,8 @@ We have enhanced the standard \newtheorem command and slightly changed its synta
 ```
 
 \spnewtheorem{maintheorem}[theorem]{Main Theorem}{\bfseries}{\itshape}
+
+## \spnewtheorem
 
 \spnewtheorem*
 
@@ -237,12 +237,9 @@ The llncs document class contains several class options that have become obsolet
 
 - The llncs document class changes the formatting of vectors coded with orivec \vec to boldface italics. If you absolutely need the original LATEX design for vectors, i.e. an arrow above the related variable, you can restore it with the orivec option.
 
-envcountsame
+envcountsame envcountreset envcountsect openbib oribibl
 
 - All theorem-like environments share one counter, i.e. Theorem 1, Lemma 2, Corollary 3, etc.
-
-envcountreset envcountsect openbib oribibl
-
 - All theorem-like environments are numbered per section, i.e. the related counters are reset to 1 in every section.
 - All theorem-like environments are numbered per section, and the section number added to the individual counter, i.e. Theorem 1.2, Lemma 2.2, etc.
 - This option produces the "open" bibliography style, in which each block starts on a new line, and succeeding lines in a block are indented by \bibindent.

@@ -36,9 +36,11 @@ Rochester
 
 ## FIRST TIME AT POPULAR PRICES!
 
-FaR LaDy Treat * the entire family to the happiest entertainment Of all!
+FaR LaDy
 
 Winner of 8 Academy Awards!
+
+Treat * the entire family to the happiest entertainment Of all!
 
 <!-- image -->
 
@@ -48,17 +50,15 @@ TECHNCURPAAVFROARBR
 
 GET dUnLOP IMPORT QuAlITY IN THE AMERICAN MADE GOLD SEAL FULL 4 PLY (NOT 2 PLY) CONSTRUCTION - NO THUMP WITH TYREX CORD (NYLON ALSO AVAILABLE) Certified Safe At A SUSTAINED 100 M.P.H. Wholesale Prices to O. U. Students &amp; Faculty on Passenger Car, Sports Car, Radial Ply &amp; Racing Tires
 
-Bill Basinger DUNLOP
+Bill Basinger Bruce Robertson Tom Hill
 
 <!-- image -->
-
-Bruce Robertson
-
-Tom Hill
 
 ## R. B. DUNLOP TIRE SALES
 
 Phone: 651-3422 or 673-9227 after 5 p.m. call 334-6452
+
+DUNLOP
 
 ties cohtinues until seven or eight in the evening. When they return to the dormitory (all participants are housed in Anibal House this summer), they are encouraged to continue speaking nothing but French. They are bound together in a linguistic and cultural island, and their veryisolation within the French language and their tightness as a community is meant to increase their facility with the language. ties cohtinues until seven or eight
 

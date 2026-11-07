@@ -2,7 +2,7 @@ Extracted
 
 Table Images
 
-Names Amount
+Names
 
 1. Item
 
@@ -10,11 +10,9 @@ Names Amount
 
 3. Item
 
-4. Item
+4. Item Amount
 
 1000
-
-unit
 
 500
 
@@ -22,7 +20,7 @@ unit
 
 150
 
-unit unit unit Standardized Images Encoder BBox Decoder Structure Decoder Structure Tags in OTSL format
+unit unit unit unit Standardized Images Encoder BBox Decoder Structure Decoder Structure Tags in OTSL format
 
 1
 
@@ -46,8 +44,6 @@ BBoxes in sync with tag sequence
 
 2
 
-NL
-
 L
 
 C C
@@ -56,11 +52,13 @@ C C C 3
 
 C C C
 
-NL
-
-NL
-
 C C C
+
+NL
+
+NL
+
+NL
 
 NL
 

@@ -33,7 +33,7 @@ older, pypdfium2-era docling's and the pipeline was scored with OCR on.
 
 ## Current state
 
-**7 / 18 strict** against upstream's current groundtruth — total **407
+**8 / 18 strict** against upstream's current groundtruth — total **379
 diff lines** (`scripts/conformance/pdf_groundtruth.sh`: `--skip-ocr
 --compact-tables`, docling-parse renderer). The groundtruth was refreshed
 for #921 from docling's `tests/data/pdf/groundtruth` at upstream `dc4693f`
@@ -58,7 +58,8 @@ glues those pairs (`KhurramAzeemHashmi`), and so does the groundtruth; on
 #921's 92-page agreement it takes glued word pairs from 68 to 7 — and a page
 whose lines mostly draw space glyphs keeps docling-parse 7's 0.35 floor on
 its one-word lines too (`Offenlegungspf lichten`; no groundtruth file
-changes). That is the 407. (On the stale pre-refresh groundtruth the old tree
+changes). That is the 407; #998's reading-order port (docling#5131,
+docling#4438) took it to 8 / 18 and 379. (On the stale pre-refresh groundtruth the old tree
 read 10 / 18, 328 — a match to docling as it no longer is.) The two Korean
 image-only pages `skipped_1page` / `skipped_2pages` carry no text
 groundtruth and are not scored.
@@ -70,15 +71,15 @@ groundtruth and are not scored.
 | amt_handbook_sample | **exact** | — |
 | base14_fonts_rot90 / _rot180 / _rot270 | **exact** | — (`/Rotate` display-frame normalization, docling#4008; our own fixtures, groundtruth = the unrotated upstream file) |
 | code_and_formula | **exact** | — (flat legacy code, line-preserving `pretty` in strict) |
+| right_to_left_03 | **exact** | — (#998: the checkbox item's place, docling#4438's head order) |
 | right_to_left_01 | 2 | docling-parse 7 cuts `أيضًا` before its tanween (`أيض ً`); we keep the word |
 | right_to_left_02 | 2 | one word's place at a line start (`ووف`) |
-| right_to_left_03 | 4 | a checkbox list item's marker order |
 | 2203.01017v2 | 15 | line-end hyphens docling fuses (`im-`/`balance`, `appear-`/`ances`; `column- and` is our #920 divergence), one picture placeholder's slot; author names docling-parse 7 glues and we split (`KhurramAzeemHashmi`, `Harold WKuhn` — the #921 clustering clip), `\|T \|` |
 | 2305.03393v1 | 8 | two `\_ \_` items and the spacing of underscores in figure file names (`PMC5406406 \_ 003 \_ 01.png`) |
 | normal_4pages | 12 | docling folds the page-number glyph into the heading cluster (`## 들어가며 1`) where we emit it as its own item, and the `※` footnotes order |
 | 2206.01062 | 24 | `mAP@ 0.5-0.95` (docling-parse 7 splits after `@`, we before it), `tildelow10%` (its glyph-name mapping; we read `~10%`); words docling-parse 7 glues and we split (`RELATEDWORK`, `ANNOTATIONCAMPAIGN`, `LoganMarkewich`, `→Document` — the #921 clustering clip) |
 | multi_page | 32 | docling-parse 7 maps the list bullet glyph to `∞` and docling keeps it as text (`- ∞ IBM MT/ST …`); we read a bullet and drop it as the marker |
-| table_misidentified_as_form | 70 | the form container's nested table / picture (docling#4064): docling nests them inside the form region and keeps the heading, we flatten the region |
+| table_misidentified_as_form | 46 | the form container's nested table / picture (docling#4064): docling nests them inside the form region and keeps the heading, we flatten the region |
 | table_mislabeled_as_picture | 81 | the survey over-detected as tables; checkbox glyphs (`☐`) and blank cells docling keeps |
 | redp5110_sampled | 157 | TOC dot leaders docling keeps as `. . . . . .` in the page column; monospace code docling-parse 7 spaces around punctuation (`EMPLOYEES .`, `( SESSION_USER , 'MGR' )`); `/SM590000` glyph names |
 
@@ -314,7 +315,7 @@ diff history of each port lives in the git log of these files).
 | `_sort_cells` (docling-parse index order), `PageAssembleModel.sanitize_text` (docling#4052) | a region's cells serialize in source order; lines join with a space except after an *attached* dash, which fuses the wrapped word; a detached dash is kept | `assemble::cells_text` |
 | `predict_merges` (docling#3888) | cross-column / cross-page paragraph continuations (a hard hyphen before a lowercase continuation joins without it; the head test accepts a trailing comma; tables are in the skip set) | `assemble::merge_continuations` |
 | `_init_l2r_map` / `_init_ud_map` (docling#4093, 2.124) | two elements consecutive in assembly order, left strictly of right on one row (vertical IoU > 0.8), are linked left→right and a row is read through before the paragraph below it; the assembly rank is the region's first source cell (a table's or picture's first *interior* cell) | `reading_order::init_l2r` / `init_ud`, `assemble::cluster_cids` |
-| `_do_horizontal_dilation` overlap test (docling#5131), `_find_heads` + `_is_separated_above` (docling#4438) — #998 | a narrow box is widened toward its up/down neighbour only if the widened box overlaps no other element (upstream's check ran after the box was written, so it never fired; the port had none), so a box widened over the neighbouring column no longer parents its elements; heads separated by an element strictly between them that spans both horizontally read top-down (centred headings over full-width legal text, OJ L 2025/492), side-by-side columns keep the geometric order. Children still sort by the plain `__lt__`. docling#4276's separators and one-to-one edge test are not ported | `reading_order::dilate`, `is_separated_above` |
+| `_do_horizontal_dilation` overlap test (docling#5131), `_find_heads` + `_is_separated_above` (docling#4438) — #998 | a narrow box is widened toward its up/down neighbour only if the widened box overlaps no other element (upstream's check ran after the box was written, so it never fired; the port had none), so a box widened over the neighbouring column no longer parents its elements; heads separated by an element strictly between them that spans both horizontally read top-down (centred headings over full-width legal text, OJ L 2025/492), side-by-side columns keep the geometric order. Children still sort by the plain `__lt__`. docling#4276's separators and one-to-one edge test are not ported. Groundtruth 7 → 8 / 18 strict, 407 → 379 lines (`right_to_left_03` 4 → exact, `table_misidentified_as_form` 70 → 46); 21 of 98 snapshots moved (two-column figures, `llncsdoc`, the QR bill's receipt column before its payment part) | `reading_order::dilate`, `is_separated_above` |
 | `_find_to_captions` — `_rank_caption_candidates` + `_match_caption` (#265, #813) | a `caption` reaches the graphics (`picture`, `table` / `document_index`, `code`) in the unbroken run on either side of it in reading order — above *and* below, never across intervening text or the gutter — ranked by the shortest box gap (ties to the preceding graphic), and the graphics are matched by augmenting paths, a caption with a second choice yielding to one with none; #813 was the picture arm only looking *below* its figure, so a `Figure N:` label printed above never bound. Caption text is markdown-escaped on every arm | `assemble::pair_graphic_captions` |
 | `form` / `key_value_region` containers (docling#4064) | everything > 80 % inside is a child, ordered among itself and emitted as one block where the container sits (ordering only — the children stay top-level items, no `form_area` group node) | `assemble::order_with_containers` |
 | a picture ≥ 80 % inside a TableFormer table (docling#3906) | nested in the cell covering it: the cell reads `text  <!-- image -->`, the JSON grid keeps the text | `assemble::match_table_pictures` |
