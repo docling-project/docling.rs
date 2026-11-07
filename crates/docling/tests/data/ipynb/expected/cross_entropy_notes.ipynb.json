@@ -169,7 +169,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "It is never negative, and it is 0 only when $y = \\hat{y}$ — see",
+      "orig": "It is never negative, and it is 0 only when $y = \\hat{y}$ — see ",
       "text": "It is never negative, and it is 0 only when $y = \\hat{y}$ — see "
     },
     {
@@ -182,7 +182,7 @@
       "label": "text",
       "prov": [],
       "orig": "$$E=mc^2$$",
-      "text": "$$E=mc^2$$ ",
+      "text": "$$E=mc^2$$",
       "hyperlink": "https://en.wikipedia.org/wiki/Mass%E2%80%93energy_equivalence"
     },
     {
@@ -194,8 +194,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "for a formula that stays inline.",
-      "text": "for a formula that stays inline."
+      "orig": " for a formula that stays inline.",
+      "text": " for a formula that stays inline."
     },
     {
       "self_ref": "#/texts/10",

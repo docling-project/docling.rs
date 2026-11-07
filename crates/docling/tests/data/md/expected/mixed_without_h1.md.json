@@ -166,8 +166,8 @@
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "2 . strange",
-      "text": "2 . strange",
+      "orig": "2. strange",
+      "text": "2. strange",
       "enumerated": false,
       "marker": ""
     },

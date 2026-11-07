@@ -33,7 +33,7 @@
         "$ref": "#/groups/2"
       },
       {
-        "$ref": "#/texts/32"
+        "$ref": "#/texts/34"
       },
       {
         "$ref": "#/groups/8"
@@ -42,19 +42,19 @@
         "$ref": "#/groups/11"
       },
       {
-        "$ref": "#/texts/43"
+        "$ref": "#/texts/45"
       },
       {
         "$ref": "#/groups/13"
       },
       {
-        "$ref": "#/texts/50"
-      },
-      {
-        "$ref": "#/texts/51"
-      },
-      {
         "$ref": "#/texts/52"
+      },
+      {
+        "$ref": "#/texts/53"
+      },
+      {
+        "$ref": "#/texts/54"
       },
       {
         "$ref": "#/tables/0"
@@ -85,6 +85,12 @@
         },
         {
           "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        },
+        {
+          "$ref": "#/texts/8"
         }
       ],
       "content_layer": "body",
@@ -98,13 +104,13 @@
       },
       "children": [
         {
-          "$ref": "#/texts/7"
-        },
-        {
-          "$ref": "#/texts/8"
-        },
-        {
           "$ref": "#/texts/9"
+        },
+        {
+          "$ref": "#/texts/10"
+        },
+        {
+          "$ref": "#/texts/11"
         }
       ],
       "content_layer": "body",
@@ -118,25 +124,25 @@
       },
       "children": [
         {
-          "$ref": "#/texts/10"
+          "$ref": "#/texts/12"
         },
         {
-          "$ref": "#/texts/14"
+          "$ref": "#/texts/16"
         },
         {
-          "$ref": "#/texts/18"
+          "$ref": "#/texts/20"
         },
         {
-          "$ref": "#/texts/22"
-        },
-        {
-          "$ref": "#/texts/26"
-        },
-        {
-          "$ref": "#/texts/27"
+          "$ref": "#/texts/24"
         },
         {
           "$ref": "#/texts/28"
+        },
+        {
+          "$ref": "#/texts/29"
+        },
+        {
+          "$ref": "#/texts/30"
         }
       ],
       "content_layer": "body",
@@ -146,17 +152,17 @@
     {
       "self_ref": "#/groups/3",
       "parent": {
-        "$ref": "#/texts/10"
+        "$ref": "#/texts/12"
       },
       "children": [
         {
-          "$ref": "#/texts/11"
-        },
-        {
-          "$ref": "#/texts/12"
-        },
-        {
           "$ref": "#/texts/13"
+        },
+        {
+          "$ref": "#/texts/14"
+        },
+        {
+          "$ref": "#/texts/15"
         }
       ],
       "content_layer": "body",
@@ -166,17 +172,17 @@
     {
       "self_ref": "#/groups/4",
       "parent": {
-        "$ref": "#/texts/14"
+        "$ref": "#/texts/16"
       },
       "children": [
         {
-          "$ref": "#/texts/15"
-        },
-        {
-          "$ref": "#/texts/16"
-        },
-        {
           "$ref": "#/texts/17"
+        },
+        {
+          "$ref": "#/texts/18"
+        },
+        {
+          "$ref": "#/texts/19"
         }
       ],
       "content_layer": "body",
@@ -186,17 +192,17 @@
     {
       "self_ref": "#/groups/5",
       "parent": {
-        "$ref": "#/texts/18"
+        "$ref": "#/texts/20"
       },
       "children": [
         {
-          "$ref": "#/texts/19"
-        },
-        {
-          "$ref": "#/texts/20"
-        },
-        {
           "$ref": "#/texts/21"
+        },
+        {
+          "$ref": "#/texts/22"
+        },
+        {
+          "$ref": "#/texts/23"
         }
       ],
       "content_layer": "body",
@@ -206,17 +212,17 @@
     {
       "self_ref": "#/groups/6",
       "parent": {
-        "$ref": "#/texts/22"
+        "$ref": "#/texts/24"
       },
       "children": [
         {
-          "$ref": "#/texts/23"
-        },
-        {
-          "$ref": "#/texts/24"
-        },
-        {
           "$ref": "#/texts/25"
+        },
+        {
+          "$ref": "#/texts/26"
+        },
+        {
+          "$ref": "#/texts/27"
         }
       ],
       "content_layer": "body",
@@ -226,17 +232,17 @@
     {
       "self_ref": "#/groups/7",
       "parent": {
-        "$ref": "#/texts/28"
+        "$ref": "#/texts/30"
       },
       "children": [
         {
-          "$ref": "#/texts/29"
-        },
-        {
-          "$ref": "#/texts/30"
-        },
-        {
           "$ref": "#/texts/31"
+        },
+        {
+          "$ref": "#/texts/32"
+        },
+        {
+          "$ref": "#/texts/33"
         }
       ],
       "content_layer": "body",
@@ -250,10 +256,10 @@
       },
       "children": [
         {
-          "$ref": "#/texts/33"
+          "$ref": "#/texts/35"
         },
         {
-          "$ref": "#/texts/36"
+          "$ref": "#/texts/38"
         }
       ],
       "content_layer": "body",
@@ -263,14 +269,14 @@
     {
       "self_ref": "#/groups/9",
       "parent": {
-        "$ref": "#/texts/33"
+        "$ref": "#/texts/35"
       },
       "children": [
         {
-          "$ref": "#/texts/34"
+          "$ref": "#/texts/36"
         },
         {
-          "$ref": "#/texts/35"
+          "$ref": "#/texts/37"
         }
       ],
       "content_layer": "body",
@@ -280,20 +286,20 @@
     {
       "self_ref": "#/groups/10",
       "parent": {
-        "$ref": "#/texts/36"
+        "$ref": "#/texts/38"
       },
       "children": [
-        {
-          "$ref": "#/texts/37"
-        },
-        {
-          "$ref": "#/texts/38"
-        },
         {
           "$ref": "#/texts/39"
         },
         {
           "$ref": "#/texts/40"
+        },
+        {
+          "$ref": "#/texts/41"
+        },
+        {
+          "$ref": "#/texts/42"
         }
       ],
       "content_layer": "body",
@@ -307,10 +313,10 @@
       },
       "children": [
         {
-          "$ref": "#/texts/41"
+          "$ref": "#/texts/43"
         },
         {
-          "$ref": "#/texts/42"
+          "$ref": "#/texts/44"
         }
       ],
       "content_layer": "body",
@@ -320,17 +326,17 @@
     {
       "self_ref": "#/groups/12",
       "parent": {
-        "$ref": "#/texts/43"
+        "$ref": "#/texts/45"
       },
       "children": [
         {
-          "$ref": "#/texts/44"
-        },
-        {
-          "$ref": "#/texts/45"
-        },
-        {
           "$ref": "#/texts/46"
+        },
+        {
+          "$ref": "#/texts/47"
+        },
+        {
+          "$ref": "#/texts/48"
         }
       ],
       "content_layer": "body",
@@ -344,13 +350,13 @@
       },
       "children": [
         {
-          "$ref": "#/texts/47"
-        },
-        {
-          "$ref": "#/texts/48"
-        },
-        {
           "$ref": "#/texts/49"
+        },
+        {
+          "$ref": "#/texts/50"
+        },
+        {
+          "$ref": "#/texts/51"
         }
       ],
       "content_layer": "body",
@@ -378,7 +384,7 @@
       },
       "children": [
         {
-          "$ref": "#/texts/53"
+          "$ref": "#/texts/55"
         }
       ],
       "content_layer": "body",
@@ -406,7 +412,7 @@
       },
       "children": [
         {
-          "$ref": "#/texts/54"
+          "$ref": "#/texts/56"
         }
       ],
       "content_layer": "body",
@@ -434,10 +440,10 @@
       },
       "children": [
         {
-          "$ref": "#/texts/55"
+          "$ref": "#/texts/57"
         },
         {
-          "$ref": "#/texts/56"
+          "$ref": "#/texts/58"
         }
       ],
       "content_layer": "body",
@@ -465,10 +471,10 @@
       },
       "children": [
         {
-          "$ref": "#/texts/57"
+          "$ref": "#/texts/59"
         },
         {
-          "$ref": "#/texts/58"
+          "$ref": "#/texts/60"
         }
       ],
       "content_layer": "body",
@@ -496,10 +502,13 @@
       },
       "children": [
         {
-          "$ref": "#/texts/59"
+          "$ref": "#/texts/61"
         },
         {
-          "$ref": "#/texts/60"
+          "$ref": "#/texts/62"
+        },
+        {
+          "$ref": "#/texts/63"
         }
       ],
       "content_layer": "body",
@@ -527,19 +536,19 @@
       },
       "children": [
         {
-          "$ref": "#/texts/61"
-        },
-        {
-          "$ref": "#/texts/62"
-        },
-        {
-          "$ref": "#/texts/63"
-        },
-        {
           "$ref": "#/texts/64"
         },
         {
           "$ref": "#/texts/65"
+        },
+        {
+          "$ref": "#/texts/66"
+        },
+        {
+          "$ref": "#/texts/67"
+        },
+        {
+          "$ref": "#/texts/68"
         }
       ],
       "content_layer": "body",
@@ -567,13 +576,13 @@
       },
       "children": [
         {
-          "$ref": "#/texts/66"
+          "$ref": "#/texts/69"
         },
         {
-          "$ref": "#/texts/67"
+          "$ref": "#/texts/70"
         },
         {
-          "$ref": "#/texts/68"
+          "$ref": "#/texts/71"
         }
       ],
       "content_layer": "body",
@@ -601,10 +610,10 @@
       },
       "children": [
         {
-          "$ref": "#/texts/69"
+          "$ref": "#/texts/72"
         },
         {
-          "$ref": "#/texts/70"
+          "$ref": "#/texts/73"
         }
       ],
       "content_layer": "body",
@@ -646,7 +655,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Foo",
+      "orig": "Foo ",
       "text": "Foo "
     },
     {
@@ -659,7 +668,7 @@
       "label": "text",
       "prov": [],
       "orig": "emphasis",
-      "text": "emphasis ",
+      "text": "emphasis",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -677,15 +686,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "strong emphasis",
-      "text": "strong emphasis ",
-      "formatting": {
-        "bold": true,
-        "italic": false,
-        "underline": false,
-        "strikethrough": false,
-        "script": "baseline"
-      }
+      "orig": " ",
+      "text": " "
     },
     {
       "self_ref": "#/texts/5",
@@ -696,11 +698,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "both",
-      "text": "both ",
+      "orig": "strong emphasis",
+      "text": "strong emphasis",
       "formatting": {
         "bold": true,
-        "italic": true,
+        "italic": false,
         "underline": false,
         "strikethrough": false,
         "script": "baseline"
@@ -715,11 +717,42 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "orig": " ",
+      "text": " "
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "both",
+      "text": "both",
+      "formatting": {
+        "bold": true,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
       "orig": ".",
       "text": "."
     },
     {
-      "self_ref": "#/texts/7",
+      "self_ref": "#/texts/9",
       "parent": {
         "$ref": "#/groups/1"
       },
@@ -727,11 +760,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Create your feature branch:",
+      "orig": "Create your feature branch: ",
       "text": "Create your feature branch: "
     },
     {
-      "self_ref": "#/texts/8",
+      "self_ref": "#/texts/10",
       "parent": {
         "$ref": "#/groups/1"
       },
@@ -747,7 +780,7 @@
       "code_language": "unknown"
     },
     {
-      "self_ref": "#/texts/9",
+      "self_ref": "#/texts/11",
       "parent": {
         "$ref": "#/groups/1"
       },
@@ -756,10 +789,10 @@
       "label": "text",
       "prov": [],
       "orig": ".",
-      "text": " ."
+      "text": "."
     },
     {
-      "self_ref": "#/texts/10",
+      "self_ref": "#/texts/12",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -777,7 +810,7 @@
       "marker": "1."
     },
     {
-      "self_ref": "#/texts/11",
+      "self_ref": "#/texts/13",
       "parent": {
         "$ref": "#/groups/3"
       },
@@ -785,11 +818,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Pull the",
+      "orig": "Pull the ",
       "text": "Pull the "
     },
     {
-      "self_ref": "#/texts/12",
+      "self_ref": "#/texts/14",
       "parent": {
         "$ref": "#/groups/3"
       },
@@ -798,7 +831,7 @@
       "label": "text",
       "prov": [],
       "orig": "repository",
-      "text": "repository ",
+      "text": "repository",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -809,7 +842,7 @@
       "hyperlink": "https://github.com/docling-project/docling"
     },
     {
-      "self_ref": "#/texts/13",
+      "self_ref": "#/texts/15",
       "parent": {
         "$ref": "#/groups/3"
       },
@@ -821,7 +854,7 @@
       "text": "."
     },
     {
-      "self_ref": "#/texts/14",
+      "self_ref": "#/texts/16",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -839,7 +872,7 @@
       "marker": "2."
     },
     {
-      "self_ref": "#/texts/15",
+      "self_ref": "#/texts/17",
       "parent": {
         "$ref": "#/groups/4"
       },
@@ -848,10 +881,10 @@
       "label": "text",
       "prov": [],
       "orig": "Create your feature branch (",
-      "text": "Create your feature branch ( "
+      "text": "Create your feature branch ("
     },
     {
-      "self_ref": "#/texts/16",
+      "self_ref": "#/texts/18",
       "parent": {
         "$ref": "#/groups/4"
       },
@@ -867,7 +900,7 @@
       "code_language": "unknown"
     },
     {
-      "self_ref": "#/texts/17",
+      "self_ref": "#/texts/19",
       "parent": {
         "$ref": "#/groups/4"
       },
@@ -876,10 +909,10 @@
       "label": "text",
       "prov": [],
       "orig": ")",
-      "text": " )"
+      "text": ")"
     },
     {
-      "self_ref": "#/texts/18",
+      "self_ref": "#/texts/20",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -897,7 +930,7 @@
       "marker": "3."
     },
     {
-      "self_ref": "#/texts/19",
+      "self_ref": "#/texts/21",
       "parent": {
         "$ref": "#/groups/5"
       },
@@ -906,10 +939,10 @@
       "label": "text",
       "prov": [],
       "orig": "Commit your changes (",
-      "text": "Commit your changes ( "
+      "text": "Commit your changes ("
     },
     {
-      "self_ref": "#/texts/20",
+      "self_ref": "#/texts/22",
       "parent": {
         "$ref": "#/groups/5"
       },
@@ -925,7 +958,7 @@
       "code_language": "unknown"
     },
     {
-      "self_ref": "#/texts/21",
+      "self_ref": "#/texts/23",
       "parent": {
         "$ref": "#/groups/5"
       },
@@ -934,10 +967,10 @@
       "label": "text",
       "prov": [],
       "orig": ")",
-      "text": " )"
+      "text": ")"
     },
     {
-      "self_ref": "#/texts/22",
+      "self_ref": "#/texts/24",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -955,7 +988,7 @@
       "marker": "4."
     },
     {
-      "self_ref": "#/texts/23",
+      "self_ref": "#/texts/25",
       "parent": {
         "$ref": "#/groups/6"
       },
@@ -964,10 +997,10 @@
       "label": "text",
       "prov": [],
       "orig": "Push to the branch (",
-      "text": "Push to the branch ( "
+      "text": "Push to the branch ("
     },
     {
-      "self_ref": "#/texts/24",
+      "self_ref": "#/texts/26",
       "parent": {
         "$ref": "#/groups/6"
       },
@@ -983,7 +1016,7 @@
       "code_language": "unknown"
     },
     {
-      "self_ref": "#/texts/25",
+      "self_ref": "#/texts/27",
       "parent": {
         "$ref": "#/groups/6"
       },
@@ -992,10 +1025,10 @@
       "label": "text",
       "prov": [],
       "orig": ")",
-      "text": " )"
+      "text": ")"
     },
     {
-      "self_ref": "#/texts/26",
+      "self_ref": "#/texts/28",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -1009,7 +1042,7 @@
       "marker": "5."
     },
     {
-      "self_ref": "#/texts/27",
+      "self_ref": "#/texts/29",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -1030,7 +1063,7 @@
       "marker": "6."
     },
     {
-      "self_ref": "#/texts/28",
+      "self_ref": "#/texts/30",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -1048,7 +1081,7 @@
       "marker": "7."
     },
     {
-      "self_ref": "#/texts/29",
+      "self_ref": "#/texts/31",
       "parent": {
         "$ref": "#/groups/7"
       },
@@ -1056,11 +1089,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "List item has",
+      "orig": "List item has ",
       "text": "List item has "
     },
     {
-      "self_ref": "#/texts/30",
+      "self_ref": "#/texts/32",
       "parent": {
         "$ref": "#/groups/7"
       },
@@ -1069,7 +1102,7 @@
       "label": "text",
       "prov": [],
       "orig": "mixed or partial",
-      "text": "mixed or partial ",
+      "text": "mixed or partial",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -1079,7 +1112,7 @@
       }
     },
     {
-      "self_ref": "#/texts/31",
+      "self_ref": "#/texts/33",
       "parent": {
         "$ref": "#/groups/7"
       },
@@ -1087,11 +1120,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "formatting",
-      "text": "formatting"
+      "orig": " formatting",
+      "text": " formatting"
     },
     {
-      "self_ref": "#/texts/32",
+      "self_ref": "#/texts/34",
       "parent": {
         "$ref": "#/body"
       },
@@ -1110,7 +1143,7 @@
       }
     },
     {
-      "self_ref": "#/texts/33",
+      "self_ref": "#/texts/35",
       "parent": {
         "$ref": "#/groups/8"
       },
@@ -1128,7 +1161,7 @@
       "marker": ""
     },
     {
-      "self_ref": "#/texts/34",
+      "self_ref": "#/texts/36",
       "parent": {
         "$ref": "#/groups/9"
       },
@@ -1137,7 +1170,7 @@
       "label": "text",
       "prov": [],
       "orig": "First",
-      "text": "First ",
+      "text": "First",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1147,7 +1180,7 @@
       }
     },
     {
-      "self_ref": "#/texts/35",
+      "self_ref": "#/texts/37",
       "parent": {
         "$ref": "#/groups/9"
       },
@@ -1159,7 +1192,7 @@
       "text": ": Lorem ipsum."
     },
     {
-      "self_ref": "#/texts/36",
+      "self_ref": "#/texts/38",
       "parent": {
         "$ref": "#/groups/8"
       },
@@ -1177,7 +1210,7 @@
       "marker": ""
     },
     {
-      "self_ref": "#/texts/37",
+      "self_ref": "#/texts/39",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -1186,7 +1219,7 @@
       "label": "text",
       "prov": [],
       "orig": "Second",
-      "text": "Second ",
+      "text": "Second",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1196,7 +1229,7 @@
       }
     },
     {
-      "self_ref": "#/texts/38",
+      "self_ref": "#/texts/40",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -1204,11 +1237,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ": Dolor",
+      "orig": ": Dolor ",
       "text": ": Dolor "
     },
     {
-      "self_ref": "#/texts/39",
+      "self_ref": "#/texts/41",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -1224,7 +1257,7 @@
       "code_language": "unknown"
     },
     {
-      "self_ref": "#/texts/40",
+      "self_ref": "#/texts/42",
       "parent": {
         "$ref": "#/groups/10"
       },
@@ -1232,11 +1265,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "amet.",
+      "orig": " amet.",
       "text": " amet."
     },
     {
-      "self_ref": "#/texts/41",
+      "self_ref": "#/texts/43",
       "parent": {
         "$ref": "#/groups/11"
       },
@@ -1244,11 +1277,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Some",
+      "orig": "Some ",
       "text": "Some "
     },
     {
-      "self_ref": "#/texts/42",
+      "self_ref": "#/texts/44",
       "parent": {
         "$ref": "#/groups/11"
       },
@@ -1271,7 +1304,7 @@
       "code_language": "unknown"
     },
     {
-      "self_ref": "#/texts/43",
+      "self_ref": "#/texts/45",
       "parent": {
         "$ref": "#/body"
       },
@@ -1288,7 +1321,7 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/44",
+      "self_ref": "#/texts/46",
       "parent": {
         "$ref": "#/groups/12"
       },
@@ -1297,7 +1330,7 @@
       "label": "text",
       "prov": [],
       "orig": "Partially formatted",
-      "text": "Partially formatted ",
+      "text": "Partially formatted",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -1307,7 +1340,7 @@
       }
     },
     {
-      "self_ref": "#/texts/45",
+      "self_ref": "#/texts/47",
       "parent": {
         "$ref": "#/groups/12"
       },
@@ -1315,11 +1348,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "heading to_escape",
-      "text": "heading to_escape "
+      "orig": " heading to_escape ",
+      "text": " heading to_escape "
     },
     {
-      "self_ref": "#/texts/46",
+      "self_ref": "#/texts/48",
       "parent": {
         "$ref": "#/groups/12"
       },
@@ -1335,7 +1368,7 @@
       "code_language": "unknown"
     },
     {
-      "self_ref": "#/texts/47",
+      "self_ref": "#/texts/49",
       "parent": {
         "$ref": "#/groups/13"
       },
@@ -1343,11 +1376,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "This is",
+      "orig": "This is ",
       "text": "This is "
     },
     {
-      "self_ref": "#/texts/48",
+      "self_ref": "#/texts/50",
       "parent": {
         "$ref": "#/groups/13"
       },
@@ -1356,7 +1389,7 @@
       "label": "text",
       "prov": [],
       "orig": "old",
-      "text": "old ",
+      "text": "old",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1366,7 +1399,7 @@
       }
     },
     {
-      "self_ref": "#/texts/49",
+      "self_ref": "#/texts/51",
       "parent": {
         "$ref": "#/groups/13"
       },
@@ -1374,11 +1407,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "new.",
-      "text": "new."
+      "orig": " new.",
+      "text": " new."
     },
     {
-      "self_ref": "#/texts/50",
+      "self_ref": "#/texts/52",
       "parent": {
         "$ref": "#/body"
       },
@@ -1390,7 +1423,7 @@
       "text": "Approx ~5 items and ~10 more."
     },
     {
-      "self_ref": "#/texts/51",
+      "self_ref": "#/texts/53",
       "parent": {
         "$ref": "#/body"
       },
@@ -1403,7 +1436,7 @@
       "hyperlink": "https://en.wikipedia.org/wiki/Albert_Einstein"
     },
     {
-      "self_ref": "#/texts/52",
+      "self_ref": "#/texts/54",
       "parent": {
         "$ref": "#/body"
       },
@@ -1416,7 +1449,7 @@
       "level": 1
     },
     {
-      "self_ref": "#/texts/53",
+      "self_ref": "#/texts/55",
       "parent": {
         "$ref": "#/groups/15"
       },
@@ -1435,7 +1468,7 @@
       }
     },
     {
-      "self_ref": "#/texts/54",
+      "self_ref": "#/texts/56",
       "parent": {
         "$ref": "#/groups/17"
       },
@@ -1454,7 +1487,7 @@
       }
     },
     {
-      "self_ref": "#/texts/55",
+      "self_ref": "#/texts/57",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -1463,7 +1496,7 @@
       "label": "text",
       "prov": [],
       "orig": "C",
-      "text": "C ",
+      "text": "C",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1473,7 +1506,7 @@
       }
     },
     {
-      "self_ref": "#/texts/56",
+      "self_ref": "#/texts/58",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -1481,11 +1514,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Cadre",
-      "text": "Cadre"
+      "orig": " Cadre",
+      "text": " Cadre"
     },
     {
-      "self_ref": "#/texts/57",
+      "self_ref": "#/texts/59",
       "parent": {
         "$ref": "#/groups/21"
       },
@@ -1493,11 +1526,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "foo",
+      "orig": "foo ",
       "text": "foo "
     },
     {
-      "self_ref": "#/texts/58",
+      "self_ref": "#/texts/60",
       "parent": {
         "$ref": "#/groups/21"
       },
@@ -1516,7 +1549,7 @@
       }
     },
     {
-      "self_ref": "#/texts/59",
+      "self_ref": "#/texts/61",
       "parent": {
         "$ref": "#/groups/23"
       },
@@ -1525,7 +1558,7 @@
       "label": "text",
       "prov": [],
       "orig": "A",
-      "text": "A ",
+      "text": "A",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1535,7 +1568,19 @@
       }
     },
     {
-      "self_ref": "#/texts/60",
+      "self_ref": "#/texts/62",
+      "parent": {
+        "$ref": "#/groups/23"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": " ",
+      "text": " "
+    },
+    {
+      "self_ref": "#/texts/63",
       "parent": {
         "$ref": "#/groups/23"
       },
@@ -1554,7 +1599,7 @@
       }
     },
     {
-      "self_ref": "#/texts/61",
+      "self_ref": "#/texts/64",
       "parent": {
         "$ref": "#/groups/25"
       },
@@ -1563,7 +1608,7 @@
       "label": "text",
       "prov": [],
       "orig": "italic",
-      "text": "italic ",
+      "text": "italic",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -1573,7 +1618,7 @@
       }
     },
     {
-      "self_ref": "#/texts/62",
+      "self_ref": "#/texts/65",
       "parent": {
         "$ref": "#/groups/25"
       },
@@ -1581,11 +1626,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and",
-      "text": "and "
+      "orig": " and ",
+      "text": " and "
     },
     {
-      "self_ref": "#/texts/63",
+      "self_ref": "#/texts/66",
       "parent": {
         "$ref": "#/groups/25"
       },
@@ -1594,7 +1639,7 @@
       "label": "text",
       "prov": [],
       "orig": "bold",
-      "text": "bold ",
+      "text": "bold",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1604,7 +1649,7 @@
       }
     },
     {
-      "self_ref": "#/texts/64",
+      "self_ref": "#/texts/67",
       "parent": {
         "$ref": "#/groups/25"
       },
@@ -1612,11 +1657,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and",
-      "text": "and "
+      "orig": " and ",
+      "text": " and "
     },
     {
-      "self_ref": "#/texts/65",
+      "self_ref": "#/texts/68",
       "parent": {
         "$ref": "#/groups/25"
       },
@@ -1635,7 +1680,7 @@
       }
     },
     {
-      "self_ref": "#/texts/66",
+      "self_ref": "#/texts/69",
       "parent": {
         "$ref": "#/groups/27"
       },
@@ -1643,11 +1688,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "run",
+      "orig": "run ",
       "text": "run "
     },
     {
-      "self_ref": "#/texts/67",
+      "self_ref": "#/texts/70",
       "parent": {
         "$ref": "#/groups/27"
       },
@@ -1663,7 +1708,7 @@
       "code_language": "unknown"
     },
     {
-      "self_ref": "#/texts/68",
+      "self_ref": "#/texts/71",
       "parent": {
         "$ref": "#/groups/27"
       },
@@ -1671,11 +1716,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "now",
+      "orig": " now",
       "text": " now"
     },
     {
-      "self_ref": "#/texts/69",
+      "self_ref": "#/texts/72",
       "parent": {
         "$ref": "#/groups/29"
       },
@@ -1683,11 +1728,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "visit",
+      "orig": "visit ",
       "text": "visit "
     },
     {
-      "self_ref": "#/texts/70",
+      "self_ref": "#/texts/73",
       "parent": {
         "$ref": "#/groups/29"
       },

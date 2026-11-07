@@ -175,37 +175,37 @@
 <div class='page'>
 <h1>Programming Assignment: Анализ изображений</h1>
 <p>Задача заключается в том, чтобы применить предобученную на imagenet нейронную сеть на практической задаче классификации автомобилей.</p>
-<span class='inline-group'>Учиться применять нейронные сети для анализа изображений мы будем на библиотеке TensorFlow. Это известный опенсорсный проект, разработанный инженерами Google Brain Team. Подробнее почитать о TensorFlow можно на официальном сайте, на <a href="https://github.com/tensorflow/tensorflow">гитхабе</a> или <a href="https://habrahabr.ru/post/270543/">на хабре</a> .</span>
+<span class='inline-group'>Учиться применять нейронные сети для анализа изображений мы будем на библиотеке TensorFlow. Это известный опенсорсный проект, разработанный инженерами Google Brain Team. Подробнее почитать о TensorFlow можно на официальном сайте, на <a href="https://github.com/tensorflow/tensorflow">гитхабе</a> или <a href="https://habrahabr.ru/post/270543/">на хабре</a>.</span>
 <h3>Установка окружения</h3>
-<span class='inline-group'>В первую очередь нам будет необходимо установить <strong>TensorFlow</strong> .</span>
+<span class='inline-group'>В первую очередь нам будет необходимо установить <strong>TensorFlow</strong>.</span>
 <ul>
 <li>
-<span class='inline-group'><a href="https://www.tensorflow.org/versions/r0.10/get_started/os_setup.html#download-and-setup">Инструкции по установке на сайте</a> .</span>
+<span class='inline-group'><a href="https://www.tensorflow.org/versions/r0.10/get_started/os_setup.html#download-and-setup">Инструкции по установке на сайте</a>.</span>
 </li>
 <li>
-<span class='inline-group'>Если есть опыт работы с Docker, то можно воспользоваться готовым <a href="https://www.tensorflow.org/versions/r0.10/get_started/os_setup.html#docker-installation">докер-контейнером с тензорфлоу</a> .</span>
+<span class='inline-group'>Если есть опыт работы с Docker, то можно воспользоваться готовым <a href="https://www.tensorflow.org/versions/r0.10/get_started/os_setup.html#docker-installation">докер-контейнером с тензорфлоу</a>.</span>
 </li>
 </ul>
 <span class='inline-group'><strong>Важно!</strong> Если вы пользователь Windows, то уставить tensorflow напрямую, к сожалению, не получится:</span>
 <ul>
 <li>
-<span class='inline-group'>для пользователей Windows 10 (и выше) нужно использовать <strong>Docker</strong> ( <a href="https://www.docker.com/products/docker#/windows">ссылка на дистрибутив</a> );</span>
+<span class='inline-group'>для пользователей Windows 10 (и выше) нужно использовать <strong>Docker</strong> (<a href="https://www.docker.com/products/docker#/windows">ссылка на дистрибутив</a>);</span>
 </li>
 <li>если у вас Windows старше версии 10, то и вариант с докером не подойдет — он не установится. В таком случае советуем установить линукс на локальную машину как еще одну операционную систему (поможет избежать страданий в будущем при работе с некоторыми библиотеками для ML).</li>
 </ul>
 <span class='inline-group'>Если же поставить Tensorflow на вашу машину никак не получается, мы предлагаем воспользоваться одним из облачных сервисов, в который необходимо установить линукс-образ. Самые популярные облачные сервисы <a href="https://aws.amazon.com/">AWS</a> и <a href="http://digitalocean.com/">DigitalOcean</a> предоставляют бесплатные инстансы (имейте в виду, что для того, чтобы ими воспользоваться, нужно будет привязать кредитную карту).</span>
 <p>Чтобы освоить компьютерное зрение (или другие интересные задачи из области ML и AI), так или иначе придётся научиться работать с библиотеками нейронных сетей, линуксом и виртуальными серверами. Например, для более масштабных практических задач, крайне необходимы сервера с GPU, а с ними уже локально работать не получиться.</p>
 <p>Тем не менее, мы понимаем, что в силу временных ограничений курса кто-то может успеть установить TensorFlow. Поэтому мы сделали пункты 1 и 2 необязательными. На оценку они не повлияют — можете сразу переходить к третьему пункту.</p>
-<span class='inline-group'>Помимо tensorflow, потребуется библиотека <strong><code>scipy</code></strong> . Если вы уже работали с Anaconda и/или выполняли задания в нашей специализации, то она должна присутствовать.</span>
+<span class='inline-group'>Помимо tensorflow, потребуется библиотека <strong><code>scipy</code></strong>. Если вы уже работали с Anaconda и/или выполняли задания в нашей специализации, то она должна присутствовать.</span>
 <h2>Данные</h2>
 <span class='inline-group'>Скачать данные нужно тут: <a href="https://yadi.sk/d/6m_KbM4HvmLfs">https://yadi.sk/d/6m_KbM4HvmLfs</a></span>
-<span class='inline-group'>Данные это часть выборки <em>Cars Dataset</em> ( <a href="http://ai.stanford.edu/~jkrause/cars/car_dataset.html">link</a> ). Исходный датасет содержит 16,185 изображений автомобилей, принадлежащих к 196 классам. Данные разделены на 8,144 тренировочных и 8,041 тестовых изображений, при этом каждый класс разделён приблизительно поровну между тестом и трейном. Все классы уровня параметров <em>Марка</em> , <em>Год</em> , <em>Модель</em> и др. (например, <em>2012 Tesla Model S or 2012 BMW M3 coupe</em> ).</span>
+<span class='inline-group'>Данные это часть выборки <em>Cars Dataset</em> (<a href="http://ai.stanford.edu/~jkrause/cars/car_dataset.html">link</a>). Исходный датасет содержит 16,185 изображений автомобилей, принадлежащих к 196 классам. Данные разделены на 8,144 тренировочных и 8,041 тестовых изображений, при этом каждый класс разделён приблизительно поровну между тестом и трейном. Все классы уровня параметров <em>Марка</em>, <em>Год</em>, <em>Модель</em> и др. (например, <em>2012 Tesla Model S or 2012 BMW M3 coupe</em>).</span>
 <span class='inline-group'>В нашем же случае в <code>train</code> 204 изображения, и в <code>test</code> — 202 изображения.</span>
 <h2>Что делать</h2>
 <p>Помимо данных, потребуется скачать:</p>
 <ul>
 <li>
-<span class='inline-group'><a href="https://github.com/ton4eg/coursera_pa">код</a> ,</span>
+<span class='inline-group'><a href="https://github.com/ton4eg/coursera_pa">код</a>,</span>
 </li>
 <li>
 <span class='inline-group'>веса модели <a href="https://yadi.sk/d/9-3kXyxRvnBwh">по ссылке</a></span>
@@ -522,8 +522,8 @@ sess = tf.Session()
 imgs = tf.placeholder(tf.float32, [None, 224, 224, 3])
 vgg = vgg16(imgs, 'vgg16_weights.npz', sess)</code></pre>
 <p>Все ячейки выше не нуждаются в модификации для выполнения задания, и необходимы к исполнению только один раз, в порядке следования. Повторный запуск ячейки с инициализацией модели будет сжирать память. Вы предупреждены.</p>
-<h2><span class='inline-group'>Задание 1 .</span></h2>
-<span class='inline-group'>Для начала нужно запустить готовую модель <code>vgg16</code> , предобученную на <code>imagenet</code> . Модель обучена с помощью <code>caffe</code> и сконвертирована в формат <code>tensorflow</code> - <code>vgg16_weights.npz</code> . Скрипт, иллюстрирующий применение этой модели к изображению, возвращает топ-5 классов из <code>imagenet</code> и уверенность в этих классах.</span>
+<h2><span class='inline-group'>Задание 1.</span></h2>
+<span class='inline-group'>Для начала нужно запустить готовую модель <code>vgg16</code>, предобученную на <code>imagenet</code>. Модель обучена с помощью <code>caffe</code> и сконвертирована в формат <code>tensorflow</code> - <code>vgg16_weights.npz</code>. Скрипт, иллюстрирующий применение этой модели к изображению, возвращает топ-5 классов из <code>imagenet</code> и уверенность в этих классах.</span>
 <span class='inline-group'><strong>Задание:</strong> Загрузите уверенность для первого класса для изображения <code>train/00002.jpg</code> с точностью до 1 знака после запятой в файл с ответом.</span>
 <pre><code># Ваш код здесь
 prob1 = process_image('train/00002.jpg')
@@ -531,9 +531,9 @@ print(prob1)</code></pre>
 <pre><code>ans1 = round(prob1[0][1], 1)
 print(ans1)
 save_answerNum("vgg16_answer1.txt", ans1 )</code></pre>
-<h2><span class='inline-group'>Задание 2 .</span></h2>
-<span class='inline-group'>Научитесь извлекать <code>fc2</code> слой. Возьмите за основу код <code>process_image</code> , и модифицируйте, чтобы вместо последнего слоя извлекались выходы <code>fc2</code> .</span>
-<span class='inline-group'><strong>Задание:</strong> Посчитайте <code>fc2</code> для картинки <code>train/00002.jpg</code> .  Запишите первые 20 компонент.</span>
+<h2><span class='inline-group'>Задание 2.</span></h2>
+<span class='inline-group'>Научитесь извлекать <code>fc2</code> слой. Возьмите за основу код <code>process_image</code>, и модифицируйте, чтобы вместо последнего слоя извлекались выходы <code>fc2</code>.</span>
+<span class='inline-group'><strong>Задание:</strong> Посчитайте <code>fc2</code> для картинки <code>train/00002.jpg</code>.  Запишите первые 20 компонент.</span>
 <pre><code>def load_fc2_values(fname):
     img1 = imread(fname, mode='RGB')
     img1 = imresize(img1, (224, 224))
@@ -549,21 +549,21 @@ prob_fc2 = load_fc2_values('train/00002.jpg')</code></pre>
     # return [(class_names[p], prob[p]) for p in preds]
    
 save_answerArray("vgg16_answer2.txt",  prob_fc2[:20] )</code></pre>
-<h2><span class='inline-group'>Задание 3 .</span></h2>
-<span class='inline-group'>Теперь необходимо дообучить классификатор на нашей базе. В качестве бейзлайна предлагается воспользоваться классификатором <code>svm</code> из пакета <code>scipy</code> .</span>
+<h2><span class='inline-group'>Задание 3.</span></h2>
+<span class='inline-group'>Теперь необходимо дообучить классификатор на нашей базе. В качестве бейзлайна предлагается воспользоваться классификатором <code>svm</code> из пакета <code>scipy</code>.</span>
 <ul>
 <li>
-<span class='inline-group'>Модифицировать функцию <code>get_features</code> и добавить возможность вычислять <code>fc2</code> . (Аналогично второму заданию).</span>
+<span class='inline-group'>Модифицировать функцию <code>get_features</code> и добавить возможность вычислять <code>fc2</code>. (Аналогично второму заданию).</span>
 </li>
 <li>
-<span class='inline-group'>Применить <code>get_feautures</code> , чтобы получить <code>X_test</code> и <code>Y_test</code> .</span>
+<span class='inline-group'>Применить <code>get_feautures</code>, чтобы получить <code>X_test</code> и <code>Y_test</code>.</span>
 </li>
 <li>
-<span class='inline-group'>Воспользоваться классификатором <code>SVC</code> с <code>random_state=0</code> .</span>
+<span class='inline-group'>Воспользоваться классификатором <code>SVC</code> с <code>random_state=0</code>.</span>
 </li>
 </ul>
-<span class='inline-group'><strong>Важно!</strong> Если вам не удалось поставить <code>tensorflow</code> , то необходимо вместо использования функции <code>get_features</code> , загрузить предпосчитанные <code>X</code> , <code>Y</code> , <code>X_test</code> , <code>Y_test</code> из архива: <a href="https://yadi.sk/d/RzMOK8Fjvs6Ln">https://yadi.sk/d/RzMOK8Fjvs6Ln</a> и воспользоваться функцией <code>np.load</code> для их загрузки, а после этого два последних пункта.</span>
-<span class='inline-group'><strong>Задание:</strong> Сколько правильных ответов получается на валидационной выборке из папки <code>test</code> ? Запишите в файл.</span>
+<span class='inline-group'><strong>Важно!</strong> Если вам не удалось поставить <code>tensorflow</code>, то необходимо вместо использования функции <code>get_features</code>, загрузить предпосчитанные <code>X</code>, <code>Y</code>, <code>X_test</code>, <code>Y_test</code> из архива: <a href="https://yadi.sk/d/RzMOK8Fjvs6Ln">https://yadi.sk/d/RzMOK8Fjvs6Ln</a> и воспользоваться функцией <code>np.load</code> для их загрузки, а после этого два последних пункта.</span>
+<span class='inline-group'><strong>Задание:</strong> Сколько правильных ответов получается на валидационной выборке из папки <code>test</code>? Запишите в файл.</span>
 <pre><code># Функция, возвращающая признаковое описание для каждого файла jpg в заданной папке
 def get_features(folder, ydict):
 

@@ -303,8 +303,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": " ) only needs to be escaped in tables.",
-      "text": " ) only needs to be escaped in tables."
+      "orig": ") only needs to be escaped in tables.",
+      "text": ") only needs to be escaped in tables."
     },
     {
       "self_ref": "#/texts/14",

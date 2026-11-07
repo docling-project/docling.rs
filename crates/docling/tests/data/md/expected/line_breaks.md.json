@@ -360,7 +360,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Author",
+      "orig": "Author ",
       "text": "Author "
     },
     {
@@ -373,7 +373,7 @@
       "label": "text",
       "prov": [],
       "orig": "John",
-      "text": "John ",
+      "text": "John",
       "formatting": {
         "bold": true,
         "italic": false,
