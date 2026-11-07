@@ -48,7 +48,7 @@
 |  They can provide a full range of legal services in criminal cases regardless of gravity                                                                                                      |
 |  They can conduct mediation                                                                                                                                                                   |
 |  They are authorized to provide only those services that a faculty member or practic- ing lawyer supervises                                                                                   |
-|  Don’t know                                                                                                                                                                                   |
+|  Don't know                                                                                                                                                                                   |
 |  Other (Please specify) _____________________________________________________                                                                                                                 |
 
 28. Are specialized legal aid services provided focusing on specific disadvantaged population groups? If yes, please indicate to whom these services are provided, and whether they are provided by State-funded legal aid, civil society organizations, or both.

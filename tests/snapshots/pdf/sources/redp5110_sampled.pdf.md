@@ -209,7 +209,7 @@ Example 2-1 Query to determine who has authority to define and manage RCAC
 |----------|----|----------------------------------|
 |          |    | user_type                        |
 | FROM     |    | function_usage                   |
-| WHERE    |    | function_id=’QIBM_DB_SECADM’     |
+| WHERE    |    | function_id='QIBM_DB_SECADM'     |
 | ORDER    | BY | user_name;                       |
 
 ## 2.2 Separation of duties
