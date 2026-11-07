@@ -907,8 +907,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "B",
-      "text": "B"
+      "orig": "B ",
+      "text": "B "
     },
     {
       "self_ref": "#/texts/8",
@@ -956,8 +956,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "B",
-      "text": "B"
+      "orig": "B ",
+      "text": "B "
     },
     {
       "self_ref": "#/texts/11",
@@ -1005,8 +1005,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "B",
-      "text": "B"
+      "orig": "B ",
+      "text": "B "
     },
     {
       "self_ref": "#/texts/14",
