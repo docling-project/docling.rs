@@ -742,7 +742,7 @@ fn hidden_text_next_to_equations() {
     let doc = hidden_docx(&body, "");
     assert_eq!(
         md(&doc),
-        "Value  $x=1$\n\n- Item  $x=1$\n\n$$x=1$$\n\n| Cell $x=1$   | Other   |\n|--------------|---------|"
+        "Value $x=1$\n\n- Item $x=1$\n\n$$x=1$$\n\n| Cell $x=1$   | Other   |\n|--------------|---------|"
     );
     assert!(!format!("{:?}", doc.nodes).contains("secret"));
     assert!(!doc.export_to_json().contains("secret"));

@@ -165,7 +165,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Plain start,",
+      "orig": "Plain start, ",
       "text": "Plain start, ",
       "formatting": {
         "bold": false,
@@ -185,7 +185,7 @@
       "label": "text",
       "prov": [],
       "orig": "bold run",
-      "text": "bold run ",
+      "text": "bold run",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -203,8 +203,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and the end.",
-      "text": "and the end.",
+      "orig": " and the end.",
+      "text": " and the end.",
       "formatting": {
         "bold": false,
         "italic": false,

@@ -414,7 +414,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Normal",
+      "orig": "Normal ",
       "text": "Normal ",
       "formatting": {
         "bold": false,
@@ -433,7 +433,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "italic",
+      "orig": "italic ",
       "text": "italic ",
       "formatting": {
         "bold": false,
@@ -452,7 +452,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "bold",
+      "orig": "bold ",
       "text": "bold ",
       "formatting": {
         "bold": true,
@@ -471,7 +471,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "underline",
+      "orig": "underline ",
       "text": "underline ",
       "formatting": {
         "bold": false,
@@ -490,7 +490,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and",
+      "orig": "and ",
       "text": "and ",
       "formatting": {
         "bold": false,
@@ -510,7 +510,7 @@
       "label": "text",
       "prov": [],
       "orig": "hyperlink",
-      "text": "hyperlink ",
+      "text": "hyperlink",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -529,8 +529,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "on the same line",
-      "text": "on the same line",
+      "orig": " on the same line",
+      "text": " on the same line",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -644,7 +644,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Some",
+      "orig": "Some ",
       "text": "Some ",
       "formatting": {
         "bold": false,
@@ -663,7 +663,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "italic",
+      "orig": "italic ",
       "text": "italic ",
       "formatting": {
         "bold": false,
@@ -682,7 +682,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "bold",
+      "orig": "bold ",
       "text": "bold ",
       "formatting": {
         "bold": true,
@@ -738,7 +738,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Nested",
+      "orig": "Nested ",
       "text": "Nested ",
       "formatting": {
         "bold": false,
@@ -757,7 +757,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "italic",
+      "orig": "italic ",
       "text": "italic ",
       "formatting": {
         "bold": false,
@@ -850,7 +850,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "This text carries a",
+      "orig": "This text carries a ",
       "text": "This text carries a ",
       "formatting": {
         "bold": false,
@@ -870,7 +870,7 @@
       "label": "text",
       "prov": [],
       "orig": "complex-script bold",
-      "text": "complex-script bold ",
+      "text": "complex-script bold",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -888,8 +888,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "property in OOXML but it should not be bold.",
-      "text": "property in OOXML but it should not be bold.",
+      "orig": " property in OOXML but it should not be bold.",
+      "text": " property in OOXML but it should not be bold.",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1007,7 +1007,7 @@
       "content_layer": "furniture",
       "label": "text",
       "prov": [],
-      "orig": "Another",
+      "orig": "Another ",
       "text": "Another ",
       "formatting": {
         "bold": false,
@@ -1027,7 +1027,7 @@
       "label": "text",
       "prov": [],
       "orig": "header",
-      "text": "header ",
+      "text": "header",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -1045,8 +1045,8 @@
       "content_layer": "furniture",
       "label": "text",
       "prov": [],
-      "orig": "in bold",
-      "text": "in bold",
+      "orig": " in bold",
+      "text": " in bold",
       "formatting": {
         "bold": false,
         "italic": false,

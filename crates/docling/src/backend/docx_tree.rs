@@ -176,9 +176,7 @@ pub(super) fn rich_cell_orphan_groups(tc: XmlNode, ctx: &Ctx) -> usize {
     let mut w = Walker::new();
     let provs = w.walk_linear(tc, ctx);
     let g = w.add(None, None, group_kind("unspecified", "rich_cell"));
-    for p in provs {
-        w.tree.reparent(p, Some(g));
-    }
+    move_into_cell(&mut w.tree, &provs, g);
     w.tree
         .items
         .iter()
@@ -189,6 +187,27 @@ pub(super) fn rich_cell_orphan_groups(tc: XmlNode, ctx: &Ctx) -> usize {
                 && matches!(&it.kind, TreeKind::Group { label, .. } if label == "inline")
         })
         .count()
+}
+
+/// `_group_cell_elements`' move of a rich cell's items into its group: a run
+/// of an inline group takes the whole group along (docling#3891 — the
+/// runs stay in their inline group, which moves into the cell as a whole),
+/// each item moved once.
+fn move_into_cell(tree: &mut ItemTree, provs: &[usize], g: usize) {
+    let mut moved: Vec<usize> = Vec::new();
+    for &p in provs {
+        let item = match tree.items[p].parent {
+            Some(par) if matches!(&tree.items[par].kind, TreeKind::Group { label, .. } if label == "inline") => {
+                par
+            }
+            _ => p,
+        };
+        if moved.contains(&item) {
+            continue;
+        }
+        moved.push(item);
+        tree.reparent(item, Some(g));
+    }
 }
 
 /// Build docling's item tree for a parsed `word/document.xml` body, its
@@ -484,7 +503,11 @@ fn group_kind(label: &str, name: &str) -> TreeKind {
 impl Walker {
     fn new() -> Self {
         Walker {
-            tree: ItemTree::default(),
+            tree: ItemTree {
+                // The runs keep their boundary whitespace (schema 1.11.0, #997).
+                inline_whitespace: true,
+                ..ItemTree::default()
+            },
             parents: vec![None; LEVELS],
             level: 0,
             level_at_new_list: None,
@@ -918,9 +941,12 @@ fn paragraph_elements(content: &[Part]) -> Vec<Part> {
                 && (part.fmt != previous_format || part.revision != previous_revision))
                 || part.link.is_some()
             {
-                if !group_text.trim().is_empty() {
+                // Grouped by format and concatenated as they are: in DOCX
+                // the boundary space very often lives inside a formatted
+                // run, and it is that run's own text (docling#3891).
+                if !group_text.is_empty() {
                     elements.push(Part {
-                        text: group_text.trim().to_string(),
+                        text: std::mem::take(&mut group_text),
                         fmt: previous_format,
                         link: None,
                         revision: previous_revision.clone(),
@@ -929,7 +955,7 @@ fn paragraph_elements(content: &[Part]) -> Vec<Part> {
                 group_text.clear();
                 if part.link.is_some() {
                     elements.push(Part {
-                        text: text.trim().to_string(),
+                        text: text.to_string(),
                         fmt: part.fmt,
                         link: part.link.clone(),
                         revision: part.revision.clone(),
@@ -942,16 +968,22 @@ fn paragraph_elements(content: &[Part]) -> Vec<Part> {
             }
             group_text.push_str(text);
         }
-        if !group_text.trim().is_empty() {
+        if !group_text.is_empty() {
             elements.push(Part {
-                text: group_text.trim().to_string(),
+                text: group_text,
                 fmt: previous_format,
                 link: None,
                 revision: previous_revision,
             });
         }
-        elements
+        trim_part_edges(elements)
     }
+}
+
+/// docling's `_trim_run_edges`: the paragraph's outer edges trimmed, its
+/// interior whitespace (whitespace-only runs included) kept.
+fn trim_part_edges(parts: Vec<Part>) -> Vec<Part> {
+    docling_core::inline::trim_run_edges(parts, |p| p.text.as_str(), |p, t| p.text = t, |_| true)
 }
 
 /// `_handle_equations_in_text`: the paragraph text with every `oMath`
@@ -1727,9 +1759,7 @@ impl Walker {
                         row_idx
                     );
                     let g = self.add(Some(table_id), self.layer, group_kind("unspecified", &name));
-                    for &p in &provs {
-                        self.tree.reparent(p, Some(g));
-                    }
+                    move_into_cell(&mut self.tree, &provs, g);
                     group = Some(g);
                 }
                 cells.push(TableCell {
@@ -2073,6 +2103,28 @@ impl Walker {
             }
         } else {
             self.end_list_on_body_text(&text);
+            // A checkbox symbol goes from the leading edge of the first run
+            // only (it may be one of several runs), then the edges are
+            // re-trimmed; with `skip_empty_text` only a block blank as a
+            // whole is skipped — its interior whitespace runs are text.
+            if checkbox_label.is_some() {
+                if let Some(first) = elements.first_mut() {
+                    first.text = clean_checkbox_symbols(&first.text);
+                }
+                let fallback = elements.first().map(|e| Part {
+                    text: String::new(),
+                    ..e.clone()
+                });
+                elements = trim_part_edges(elements);
+                if elements.is_empty() {
+                    elements.extend(fallback);
+                }
+            }
+            if skip_empty_text && elements.iter().all(|e| e.text.trim().is_empty()) {
+                self.update_history(numid, ilevel);
+                self.record_paragraph(key, &refs, comment_ids);
+                return refs;
+            }
             let level = self.get_level();
             let parent = if elements.len() > 1 {
                 Some(self.add(
@@ -2084,19 +2136,11 @@ impl Walker {
                 self.parent_at(level - 1)
             };
             for el in &elements {
-                let clean = if checkbox_label.is_some() {
-                    clean_checkbox_symbols(&el.text)
-                } else {
-                    el.text.clone()
-                };
-                if skip_empty_text && clean.trim().is_empty() {
-                    continue;
-                }
                 let label = checkbox_label.unwrap_or("text");
                 let item = self.add(
                     parent,
                     self.layer,
-                    text_kind(label, &clean, el.fmt, el.link.clone()),
+                    text_kind(label, &el.text, el.fmt, el.link.clone()),
                 );
                 self.tree.items[item].revision = el.revision.clone();
                 refs.push(item);
@@ -2204,6 +2248,10 @@ impl Walker {
         equations: &[String],
         refs: &mut Vec<usize>,
     ) {
+        // (label, text) runs; only the group's outer edges are trimmed —
+        // the whitespace around an inline equation is a run boundary
+        // (`$A=\pi r^{2}$ is the area formula`, docling#3891).
+        let mut runs: Vec<(&str, String)> = Vec::new();
         let mut rest = text.to_string();
         for eq in equations {
             if rest.is_empty() {
@@ -2215,25 +2263,28 @@ impl Walker {
             };
             rest = post;
             if !pre.is_empty() {
-                refs.push(self.add(
-                    Some(parent),
-                    self.layer,
-                    text_kind("text", &pre, None, None),
-                ));
+                runs.push(("text", pre));
             }
-            let f = eq.replace("<eq>", "").replace("</eq>", "");
-            refs.push(self.add(
-                Some(parent),
-                self.layer,
-                text_kind("formula", &f, None, None),
-            ));
+            runs.push(("formula", eq.replace("<eq>", "").replace("</eq>", "")));
         }
         if !rest.is_empty() {
-            refs.push(self.add(
-                Some(parent),
-                self.layer,
-                text_kind("text", rest.trim(), None, None),
-            ));
+            runs.push(("text", rest));
+        }
+        if let Some((label, t)) = runs.first_mut() {
+            if *label == "text" {
+                *t = t.trim_start().to_string();
+            }
+        }
+        if let Some((label, t)) = runs.last_mut() {
+            if *label == "text" {
+                *t = t.trim_end().to_string();
+            }
+        }
+        for (label, t) in runs {
+            if label == "text" && t.is_empty() {
+                continue;
+            }
+            refs.push(self.add(Some(parent), self.layer, text_kind(label, &t, None, None)));
         }
     }
 
@@ -2710,7 +2761,8 @@ mod tests {
                 ("Paragraph  one", false, None),
                 ("bold", true, None),
                 ("link", false, Some("https://x.y/")),
-                ("tail", true, None),
+                // Interior whitespace stays (docling#3891).
+                (" tail", true, None),
             ]
         );
         assert_eq!(
@@ -2845,7 +2897,7 @@ mod tests {
             TreeKind::Text { level: Some(2), .. }
         ));
         // The mixed paragraph: an inline group of three items under the heading.
-        let inline = parent_of("plain").expect("inline group");
+        let inline = parent_of("plain ").expect("inline group");
         assert_eq!(label_of(&items[inline].kind), "inline:group");
         assert_eq!(items[inline].parent, Some(deep));
         assert_eq!(items[inline].children.len(), 3);

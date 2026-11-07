@@ -1029,7 +1029,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "The Health Bureau will handle",
+      "orig": "The Health Bureau will handle ",
       "text": "The Health Bureau will handle ",
       "formatting": {
         "bold": false,
@@ -1049,7 +1049,7 @@
       "label": "text",
       "prov": [],
       "orig": "reporting and specimen collection",
-      "text": "reporting and specimen collection ",
+      "text": "reporting and specimen collection",
       "formatting": {
         "bold": true,
         "italic": false,

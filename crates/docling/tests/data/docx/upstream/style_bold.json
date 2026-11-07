@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "style_bold",
   "origin": {
     "mimetype": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -301,8 +301,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Mark bold before",
-      "text": "Mark bold before",
+      "orig": "Mark bold before ",
+      "text": "Mark bold before ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -340,8 +340,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and after",
-      "text": "and after",
+      "orig": " and after",
+      "text": " and after",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -359,8 +359,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Chain bold before",
-      "text": "Chain bold before",
+      "orig": "Chain bold before ",
+      "text": "Chain bold before ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -398,8 +398,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "after",
-      "text": "after",
+      "orig": " after",
+      "text": " after",
       "formatting": {
         "bold": true,
         "italic": false,

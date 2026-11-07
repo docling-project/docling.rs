@@ -126,7 +126,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "First item text",
+      "orig": "First item text ",
       "text": "First item text ",
       "formatting": {
         "bold": false,
@@ -146,7 +146,7 @@
       "label": "text",
       "prov": [],
       "orig": "[Required]",
-      "text": "[Required] ",
+      "text": "[Required]",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -201,7 +201,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Second item text",
+      "orig": "Second item text ",
       "text": "Second item text ",
       "formatting": {
         "bold": false,
@@ -221,7 +221,7 @@
       "label": "text",
       "prov": [],
       "orig": "[Optional]",
-      "text": "[Optional] ",
+      "text": "[Optional]",
       "formatting": {
         "bold": false,
         "italic": true,

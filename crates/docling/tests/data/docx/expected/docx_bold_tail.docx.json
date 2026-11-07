@@ -81,7 +81,7 @@
       "label": "text",
       "prov": [],
       "orig": "Case 1: bold text then a plain text run.",
-      "text": "Case 1: bold text then a plain text run. ",
+      "text": "Case 1: bold text then a plain text run.",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -99,8 +99,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Plain tail.",
-      "text": "Plain tail.",
+      "orig": " Plain tail.",
+      "text": " Plain tail.",
       "formatting": {
         "bold": false,
         "italic": false,
