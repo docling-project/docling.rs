@@ -12,3 +12,4 @@ xlsx_comments.xlsx
 xlsx_empty_merge_before_data.xlsx
 xlsx_merged_range.xlsx
 xlsx_emf.xlsx
+xlsx_10_place_in_cell.xlsx
