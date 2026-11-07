@@ -181,7 +181,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Bold run",
+      "orig": "Bold run ",
       "text": "Bold run ",
       "formatting": {
         "bold": true,
@@ -200,7 +200,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and",
+      "orig": "and ",
       "text": "and "
     },
     {
@@ -212,7 +212,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "italic run",
+      "orig": "italic run ",
       "text": "italic run ",
       "formatting": {
         "bold": false,

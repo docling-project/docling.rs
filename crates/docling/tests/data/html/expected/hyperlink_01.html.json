@@ -73,7 +73,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Please follow the link to:",
+      "orig": "Please follow the link to: ",
       "text": "Please follow the link to: "
     },
     {
@@ -85,7 +85,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "This page",
+      "orig": "This page ",
       "text": "This page ",
       "hyperlink": "#"
     },

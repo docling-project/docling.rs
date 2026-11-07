@@ -685,7 +685,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "HyperText Markup Language - used for",
+      "orig": "HyperText Markup Language - used for ",
       "text": "HyperText Markup Language - used for "
     },
     {
@@ -697,7 +697,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "structuring",
+      "orig": "structuring ",
       "text": "structuring ",
       "formatting": {
         "bold": false,

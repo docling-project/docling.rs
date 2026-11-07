@@ -290,7 +290,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "This is a",
+      "orig": "This is a ",
       "text": "This is a "
     },
     {
@@ -302,7 +302,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "bold (b)",
+      "orig": "bold (b) ",
       "text": "bold (b) ",
       "formatting": {
         "bold": true,
@@ -321,7 +321,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "example and right next to it we have a",
+      "orig": "example and right next to it we have a ",
       "text": "example and right next to it we have a "
     },
     {
@@ -334,7 +334,7 @@
       "label": "text",
       "prov": [],
       "orig": "strong emphasis (strong)",
-      "text": "strong emphasis (strong) ",
+      "text": "strong emphasis (strong)",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -352,7 +352,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ". Notice that",
+      "orig": ". Notice that ",
       "text": ". Notice that "
     },
     {
@@ -364,7 +364,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "strong + bold mixed",
+      "orig": "strong + bold mixed ",
       "text": "strong + bold mixed ",
       "formatting": {
         "bold": true,
@@ -395,7 +395,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Here is an",
+      "orig": "Here is an ",
       "text": "Here is an "
     },
     {
@@ -407,7 +407,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "italic (i)",
+      "orig": "italic (i) ",
       "text": "italic (i) ",
       "formatting": {
         "bold": false,
@@ -426,7 +426,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "word and an",
+      "orig": "word and an ",
       "text": "word and an "
     },
     {
@@ -438,7 +438,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "emphasis (em)",
+      "orig": "emphasis (em) ",
       "text": "emphasis (em) ",
       "formatting": {
         "bold": false,
@@ -457,7 +457,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "example. Sometimes we combine them like",
+      "orig": "example. Sometimes we combine them like ",
       "text": "example. Sometimes we combine them like "
     },
     {
@@ -470,7 +470,7 @@
       "label": "text",
       "prov": [],
       "orig": "italic + emphasis together",
-      "text": "italic + emphasis together ",
+      "text": "italic + emphasis together",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -500,7 +500,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Now let's look at text that appears crossed out:",
+      "orig": "Now let's look at text that appears crossed out: ",
       "text": "Now let's look at text that appears crossed out: "
     },
     {
@@ -512,7 +512,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "strikethrough with s",
+      "orig": "strikethrough with s ",
       "text": "strikethrough with s ",
       "formatting": {
         "bold": false,
@@ -531,7 +531,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and",
+      "orig": "and ",
       "text": "and "
     },
     {
@@ -544,7 +544,7 @@
       "label": "text",
       "prov": [],
       "orig": "deleted with del",
-      "text": "deleted with del ",
+      "text": "deleted with del",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -562,7 +562,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ". You can also mix them:",
+      "orig": ". You can also mix them: ",
       "text": ". You can also mix them: "
     },
     {
@@ -575,7 +575,7 @@
       "label": "text",
       "prov": [],
       "orig": "double strikethrough (s + del)",
-      "text": "double strikethrough (s + del) ",
+      "text": "double strikethrough (s + del)",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -605,7 +605,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "To highlight insertions or underlines:",
+      "orig": "To highlight insertions or underlines: ",
       "text": "To highlight insertions or underlines: "
     },
     {
@@ -618,7 +618,7 @@
       "label": "text",
       "prov": [],
       "orig": "underlined with u",
-      "text": "underlined with u ",
+      "text": "underlined with u",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -636,7 +636,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ",",
+      "orig": ", ",
       "text": ", "
     },
     {
@@ -649,7 +649,7 @@
       "label": "text",
       "prov": [],
       "orig": "inserted with ins",
-      "text": "inserted with ins ",
+      "text": "inserted with ins",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -667,7 +667,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ". A combination could be:",
+      "orig": ". A combination could be: ",
       "text": ". A combination could be: "
     },
     {
@@ -680,7 +680,7 @@
       "label": "text",
       "prov": [],
       "orig": "underline + insertion together",
-      "text": "underline + insertion together ",
+      "text": "underline + insertion together",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -711,7 +711,7 @@
       "label": "text",
       "prov": [],
       "orig": "Subscript and superscript examples: Water is written as H",
-      "text": "Subscript and superscript examples: Water is written as H "
+      "text": "Subscript and superscript examples: Water is written as H"
     },
     {
       "self_ref": "#/texts/31",
@@ -723,7 +723,7 @@
       "label": "text",
       "prov": [],
       "orig": "2",
-      "text": "2 ",
+      "text": "2",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -742,7 +742,7 @@
       "label": "text",
       "prov": [],
       "orig": "O using sub. The mathematical expression x",
-      "text": "O using sub. The mathematical expression x "
+      "text": "O using sub. The mathematical expression x"
     },
     {
       "self_ref": "#/texts/33",
@@ -753,7 +753,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "2",
+      "orig": "2 ",
       "text": "2 ",
       "formatting": {
         "bold": false,
@@ -773,7 +773,7 @@
       "label": "text",
       "prov": [],
       "orig": "+ y",
-      "text": "+ y "
+      "text": "+ y"
     },
     {
       "self_ref": "#/texts/35",
@@ -784,7 +784,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "3",
+      "orig": "3 ",
       "text": "3 ",
       "formatting": {
         "bold": false,
@@ -804,7 +804,7 @@
       "label": "text",
       "prov": [],
       "orig": "uses sup. They can also be combined: CO",
-      "text": "uses sup. They can also be combined: CO "
+      "text": "uses sup. They can also be combined: CO"
     },
     {
       "self_ref": "#/texts/37",
@@ -816,7 +816,7 @@
       "label": "text",
       "prov": [],
       "orig": "2",
-      "text": "2 ",
+      "text": "2",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -835,7 +835,7 @@
       "label": "text",
       "prov": [],
       "orig": "*",
-      "text": "* ",
+      "text": "*",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -865,7 +865,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Mixing several: This sentence has",
+      "orig": "Mixing several: This sentence has ",
       "text": "Mixing several: This sentence has "
     },
     {
@@ -878,7 +878,7 @@
       "label": "text",
       "prov": [],
       "orig": "strong + emphasis",
-      "text": "strong + emphasis ",
+      "text": "strong + emphasis",
       "formatting": {
         "bold": true,
         "italic": true,
@@ -896,7 +896,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ", some",
+      "orig": ", some ",
       "text": ", some "
     },
     {
@@ -909,7 +909,7 @@
       "label": "text",
       "prov": [],
       "orig": "bold + underline",
-      "text": "bold + underline ",
+      "text": "bold + underline",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -928,7 +928,7 @@
       "label": "text",
       "prov": [],
       "orig": ", and a formula like a",
-      "text": ", and a formula like a "
+      "text": ", and a formula like a"
     },
     {
       "self_ref": "#/texts/45",
@@ -939,7 +939,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "2",
+      "orig": "2 ",
       "text": "2 ",
       "formatting": {
         "bold": false,
@@ -959,7 +959,7 @@
       "label": "text",
       "prov": [],
       "orig": "+ b",
-      "text": "+ b "
+      "text": "+ b"
     },
     {
       "self_ref": "#/texts/47",
@@ -971,7 +971,7 @@
       "label": "text",
       "prov": [],
       "orig": "3",
-      "text": "3 ",
+      "text": "3",
       "formatting": {
         "bold": false,
         "italic": false,

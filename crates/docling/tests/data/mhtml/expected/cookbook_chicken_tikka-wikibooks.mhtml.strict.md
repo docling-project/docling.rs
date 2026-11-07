@@ -162,9 +162,9 @@ From Wikibooks, open books for an open world
 - *Curry Club Tandoori and Tikka Dishes*, Piatkus, London - [ISBN 0749912839](https://en.wikibooks.org/wiki/Special:BookSources/0749912839) (1993)
 - *India: Food &amp; Cooking*, New Holland, London - [ISBN 978-1845376192](https://en.wikibooks.org/wiki/Special:BookSources/978-1845376192) (2007)
 
-Retrieved from " [https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&amp;oldid=4615207](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&oldid=4615207) "
+Retrieved from "[https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&amp;oldid=4615207](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&oldid=4615207)"
 
-[Categories](https://en.wikibooks.org/wiki/Special:Categories) :
+[Categories](https://en.wikibooks.org/wiki/Special:Categories):
 
 - [Easy recipes](https://en.wikibooks.org/wiki/Category:Easy_recipes)
 - [Recipes](https://en.wikibooks.org/wiki/Category:Recipes)

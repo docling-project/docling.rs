@@ -26,7 +26,7 @@
 
 /// Python's `str.isspace` set, which docling-core's `strip()` removes: Unicode
 /// `White_Space` plus the ASCII information separators U+001C–U+001F.
-fn is_py_space(c: char) -> bool {
+pub fn is_space(c: char) -> bool {
     c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
 }
 
@@ -34,12 +34,12 @@ fn is_py_space(c: char) -> bool {
 /// whitespace (Python's `lstrip` / `strip` / `rstrip` boundaries). A
 /// whitespace-only text is all lead.
 pub fn split_edges(text: &str) -> (&str, &str, &str) {
-    let core_start = text.find(|c| !is_py_space(c)).unwrap_or(text.len());
+    let core_start = text.find(|c| !is_space(c)).unwrap_or(text.len());
     let rest = &text[core_start..];
     let core_len = rest
         .char_indices()
         .rev()
-        .find(|&(_, c)| !is_py_space(c))
+        .find(|&(_, c)| !is_space(c))
         .map_or(0, |(i, c)| i + c.len_utf8());
     (&text[..core_start], &rest[..core_len], &rest[core_len..])
 }
@@ -58,7 +58,7 @@ pub fn hoist(text: &str, decorate: impl FnOnce(&str) -> String) -> String {
 
 /// Whether `text` is empty or whitespace only.
 pub fn is_blank(text: &str) -> bool {
-    text.chars().all(is_py_space)
+    text.chars().all(is_space)
 }
 
 /// docling's `trim_run_edges`: drop the whitespace-only runs at either edge
@@ -74,9 +74,7 @@ pub fn trim_run_edges<T>(
 ) -> Vec<T> {
     let mut start = 0;
     while start < runs.len() && trimmable(&runs[start]) {
-        let head = text(&runs[start])
-            .trim_start_matches(is_py_space)
-            .to_string();
+        let head = text(&runs[start]).trim_start_matches(is_space).to_string();
         if !head.is_empty() {
             set_text(&mut runs[start], head);
             break;
@@ -85,9 +83,7 @@ pub fn trim_run_edges<T>(
     }
     let mut end = runs.len();
     while end > start && trimmable(&runs[end - 1]) {
-        let tail = text(&runs[end - 1])
-            .trim_end_matches(is_py_space)
-            .to_string();
+        let tail = text(&runs[end - 1]).trim_end_matches(is_space).to_string();
         if !tail.is_empty() {
             set_text(&mut runs[end - 1], tail);
             break;

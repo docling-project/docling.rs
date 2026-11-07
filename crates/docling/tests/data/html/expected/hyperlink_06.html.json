@@ -117,7 +117,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Jump to",
+      "orig": "Jump to ",
       "text": "Jump to "
     },
     {
@@ -129,7 +129,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Section 2",
+      "orig": "Section 2 ",
       "text": "Section 2 ",
       "hyperlink": "#section-2"
     },
@@ -142,7 +142,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "or visit",
+      "orig": "or visit ",
       "text": "or visit "
     },
     {
@@ -155,7 +155,7 @@
       "label": "text",
       "prov": [],
       "orig": "Example",
-      "text": "Example ",
+      "text": "Example",
       "hyperlink": "https://example.com/"
     },
     {
@@ -196,7 +196,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Content for section 2 with a",
+      "orig": "Content for section 2 with a ",
       "text": "Content for section 2 with a "
     },
     {
@@ -209,7 +209,7 @@
       "label": "text",
       "prov": [],
       "orig": "top link",
-      "text": "top link ",
+      "text": "top link",
       "hyperlink": "#"
     },
     {

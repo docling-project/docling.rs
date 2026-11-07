@@ -176,7 +176,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "This is a fourth div with a",
+      "orig": "This is a fourth div with a ",
       "text": "This is a fourth div with a "
     },
     {
@@ -188,7 +188,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "bold",
+      "orig": "bold ",
       "text": "bold ",
       "formatting": {
         "bold": true,

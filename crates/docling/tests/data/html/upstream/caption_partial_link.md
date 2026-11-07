@@ -1,3 +1,3 @@
-Female mallard in Cornwall , England
+Female mallard in Cornwall, England
 
 <!-- image -->

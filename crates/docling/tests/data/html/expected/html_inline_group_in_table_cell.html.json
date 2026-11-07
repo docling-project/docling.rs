@@ -164,13 +164,7 @@
           "$ref": "#/texts/13"
         },
         {
-          "$ref": "#/texts/18"
-        },
-        {
           "$ref": "#/texts/14"
-        },
-        {
-          "$ref": "#/texts/17"
         },
         {
           "$ref": "#/texts/15"
@@ -229,7 +223,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "See",
+      "orig": "See ",
       "text": "See "
     },
     {
@@ -241,7 +235,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Page A",
+      "orig": "Page A ",
       "text": "Page A ",
       "hyperlink": "https://example.com/a"
     },
@@ -254,7 +248,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and",
+      "orig": "and ",
       "text": "and "
     },
     {
@@ -266,7 +260,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Page B",
+      "orig": "Page B ",
       "text": "Page B ",
       "hyperlink": "https://example.com/b"
     },
@@ -291,7 +285,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Bold",
+      "orig": "Bold ",
       "text": "Bold ",
       "formatting": {
         "bold": true,
@@ -310,7 +304,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and",
+      "orig": "and ",
       "text": "and "
     },
     {
@@ -322,7 +316,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "italic",
+      "orig": "italic ",
       "text": "italic ",
       "formatting": {
         "bold": false,
@@ -385,8 +379,8 @@
       "content_layer": "body",
       "label": "code",
       "prov": [],
-      "orig": "See",
-      "text": "See",
+      "orig": "See ",
+      "text": "See ",
       "captions": [],
       "references": [],
       "footnotes": [],
@@ -418,8 +412,8 @@
       "content_layer": "body",
       "label": "code",
       "prov": [],
-      "orig": "first",
-      "text": "first",
+      "orig": " first",
+      "text": " first",
       "captions": [],
       "references": [],
       "footnotes": [],
@@ -436,30 +430,6 @@
       "prov": [],
       "orig": "Outro paragraph.",
       "text": "Outro paragraph."
-    },
-    {
-      "self_ref": "#/texts/17",
-      "parent": {
-        "$ref": "#/groups/7"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "text",
-      "prov": [],
-      "orig": " ",
-      "text": " "
-    },
-    {
-      "self_ref": "#/texts/18",
-      "parent": {
-        "$ref": "#/groups/7"
-      },
-      "children": [],
-      "content_layer": "body",
-      "label": "text",
-      "prov": [],
-      "orig": " ",
-      "text": " "
     }
   ],
   "pictures": [],

@@ -403,7 +403,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Item with",
+      "orig": "Item with ",
       "text": "Item with "
     },
     {
@@ -415,7 +415,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "bold",
+      "orig": "bold ",
       "text": "bold ",
       "formatting": {
         "bold": true,
@@ -464,7 +464,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Another item in",
+      "orig": "Another item in ",
       "text": "Another item in "
     },
     {
@@ -492,7 +492,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "language",
+      "orig": " language",
       "text": " language"
     },
     {

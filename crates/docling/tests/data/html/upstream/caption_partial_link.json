@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "caption_partial_link",
   "origin": {
     "mimetype": "text/html",
@@ -39,8 +39,8 @@
       "content_layer": "body",
       "label": "caption",
       "prov": [],
-      "orig": "Female mallard in Cornwall , England",
-      "text": "Female mallard in Cornwall , England"
+      "orig": "Female mallard in Cornwall, England",
+      "text": "Female mallard in Cornwall, England"
     }
   ],
   "pictures": [

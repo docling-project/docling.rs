@@ -230,7 +230,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "This is my",
+      "orig": "This is my ",
       "text": "This is my "
     },
     {
@@ -287,7 +287,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "More text",
+      "orig": "More text ",
       "text": "More text "
     },
     {
@@ -299,7 +299,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "with some links",
+      "orig": "with some links ",
       "text": "with some links ",
       "hyperlink": "/some_links.html"
     },

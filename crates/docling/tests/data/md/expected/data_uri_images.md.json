@@ -159,7 +159,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "An HTML",
+      "orig": "An HTML ",
       "text": "An HTML "
     },
     {
@@ -187,7 +187,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tag goes through the same policy:",
+      "orig": " tag goes through the same policy:",
       "text": " tag goes through the same policy:"
     },
     {
@@ -211,7 +211,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "A relative path never resolves without the",
+      "orig": "A relative path never resolves without the ",
       "text": "A relative path never resolves without the "
     },
     {
@@ -239,7 +239,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tier:",
+      "orig": " tier:",
       "text": " tier:"
     },
     {

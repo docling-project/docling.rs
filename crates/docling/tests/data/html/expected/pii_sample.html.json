@@ -109,7 +109,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Contact",
+      "orig": "Contact ",
       "text": "Contact "
     },
     {
@@ -121,7 +121,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "john.doe@example.com",
+      "orig": "john.doe@example.com ",
       "text": "john.doe@example.com ",
       "hyperlink": "mailto:john.doe@example.com"
     },
@@ -134,7 +134,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "or",
+      "orig": "or ",
       "text": "or "
     },
     {
@@ -146,7 +146,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "+1 (555) 123-4567",
+      "orig": "+1 (555) 123-4567 ",
       "text": "+1 (555) 123-4567 ",
       "formatting": {
         "bold": true,

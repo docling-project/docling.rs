@@ -275,7 +275,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "The pipe symbol (| or",
+      "orig": "The pipe symbol (| or ",
       "text": "The pipe symbol (| or "
     },
     {
@@ -303,7 +303,7 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ") only needs to be escaped in tables.",
+      "orig": " ) only needs to be escaped in tables.",
       "text": " ) only needs to be escaped in tables."
     },
     {
