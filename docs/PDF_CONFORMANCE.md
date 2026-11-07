@@ -371,7 +371,11 @@ diff lines and recovers content docling drops):
   warning, as docling does. docling then emits an empty table whose
   uncovered in-box words become one text child; the port keeps its
   geometric table path for the region instead, which keeps every word and
-  still yields a grid.
+  still yields a grid. On the corpus one region trips it: DeepSeek-V3's
+  `relative_expert_load_multi_13-18` chart, over-detected as a table, whose
+  decode ran to 1024 tags without closing its last row — the grid that
+  scattered the axis labels across the wrong cells is now the geometric one
+  (one snapshot moved; groundtruth unchanged).
 * **Picture-in-table captions**: a picture inside a table that pairs with a
   caption stays a standalone figure (upstream nests it and loses the
   caption).
