@@ -954,7 +954,10 @@ impl Flat<'_> {
                 });
             }
         }
-        (parts.join(" "), runs)
+        // The runs carry their own boundary whitespace (they always did in
+        // the walker); docling-core 2.106 concatenates them (#997):
+        // `states $h_t$,`, not `states  $h_t$ ,`.
+        (parts.concat(), runs)
     }
 
     /// An item's own Markdown text (an inline group's, or its escaped text).
@@ -965,6 +968,7 @@ impl Flat<'_> {
         match &self.tree.items[id].kind {
             TreeKind::Text { label, text, .. } if label == "formula" => format!("$${text}$$"),
             TreeKind::Text { text, .. } => escape_text(text),
+            TreeKind::Group { label, .. } if label == "inline" => self.render_inline(id).0,
             TreeKind::Group { .. } => self.group_md(id),
             _ => String::new(),
         }
