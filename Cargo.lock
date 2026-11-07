@@ -1578,6 +1578,7 @@ dependencies = [
  "tar",
  "tiny-skia",
  "tokenizers",
+ "unicode-normalization",
  "weezl 0.2.1",
 ]
 

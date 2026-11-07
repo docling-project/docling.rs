@@ -167,7 +167,9 @@ fn decompose_ligatures(s: &str) -> String {
                 '\u{FB02}' => "fl",
                 '\u{FB03}' => "ffi",
                 '\u{FB04}' => "ffl",
-                '\u{FB05}' => "ft",
+                // U+FB05 is LATIN SMALL LIGATURE LONG S T (`ſt`): `st`, as
+                // docling's ligature map and Unicode's decomposition (#1001).
+                '\u{FB05}' => "st",
                 '\u{FB06}' => "st",
                 _ => return c.to_string(),
             }
