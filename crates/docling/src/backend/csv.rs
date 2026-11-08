@@ -18,7 +18,22 @@ impl DeclarativeBackend for CsvBackend {
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
         let text = source.text()?;
         let text: &str = &text;
-        let delimiter = detect_delimiter(text);
+        let (text, delimiter) = match excel_sep_line(text) {
+            Some((sep, rest)) => {
+                // docling raises on a delimiter outside its candidates, a
+                // named one included.
+                let delimiter = u8::try_from(sep)
+                    .ok()
+                    .filter(|b| DELIMITERS.contains(b))
+                    .ok_or_else(|| {
+                        ConversionError::Parse(format!(
+                            "csv: cannot convert csv with unknown delimiter {sep}"
+                        ))
+                    })?;
+                (rest, delimiter)
+            }
+            None => (text, detect_delimiter(text)),
+        };
         // docling reads with `csv.reader(strict=True)` and, since 2.129
         // (docling#4260), turns its `csv.Error` into a load error rather
         // than letting it escape: a closing quote followed by anything but
@@ -135,6 +150,33 @@ fn check_strict_quoting(text: &str, delimiter: u8) -> Result<(), String> {
     Ok(())
 }
 
+/// The delimiters docling accepts (`_DELIMITERS`).
+const DELIMITERS: [u8; 5] = *b",;\t|:";
+
+/// Excel's `sep=<char>` line (docling#5200): when the first non-blank line
+/// is exactly `sep=` plus one character, that character is the delimiter
+/// and the line is no row — Excel writes it for files whose values hold the
+/// delimiter the sniffer would pick (decimal commas in a `;` file). Returns
+/// the delimiter and the text after the line, from which the strict-quoting
+/// check and the reader start.
+fn excel_sep_line(text: &str) -> Option<(char, &str)> {
+    let mut rest = text;
+    loop {
+        let end = rest.find('\n').map_or(rest.len(), |i| i + 1);
+        let line = &rest[..end];
+        let body = line.trim_end_matches(['\r', '\n']);
+        // Python's `readline` splits a lone `\r` too; a blank line is any of
+        // `\n`, `\r\n`, `\r` — skipped, as docling's sniffing loop does.
+        if body.is_empty() && !line.is_empty() {
+            rest = &rest[end..];
+            continue;
+        }
+        let mut chars = body.strip_prefix("sep=")?.chars();
+        let sep = chars.next()?;
+        return chars.next().is_none().then_some((sep, &rest[end..]));
+    }
+}
+
 /// Sniff the delimiter from the first line: the candidate (`, ; \t | :`) that
 /// occurs most often wins. When the first line carries none — a quoted field
 /// spanning several lines cuts it mid-quote (docling#3985, 2.123) — retry
@@ -143,7 +185,7 @@ fn check_strict_quoting(text: &str, delimiter: u8) -> Result<(), String> {
 /// widening the sample unconditionally would change the delimiter picked for
 /// ragged files.
 fn detect_delimiter(text: &str) -> u8 {
-    const CANDIDATES: [u8; 5] = *b",;\t|:";
+    const CANDIDATES: [u8; 5] = DELIMITERS;
     let count_best = |sample: &[u8]| {
         let mut best = b',';
         let mut best_count = 0usize;
@@ -442,6 +484,61 @@ mod tests {
             table.rows[1],
             vec!["1".to_string(), "Lozano, Dr".to_string()]
         );
+    }
+
+    /// docling#5200 (`test_excel_sep_line_sets_the_delimiter`, #1026): a
+    /// first line `sep=<char>` names the delimiter and is not a row — LF,
+    /// CRLF, a tab, and behind a UTF-8 BOM.
+    #[test]
+    fn excel_sep_line_sets_the_delimiter() {
+        for (csv, want) in [
+            (
+                "sep=;\nName;Price\nApple;1,50\n",
+                ["Name", "Price", "Apple", "1,50"],
+            ),
+            (
+                "sep=,\r\nName,Price\r\nApple,1.50\r\n",
+                ["Name", "Price", "Apple", "1.50"],
+            ),
+            (
+                "sep=\t\nName\tPrice\nApple\t1.50\n",
+                ["Name", "Price", "Apple", "1.50"],
+            ),
+            (
+                "\u{feff}sep=|\nName|Price\nApple|1.50\n",
+                ["Name", "Price", "Apple", "1.50"],
+            ),
+            (
+                "\n\nsep=;\nName;Price\nApple;1,50\n",
+                ["Name", "Price", "Apple", "1,50"],
+            ),
+        ] {
+            let doc = convert(csv.as_bytes());
+            let Node::Table(t) = &doc.nodes[0] else {
+                panic!("no table for {csv:?}");
+            };
+            let cells: Vec<&str> = t.rows.iter().flatten().map(String::as_str).collect();
+            assert_eq!(cells, want, "{csv:?}");
+        }
+    }
+
+    /// The quoting check starts after the `sep=` line, and a `sep=` that is
+    /// not exactly one character is an ordinary row; an unknown named
+    /// delimiter is docling's load error.
+    #[test]
+    fn excel_sep_line_edges() {
+        let doc = convert(b"sep=;\n\"a;b\";c\n1;2\n");
+        let Node::Table(t) = &doc.nodes[0] else {
+            panic!()
+        };
+        assert_eq!(t.rows[0], ["a;b", "c"]);
+        let doc = convert(b"sep=;;\nx;y\n");
+        let Node::Table(t) = &doc.nodes[0] else {
+            panic!()
+        };
+        assert_eq!(t.rows[0], ["sep=", "", ""]);
+        let src = SourceDocument::from_bytes("data", InputFormat::Csv, b"sep=#\na#b\n".to_vec());
+        assert!(CsvBackend.convert(&src).is_err());
     }
 
     #[test]

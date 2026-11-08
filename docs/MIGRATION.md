@@ -351,6 +351,7 @@ converted once more as that format with a warning.
 - `.tsv` routes here too (#208 — the delimiter sniffing already covers tabs; a docling.rs extension, upstream accepts only `.csv`)
 - #319: a quoted field spanning lines no longer defeats delimiter sniffing (4 KiB fallback sample, docling#3985) and an Excel-style leading BOM stays out of the first header cell (docling#4098)
 - docling#4896 (docling `main` after 2.142.1): a header holding two candidate delimiters — a comma inside a semicolon file's `Weight (kg, net)`, the colons of a comma file's `Time (hh:mm:ss)` — is sniffed from its occurrences outside brackets; docling re-sniffs the following rows with `csv.Sniffer` instead, and this count-based sniff reaches the same split on all fifteen of its test cases
+- docling#5200 (#1026, docling `main`): Excel's `sep=<char>` first line (after blank lines, behind a BOM) names the delimiter and is not a row — `sep=;` over decimal commas no longer reads as a `sep=` row; the strict-quoting check starts after it, and a named delimiter outside `, ; \t | :` is docling's load error
 
 #### HTML
 
