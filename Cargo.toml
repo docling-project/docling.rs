@@ -37,7 +37,7 @@ members = [
 ]
 
 [workspace.package]
-version = "2.71.2"
+version = "2.71.3"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/docling-project/docling.rs"
