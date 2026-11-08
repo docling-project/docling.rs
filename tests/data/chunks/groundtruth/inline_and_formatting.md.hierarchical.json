@@ -74,18 +74,42 @@
   "contextualize": "Whole heading is italic\nSome *`formatted_code`*"
  },
  {
+  "text": "This is ~~old~~ new.",
+  "headings": [
+   "Whole heading is italic",
+   "*Partially formatted* heading to_escape `not_to_escape`"
+  ],
+  "doc_items": [
+   "#/texts/47",
+   "#/texts/48",
+   "#/texts/49"
+  ],
+  "contextualize": "Whole heading is italic\n*Partially formatted* heading to_escape `not_to_escape`\nThis is ~~old~~ new."
+ },
+ {
+  "text": "Approx ~5 items and ~10 more.",
+  "headings": [
+   "Whole heading is italic",
+   "*Partially formatted* heading to_escape `not_to_escape`"
+  ],
+  "doc_items": [
+   "#/texts/50"
+  ],
+  "contextualize": "Whole heading is italic\n*Partially formatted* heading to_escape `not_to_escape`\nApprox ~5 items and ~10 more."
+ },
+ {
   "text": "[$$E=mc^2$$](https://en.wikipedia.org/wiki/Albert_Einstein)",
   "headings": [
    "Whole heading is italic",
    "*Partially formatted* heading to_escape `not_to_escape`"
   ],
   "doc_items": [
-   "#/texts/47"
+   "#/texts/51"
   ],
   "contextualize": "Whole heading is italic\n*Partially formatted* heading to_escape `not_to_escape`\n[$$E=mc^2$$](https://en.wikipedia.org/wiki/Albert_Einstein)"
  },
  {
-  "text": "data a, Italic Heading = data b",
+  "text": "data a, *Italic Heading* = data b. **C** Cadre, *Italic Heading* = x. foo **bar**, *Italic Heading* = y. **A** **B**, *Italic Heading* = z. *italic* and **bold** and ~~strikethrough~~, *Italic Heading* = w. run `build` now, *Italic Heading* = code in a cell. visit [Docling](https://github.com/docling-project/docling), *Italic Heading* = link in a cell",
   "headings": [
    "Whole heading is italic",
    "Table Heading"
@@ -93,6 +117,6 @@
   "doc_items": [
    "#/tables/0"
   ],
-  "contextualize": "Whole heading is italic\nTable Heading\ndata a, Italic Heading = data b"
+  "contextualize": "Whole heading is italic\nTable Heading\ndata a, *Italic Heading* = data b. **C** Cadre, *Italic Heading* = x. foo **bar**, *Italic Heading* = y. **A** **B**, *Italic Heading* = z. *italic* and **bold** and ~~strikethrough~~, *Italic Heading* = w. run `build` now, *Italic Heading* = code in a cell. visit [Docling](https://github.com/docling-project/docling), *Italic Heading* = link in a cell"
  }
 ]

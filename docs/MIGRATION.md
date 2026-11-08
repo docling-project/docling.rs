@@ -1615,8 +1615,20 @@ headings + contextualization — the payload an embedding model sees):
 
 | Chunker | Identical chunk records | Fully-exact documents |
 |---|---|---|
-| Hierarchical | **555 / 562 (98.8%)** | 79 / 83 |
-| Hybrid (MiniLM tokenizer, 256 tokens) | **300 / 312 (96.2%)** | 76 / 83 |
+| Hierarchical | **475 / 563 (84.4%)** | 57 / 83 |
+| Hybrid (MiniLM tokenizer, 256 tokens) | **224 / 312 (71.8%)** | 54 / 83 |
+
+Re-measured 2026-11-08 (#1012). The earlier 98.8% / 96.2% were scored before
+later backend changes the chunk groundtruth predates — link URLs now
+percent-encode `(`/`)` (`wiki_duck`), inline runs follow docling's newer
+whitespace — so most of the gap is a stale groundtruth, not the chunker;
+master scored 471 / 563 hierarchical on the same tree. A rich heading (an
+empty heading whose only child is an inline group, formula or code — what
+docling makes of a partially formatted `## *a* b`) is its body's heading
+context, docling-core 2.106's `test_rich_heading_chunk_metadata`
+(docling-core#924): it is no longer a chunk of its own under an empty
+heading. `inline_and_formatting.md`'s groundtruth is docling-core 2.106's
+chunkers over the fixture's current upstream conversion (its `.yaml`).
 
 The port reproduces docling's semantics end-to-end: heading-path metadata with
 level shadowing, triplet table serialization over `export_to_dataframe`
@@ -1629,11 +1641,11 @@ byte-compatible with `transformers` (HF `tokenizers` with MiniLM's fixed-length
 padding disabled).
 
 On the large-document benchmark (`wiki_duck.html`, 89 hierarchical / 115 hybrid
-groundtruth chunks) **100% / 100% of docling's chunk records are reproduced
-identically** (order-aligned) — the former HTML-backend model gaps (rich table
+groundtruth chunks) **100% / 100% of docling's chunk records were reproduced
+identically** (order-aligned; 46 / 89 and 68 / 115 against today's stale
+groundtruth, the link-URL encoding above) — the former HTML-backend model gaps (rich table
 cells with inline markup and span de-duplication, figure-caption run spacing,
-indicator images, `<br>` annotation-boundary handling) are closed. Corpus-wide:
-hierarchical 98.8%, hybrid 96.2% record-identical. The chunker-era
+indicator images, `<br>` annotation-boundary handling) are closed. The chunker-era
 work (checkbox inputs, fragmented-anchor folding, `<button>` blocks) plus the
 #81 parity fixes also lifted the HTML `.dclx` similarity: 88% mean (was 84%).
 
