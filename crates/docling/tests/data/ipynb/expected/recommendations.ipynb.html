@@ -200,7 +200,7 @@ rc('font', **font)</code></pre>
         for l in f.readlines():
             parts = str.split(l.strip(), ';')
             sessions.append(([int(_) for _ in str.split(parts[0], ',')], 
-                      [int(_) for _ in str.split(parts[1], ',')] if len(parts[1]) > 0 else []))
+                      [int(_) for _ in str.split(parts[1], ',')] if len(parts[1]) &gt; 0 else []))
     return sessions
 
 

@@ -11,13 +11,15 @@
 //! exceptions plus the `StopIteration`/`IndexError`/`ValueError`s an
 //! unbalanced input provokes) maps to an [`Error`], so upstream's
 //! `except Exception` fallback (`<pre>{text}</pre>`) fires for exactly the
-//! same inputs. Output text is written the way `unescape(tostring(...))`
-//! leaves it: numeric entities such as `&#x0003D;` literal, `<`/`>`/`&` in
-//! text raw, only `"` (and CR/LF/TAB) in attribute values escaped.
+//! same inputs. Output text is written the way docling-core 2.106
+//! (docling-core#894) leaves `tostring(...)`: `&<>` escaped in text and
+//! attributes (plus `"` and CR/LF/TAB in attributes), with only the numeric
+//! references latex2mathml stores as text (`&#x0003D;`) un-double-escaped.
 //!
 //! Only `convert_to_element` is reproduced (no `xmlns` override, no
-//! `parent`); [`formula_to_mathml`] adds the `<annotation encoding="TeX">`
-//! child and the `<div>` block wrapper docling-core puts around it.
+//! `parent`); [`formula_to_mathml`] appends the escaped `<annotation
+//! encoding="TeX">` source and the `<div>` block wrapper docling-core puts
+//! around it.
 
 mod symbols;
 
@@ -46,17 +48,23 @@ pub(crate) enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-/// docling-core's `_process_formula` success path: `latex2mathml`'s element
-/// plus an `<annotation encoding="TeX">` carrying the source, serialised
-/// like `unescape(tostring(el, encoding="unicode"))`; block formulas come
-/// wrapped in `<div>`. `Err` for whatever `latex2mathml` raises on.
+/// docling-core's `_process_formula` success path (2.106, docling-core#894):
+/// `latex2mathml`'s element serialised by `tostring` — text and attributes
+/// escaped, with only the numeric character references latex2mathml stores
+/// as literal text (`&#x003B1;`) reverted from their double escaping — and
+/// an `<annotation encoding="TeX">` carrying the HTML-escaped source spliced
+/// in before `</math>`; block formulas come wrapped in `<div>`. `Err` for
+/// whatever `latex2mathml` raises on.
 pub(crate) fn formula_to_mathml(latex: &str, inline: bool) -> Result<String> {
     let display = if inline { "inline" } else { "block" };
     let mut conv = Converter::new(display);
     let root = conv.convert_to_element(latex)?;
-    let ann = conv.tree.sub(root, "annotation", &[("encoding", "TeX")]);
-    conv.tree.set_text(ann, latex);
     let mathml = conv.tree.to_string(root);
+    let mathml = mathml.strip_suffix("</math>").unwrap_or(&mathml);
+    let mathml = format!(
+        "{mathml}<annotation encoding=\"TeX\">{}</annotation></math>",
+        escape_text(latex)
+    );
     Ok(if inline {
         mathml
     } else {
@@ -2239,10 +2247,10 @@ impl Tree {
         self.nodes[parent].children.retain(|&c| c != child);
     }
 
-    /// `unescape(tostring(el, encoding="unicode"))`: ElementTree's
-    /// serialisation with `xml.sax.saxutils.unescape` run over it, which
-    /// undoes the `&amp;`/`&lt;`/`&gt;` escaping of text and attributes and
-    /// leaves only what `_escape_attrib` does beyond that.
+    /// `_DOUBLE_ESCAPED_CHAR_REF.sub(r"&\1", tostring(el))`: ElementTree's
+    /// serialisation (`_escape_cdata` on text, `_escape_attrib` on
+    /// attributes), then every `&amp;#x…;` turned back into the numeric
+    /// character reference latex2mathml meant.
     fn to_string(&self, el: El) -> String {
         let mut out = String::new();
         self.write(el, &mut out);
@@ -2267,7 +2275,7 @@ impl Tree {
         }
         out.push('>');
         if let Some(t) = text {
-            out.push_str(t);
+            out.push_str(&revert_char_refs(escape_text(t)));
         }
         for &c in &e.children {
             self.write(c, out);
@@ -2278,15 +2286,55 @@ impl Tree {
     }
 }
 
-/// `_escape_attrib` minus what `unescape` reverts.
-fn escape_attrib(v: &str) -> String {
-    if !v.contains(['"', '\r', '\n', '\t']) {
+/// ElementTree's `_escape_cdata` (= `html.escape(quote=False)`): `&<>`.
+fn escape_text(v: &str) -> String {
+    if !v.contains(['&', '<', '>']) {
         return v.to_string();
     }
-    v.replace('"', "&quot;")
-        .replace('\r', "&#13;")
-        .replace('\n', "&#10;")
-        .replace('\t', "&#09;")
+    v.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+/// ElementTree's `_escape_attrib`, then the char-ref revert.
+fn escape_attrib(v: &str) -> String {
+    let v = escape_text(v);
+    if !v.contains(['"', '\r', '\n', '\t', '&']) {
+        return v;
+    }
+    revert_char_refs(
+        v.replace('"', "&quot;")
+            .replace('\r', "&#13;")
+            .replace('\n', "&#10;")
+            .replace('\t', "&#09;"),
+    )
+}
+
+/// docling-core's `_DOUBLE_ESCAPED_CHAR_REF.sub(r"&\1", …)`:
+/// `&amp;(#x[0-9A-Fa-f]+;)` → `&\1`. Only hexadecimal references, as
+/// upstream: latex2mathml writes its symbols that way.
+fn revert_char_refs(s: String) -> String {
+    const PAT: &str = "&amp;#x";
+    if !s.contains(PAT) {
+        return s;
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s.as_str();
+    while let Some(i) = rest.find(PAT) {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + PAT.len()..];
+        let hex = after.bytes().take_while(|b| b.is_ascii_hexdigit()).count();
+        if hex > 0 && after.as_bytes().get(hex) == Some(&b';') {
+            out.push_str("&#x");
+            out.push_str(&after[..=hex]);
+            rest = &after[hex + 1..];
+        } else {
+            out.push_str(PAT);
+            rest = after;
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -3237,8 +3285,20 @@ mod tests {
     fn text_and_attribute_escaping() {
         assert!(conv(r#"\text{a "b"}"#).contains("<mtext>a&#x000A0;\"b\"</mtext>"));
         assert!(conv(r#"\class{x"y}{a}"#).contains("class=\"x&quot;y\""));
-        // `<` inside text stays raw after `unescape`.
+        // latex2mathml's own character references are not double-escaped…
         assert!(conv("a < b").contains("<mo>&#x0003C;</mo>"));
+        // …but markup in text is (docling-core#894).
+        let m = conv(r"\text{<svg/onload=alert(1)>}");
+        assert!(
+            m.contains("<mtext>&lt;svg/onload=alert(1)&gt;</mtext>"),
+            "{m}"
+        );
+        assert!(
+            m.contains(
+                "<annotation encoding=\"TeX\">\\text{&lt;svg/onload=alert(1)&gt;}</annotation>"
+            ),
+            "{m}"
+        );
     }
 
     #[test]

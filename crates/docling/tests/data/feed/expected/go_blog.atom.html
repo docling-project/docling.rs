@@ -245,20 +245,20 @@ func drainAndCloseBody(body io.ReadCloser) {
 }</code></pre>
 <p>While this works for small responses, if the unread body is large, establishing a new TCP connection can be faster than downloading and discarding the rest of the body. A better approach is to cap the number of bytes we are willing to drain:</p>
 <pre><code>func drainAndCloseBody(body io.ReadCloser) {
-    io.CopyN(io.Discard, body, 256<<10) // Only drain up to 256 KB.
+    io.CopyN(io.Discard, body, 256&lt;&lt;10) // Only drain up to 256 KB.
     body.Close()
 }</code></pre>
 <p>However, a server might send a response body that trickles in slowly, so we also need to cap the time we spend draining:</p>
 <pre><code>func drainAndCloseBody(body io.ReadCloser) {
     drainDone := make(chan struct{}, 1)
     go func() {
-        io.CopyN(io.Discard, body, 256<<10) // Only drain up to 256 KB.
-        drainDone <- struct{}{}
+        io.CopyN(io.Discard, body, 256&lt;&lt;10) // Only drain up to 256 KB.
+        drainDone &lt;- struct{}{}
     }()
     // Only spend at most 50 ms trying to drain the response body.
     select {
-    case <-drainDone:
-    case <-time.After(50 * time.Millisecond):
+    case &lt;-drainDone:
+    case &lt;-time.After(50 * time.Millisecond):
         // If we reach the 50 ms timeout, body.Close will run and interrupt the
         // io.CopyN, preventing goroutine leaks.
     }
@@ -268,19 +268,19 @@ func drainAndCloseBody(body io.ReadCloser) {
 <pre><code>func drainAndCloseBody(body io.ReadCloser) {
     drainDone := make(chan struct{}, 1)
     go func() {
-        io.CopyN(io.Discard, body, 256<<10) // Only drain up to 256 KB.
-        drainDone <- struct{}{}
+        io.CopyN(io.Discard, body, 256&lt;&lt;10) // Only drain up to 256 KB.
+        drainDone &lt;- struct{}{}
     }()
     go func() {
         // Only spend at most 50 ms trying to drain the response body.
         select {
-        case <-drainDone:
+        case &lt;-drainDone:
             // If the drain can finish before a new request is sent, the
             // connection will be reused; otherwise, a new connection is
             // created, and the current connection will be put in a pool of
             // idle connections, potentially being reused for another future
             // request.
-        case <-time.After(50 * time.Millisecond):
+        case &lt;-time.After(50 * time.Millisecond):
             // If we reach the 50 ms timeout, body.Close will run and interrupt
             // the io.CopyN, preventing goroutine leaks.
         }
@@ -386,18 +386,18 @@ func ReverseBits(dst, src []uint8) {
         slowReverseBits(dst, src)
         return
     }
-    if len(src) > len(dst) {
+    if len(src) &gt; len(dst) {
         // Make sure src and dst are the same size
         src = src[:len(dst)]
     }
     revMatrix := archsimd.BroadcastUint64x8(0x8040201008040201)
     var v archsimd.Uint8x64
     var i int
-    for i = 0; i < len(src)-v.Len()+1; i += v.Len() {
+    for i = 0; i &lt; len(src)-v.Len()+1; i += v.Len() {
         v = archsimd.LoadUint8x64(src[i : i+v.Len()])
         v.GaloisFieldAffineTransform(revMatrix, 0).Store(dst[i : i+v.Len()])
     }
-    if i < len(src) {
+    if i &lt; len(src) {
         v, _ = archsimd.LoadUint8x64Part(src[i:])
         v.GaloisFieldAffineTransform(revMatrix, 0).StorePart(dst[i:])
     }

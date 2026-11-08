@@ -202,14 +202,14 @@
 <h3>extern "C" variadics</h3>
 <p>Rust 1.99.0 stabilizes defining C-ABI variadic functions with "C" and "C-unwind" ABIs. Variadic functions defined this way use a variable argument list ( `...` ) and accept an arbitrary number of arguments. Rust could already call externally-defined variadic functions (e.g., `libc::printf` ). With Rust 1.99, these functions can now be written in Rust itself:</p>
 <pre><code>/// SAFETY: must be called with (at least) 2 i32 arguments.
-unsafe extern "C" fn sum(mut args: ...) -> i32 {
+unsafe extern "C" fn sum(mut args: ...) -&gt; i32 {
     // SAFETY: guaranteed by the caller.
-    let a = unsafe { args.next_arg::<i32>() };
-    let b = unsafe { args.next_arg::<i32>() };
+    let a = unsafe { args.next_arg::&lt;i32&gt;() };
+    let b = unsafe { args.next_arg::&lt;i32&gt;() };
     a + b
 }
 
-fn foo() -> i32 {
+fn foo() -&gt; i32 {
     unsafe { sum(0i32, 2i32) }
 }</code></pre>
 <p>The type of `...` is [`VaList`](https://doc.rust-lang.org/std/ffi/struct.VaList.html) , which is ABI-compatible with the C `va_list` type across targets. What types can be read from a `VaList` is guarded by the [`VaArgSafe`](https://doc.rust-lang.org/std/ffi/trait.VaArgSafe.html) trait.</p>
