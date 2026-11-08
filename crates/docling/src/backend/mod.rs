@@ -114,6 +114,7 @@ mod xbrl_dts;
 mod xls;
 mod xlsx;
 mod xlsx_drawings;
+mod xlsx_richdata;
 pub(crate) mod xml_depth;
 
 pub use abw::AbwBackend;

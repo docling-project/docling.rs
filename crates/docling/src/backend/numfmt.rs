@@ -96,6 +96,10 @@ pub(crate) struct SheetFormats {
     /// Absolute 0-based `(row, col)` → `xf` index, for the cells that name
     /// one; a cell without an `s` attribute uses `xf` 0 (General).
     pub(crate) cells: HashMap<(u32, u32), u32>,
+    /// Absolute 0-based `(row, col)` → the image placed in that cell
+    /// (docling#5015, [`super::xlsx_richdata`]): the cells whose `vm` names
+    /// an image rich value. Their `#VALUE!` fallback is not cell text.
+    pub(crate) images: HashMap<(u32, u32), std::sync::Arc<super::xlsx_richdata::CellImage>>,
 }
 
 impl SheetFormats {
@@ -1037,6 +1041,7 @@ mod tests {
         let formats = SheetFormats {
             xfs: std::sync::Arc::new(xfs),
             cells,
+            images: Default::default(),
         };
         assert_eq!(formats.at(0, 0), Some("0.0%"));
         assert_eq!(

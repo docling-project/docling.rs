@@ -625,9 +625,15 @@ fn picture_meta(
     let mut meta = Map::new();
     let mut annotations = Vec::new();
     if let Some(desc) = desc {
-        let mut m = description_meta(desc);
-        annotations.push(m["annotations"][0].take());
-        meta.insert("description".into(), m["description"].take());
+        if desc.is_docling_meta() {
+            // docling's backend-written description: `text` alone, and no
+            // legacy annotation mirrors it (docling#5015).
+            meta.insert("description".into(), json!({ "text": desc.text }));
+        } else {
+            let mut m = description_meta(desc);
+            annotations.push(m["annotations"][0].take());
+            meta.insert("description".into(), m["description"].take());
+        }
     }
     if let Some(classes) = classes {
         let mut m = classification_meta(classes);
@@ -2695,7 +2701,10 @@ impl Builder {
             children.push(r.clone());
             footnotes.push(r);
         }
-        let data = table_data_with(t, raw);
+        let mut data = table_data_with(t, raw);
+        if !raw {
+            self.add_cell_pictures(t, &self_ref, &mut data, &mut children);
+        }
         let item = json!({
             "self_ref": self_ref,
             "parent": { "$ref": parent },
@@ -2712,6 +2721,60 @@ impl Builder {
         });
         self.tables.push(TableItem { item, data });
         self_ref
+    }
+
+    /// The pictures placed in a table's cells (the XLSX "Place in Cell"
+    /// image, docling#5015): a cell whose blocks are exactly one
+    /// [`Node::Prov`]-wrapped picture is docling's `RichTableCell` over a
+    /// picture item — the picture is the table's child, the cell keeps an
+    /// empty text and a `ref` to it. Other rich cells (and the PDF
+    /// pipeline's [`Node::Located`] in-cell pictures) keep their flat cell.
+    /// The cells' blocks are parallel to `rows`; a ragged (compacted) row
+    /// pairs its blocks with that row's first-class cells in column order.
+    fn add_cell_pictures(
+        &mut self,
+        t: &Table,
+        self_ref: &str,
+        data: &mut TableData,
+        children: &mut Vec<Value>,
+    ) {
+        let Some(blocks) = t.cell_blocks.as_ref() else {
+            return;
+        };
+        for (r, row) in blocks.iter().enumerate() {
+            let mut in_row: Vec<usize> = (0..data.cells.len())
+                .filter(|&i| data.cells[i].start_row == r)
+                .collect();
+            in_row.sort_by_key(|&i| data.cells[i].start_col);
+            let ragged = t.rows.get(r).map_or(0, Vec::len) != data.num_cols;
+            for (c, cell) in row.iter().enumerate() {
+                let [node @ Node::Prov { inner, .. }] = cell.as_slice() else {
+                    continue;
+                };
+                if !matches!(**inner, Node::Picture { .. }) {
+                    continue;
+                }
+                let target = if ragged {
+                    in_row.get(c).copied()
+                } else {
+                    in_row
+                        .iter()
+                        .copied()
+                        .find(|&i| data.cells[i].start_col == c)
+                };
+                let Some(target) = target else {
+                    continue;
+                };
+                let Some(pic) = self.add_node(node, self_ref) else {
+                    continue;
+                };
+                let pic = ref_value(pic);
+                children.push(pic.clone());
+                let cell = &mut data.cells[target];
+                cell.text = "".into();
+                cell.cell_ref = Some(Box::new(pic));
+            }
+        }
     }
 
     /// Add a picture's or table's caption text item where `choice` says it

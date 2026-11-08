@@ -19,6 +19,7 @@ use std::sync::Arc;
 use calamine::{Data, Range, Reader, Xlsx};
 
 use super::numfmt::{self, SheetFormats};
+use super::xlsx_richdata;
 
 /// The most cells a sheet's used area (the bounding box of its non-empty
 /// cells) may span before the sheet is skipped: `DOCLING_RS_SHEET_MAX_CELLS`,
@@ -148,8 +149,8 @@ impl DeclarativeBackend for XlsxBackend {
             .collect();
         // Sheet name -> its part path (via workbook.xml r:id -> workbook rels).
         let wb_xml = pkg.read("xl/workbook.xml").unwrap_or_default();
-        let wb_rels: HashMap<String, String> = pkg
-            .rels_for("xl/workbook.xml")
+        let wb_rels_raw = pkg.rels_for("xl/workbook.xml");
+        let wb_rels: HashMap<String, String> = wb_rels_raw
             .iter()
             .map(|r| (r.id.clone(), resolve("xl", &r.target)))
             .collect();
@@ -163,6 +164,39 @@ impl DeclarativeBackend for XlsxBackend {
             &pkg.read("xl/styles.xml").unwrap_or_default(),
         ));
         let is_1904 = workbook.has_1904_epoch();
+        // Images placed in cells (docling#5015), by `vm` index — read once
+        // per workbook; each sheet then maps its `vm` cells onto them.
+        let rich_images = xlsx_richdata::rich_value_images(&mut pkg, &wb_rels_raw);
+        // A sheet's number formats and placed images, from its part's XML
+        // (read once for both).
+        let sheet_formats = |pkg: &mut Package, name: &str, range: &Range<Data>| {
+            let xml = sheet_parts.get(name).and_then(|part| pkg.read(part));
+            let cells = xml
+                .as_deref()
+                .map(numfmt::xlsx_cell_styles)
+                .unwrap_or_default();
+            // Only an error cell can hold a placed image (its `#VALUE!`
+            // fallback), so a sheet without one skips the scan.
+            let images = match xml.as_deref() {
+                Some(xml)
+                    if !rich_images.is_empty()
+                        && range
+                            .used_cells()
+                            .any(|(_, _, d)| matches!(d, Data::Error(_))) =>
+                {
+                    xlsx_richdata::cells_with_rich_values(xml)
+                        .into_iter()
+                        .filter_map(|(at, vm)| Some((at, rich_images.get(&vm)?.clone())))
+                        .collect()
+                }
+                _ => HashMap::new(),
+            };
+            SheetFormats {
+                xfs: xfs.clone(),
+                cells,
+                images,
+            }
+        };
 
         // Threaded-comment persons (Excel 365).
         let persons = pkg
@@ -185,14 +219,7 @@ impl DeclarativeBackend for XlsxBackend {
                 |(wb, pkg), (name, _, _)| {
                     let wb = wb.as_mut()?;
                     let range = bounded_worksheet_range(wb, name)?;
-                    let formats = SheetFormats {
-                        xfs: xfs.clone(),
-                        cells: sheet_parts
-                            .get(name)
-                            .and_then(|part| pkg.read(part))
-                            .map(|xml| numfmt::xlsx_cell_styles(&xml))
-                            .unwrap_or_default(),
-                    };
+                    let formats = sheet_formats(pkg, name, &range);
                     Some((name.clone(), (range, sheet_merges(wb, name), formats)))
                 },
             )
@@ -204,14 +231,7 @@ impl DeclarativeBackend for XlsxBackend {
             if matches!(typ, calamine::SheetType::WorkSheet) && !ranges.contains_key(name) {
                 if let Some(range) = bounded_worksheet_range(&mut workbook, name) {
                     let merges = sheet_merges(&mut workbook, name);
-                    let formats = SheetFormats {
-                        xfs: xfs.clone(),
-                        cells: sheet_parts
-                            .get(name)
-                            .and_then(|part| pkg.read(part))
-                            .map(|xml| numfmt::xlsx_cell_styles(&xml))
-                            .unwrap_or_default(),
-                    };
+                    let formats = sheet_formats(&mut pkg, name, &range);
                     ranges.insert(name.clone(), (range, merges, formats));
                 }
             }
@@ -589,7 +609,8 @@ fn sheet_items<F: Fn(&str, &str) -> Vec<String> + Sync>(ctx: SheetCtx<'_, F>) ->
             // range is clipped to its first non-empty row/column, and the
             // frame reaches back over any merge that starts before it.
             let (or, oc) = frame.origin;
-            for t in find_tables(range, &frame, skip_empty, formats, is_1904) {
+            for mut t in find_tables(range, &frame, skip_empty, formats, is_1904) {
+                set_cell_picture_page(&mut t.table, page_ix + 1);
                 if let Some(label) = t.label {
                     // The label row sits directly above the table's region.
                     items.push((
@@ -945,7 +966,24 @@ pub(crate) fn find_tables(
     // A grid position renders the value of its merge's top-left cell, if
     // merged — through that cell's number format (#634; absolute coordinates
     // are the frame's origin plus the position).
+    // The image placed in a grid position's cell (docling#5015) — only an
+    // error cell holds one: its `#VALUE!` is the fallback for readers without
+    // rich data, and docling keys the lookup on the error type the same way.
+    let image_at = |r: usize, c: usize| -> Option<&Arc<xlsx_richdata::CellImage>> {
+        let (sr, sc) = merge_of.get(&(r, c)).copied().unwrap_or((r, c));
+        if !matches!(value_at(sr, sc), Some(Data::Error(_))) {
+            return None;
+        }
+        formats
+            .images
+            .get(&((origin.0 + sr) as u32, (origin.1 + sc) as u32))
+    };
     let cell_text = |r: usize, c: usize| -> String {
+        if image_at(r, c).is_some() {
+            // An image cell's text is empty, as docling's `ExcelCell`; the
+            // picture is the cell's content (see `cell_blocks` below).
+            return String::new();
+        }
         let (sr, sc) = merge_of.get(&(r, c)).copied().unwrap_or((r, c));
         value_at(sr, sc)
             .map(|d| numfmt::displayed_text(d, formats.at(origin.0 + sr, origin.1 + sc), is_1904))
@@ -1009,7 +1047,12 @@ pub(crate) fn find_tables(
             if max_r > min_r && max_c > min_c {
                 let first_row_cells: Vec<(usize, usize)> = (min_c..=max_c)
                     .map(|c| merge_of.get(&(min_r, c)).copied().unwrap_or((min_r, c)))
-                    .filter(|&(r, c)| !cell_text(r, c).trim().is_empty())
+                    // An image cell is content (docling: `cell.text.strip()
+                    // or cell.image is not None`); the header test below
+                    // counts text cells only, as docling's does.
+                    .filter(|&(r, c)| {
+                        !cell_text(r, c).trim().is_empty() || image_at(r, c).is_some()
+                    })
                     .collect::<std::collections::HashSet<_>>()
                     .into_iter()
                     .collect();
@@ -1038,9 +1081,19 @@ pub(crate) fn find_tables(
             // Materialise the region's bounding box; gaps become empty cells —
             // or, with `skip_empty`, only the occupied positions per row.
             let mut omitted = false;
+            // An image cell is a `RichTableCell` holding the picture
+            // (docling#5015): its blocks are the picture with the cell's own
+            // box as exact provenance (the page is the sheet's, set by the
+            // caller), and its flat text is what docling's Markdown prints
+            // for it — the placeholder, then the alt-text description (the
+            // picture's `meta`, which docling-core serializes after the item),
+            // the blocks' blank line flattened to two spaces.
+            let mut cell_blocks: Vec<Vec<Vec<Node>>> = Vec::new();
+            let mut any_image = false;
             let rows: Vec<Vec<String>> = (min_r..=max_r)
                 .map(|gr| {
-                    (min_c..=max_c)
+                    let mut blocks_row = Vec::new();
+                    let row = (min_c..=max_c)
                         .filter(|&gc| {
                             if skip_empty && !has_content(gr, gc) {
                                 omitted = true;
@@ -1048,8 +1101,27 @@ pub(crate) fn find_tables(
                             }
                             true
                         })
-                        .map(|gc| cell_text(gr, gc))
-                        .collect()
+                        .map(|gc| {
+                            let Some(img) = image_at(gr, gc) else {
+                                blocks_row.push(Vec::new());
+                                return cell_text(gr, gc);
+                            };
+                            any_image = true;
+                            let (tr, tc) = merge_of.get(&(gr, gc)).copied().unwrap_or((gr, gc));
+                            let anchor = (gr, gc) == (tr.max(min_r), tc.max(min_c));
+                            blocks_row.push(if anchor {
+                                vec![cell_picture(img, frame, (gr, gc), (max_r, max_c))]
+                            } else {
+                                Vec::new()
+                            });
+                            match img.alt_text.as_deref() {
+                                Some(alt) => format!("<!-- image -->  {alt}"),
+                                None => "<!-- image -->".to_string(),
+                            }
+                        })
+                        .collect();
+                    cell_blocks.push(blocks_row);
+                    row
                 })
                 .collect();
             // Merge spans as OTSL continuations (docling's table cells carry
@@ -1138,7 +1210,7 @@ pub(crate) fn find_tables(
                     rows,
                     location: None,
                     structure,
-                    cell_blocks: None,
+                    cell_blocks: any_image.then_some(cell_blocks),
                     cells,
                     caption: None,
                     caption_parent: Default::default(),
@@ -1153,6 +1225,53 @@ pub(crate) fn find_tables(
         }
     }
     tables
+}
+
+/// The block content of an image cell (docling's `_add_cell_image`): the
+/// picture, its alt text as docling's own `meta.description` (not the opt-in
+/// #676 alt text of a drawing — docling#5015 writes this one itself), wrapped in the exact provenance
+/// of the cell's box — absolute cell indices, top-left origin, spans
+/// included, like every sheet item's. `page_no` is left 0 for the sheet's
+/// caller to fill ([`set_cell_picture_page`]). The JSON export turns this
+/// shape — a cell whose blocks are one [`Node::Prov`]-wrapped picture — into
+/// a picture item under the table that the cell's `ref` points at.
+fn cell_picture(
+    img: &xlsx_richdata::CellImage,
+    frame: &SheetFrame,
+    (gr, gc): (usize, usize),
+    (max_r, max_c): (usize, usize),
+) -> Node {
+    let (tr, tc) = frame.merge_of.get(&(gr, gc)).copied().unwrap_or((gr, gc));
+    let covered = |r: usize, c: usize| frame.merge_of.get(&(r, c)) == Some(&(tr, tc));
+    let row_span = (gr..=max_r).take_while(|&r| covered(r, gc)).count().max(1);
+    let col_span = (gc..=max_c).take_while(|&c| covered(gr, c)).count().max(1);
+    let (or, oc) = frame.origin;
+    let (l, t) = ((oc + gc) as f32, (or + gr) as f32);
+    Node::Prov {
+        page_no: 0,
+        bbox: [l, t, l + col_span as f32, t + row_span as f32],
+        charspan: [0, 0],
+        bottom_left: false,
+        seq: None,
+        inner: Box::new(Node::Picture {
+            caption: None,
+            caption_href: None,
+            image: img.image.clone(),
+            classification: None,
+            description: img.alt_text.clone().map(PictureDescription::docling_meta),
+            caption_parent: Default::default(),
+            caption_location: None,
+        }),
+    }
+}
+
+/// Stamp the sheet's page on the in-cell pictures [`cell_picture`] built.
+fn set_cell_picture_page(table: &mut Table, page: usize) {
+    for cell in table.cell_blocks.iter_mut().flatten().flatten().flatten() {
+        if let Node::Prov { page_no, .. } = cell {
+            *page_no = page;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1524,6 +1643,122 @@ mod tests {
             .collect();
         // The third table is annotated by both F7 messages and G12's.
         assert_eq!(annotated, vec![vec![0], vec![1], vec![2, 3, 4]]);
+    }
+
+    /// docling#5015 (`test_images_placed_in_cells`): an image placed in a
+    /// cell is a picture under the table, which the cell — a
+    /// `RichTableCell` with empty text — refers to; Excel's alt text is the
+    /// picture's description. An error value without an image keeps its
+    /// text, and a lone image cell is a one-cell table of it.
+    #[test]
+    fn images_placed_in_cells_are_rich_cell_pictures() {
+        let path = format!(
+            "{}/../../tests/data/xlsx/sources/xlsx_10_place_in_cell.xlsx",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let bytes = std::fs::read(&path).expect("fixture exists");
+        let src = SourceDocument::from_bytes("x.xlsx", InputFormat::Xlsx, bytes);
+        let doc = XlsxBackend::default().convert(&src).expect("converts");
+        let json = doc.export_to_json_value();
+        let table = &json["tables"][0];
+        let cells = table["data"]["table_cells"].as_array().unwrap();
+        let cell = |r: u64, c: u64| {
+            cells
+                .iter()
+                .find(|x| x["start_row_offset_idx"] == r && x["start_col_offset_idx"] == c)
+                .unwrap()
+        };
+        for (row, pic, alt) in [(1, 0, "A red square"), (2, 1, "A green square")] {
+            let cell = cell(row, 1);
+            assert_eq!(cell["text"], "");
+            let pic_ref = format!("#/pictures/{pic}");
+            assert_eq!(cell["ref"]["$ref"], pic_ref.as_str());
+            let picture = &json["pictures"][pic];
+            assert_eq!(picture["parent"]["$ref"], "#/tables/0");
+            assert!(picture["image"]["uri"]
+                .as_str()
+                .unwrap()
+                .starts_with("data:image/png"));
+            // docling's own description: text only, no legacy annotation.
+            assert_eq!(
+                picture["meta"]["description"],
+                serde_json::json!({ "text": alt })
+            );
+            assert_eq!(picture["annotations"], serde_json::json!([]));
+            // The picture's box is its cell's, on the sheet's page.
+            assert_eq!(picture["prov"][0]["page_no"], 1);
+            assert_eq!(picture["prov"][0]["bbox"]["t"], row as f64);
+            assert_eq!(picture["prov"][0]["bbox"]["l"], 1.0);
+        }
+        assert_eq!(
+            table["children"],
+            serde_json::json!([{ "$ref": "#/pictures/0" }, { "$ref": "#/pictures/1" }])
+        );
+        // An error value without an image is cell content.
+        assert!(cell(1, 3).get("ref").is_none());
+        assert!(!cell(1, 3)["text"].as_str().unwrap().is_empty());
+        // The "Logo" sheet: one image cell, a one-cell table holding it.
+        let logo = &json["tables"][1];
+        assert_eq!(
+            logo["data"]["table_cells"][0]["ref"]["$ref"],
+            "#/pictures/2"
+        );
+        assert_eq!(json["pictures"][2]["prov"][0]["page_no"], 2);
+        assert!(json["pictures"][2]["meta"].is_null());
+
+        let md = doc.export_to_markdown();
+        assert!(
+            md.contains("| apple  | <!-- image -->  A red square   |"),
+            "{md}"
+        );
+        assert!(md.contains("| <!-- image -->   |"), "{md}");
+    }
+
+    /// docling#5015 (`test_image_cell_next_to_a_section_label`): an image
+    /// cell in the first row is content, so a merged label beside it is not
+    /// split off as a section label; the header test counts text cells only.
+    #[test]
+    fn an_image_cell_keeps_a_merged_label_in_its_table() {
+        let mut range: Range<Data> = Range::new((0, 0), (3, 2));
+        range.set_value((0, 0), Data::String("Fruit list".into()));
+        range.set_value((0, 2), Data::Error(calamine::CellErrorType::Value));
+        for (r, row) in [
+            ["name", "qty", "note"],
+            ["apple", "1", "x"],
+            ["pear", "2", "y"],
+        ]
+        .iter()
+        .enumerate()
+        {
+            for (c, v) in row.iter().enumerate() {
+                range.set_value((r as u32 + 1, c as u32), Data::String((*v).into()));
+            }
+        }
+        let frame = sheet_frame(&range, &vec![((0, 0), (0, 1))]);
+        let image = Arc::new(xlsx_richdata::CellImage {
+            image: None,
+            alt_text: Some("Section icon".into()),
+        });
+        let formats = SheetFormats {
+            images: HashMap::from([((0, 2), image)]),
+            ..SheetFormats::default()
+        };
+        let found = find_tables(&range, &frame, false, &formats, false);
+        assert_eq!(found.len(), 1);
+        let t = &found[0];
+        assert!(t.label.is_none(), "the label stays in the table");
+        assert_eq!((t.table.rows.len(), t.table.rows[0].len()), (4, 3));
+        assert_eq!(t.table.rows[0][2], "<!-- image -->  Section icon");
+        let blocks = t.table.cell_blocks.as_ref().expect("a rich cell");
+        let [Node::Prov { bbox, inner, .. }] = blocks[0][2].as_slice() else {
+            panic!("{:?}", blocks[0][2]);
+        };
+        assert_eq!(*bbox, [2.0, 0.0, 3.0, 1.0]);
+        assert!(matches!(**inner, Node::Picture { .. }));
+        assert!(blocks[0][0].is_empty() && blocks[1][2].is_empty());
+        // Without the rich value the error cell is ordinary content.
+        let plain = find_tables(&range, &frame, false, &SheetFormats::default(), false);
+        assert!(plain[0].table.cell_blocks.is_none());
     }
 
     /// docling PR #3727: a merged full-width cell directly above a real

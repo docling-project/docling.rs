@@ -1264,13 +1264,22 @@ fn render_item(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
                 .as_ref()
                 .filter(|d| d.is_alt_text() && ctx.alt_text && !d.text.is_empty());
             let marker = picture_marker(image.as_ref(), ctx, alt.map(|d| d.text.as_str()));
-            if let Some(desc) = description {
+            // A docling-native `meta.description` (docling#5015) is the
+            // item's meta, which docling-core's serializer appends *after*
+            // the item; the legacy-annotation kinds precede the image.
+            let native = description
+                .as_ref()
+                .filter(|d| d.is_docling_meta() && !d.text.is_empty());
+            if let Some(desc) = description.as_ref().filter(|d| !d.is_docling_meta()) {
                 let shown = !desc.is_alt_text() || (ctx.alt_text && !marker.starts_with("!["));
                 if !desc.text.is_empty() && shown {
                     blocks.push(ctx.breaks(&ctx.text(&desc.text)));
                 }
             }
             blocks.push(marker);
+            if let Some(desc) = native {
+                blocks.push(ctx.breaks(&ctx.text(&desc.text)));
+            }
         }
         // A chart renders as docling's picture-with-meta markdown: the caption,
         // the placeholder, the humanized classification ("line_chart" ->
