@@ -514,6 +514,53 @@ fn tables_outside_their_grid_are_in_both_chains() {
     }
 }
 
+/// A `w:num` whose `w:lvlOverride` replaces the abstract level and sets a
+/// `w:startOverride` (docling#5123, #1017): `parse_numbering` feeds both
+/// walks, so both carry the same words — and the same `c)` start.
+#[test]
+fn numbering_level_overrides_are_in_both_chains() {
+    let numbering = format!(
+        r#"<w:numbering xmlns:w="{W}"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="3"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="lowerLetter"/><w:lvlText w:val="%1)"/></w:lvl></w:lvlOverride></w:num></w:numbering>"#
+    );
+    let item = |t: &str| {
+        format!(
+            r#"<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>{}</w:p>"#,
+            run(t)
+        )
+    };
+    let body = format!(
+        "{}{}",
+        item("override item kiwi"),
+        item("override item lime")
+    );
+    let bytes = package(&[
+        (
+            "word/document.xml",
+            format!(r#"<w:document xmlns:w="{W}"><w:body>{body}<w:sectPr/></w:body></w:document>"#),
+        ),
+        ("word/numbering.xml", numbering),
+    ]);
+    let (flat_only, tree_only) = chain_divergence(bytes.clone(), "lvlOverride");
+    assert!(
+        flat_only.is_empty() && tree_only.is_empty(),
+        "{flat_only:?} / {tree_only:?}"
+    );
+    let src = SourceDocument::from_bytes("lvlOverride", InputFormat::Docx, bytes);
+    let doc = super::DocxBackend::default().convert(&src).unwrap();
+    assert_eq!(
+        doc.export_to_markdown().trim_end(),
+        "- c) override item kiwi\n- d) override item lime"
+    );
+    let json = doc.export_to_json_value();
+    let markers: Vec<_> = json["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|t| t["marker"].as_str())
+        .collect();
+    assert_eq!(markers, ["c)", "d)"]);
+}
+
 // ---------------------------------------------------------------------------
 // The fixture corpus.
 
