@@ -29,16 +29,6 @@ Acceptance point
 
 ## Fictitious example for illustration purposes
 
-Payment part
-
-<!-- image -->
-
-Currency Amount
-
-3 949.75
-
-CHF
-
 Robert Schneider AG Rue du Lac 1268 2501 Biel
 
 Telefon
@@ -60,6 +50,16 @@ Internet:www.rschneider.ch
 Date:
 
 Date: 01.07.2020
+
+Payment part
+
+<!-- image -->
+
+Currency Amount
+
+3 949.75
+
+CHF
 
 Account/ Payable to CH58 0079 1123 0008 8901 2 Robert Schneider AG Rue du Lac 1268 2501 Biel
 

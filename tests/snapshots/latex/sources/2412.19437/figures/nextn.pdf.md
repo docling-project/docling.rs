@@ -1,4 +1,4 @@
-Target Tokens nput Tokens Cross-Entropy Loss Cross-Entropy Loss Cross-Entropy Loss
+Target Tokens Cross-Entropy Loss Cross-Entropy Loss Cross-Entropy Loss
 
 Main Model
 
@@ -28,7 +28,7 @@ Linear Projection concatenation
 
 RMSNorm RMSNorm
 
-Embedding Layer
+Embedding Layer nput Tokens
 
 ℒ𝑀𝑀𝑀𝑀𝑀𝑀𝑀𝑀
 

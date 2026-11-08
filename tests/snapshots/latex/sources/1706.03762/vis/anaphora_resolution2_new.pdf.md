@@ -22,14 +22,14 @@ this this is is what we are what we are missing missing
 
 in in my my opinion &lt;EOS&gt;
 
-.
-
 opinion
 
 .
 
-&lt;pad&gt;
+.
 
 &lt;EOS&gt;
+
+&lt;pad&gt;
 
 &lt;pad&gt;

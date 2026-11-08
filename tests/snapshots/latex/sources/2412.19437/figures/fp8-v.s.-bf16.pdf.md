@@ -26,21 +26,9 @@
 
 1.7
 
-100
+BF16v.s.FP8on16BDeepSeek-V2
 
-200
-
-000
-
-400
-
-500
-
-000
-
-700
-
-00
+BF16v.s.FP8on230BDeepSeek-V2
 
 200
 
@@ -62,6 +50,18 @@ BF6
 
 BF6
 
-BF16v.s.FP8on16BDeepSeek-V2
+100
 
-BF16v.s.FP8on230BDeepSeek-V2
+200
+
+000
+
+400
+
+500
+
+000
+
+700
+
+00

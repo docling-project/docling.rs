@@ -22,9 +22,9 @@ M
 
 70
 
-%
-
 65
+
+%
 
 e 60
 
@@ -60,6 +60,16 @@ e
 
 R
 
+7
+
+LLaMA 2
+
+LLaMA 2
+
+Mistral Mistral
+
+13
+
 Effective LLaMA
 
 66
@@ -72,16 +82,6 @@ size 23B (3.3x)
 
 size 38B (5.4x)
 
-LLaMA 2
-
-LLaMA 2
-
-Mistral Mistral
-
-7
-
-13
-
 34
 
 70
@@ -93,6 +93,8 @@ Mistral Mistral
 34
 
 70
+
+7
 
 Model size (billion parameters)
 
@@ -111,8 +113,6 @@ size 13B (1.9x)
 Effective LLaMA
 
 size 21B (3x)
-
-7
 
 13
 
