@@ -1635,6 +1635,31 @@ mod tests {
         assert_eq!(texts[7]["parent"]["$ref"], "#/texts/6");
     }
 
+    /// docling#5202 (`test_patent_uspto_iso8879_sigma_entities`, #1028):
+    /// ISO 8879's `&sgr;` is the small sigma σ and `&sfgr;` the final ς —
+    /// `&sgr;` read as ς and `&sfgr;`, unknown, dropped its letter.
+    #[test]
+    fn iso8879_sigma_entities() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/data/uspto/sources/pg06442728.xml");
+        let xml = std::fs::read_to_string(path)
+            .unwrap()
+            .replace("&agr;", "&sgr;")
+            .replace("&bgr;", "&sfgr;");
+        let src =
+            SourceDocument::from_bytes("pg06442728.xml", InputFormat::XmlUspto, xml.into_bytes());
+        let doc = UsptoBackend.convert(&src).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+        let abstract_ = v["texts"][2]["text"].as_str().unwrap();
+        assert!(
+            abstract_.contains("I(j,k)=I(j,\u{3c3}jk+\u{3c2}j)modP)"),
+            "{abstract_}"
+        );
+        assert!(abstract_.contains("\u{3c2}j is a constant"));
+        assert!(abstract_.contains("each \u{3c3}j is a relative prime number"));
+        assert!(NAMED_ENTITIES.windows(2).all(|w| w[0].0 < w[1].0));
+    }
+
     /// ICE claims are one paragraph per `<claim>`: nested `<claim-text>`s cut
     /// the text into pieces joined by single spaces (styled `<sup>` kept); a
     /// table inside a claim is recorded before the CLAIMS heading, as

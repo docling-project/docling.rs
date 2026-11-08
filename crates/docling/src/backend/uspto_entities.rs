@@ -1,6 +1,8 @@
 //! Named-character-reference table for the USPTO XML backend.
 //! Generated from Python `html.entities.html5` plus docling's ISO-8879
-//! Greek map (`&agr;` -> `&alpha;` -> U+03B1). Do not edit by hand;
+//! Greek map (`&agr;` -> `&alpha;` -> U+03B1; docling#5202, #1028: `&sgr;`
+//! is σ and `&sfgr;` ς, as ISO 8879 has them — `&sgr;` was ς, `&sfgr;`
+//! missing). Do not edit by hand;
 //! regenerate with the snippet in scripts/ if the entity set changes.
 //! The XML predefined five (amp/lt/gt/quot/apos) are intentionally absent
 //! so the parser keeps resolving them itself.
@@ -1842,9 +1844,10 @@ pub static NAMED_ENTITIES: &[(&str, &str)] = &[
     ("setminus", "\u{2216}"),
     ("setmn", "\u{2216}"),
     ("sext", "\u{2736}"),
+    ("sfgr", "\u{3c2}"),
     ("sfr", "\u{1d530}"),
     ("sfrown", "\u{2322}"),
-    ("sgr", "\u{3c2}"),
+    ("sgr", "\u{3c3}"),
     ("sharp", "\u{266f}"),
     ("shchcy", "\u{449}"),
     ("shcy", "\u{448}"),
