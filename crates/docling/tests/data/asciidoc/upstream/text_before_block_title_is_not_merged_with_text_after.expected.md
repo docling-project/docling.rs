@@ -1,5 +1,7 @@
 text1
 
-**Caption text2**
+**Caption**
+
+text2
 
 text3

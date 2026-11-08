@@ -31,10 +31,12 @@
 //!
 //! The documents whose output the inline whitespace contract moves (#997:
 //! `**bold**,` with no invented space, `**st**rong`) are docling 2.148.0's.
-//! Two are not recaptured: `block_title_without_floating_target_keeps_content`
-//! and `text_before_block_title_is_not_merged_with_text_after` — 2.148 also
-//! ends a block title's paragraph differently there, a change of its own
-//! this port does not carry yet; their references stay 2.140.0's.
+//! All 56 were re-run through docling 2.149.0 for #1024/#1025: four moved,
+//! and those references are 2.149.0's — a block title is one line
+//! (docling#4391: `block_title_without_floating_target_keeps_content`,
+//! `text_before_block_title_is_not_merged_with_text_after`) and a span takes
+//! its grid positions (docling#5010: `incomplete_table_does_not_emit_an_empty_table_2`,
+//! `rowspan_only_cell_specifier_keeps_the_row`).
 use std::fs;
 use std::path::{Path, PathBuf};
 
