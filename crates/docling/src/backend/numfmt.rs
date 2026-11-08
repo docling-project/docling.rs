@@ -494,7 +494,11 @@ pub(crate) fn raw_text(value: &Data, is_1904: bool) -> String {
         Data::DateTime(dt) => python_str(cell_value(dt, is_1904)),
         Data::DateTimeIso(s) => s.clone(),
         Data::DurationIso(s) => s.clone(),
-        Data::Error(e) => format!("{e:?}"),
+        // openpyxl keeps an error cell's own text (`#N/A`, `#VALUE!`,
+        // `#DIV/0!`), which is calamine's `Display`; its `Debug` is the enum
+        // variant (`NA`, `Value`, `Div0`) and is never what a sheet shows
+        // (#1020).
+        Data::Error(e) => e.to_string(),
     }
 }
 
@@ -896,6 +900,16 @@ mod tests {
     /// `_format_excel_value` with its `str(value)` fallback.
     fn fmt(value: CellValue, code: &str) -> String {
         format_value(value, code).unwrap_or_else(|| python_str(value))
+    }
+
+    /// #1020: an error cell reads as the sheet shows it — `#N/A`, `#VALUE!`,
+    /// `#DIV/0!` — not as calamine's enum variant (`NA`, `Value`, `Div0`).
+    #[test]
+    fn error_cells_keep_their_excel_text() {
+        use calamine::CellErrorType as E;
+        for (err, text) in [(E::NA, "#N/A"), (E::Value, "#VALUE!"), (E::Div0, "#DIV/0!")] {
+            assert_eq!(raw_text(&Data::Error(err), false), text);
+        }
     }
 
     /// PR #4628's `test_format_excel_value_matches_excel_display` and
