@@ -583,6 +583,21 @@ impl LoadedFont {
         }
     }
 
+    /// Whether the embedded program paints anything for `code`:
+    /// `Some(false)` for a glyph it defines with an empty outline (a space
+    /// glyph), `None` without an embedded program (a substituted face
+    /// decides nothing) or when the glyph is not found. docling-parse 7.24
+    /// asks FreeType the same of a glyph with no Unicode mapping, to tell a
+    /// blank glyph (a word boundary) from a visible one (U+FFFD).
+    pub fn glyph_has_ink(&self, code: u32) -> Option<bool> {
+        if matches!(self.program, Program::None | Program::Fallback { .. }) {
+            return None;
+        }
+        let cid = self.cmap.as_ref().map_or(code, |c| c.cid(code));
+        let g = self.build_glyph(code, cid)?;
+        Some(g.path.is_some())
+    }
+
     pub fn has_program(&self) -> bool {
         !matches!(self.program, Program::None)
     }

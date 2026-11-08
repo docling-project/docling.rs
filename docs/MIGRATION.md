@@ -2315,11 +2315,12 @@ These are deliberate or unavoidable divergences, not bugs.
     layer leaves a non-rule shape unexplained (an outlined glyph next to
     real text, docling#4209) — are not ported: the first is the bare-picture
     pass, the second needs the page's vector shapes. On the PDF corpus it
-    fires on 4 files; text appears on the attention-map figures of
-    1706.03762 (`Input-Input Layer5`, outlined titles), and on docling's two
-    Korean `skipped_*` pages, whose CID fonts the text layer cannot map, the
-    en/ch recognizers read a few stray glyphs (`[ 4-5] 8`) — as docling's
-    default RapidOCR would. `no_ocr` / `skip_ocr` keep the text layer
+    fires on the attention-map figures of 1706.03762 (`Input-Input Layer5`,
+    outlined titles). On docling's two Korean `skipped_*` pages, whose
+    Adobe-Korea1 CID fonts carry no ToUnicode, it used to OCR a few stray
+    glyphs (`[ 4-5] 8`); since #1003 those glyphs are text-layer `�` (the
+    predefined CJK cmaps docling-parse maps them with are not ported), so
+    the regions hold text and are not OCR'd. `no_ocr` / `skip_ocr` keep the text layer
     alone; `full_page` and `layout_regions` both map onto the
     `force_full_page_ocr` machinery (the whole-page vs per-region *detector*
     distinction has no analogue in the det-free PP-OCR recognizer here).
@@ -2600,6 +2601,28 @@ These are deliberate or unavoidable divergences, not bugs.
     groundtruth is unchanged (7 / 18, 407), and one snapshot moves — a
     LaTeX figure's math, `𝐤𝑡𝑅 ]}` → `𝐤𝑡𝑅]}`, the closing bracket after a
     raised index.
+
+23. **Unmapped glyphs read `�`** (#1003, docling#5070 / docling-parse
+    7.24). A painted glyph no source maps to Unicode used to vanish from the
+    text layer, so a lost `⁻¹` read `mL1` and nothing downstream could tell.
+    It now reads U+FFFD, as docling-parse 7.24 emits it: a bare glyph-index
+    `/Differences` name (`g115`, `gid00043`, `cid42`, `glyph7`, `index9`), a
+    code a composite font's ToUnicode lacks, a code no table covers, and a
+    NUL a ToUnicode maps a code to (docling's own `\x00` → `\ufffd`). A
+    glyph whose embedded program paints nothing is a space instead — its box
+    has no height and it is a word boundary (redp5110's `/g3`). An unknown
+    code-like name keeps its text without the slash (`SM590000`, as
+    docling-parse reads it; we used to print `/SM590000`). Two deliberate
+    differences: a composite font with no ToUnicode reads `�` where
+    docling-parse takes the CID for a code point (redp5110's bullet, CID 114,
+    reads `r` there), and the predefined CJK cmaps (`Adobe-Korea1-UCS2`, …)
+    are not ported, so such a font reads `�` too (the Korean `skipped_*`
+    fixtures). Without the renderer (the wasm text-layer build) there is no
+    font program to ask, and every unmapped glyph reads `�`. With it came a
+    ToUnicode fix: a `bfrange` whose destination is a surrogate pair
+    (`<1d59> <1d5a> <d835dec2>`) steps its last code unit and maps `𝛂 𝛃`;
+    the range used to be dropped. On the corpus: redp5110 155 → 119
+    groundtruth diff lines (373 → 337 in all), four snapshots move.
 ---
 
 ## 5. Not migrated / out of scope

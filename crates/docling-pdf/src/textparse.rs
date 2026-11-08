@@ -96,10 +96,14 @@ struct Font {
     default_width: f64,
     /// 1-byte fallback decoding when ToUnicode lacks a code (WinAnsi-ish).
     simple_encoding: Option<HashMap<u8, char>>,
-    /// code → raw `/Differences` glyph name, for GID-style names (`g115`) that
-    /// have no Unicode mapping. docling-parse emits these verbatim as `/g115`
-    /// (see the redp5110 bulleted list); matching it keeps no text skipped.
+    /// code → raw `/Differences` glyph name, for placeholder names (`g115`,
+    /// `SM590000`) that have no Unicode mapping; they override the base
+    /// encoding (see [`unknown_name_text`]).
     fallback_names: HashMap<u8, String>,
+    /// The unmapped codes whose embedded glyph paints nothing — semantic
+    /// spaces (docling-parse 7.24's blank glyph programs: the redp5110
+    /// list's `/g3`). Every other unmapped code reads U+FFFD.
+    blank_codes: HashSet<u32>,
     /// code → char from the embedded Type1 font program's own `/Encoding` vector,
     /// used only as a last resort for glyphs the base encoding leaves unmapped
     /// (standard TeX math fonts: `λ`, `≤`, …).
@@ -117,24 +121,46 @@ struct Font {
 }
 
 impl Font {
-    fn decode_code(&self, code: u32) -> (Option<String>, f64) {
+    /// The text of `code` and its advance; the flag marks a blank unmapped
+    /// glyph, whose box has no height.
+    ///
+    /// A code no source maps to Unicode is visibly painted but carries no
+    /// text: docling-parse 7.24 emits U+FFFD for it, and docling turns a NUL
+    /// into U+FFFD too (docling#5070), so the loss stays visible and counted
+    /// by the text-quality check instead of silently dropping the glyph
+    /// (`mL⁻¹` reading `mL1`). A glyph whose embedded program paints nothing
+    /// is a space — a word boundary — instead.
+    fn decode_code(&self, code: u32) -> (Option<String>, f64, bool) {
         let w = self
             .widths
             .get(&code)
             .copied()
             .unwrap_or(self.default_width);
         if let Some(s) = self.to_unicode.get(&code) {
-            return (Some(decompose_ligatures(s)), w);
+            return (Some(decompose_ligatures(s)), w, false);
         }
+        let unmapped = |font: &Font| {
+            let blank = font.blank_codes.contains(&code);
+            (
+                Some(if blank { " " } else { "\u{FFFD}" }.to_string()),
+                w,
+                blank,
+            )
+        };
         if !self.two_byte {
-            // A GID-style `/Differences` name (no Unicode) overrides the base
-            // encoding, matching docling's verbatim `/g115` fallback.
+            // A placeholder `/Differences` name (no Unicode) overrides the
+            // base encoding. docling-parse 7.24 reads a bare glyph index
+            // (`g115`, `gid00043`) as unmapped and any other unknown name as
+            // its text (`SM590000`, the redp5110 bullets).
             if let Some(name) = self.fallback_names.get(&(code as u8)) {
-                return (Some(format!("/{name}")), w);
+                return match unknown_name_text(name) {
+                    Some(text) => (Some(text), w, false),
+                    None => unmapped(self),
+                };
             }
             if let Some(enc) = &self.simple_encoding {
                 if let Some(&ch) = enc.get(&(code as u8)) {
-                    return (Some(decompose_ligatures(&ch.to_string())), w);
+                    return (Some(decompose_ligatures(&ch.to_string())), w, false);
                 }
             }
             // Last resort: the embedded Type1 font program's own `/Encoding`
@@ -145,10 +171,10 @@ impl Font {
             // recovers these from the same font program. This only fills codes the
             // base encoding left unmapped, so it never changes an existing decode.
             if let Some(&ch) = self.program_encoding.get(&(code as u8)) {
-                return (Some(decompose_ligatures(&ch.to_string())), w);
+                return (Some(decompose_ligatures(&ch.to_string())), w, false);
             }
         }
-        (None, w)
+        unmapped(self)
     }
 }
 
@@ -337,14 +363,14 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
 
     let (ascent, descent) = font_ascent_descent(doc, fdict, two_byte);
     let sanitizer_name = sanitizer_font_name(doc, fdict, two_byte);
-
-    Font {
+    let mut font = Font {
         two_byte,
         to_unicode,
         widths,
         default_width,
         simple_encoding,
         fallback_names,
+        blank_codes: HashSet::new(),
         program_encoding,
         ascent,
         descent,
@@ -353,7 +379,41 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
         style: crate::font_style::parse_font_style(&String::from_utf8_lossy(
             &base_font_name(fdict).unwrap_or_else(|| name.to_vec()),
         )),
+    };
+    font.blank_codes = blank_codes(doc, fdict, &font);
+    font
+}
+
+/// The codes `font` leaves unmapped whose embedded glyph paints nothing
+/// ([`Font::blank_codes`]). The program is loaded only when the font has
+/// unmapped codes among those it declares widths for; without the
+/// renderer (the wasm text-layer build) there is no program to ask, and
+/// every unmapped glyph reads U+FFFD.
+#[cfg(feature = "render")]
+fn blank_codes(doc: &Document, fdict: &Dictionary, font: &Font) -> HashSet<u32> {
+    // A CID font can declare tens of thousands of widths: past this many
+    // unmapped codes nothing is classified (the glyphs read U+FFFD).
+    const MAX_CANDIDATES: usize = 4096;
+    let unmapped: Vec<u32> = font
+        .widths
+        .keys()
+        .copied()
+        .filter(|&c| font.decode_code(c).0.as_deref() == Some("\u{FFFD}"))
+        .take(MAX_CANDIDATES + 1)
+        .collect();
+    if unmapped.is_empty() || unmapped.len() > MAX_CANDIDATES {
+        return HashSet::new();
     }
+    let loaded = crate::render::font::LoadedFont::load(doc, fdict);
+    unmapped
+        .into_iter()
+        .filter(|&c| loaded.glyph_has_ink(c) == Some(false))
+        .collect()
+}
+
+#[cfg(not(feature = "render"))]
+fn blank_codes(_doc: &Document, _fdict: &Dictionary, _font: &Font) -> HashSet<u32> {
+    HashSet::new()
 }
 
 /// A simple font's `/Encoding` `/Differences` array, dereferenced.
@@ -398,11 +458,10 @@ fn reconcile_stale_tounicode(to_unicode: &mut HashMap<u32, String>, diffs: &[Obj
 }
 
 /// Collect `/Differences` entries whose glyph name is a GID placeholder
-/// (`g115`, `cid42`, `glyph7`, `index9`) with no Unicode mapping. docling-parse
-/// emits such glyphs as the literal name `/g115`; mapping them here keeps the
-/// text from being silently dropped (subsetted fonts with no ToUnicode). The
-/// GID-name restriction keeps real Adobe glyph names on the normal path so this
-/// never invents garbage on the clean files.
+/// (`g115`, `cid42`, `glyph7`, `index9`, `SM590000`) with no Unicode mapping
+/// (subsetted fonts with no ToUnicode); [`unknown_name_text`] decides what
+/// each reads as. The placeholder-name restriction keeps real Adobe glyph
+/// names on the normal path so this never invents garbage on the clean files.
 fn differences_gid_names(doc: &Document, fdict: &Dictionary) -> HashMap<u8, String> {
     let mut map = HashMap::new();
     let Some(Object::Dictionary(enc)) = fdict.get(b"Encoding").ok().and_then(|o| deref(doc, o))
@@ -477,10 +536,27 @@ fn type1_program_encoding(doc: &Document, fdict: &Dictionary) -> HashMap<u8, cha
     map
 }
 
+/// The reading text docling-parse 7.24 keeps for a `/Differences` glyph name
+/// no table resolves (`resolve_unknown_name`): the name without any
+/// `.suffix` — `None` when that is a bare glyph index
+/// (`(gid|glyph|g|cid|index)\d+`, any case), which names a glyph of the
+/// font program but carries no text (docling-parse#238), so it is unmapped.
+fn unknown_name_text(name: &str) -> Option<String> {
+    let stem = name.rsplit_once('.').map_or(name, |(s, _)| s);
+    let lower = stem.to_ascii_lowercase();
+    let index = ["gid", "glyph", "g", "cid", "index"].iter().any(|p| {
+        lower
+            .strip_prefix(p)
+            .is_some_and(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
+    });
+    (!index).then(|| stem.to_string())
+}
+
 /// A glyph name that is a synthetic placeholder, not a real Adobe name:
 /// `g115`, `cid42`, `glyph7`, `index9`, `G12`, or a short-prefix code name like
-/// `SM590000` (IBM BookMaster). These carry no Unicode meaning, and docling-parse
-/// emits them verbatim (`/SM590000`). `afii####` / `uni####` are real Adobe names
+/// `SM590000` (IBM BookMaster). These carry no Unicode meaning (docling-parse
+/// keeps the code-like names as text, `SM590000`, and reads the glyph indexes
+/// as unmapped, see [`unknown_name_text`]). `afii####` / `uni####` are real Adobe names
 /// and excluded. The restriction keeps genuine glyph names on the Unicode path.
 fn is_gid_name(name: &[u8]) -> bool {
     let Ok(s) = std::str::from_utf8(name) else {
@@ -743,10 +819,27 @@ pub(crate) fn parse_tounicode(data: &[u8]) -> HashMap<u32, String> {
                         i = j + 1;
                     } else if let Some(dst) = hex(tokens[i + 2]) {
                         // `<lo> <hi> <dst>`: consecutive Unicode from a base.
-                        let base = code_of(&dst);
-                        for (k, code) in (lo..=hi).enumerate() {
-                            if let Some(ch) = char::from_u32(base + k as u32) {
-                                map.insert(code, ch.to_string());
+                        if let [.., last] = dst[..] {
+                            for (k, code) in (lo..=hi).enumerate() {
+                                let s = if dst.len() == 1 {
+                                    char::from_u32(u32::from(last) + k as u32).map(String::from)
+                                } else {
+                                    // A multi-unit base — a surrogate pair
+                                    // (`<d835dec2>` = 𝛂, #1003's `H𝛂`) or a
+                                    // ligature — steps its last code unit
+                                    // (PDF 32000-1 §9.10.3); read as one
+                                    // number it was no char and the range
+                                    // was lost.
+                                    let mut u = dst.clone();
+                                    let n = u32::from(last) + k as u32;
+                                    u16::try_from(n).ok().map(|n| {
+                                        *u.last_mut().expect("non-empty") = n;
+                                        u16s_to_string(&u)
+                                    })
+                                };
+                                if let Some(s) = s {
+                                    map.insert(code, s);
+                                }
                             }
                         }
                         i += 3;
@@ -2243,7 +2336,7 @@ fn show_text(
     out: &mut Vec<Glyph>,
 ) {
     for code in codes(font, bytes) {
-        let (text, w) = font.decode_code(code);
+        let (text, w, blank) = font.decode_code(code);
         let w0 = w / 1000.0; // advance in text-space (em) units
                              // The glyph→user transform: scale glyph space by font size, then Tm, CTM.
         let scale = Mat {
@@ -2256,7 +2349,13 @@ fn show_text(
         };
         let trm = scale.then(*tm).then(ctm);
         // Box in glyph space (1000-unit em): x 0..w, y descent..ascent.
-        let (desc, asc) = (font.descent / 1000.0, font.ascent / 1000.0);
+        // A blank unmapped glyph keeps its advance but no ink height
+        // (docling-parse collapses its ascent and descent).
+        let (desc, asc) = if blank {
+            (0.0, 0.0)
+        } else {
+            (font.descent / 1000.0, font.ascent / 1000.0)
+        };
         let (x0, y0) = trm.apply(0.0, desc);
         let (x1, y1) = trm.apply(w0, desc);
         let (x2, y2) = trm.apply(w0, asc);
@@ -2292,23 +2391,24 @@ fn show_text(
         if let Some(s) = text {
             // A run may map one code to multiple chars (ligature/fraction); share box.
             for ch in s.chars() {
-                if ch != '\u{0}' {
-                    out.push(Glyph {
-                        ch,
-                        l: left as f32,
-                        b: bot as f32,
-                        r: right as f32,
-                        t: top as f32,
-                        ll: left as f32,
-                        lb: bot as f32,
-                        lr: right as f32,
-                        lt: top as f32,
-                        font: font.hash,
-                        quad,
-                        pen,
-                        math_font: font.math,
-                    });
-                }
+                // A NUL from the `/ToUnicode` is an unmapped glyph too
+                // (docling#5070): U+FFFD.
+                let ch = if ch == '\u{0}' { '\u{FFFD}' } else { ch };
+                out.push(Glyph {
+                    ch,
+                    l: left as f32,
+                    b: bot as f32,
+                    r: right as f32,
+                    t: top as f32,
+                    ll: left as f32,
+                    lb: bot as f32,
+                    lr: right as f32,
+                    lt: top as f32,
+                    font: font.hash,
+                    quad,
+                    pen,
+                    math_font: font.math,
+                });
             }
         }
         // Advance the text matrix. Word spacing applies to single-byte code 32.
@@ -3664,6 +3764,98 @@ mod base14_fonts {
         assert_eq!(
             [0x80, 0x8C, 0xAE, 0xAF, 0xBE, 0xBF, 0xFF].map(|b| table[&b]),
             ['Ä', 'å', 'Æ', 'Ø', 'æ', 'ø', 'ˇ']
+        );
+    }
+
+    /// Unmapped glyphs read U+FFFD (#1003, docling#5070): a ToUnicode NUL —
+    /// docling's `test_threaded_page_backend_replaces_nul_with_replacement_char`
+    /// case, `mg.mL \x00 1` — and a bare glyph-index `/Differences` name,
+    /// while an unknown code-like name keeps its text without the slash
+    /// (docling-parse 7.24's `SM590000`).
+    #[test]
+    fn unmapped_glyphs_read_as_the_replacement_char() {
+        let cmap = b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n\
+            1 begincodespacerange <00> <FF> endcodespacerange\n\
+            1 beginbfchar <7e> <0000> endbfchar\n\
+            endcmap CMapName currentdict /CMap defineresource pop end end";
+        let stream = [
+            format!("<</Length {}>>stream\n", cmap.len()).as_bytes(),
+            cmap.as_slice(),
+            b"\nendstream",
+        ]
+        .concat();
+        let pdf = pdf_with_fonts(
+            &[
+                b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica/ToUnicode 6 0 R\
+                   /Encoding<</Type/Encoding/Differences[1/g115 2/SM590000]>>>>",
+                &stream,
+            ],
+            b"BT /F1 12 Tf 72 700 Td (mg.mL ~ 1 \x01 x \x02 y) Tj ET\n",
+        );
+        let text: String = cells(&pdf)
+            .iter()
+            .map(|c| c.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert_eq!(text, "mg.mL \u{FFFD} 1 \u{FFFD} x SM590000 y");
+    }
+
+    /// redp5110's subset font names every glyph by index (`/g115/g3 /g40…`):
+    /// the painted ones read U+FFFD, the blank `/g3` program is a space, so
+    /// the line keeps its words (docling-parse 7.24's line cell).
+    #[cfg(feature = "render")]
+    #[test]
+    fn a_blank_glyph_program_is_a_space() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/data/pdf/sources/redp5110_sampled.pdf");
+        let Ok(bytes) = std::fs::read(path) else {
+            return;
+        };
+        let lines: Vec<String> = super::pdf_textlines(&bytes)
+            .into_iter()
+            .flat_map(|(_, _, c)| c)
+            .map(|c| c.text)
+            .collect();
+        let want = "\u{FFFD} \u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD} \
+                    \u{FFFD}\u{FFFD}\u{FFFD} ";
+        assert!(
+            lines.iter().any(|l| l.starts_with(want)),
+            "no `{want}` line in {:?}",
+            lines
+                .iter()
+                .filter(|l| l.contains('\u{FFFD}'))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// A `bfrange` whose destination is a surrogate pair steps its last code
+    /// unit (#1003: equations.pdf's `H𝛂`, `<1d59> <1d5a> <d835dec2>`); a
+    /// single-unit base keeps counting in code points.
+    #[test]
+    fn surrogate_pair_bfrange_maps_each_code() {
+        let map = super::parse_tounicode(
+            b"1 beginbfrange <1d59> <1d5a> <d835dec2> endbfrange\n\
+              1 beginbfrange <0010> <0011> <0041> endbfrange",
+        );
+        assert_eq!(map.get(&0x1d59).map(String::as_str), Some("\u{1D6C2}"));
+        assert_eq!(map.get(&0x1d5a).map(String::as_str), Some("\u{1D6C3}"));
+        assert_eq!(map.get(&0x11).map(String::as_str), Some("B"));
+    }
+
+    /// Which unknown glyph names are text and which are bare indexes
+    /// (docling-parse 7.24's `resolve_unknown_name`).
+    #[test]
+    fn unknown_glyph_names_follow_docling_parse() {
+        for name in ["g115", "gid00043", "Glyph7", "cid42", "index9", "g3.alt"] {
+            assert_eq!(super::unknown_name_text(name), None, "{name}");
+        }
+        assert_eq!(
+            super::unknown_name_text("SM590000").as_deref(),
+            Some("SM590000")
+        );
+        assert_eq!(
+            super::unknown_name_text("SM590000.sc").as_deref(),
+            Some("SM590000")
         );
     }
 

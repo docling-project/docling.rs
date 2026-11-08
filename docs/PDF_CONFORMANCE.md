@@ -33,7 +33,7 @@ older, pypdfium2-era docling's and the pipeline was scored with OCR on.
 
 ## Current state
 
-**8 / 18 strict** against upstream's current groundtruth — total **373
+**8 / 18 strict** against upstream's current groundtruth — total **337
 diff lines** (`scripts/conformance/pdf_groundtruth.sh`: `--skip-ocr
 --compact-tables`, docling-parse renderer). The groundtruth was refreshed
 for #921 from docling's `tests/data/pdf/groundtruth` at upstream `dc4693f`
@@ -63,7 +63,9 @@ docling#4438) took it to 8 / 18 and 379, #1001's cell normalization
 (docling#5069 — `’` → `'` inside TableFormer cells) to 377, and the mirror
 refresh at docling `bcb3678` (#996) moved one groundtruth file —
 `normal_4pages.md` now carries the two `※` footnote lines our output already
-printed, 12 → 8 lines — to **373**. (On the stale pre-refresh groundtruth the old tree
+printed, 12 → 8 lines — to 373, and #1003's unmapped glyphs (docling#5070:
+`�` for a bare glyph-index name, `SM590000` for a code-like one, a
+surrogate-pair ToUnicode range read) to **337**. (On the stale pre-refresh groundtruth the old tree
 read 10 / 18, 328 — a match to docling as it no longer is.) The two Korean
 image-only pages `skipped_1page` / `skipped_2pages` carry no text
 groundtruth and are not scored.
@@ -85,7 +87,7 @@ groundtruth and are not scored.
 | multi_page | 32 | docling-parse 7 maps the list bullet glyph to `∞` and docling keeps it as text (`- ∞ IBM MT/ST …`); we read a bullet and drop it as the marker |
 | table_misidentified_as_form | 46 | the form container's nested table / picture (docling#4064): docling nests them inside the form region and keeps the heading, we flatten the region |
 | table_mislabeled_as_picture | 81 | the survey over-detected as tables; checkbox glyphs (`☐`) and blank cells docling keeps |
-| redp5110_sampled | 155 | TOC dot leaders docling keeps as `. . . . . .` in the page column; monospace code docling-parse 7 spaces around punctuation (`EMPLOYEES .`, `( SESSION_USER , 'MGR' )`); `/SM590000` glyph names |
+| redp5110_sampled | 119 | TOC dot leaders docling keeps as `. . . . . .` in the page column; monospace code docling-parse 7 spaces around punctuation (`EMPLOYEES .`, `( SESSION_USER , 'MGR' )`); a list bullet docling-parse reads as its CID (`r`), we as `�` |
 
 Earlier refreshes, for the record: against the docling ≥ 2.123
 groundtruth (docling-parse ≤ 6) this tree went 374 → 346 (#609) → 342
@@ -725,7 +727,18 @@ The parser handles Type0/CID + Identity-H and simple Type1/TrueType fonts,
 ToUnicode CMaps (`bfchar`/`bfrange`), WinAnsi/MacRoman + `/Differences`
 encodings, **Form XObject recursion** (`Do` — bulk body text in heavy PDFs lives
 inside a form; 2206 p1 was dropping ~9000 chars), a **glyph-name fallback**
-(docling emits an unmappable subset-font name verbatim, `/g115`), and an
+(docling-parse 7.24 keeps an unknown code-like name as text, `SM590000`), and
+**unmapped glyphs as U+FFFD** (#1003, docling#5070): a painted glyph no
+source maps to Unicode — a bare glyph-index name (`/g115`), a code a
+composite font's ToUnicode lacks, a NUL a ToUnicode maps to — reads `�`, so
+the loss stays visible and the text-quality score counts it instead of the
+glyph silently vanishing (`mL⁻¹` reading `mL1`); one whose embedded program
+paints nothing is a space and a word boundary, as docling-parse reads it.
+Two deliberate differences: a composite font with no ToUnicode reads `�`
+where docling-parse takes the CID as a code point (redp5110's list bullet,
+CID 114, reads `r` there), and the predefined CJK cmaps docling-parse ships
+(`Adobe-Korea1-UCS2`, …) are not ported, so a CJK font without a ToUnicode
+reads `�` (the two Korean `skipped_*` fixtures) — and an
 **overprint dedup** (a kashida elongation re-stamped on itself — right_to_left_02).
 A char-frequency validator (`scripts/test/parser_completeness.py`) confirms nothing is
 silently skipped.
