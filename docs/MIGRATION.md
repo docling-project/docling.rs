@@ -822,6 +822,8 @@ converted once more as that format with a warning.
 - the flat Markdown path now applies docling's heading rule (`to_single_text_element`: parts joined by spaces, the first formatting found wrapping the whole heading, `## *To the Hibernia*`) and merges adjacent same-annotation text nodes into one run (`simplify_text_elements`: `<b><time>… <abbr>p.m.</abbr></time></b>` is one bold run)
 - #466 (docling#4351): a content document that opens with a UTF-16 byte order mark is decoded as UTF-16 instead of being dropped
 - docling#4293 (2.130.0-33): cross-document links of every content-document extension (`.xhtml`, `.xht`, `.htm`, `.html`) become anchors; a link with a scheme or `//host` is left alone
+- #1027 (docling#5170): a single-quoted cross-document link (`href='ch2.xhtml#n2'`) becomes an anchor too, keeping its quote; a single-quoted absolute URL keeps its host
+- #1027 (docling#5168): `container.xml`'s rootfile `full-path` is percent-decoded like the manifest hrefs, so `OEBPS/my%20book.opf` reads `OEBPS/my book.opf` instead of failing the conversion
 
 #### ODF (odt/ods/odp)
 
