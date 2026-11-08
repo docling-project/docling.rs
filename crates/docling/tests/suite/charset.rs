@@ -102,3 +102,48 @@ fn the_encoding_option_wins_over_the_guess() {
     assert!(!forced.contains("Отчёт"), "{forced}");
     assert!(forced.starts_with("# "), "{forced}");
 }
+
+/// docling#4949 (#1029): a document whose bytes behind a UTF-8, UTF-16 or
+/// UTF-32 mark do not decode fails with an error naming the BOM-detected
+/// encoding, in every text format. Upstream's
+/// `test_damaged_bom_document_reports_decode_error`.
+#[test]
+fn damaged_bom_document_reports_decode_error() {
+    const ACCENTED: &str = "Café crème brûlée, naïve façade";
+    let formats = [
+        ("md", format!("# Rapport\n\n{ACCENTED}\n")),
+        ("csv", format!("note\n{ACCENTED}\n")),
+        ("adoc", format!("= Rapport\n\n{ACCENTED}\n")),
+    ];
+    let encode = |text: &str, codec: &str| -> Vec<u8> {
+        match codec {
+            "utf-8-sig" => [&b"\xef\xbb\xbf"[..], text.as_bytes()].concat(),
+            "utf-16" => [0xff, 0xfe]
+                .into_iter()
+                .chain(text.encode_utf16().flat_map(u16::to_le_bytes))
+                .collect(),
+            _ => [0xff, 0xfe, 0, 0]
+                .into_iter()
+                .chain(text.chars().flat_map(|c| (c as u32).to_le_bytes()))
+                .collect(),
+        }
+    };
+    for (ext, text) in &formats {
+        for codec in ["utf-8-sig", "utf-16", "utf-32"] {
+            let mut raw = encode(text, codec);
+            raw.push(0xff);
+            let name = format!("damaged.{ext}");
+            let format = docling::InputFormat::from_extension(ext).expect("format");
+            let src = SourceDocument::from_bytes(&name, format, raw);
+            let err = DocumentConverter::new()
+                .convert(src)
+                .map(|_| ())
+                .expect_err("damaged input converts");
+            assert!(
+                err.to_string().contains(&format!("'{codec}'")),
+                "{name} {codec}: {err}"
+            );
+            let _: &ConversionError = &err;
+        }
+    }
+}

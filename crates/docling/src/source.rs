@@ -277,6 +277,9 @@ pub(crate) fn decode_text_as<'a>(
     bytes: &'a [u8],
     label: &str,
 ) -> Result<Cow<'a, str>, ConversionError> {
+    if let Some(codec) = unicode_codec(label) {
+        return decode_unicode_as(bytes, codec, label);
+    }
     let encoding = lookup_encoding(label).ok_or_else(|| {
         ConversionError::Parse(format!(
             "unknown character encoding {label:?}: use a WHATWG encoding label such as \
@@ -293,6 +296,92 @@ pub(crate) fn decode_text_as<'a>(
     Ok(text)
 }
 
+/// A Unicode codec named by a Python codec alias, endianness spelled out or
+/// left to the mark (docling#4849, #1029): `u8`, `utf_16_le`, `utf-32-be`, …
+/// — Python accepts them, WHATWG has no UTF-32 at all and spells UTF-16's
+/// byte orders differently, so `encoding_rs` alone rejected them as unknown.
+#[derive(Clone, Copy)]
+enum UnicodeCodec {
+    Utf8,
+    /// `Some(true)` = little-endian; `None` = the mark decides, else LE
+    /// (Python's `utf-16` / `utf-32` on a little-endian host).
+    Utf16(Option<bool>),
+    Utf32(Option<bool>),
+}
+
+fn unicode_codec(label: &str) -> Option<UnicodeCodec> {
+    let l = label.trim().to_ascii_lowercase().replace('_', "-");
+    // Python's normalization also drops the dash between the name and its
+    // width (`utf16le`, `utf-16le`): compare without dashes.
+    let key = l.replace('-', "");
+    Some(match key.as_str() {
+        "utf8" | "u8" | "utf" | "cp65001" | "utf8sig" => UnicodeCodec::Utf8,
+        "utf16" | "u16" => UnicodeCodec::Utf16(None),
+        "utf16le" => UnicodeCodec::Utf16(Some(true)),
+        "utf16be" => UnicodeCodec::Utf16(Some(false)),
+        "utf32" | "u32" => UnicodeCodec::Utf32(None),
+        "utf32le" => UnicodeCodec::Utf32(Some(true)),
+        "utf32be" => UnicodeCodec::Utf32(Some(false)),
+        _ => return None,
+    })
+}
+
+/// A requested Unicode codec, decoded strictly. A leading byte-order mark is
+/// never content, so it is dropped under every alias and either explicit
+/// endianness, as the auto-detect path does (docling#4849) — Python's
+/// `utf-16-le` codec would keep it as U+FEFF.
+fn decode_unicode_as<'a>(
+    bytes: &'a [u8],
+    codec: UnicodeCodec,
+    label: &str,
+) -> Result<Cow<'a, str>, ConversionError> {
+    let invalid = |name: &str| {
+        ConversionError::Parse(format!(
+            "input is not valid {name}: it cannot be decoded with the requested encoding {label:?}"
+        ))
+    };
+    let text: Cow<'a, str> = match codec {
+        UnicodeCodec::Utf8 => {
+            let rest = bytes.strip_prefix(b"\xef\xbb\xbf").unwrap_or(bytes);
+            Cow::Borrowed(std::str::from_utf8(rest).map_err(|_| invalid("UTF-8"))?)
+        }
+        UnicodeCodec::Utf16(order) => {
+            let (le, rest) = match (order, bytes) {
+                (None, [0xfe, 0xff, rest @ ..]) => (false, rest),
+                (None, [0xff, 0xfe, rest @ ..]) => (true, rest),
+                (None, _) => (true, bytes),
+                (Some(le), _) => (le, bytes),
+            };
+            let encoding = if le {
+                encoding_rs::UTF_16LE
+            } else {
+                encoding_rs::UTF_16BE
+            };
+            let text = encoding
+                .decode_without_bom_handling_and_without_replacement(rest)
+                .ok_or_else(|| invalid(encoding.name()))?;
+            Cow::Owned(text.into_owned())
+        }
+        UnicodeCodec::Utf32(order) => {
+            let (le, rest) = match (order, bytes) {
+                (None, [0x00, 0x00, 0xfe, 0xff, rest @ ..]) => (false, rest),
+                (None, [0xff, 0xfe, 0x00, 0x00, rest @ ..]) => (true, rest),
+                (None, _) => (true, bytes),
+                (Some(le), _) => (le, bytes),
+            };
+            let name = if le { "UTF-32LE" } else { "UTF-32BE" };
+            decode_utf32(rest, le).map_err(|_| invalid(name))?
+        }
+    };
+    Ok(match text {
+        Cow::Borrowed(t) => Cow::Borrowed(t.strip_prefix('\u{feff}').unwrap_or(t)),
+        Cow::Owned(t) => match t.strip_prefix('\u{feff}') {
+            Some(rest) => Cow::Owned(rest.to_string()),
+            None => Cow::Owned(t),
+        },
+    })
+}
+
 /// Resolve an encoding label: the WHATWG label as given, then with Python's
 /// `_` spelling folded to `-` (`shift_jis` is a WHATWG label, `euc_jp` is
 /// not), then the Python codec names WHATWG spells differently.
@@ -304,7 +393,6 @@ fn lookup_encoding(label: &str) -> Option<&'static encoding_rs::Encoding> {
         .or_else(|| {
             let alias = match dashed.as_str() {
                 "latin-1" | "iso8859-1" | "iso-latin-1" => "latin1",
-                "utf-8-sig" | "utf8-sig" => "utf-8",
                 "cp932" | "ms932" | "sjis" => "shift_jis",
                 "mac-roman" | "macroman" => "macintosh",
                 "cp1361" | "johab" | "euc-tw" => return None,
@@ -317,24 +405,36 @@ fn lookup_encoding(label: &str) -> Option<&'static encoding_rs::Encoding> {
 /// See [`SourceDocument::text`].
 pub(crate) fn decode_text(bytes: &[u8]) -> Result<Cow<'_, str>, ConversionError> {
     // UTF-32 before UTF-16: the UTF-32 LE mark starts with the UTF-16 LE one.
+    // A mark settles the encoding: bytes it cannot decode are an error that
+    // names the BOM-detected encoding (docling#4949, #1029), never a fallback
+    // guess — a UTF-8 mark over damaged text used to read as windows-1252
+    // with the mark itself as `ï»¿`.
+    let bom_error = |codec: &str, detail: &str| {
+        ConversionError::Parse(format!(
+            "could not decode the document with the BOM-detected encoding '{codec}': {detail}"
+        ))
+    };
     if let Some(rest) = bytes.strip_prefix(&[0xff, 0xfe, 0x00, 0x00]) {
-        return decode_utf32(rest, true);
+        return decode_utf32(rest, true).map_err(|e| bom_error("utf-32", &e.to_string()));
     }
     if let Some(rest) = bytes.strip_prefix(&[0x00, 0x00, 0xfe, 0xff]) {
-        return decode_utf32(rest, false);
+        return decode_utf32(rest, false).map_err(|e| bom_error("utf-32", &e.to_string()));
+    }
+    if let Some(rest) = bytes.strip_prefix(b"\xef\xbb\xbf") {
+        return std::str::from_utf8(rest)
+            .map(Cow::Borrowed)
+            .map_err(|e| bom_error("utf-8-sig", &e.to_string()));
     }
     if bytes.starts_with(&[0xff, 0xfe]) || bytes.starts_with(&[0xfe, 0xff]) {
         // `decode` sniffs and drops the mark itself.
         let (text, _, malformed) = encoding_rs::UTF_16LE.decode(bytes);
         if malformed {
-            return Err(ConversionError::Parse(
-                "input carries a UTF-16 byte-order mark but is not valid UTF-16".into(),
-            ));
+            return Err(bom_error("utf-16", "the input is not valid UTF-16"));
         }
         return Ok(Cow::Owned(text.into_owned()));
     }
     match std::str::from_utf8(bytes) {
-        Ok(text) => Ok(Cow::Borrowed(text.strip_prefix('\u{feff}').unwrap_or(text))),
+        Ok(text) => Ok(Cow::Borrowed(text)),
         Err(utf8_error) => {
             let coverage = utf8_high_byte_coverage(bytes);
             if coverage >= 0.5 {
@@ -517,6 +617,94 @@ mod decode_tests {
         assert!(err.contains("UTF-8"), "{err}");
         let err = decode_text_as(b"x", "klingon-1").unwrap_err().to_string();
         assert!(err.contains("unknown character encoding"), "{err}");
+    }
+
+    /// docling#4849 (#1029): every Python alias of a Unicode codec resolves,
+    /// either endianness spelled out, and a leading mark is dropped under
+    /// all of them; a single-byte codec still reads the mark's bytes as the
+    /// characters they are. Upstream's `tests/test_text_decoding.py`.
+    #[test]
+    fn unicode_codec_aliases_drop_the_mark() {
+        let enc16 = |s: &str, le: bool| -> Vec<u8> {
+            s.encode_utf16()
+                .flat_map(|u| if le { u.to_le_bytes() } else { u.to_be_bytes() })
+                .collect()
+        };
+        let enc32 = |s: &str, le: bool| -> Vec<u8> {
+            s.chars()
+                .flat_map(|c| {
+                    let u = c as u32;
+                    if le {
+                        u.to_le_bytes()
+                    } else {
+                        u.to_be_bytes()
+                    }
+                })
+                .collect()
+        };
+        let text = "# Title\nHello";
+        let utf8_bom = [&b"\xef\xbb\xbf"[..], text.as_bytes()].concat();
+        for label in ["utf-8", "utf8", "UTF-8", "utf_8", "UTF8", "u8", "utf-8-sig"] {
+            assert_eq!(decode_text_as(&utf8_bom, label).unwrap(), text, "{label}");
+        }
+        let cases: [(&str, Vec<u8>); 4] = [
+            (
+                "utf-16-le",
+                [&[0xff, 0xfe][..], &enc16(text, true)].concat(),
+            ),
+            (
+                "utf-16-be",
+                [&[0xfe, 0xff][..], &enc16(text, false)].concat(),
+            ),
+            (
+                "utf-32-le",
+                [&[0xff, 0xfe, 0, 0][..], &enc32(text, true)].concat(),
+            ),
+            (
+                "utf-32-be",
+                [&[0, 0, 0xfe, 0xff][..], &enc32(text, false)].concat(),
+            ),
+        ];
+        for (label, bytes) in &cases {
+            assert_eq!(decode_text_as(bytes, label).unwrap(), text, "{label}");
+            let python = label.replace('-', "_");
+            assert_eq!(decode_text_as(bytes, &python).unwrap(), text, "{python}");
+        }
+        // The generic codecs read the mark's byte order.
+        assert_eq!(decode_text_as(&cases[1].1, "utf-16").unwrap(), text);
+        assert_eq!(decode_text_as(&cases[3].1, "utf-32").unwrap(), text);
+        // Explicit and auto-detected UTF-8 agree; no mark, nothing changes.
+        assert_eq!(decode_text(&utf8_bom).unwrap(), text);
+        assert_eq!(
+            decode_text_as(text.as_bytes(), "utf-8").unwrap(),
+            decode_text(text.as_bytes()).unwrap()
+        );
+        // cp1252 has no mark: its bytes are content.
+        assert_eq!(
+            decode_text_as(&utf8_bom, "cp1252").unwrap(),
+            "ï»¿# Title\nHello"
+        );
+        assert!(decode_text_as(b"x", "not-a-codec").is_err());
+        assert!(decode_text_as(b"\xff\xfeA", "utf-16-le").is_err());
+    }
+
+    /// docling#4949 (#1029): a mark settles the encoding even when the bytes
+    /// after it are damaged — the error names the BOM-detected encoding,
+    /// never a windows-1252 reading of the mark and the damage. Upstream's
+    /// `test_damaged_bom_input_reports_detected_encoding`.
+    #[test]
+    fn damaged_input_behind_a_mark_names_its_encoding() {
+        for (raw, codec) in [
+            (&b"\xef\xbb\xbf\xff"[..], "utf-8-sig"),
+            (b"\xef\xbb\xbfcaf\xe9 na\xefve", "utf-8-sig"),
+            (b"\xff\xfeA", "utf-16"),
+            (b"\xfe\xff\x00", "utf-16"),
+            (b"\xff\xfe\x00\x00A\x00\x00", "utf-32"),
+            (b"\x00\x00\xfe\xff\x00\x00\x00", "utf-32"),
+        ] {
+            let err = decode_text(raw).unwrap_err().to_string();
+            assert!(err.contains(&format!("'{codec}'")), "{raw:?}: {err}");
+        }
     }
 
     /// docling#4202: a BOM settles the encoding (and is dropped); UTF-8 is
