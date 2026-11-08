@@ -388,7 +388,9 @@ converted once more as that format with a warning.
   - `<br>` splits (`\n` for one, a new paragraph for two)
   - a mixed-formatting `<li>` is an empty `list_item` over an inline group, a `<dt>` a bold item whose `<dd>`s form a `descriptions` list group under it, `<ul>` directly inside `<ul>` its own nested group
   - a rich table cell's items are re-parented under a `rich_cell_group_{tables}_{col}_{row}` group of the table (named with upstream's lazily advanced column, i.e. the *previous* cell's), the cell carrying `ref` to it, cell text docling's raw `get_text`, declared spans unclamped
-  - a picture's caption is a body-level `caption` item
+  - a picture's caption is a `caption` item under its picture, so it stays in the picture's section or rich table cell (docling#5037, #1023 — it was a body-level item before)
+  - a `<pre>`'s sibling `<code>` children are one code item, not code runs of an inline group (docling#4998, #1023)
+  - a table's `<tfoot>` rows are kept and come after every other row group wherever the element sits — HTML 4 put it before `<tbody>` — in the JSON and the Markdown alike (docling#4323, #1023; the JSON used to drop them and the Markdown kept source order)
   - the `<title>`, everything before the first heading and a `<footer>` (a `section` group) are `furniture`
   - `<details>` a `section` group
   - `field_value` items carry `kind`

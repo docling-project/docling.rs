@@ -2462,6 +2462,38 @@ pub(super) fn subtree_text(elem: ElementRef, out: &mut String) {
     }
 }
 
+/// A table's own `<tr>`s in the order of the HTML table model, without
+/// descending into nested tables (a recursive `select` would pull a nested
+/// table's cells into the outer grid). Row groups are unwrapped and the
+/// `tfoot`s' rows come after every other row, wherever the element sits in
+/// the source — HTML 4 required it before `tbody` (upstream's
+/// `_unwrap_table_sections`, docling#4323), so an HTML4-style table does not
+/// print its `Total` row before the rows it totals.
+pub(crate) fn table_rows<'a>(table: ElementRef<'a>) -> Vec<ElementRef<'a>> {
+    let mut rows: Vec<ElementRef<'a>> = Vec::new();
+    let mut foot: Vec<ElementRef<'a>> = Vec::new();
+    for child in table.children().filter_map(ElementRef::wrap) {
+        let name = child.value().name();
+        let into = match name {
+            "tr" => {
+                rows.push(child);
+                continue;
+            }
+            "thead" | "tbody" => &mut rows,
+            "tfoot" => &mut foot,
+            _ => continue,
+        };
+        into.extend(
+            child
+                .children()
+                .filter_map(ElementRef::wrap)
+                .filter(|c| c.value().name() == "tr"),
+        );
+    }
+    rows.extend(foot);
+    rows
+}
+
 /// Build a table's grid from its `<tr>`s. `render_cell` yields each cell's
 /// flat Markdown text, whether the cell is *rich* (docling's `RichTableCell`),
 /// and — for a rich cell — its structured block content for
@@ -2470,23 +2502,7 @@ fn parse_table_cells(
     table: ElementRef,
     render_cell: impl Fn(ElementRef) -> (String, Vec<Node>),
 ) -> Option<Table> {
-    // Collect this table's own rows without descending into nested tables (a
-    // recursive `select` would pull a nested table's cells into the outer grid).
-    let mut trs: Vec<ElementRef> = Vec::new();
-    for child in table.children().filter_map(ElementRef::wrap) {
-        match child.value().name() {
-            "tr" => trs.push(child),
-            "thead" | "tbody" | "tfoot" => {
-                trs.extend(
-                    child
-                        .children()
-                        .filter_map(ElementRef::wrap)
-                        .filter(|c| c.value().name() == "tr"),
-                );
-            }
-            _ => {}
-        }
-    }
+    let trs = table_rows(table);
 
     // A `<tr>` whose cells are all spanning `<th>`s is a "row header" (e.g. a
     // rowspan label alone in its `<tr>`): it doesn't advance the row index, and
@@ -3212,6 +3228,172 @@ mod tests {
     fn convert_bytes(html: &[u8]) -> DoclingDocument {
         let src = SourceDocument::from_bytes("t", InputFormat::Html, html.to_vec());
         HtmlBackend.convert(&src).unwrap()
+    }
+
+    /// The JSON items under `parent_ref` (a `children` list of `$ref`s).
+    fn children_of<'j>(json: &'j serde_json::Value, r: &str) -> Vec<&'j str> {
+        let item = resolve(json, r);
+        item["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["$ref"].as_str().unwrap())
+            .collect()
+    }
+
+    fn resolve<'j>(json: &'j serde_json::Value, r: &str) -> &'j serde_json::Value {
+        if r == "#/body" {
+            return &json["body"];
+        }
+        let (kind, i) = r[2..].split_once('/').unwrap();
+        &json[kind][i.parse::<usize>().unwrap()]
+    }
+
+    /// docling#5037 (#1023): an image caption — `<figcaption>` or the `alt`
+    /// text — is a child of its picture, so it stays in the picture's
+    /// section; upstream's `test_image_caption_stays_in_the_section_of_its_image`.
+    #[test]
+    fn image_caption_stays_in_the_section_of_its_image() {
+        for figure in [
+            r#"<figure><img src="x.png" alt="x"><figcaption>Caption text</figcaption></figure>"#,
+            r#"<img src="x.png" alt="Caption text">"#,
+        ] {
+            let doc = convert(&format!(
+                "<html><body><h1>One</h1>{figure}<p>Para one.</p>\
+                 <h1>Two</h1><p>Para two.</p></body></html>"
+            ));
+            let json = doc.export_to_json_value();
+            let pic = &json["pictures"][0];
+            let pic_ref = pic["self_ref"].as_str().unwrap();
+            let section = resolve(&json, pic["parent"]["$ref"].as_str().unwrap());
+            assert_eq!(section["text"], "One", "{figure}");
+            let cap_ref = pic["captions"][0]["$ref"].as_str().unwrap();
+            assert_eq!(resolve(&json, cap_ref)["text"], "Caption text");
+            assert_eq!(resolve(&json, cap_ref)["parent"]["$ref"], pic_ref);
+            assert_eq!(children_of(&json, pic_ref), [cap_ref], "{figure}");
+            let para = json["texts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|t| t["text"] == "Para one.")
+                .unwrap();
+            assert_eq!(
+                children_of(&json, section["self_ref"].as_str().unwrap()),
+                [pic_ref, para["self_ref"].as_str().unwrap()],
+                "{figure}"
+            );
+            let body: Vec<_> = children_of(&json, "#/body")
+                .into_iter()
+                .map(|r| resolve(&json, r)["label"].as_str().unwrap())
+                .collect();
+            assert_eq!(body, ["title", "title"], "{figure}");
+            // Markdown is unchanged: the caption, then its picture.
+            let md = doc.export_to_markdown();
+            assert!(md.contains("Caption text\n\n<!-- image -->"), "{md}");
+        }
+    }
+
+    /// docling#4998 (#1023): sibling `<code>` children of a `<pre>` are one
+    /// code block, not three code runs of an inline group; upstream's
+    /// `test_preformatted_blocks_preserve_inline_whitespace` cases.
+    #[test]
+    fn pre_sibling_code_tags_are_one_code_block() {
+        for (pre, expected) in [
+            (
+                "<pre><code>line one</code>\n<code>line two</code>\n<code>line three</code></pre>",
+                "line one\nline two\nline three",
+            ),
+            (
+                "<pre><code>x = 'a  b'</code> <code>y</code></pre>",
+                "x = 'a  b' y",
+            ),
+            (
+                "<pre><code>\n    if ok:\n        run()\n\n</code></pre>",
+                "    if ok:\n        run()",
+            ),
+        ] {
+            let doc = convert(&format!("<html><body>{pre}</body></html>"));
+            let json = doc.export_to_json_value();
+            let codes: Vec<_> = json["texts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|t| t["label"] == "code")
+                .map(|t| t["text"].as_str().unwrap())
+                .collect();
+            assert_eq!(codes, [expected], "{pre}");
+            let md = doc.export_to_markdown();
+            assert_eq!(md, format!("```\n{expected}\n```\n"), "{pre}");
+        }
+    }
+
+    /// docling#4323 (#1023): `<tfoot>` rows are kept and come after every
+    /// other row group, wherever the element sits; a footer `rowspan` does
+    /// not reach back into the body. Upstream's `test_table_tfoot_rows_are_kept`.
+    #[test]
+    fn table_tfoot_rows_are_kept_last() {
+        const THEAD: &str = "<thead><tr><th>Item</th><th>Amount</th></tr></thead>";
+        const TFOOT: &str = "<tfoot><tr><td>Total</td><td>10</td></tr></tfoot>";
+        let widgets = "<tbody><tr><td>Widgets</td><td>10</td></tr></tbody>";
+        let cases = [
+            (
+                format!("{THEAD}{widgets}{TFOOT}"),
+                vec![["Item", "Amount"], ["Widgets", "10"], ["Total", "10"]],
+            ),
+            (
+                format!("{THEAD}{TFOOT}{widgets}"),
+                vec![["Item", "Amount"], ["Widgets", "10"], ["Total", "10"]],
+            ),
+            (
+                format!(
+                    "<tbody><tr><td>Widgets</td><td>4</td></tr></tbody>{TFOOT}\
+                     <tbody><tr><td>Gadgets</td><td>6</td></tr></tbody>"
+                ),
+                vec![["Widgets", "4"], ["Gadgets", "6"], ["Total", "10"]],
+            ),
+            (
+                format!(
+                    "{THEAD}<tfoot><tr><td rowspan=\"2\">Total</td><td>10</td></tr></tfoot>{widgets}"
+                ),
+                vec![["Item", "Amount"], ["Widgets", "10"], ["Total", "10"]],
+            ),
+        ];
+        for (body, expected) in cases {
+            let doc = convert(&format!("<table>{body}</table>"));
+            let json = doc.export_to_json_value();
+            let tables = json["tables"].as_array().unwrap();
+            assert_eq!(tables.len(), 1, "{body}");
+            let data = &tables[0]["data"];
+            assert_eq!(data["num_rows"], 3, "{body}");
+            let grid: Vec<Vec<&str>> = data["grid"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|row| {
+                    row.as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|c| c["text"].as_str().unwrap())
+                        .collect()
+                })
+                .collect();
+            assert_eq!(grid, expected, "{body}");
+            if body.contains("rowspan=") {
+                let total = data["table_cells"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|c| c["text"] == "Total")
+                    .unwrap();
+                assert_eq!(total["row_span"], 1, "{body}");
+            }
+            // The Markdown table keeps the same row order.
+            let md = doc.export_to_markdown();
+            let rows: Vec<&str> = md.lines().filter(|l| !l.starts_with("|--")).collect();
+            for (line, want) in rows.iter().zip(&expected) {
+                assert!(line.contains(want[0]), "{body}\n{md}");
+            }
+        }
     }
 
     /// #769 (docling#4675): one-paragraph text turns each run of `<br>`
