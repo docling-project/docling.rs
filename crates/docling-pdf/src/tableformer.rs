@@ -11,7 +11,7 @@ use crate::pdfium_backend::TextCell;
 // owned-value KV-cache fast path.
 use crate::tf_core::{
     argmax, build_table_cells, correct, merge_spans, preprocess_input, BboxBook, TableCell, END,
-    MAX_ROW_TAGS, MAX_STEPS, START, UCEL,
+    MAX_STEPS, START, UCEL,
 };
 use image::RgbImage;
 use ort::session::Session;
@@ -1051,10 +1051,17 @@ impl TableFormer {
         mut book: BboxBook,
         eo: &DynValue,
     ) -> Result<Vec<TableCell>, String> {
-        if book.runaway() {
-            docling_core::debug_log!(
-                "docling-pdf: tableformer: no row break in {MAX_ROW_TAGS} tags; \
-                 geometric table fallback"
+        // docling#4592: a structure with no row break, or cut mid-row at the
+        // step budget, is discarded with a warning (upstream logs at warning
+        // level too). docling then keeps the text as one child of an empty
+        // table; the port's empty result sends the region down the geometric
+        // table path instead, which keeps the words *and* a grid
+        // (docs/PDF_CONFORMANCE.md, "Degenerate TableFormer sequences").
+        if let Some(reason) = book.degenerate_reason() {
+            eprintln!(
+                "docling-pdf: tableformer: discarding a predicted structure of {} tags because \
+                 {reason}; geometric table fallback",
+                book.otsl.len()
             );
             return Ok(Vec::new());
         }

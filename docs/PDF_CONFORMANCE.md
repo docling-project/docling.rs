@@ -33,7 +33,7 @@ older, pypdfium2-era docling's and the pipeline was scored with OCR on.
 
 ## Current state
 
-**7 / 18 strict** against upstream's current groundtruth — total **403
+**7 / 18 strict** against upstream's current groundtruth — total **401
 diff lines** (`scripts/conformance/pdf_groundtruth.sh`: `--skip-ocr
 --compact-tables`, docling-parse renderer). The groundtruth was refreshed
 for #921 from docling's `tests/data/pdf/groundtruth` at upstream `dc4693f`
@@ -58,9 +58,11 @@ glues those pairs (`KhurramAzeemHashmi`), and so does the groundtruth; on
 #921's 92-page agreement it takes glued word pairs from 68 to 7 — and a page
 whose lines mostly draw space glyphs keeps docling-parse 7's 0.35 floor on
 its one-word lines too (`Offenlegungspf lichten`; no groundtruth file
-changes). That is the 407. The mirror refresh at docling `bcb3678` (#996)
-moved one groundtruth file: `normal_4pages.md` now carries the two `※`
-footnote lines our output already printed — 12 → 8 lines, **403**. (On the stale pre-refresh groundtruth the old tree
+changes). That is the 407; #1001's cell normalization (docling#5069 —
+`’` → `'` inside TableFormer cells) took it to 405. The mirror refresh at
+docling `bcb3678` (#996) moved one groundtruth file: `normal_4pages.md` now
+carries the two `※` footnote lines our output already printed — 12 → 8
+lines, **401**. (On the stale pre-refresh groundtruth the old tree
 read 10 / 18, 328 — a match to docling as it no longer is.) The two Korean
 image-only pages `skipped_1page` / `skipped_2pages` carry no text
 groundtruth and are not scored.
@@ -82,7 +84,7 @@ groundtruth and are not scored.
 | multi_page | 32 | docling-parse 7 maps the list bullet glyph to `∞` and docling keeps it as text (`- ∞ IBM MT/ST …`); we read a bullet and drop it as the marker |
 | table_misidentified_as_form | 70 | the form container's nested table / picture (docling#4064): docling nests them inside the form region and keeps the heading, we flatten the region |
 | table_mislabeled_as_picture | 81 | the survey over-detected as tables; checkbox glyphs (`☐`) and blank cells docling keeps |
-| redp5110_sampled | 157 | TOC dot leaders docling keeps as `. . . . . .` in the page column; monospace code docling-parse 7 spaces around punctuation (`EMPLOYEES .`, `( SESSION_USER , 'MGR' )`); `/SM590000` glyph names |
+| redp5110_sampled | 155 | TOC dot leaders docling keeps as `. . . . . .` in the page column; monospace code docling-parse 7 spaces around punctuation (`EMPLOYEES .`, `( SESSION_USER , 'MGR' )`); `/SM590000` glyph names |
 
 Earlier refreshes, for the record: against the docling ≥ 2.123
 groundtruth (docling-parse ≤ 6) this tree went 374 → 346 (#609) → 342
@@ -316,6 +318,7 @@ diff history of each port lives in the git log of these files).
 | `_sort_cells` (docling-parse index order), `PageAssembleModel.sanitize_text` (docling#4052) | a region's cells serialize in source order; lines join with a space except after an *attached* dash, which fuses the wrapped word; a detached dash is kept | `assemble::cells_text` |
 | `predict_merges` (docling#3888) | cross-column / cross-page paragraph continuations (a hard hyphen before a lowercase continuation joins without it; the head test accepts a trailing comma; tables are in the skip set) | `assemble::merge_continuations` |
 | `_init_l2r_map` / `_init_ud_map` (docling#4093, 2.124) | two elements consecutive in assembly order, left strictly of right on one row (vertical IoU > 0.8), are linked left→right and a row is read through before the paragraph below it; the assembly rank is the region's first source cell (a table's or picture's first *interior* cell) | `reading_order::init_l2r` / `init_ud`, `assemble::cluster_cids` |
+| `normalize_extracted_text` (docling#3929, docling#5069) — #1001 | body text and TableFormer cells get the same character folds: typographic quotes / `•` / `⁄` (cells honour `pdf_keep_typography` like body text), Latin ligatures (`ﬅ` is `ſt` → `st`, Dutch `Ĳ`/`ĳ`), the spurious U+F0A0 glyph dropped, and a per-run NFKC of Arabic Presentation Forms-A/B (`ﻣﺎﺮﺱ` → `مارس`) that leaves `x²`, `H₂O` and full-width forms alone. Before, cells only joined `@ ` and kept `it’s`, `“quoted”`, `• dot`. Groundtruth 407 → 405 lines (`redp5110_sampled` 157 → 155); 3 snapshots moved (the cell folds alone) | `assemble::fold_presentation_forms`, `normalize_grid`, `textparse::decompose_ligatures` |
 | `_find_to_captions` — `_rank_caption_candidates` + `_match_caption` (#265, #813) | a `caption` reaches the graphics (`picture`, `table` / `document_index`, `code`) in the unbroken run on either side of it in reading order — above *and* below, never across intervening text or the gutter — ranked by the shortest box gap (ties to the preceding graphic), and the graphics are matched by augmenting paths, a caption with a second choice yielding to one with none; #813 was the picture arm only looking *below* its figure, so a `Figure N:` label printed above never bound. Caption text is markdown-escaped on every arm | `assemble::pair_graphic_captions` |
 | `form` / `key_value_region` containers (docling#4064) | everything > 80 % inside is a child, ordered among itself and emitted as one block where the container sits (ordering only — the children stay top-level items, no `form_area` group node) | `assemble::order_with_containers` |
 | a picture ≥ 80 % inside a TableFormer table (docling#3906) | nested in the cell covering it: the cell reads `text  <!-- image -->`, the JSON grid keeps the text | `assemble::match_table_pictures` |
@@ -367,6 +370,17 @@ diff lines and recovers content docling drops):
 * **Runaway TableFormer rows**: a decode that emits `lcel` until `MAX_STEPS`
   without a row break is rejected once a row passes 256 tags and the region
   takes the geometric table path (docling ends at a 1 × 1 table there).
+* **Degenerate TableFormer sequences** (docling#4592, #1000): a predicted
+  OTSL with no row break at all, or one that stops within two tags of the
+  1024-step budget without a final `nl` (cut mid-row), is discarded with a
+  warning, as docling does. docling then emits an empty table whose
+  uncovered in-box words become one text child; the port keeps its
+  geometric table path for the region instead, which keeps every word and
+  still yields a grid. On the corpus one region trips it: DeepSeek-V3's
+  `relative_expert_load_multi_13-18` chart, over-detected as a table, whose
+  decode ran to 1024 tags without closing its last row — the grid that
+  scattered the axis labels across the wrong cells is now the geometric one
+  (one snapshot moved; groundtruth unchanged).
 * **Picture-in-table captions**: a picture inside a table that pairs with a
   caption stays a standalone figure (upstream nests it and loses the
   caption).
@@ -614,7 +628,9 @@ kept). `BboxBook` now stops once a row reaches `MAX_ROW_TAGS` (256; a 448-px
 input cannot resolve that many columns, and real tables stay far below it) and
 the structure is rejected, so the region takes the geometric table path: 12 ×
 17 with all 272 words, and 2.8 s of decoding instead of 14.3 s. A long table
-that fills `MAX_STEPS` with ordinary rows is unaffected. Snapshots 97/97
+that fills `MAX_STEPS` with ordinary rows keeps its structure when the budget
+ends on a row break; since docling#4592 (#1000) one cut mid-row is rejected
+like a sequence with no row break at all. Snapshots 97/97
 byte-identical; groundtruth unchanged.
 
 **Heading levels (#302, opt-in).** With `--heading-hierarchy` (off by default —
