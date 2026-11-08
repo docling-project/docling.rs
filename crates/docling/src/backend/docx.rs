@@ -3706,6 +3706,38 @@ fn parse_numbering(
             num_to_abstract.insert(id.to_string(), abs.to_string());
         }
     }
+    // (numId, ilvl) -> the instance's `w:lvlOverride` (docling#5123, #1017):
+    // its `w:lvl` replaces the abstract level, its `w:startOverride` sets the
+    // start — ECMA-376 Part 1, 17.9.9 / 17.9.27. docling applies an override
+    // only in 0..=32767 (`_MAX_START_OVERRIDE`, also PowerPoint's largest
+    // `startAt`: letter and roman markers grow with the number); anything
+    // else keeps the level's own `w:start`.
+    let mut overrides: HashMap<(String, i64), (Option<NumLevel>, Option<i64>)> = HashMap::new();
+    for num in dom.descendants().filter(|n| n.has_tag_name("num")) {
+        let Some(id) = attr(num, "numId") else {
+            continue;
+        };
+        for ov in num.children().filter(|n| n.has_tag_name("lvlOverride")) {
+            let Some(ilvl) = attr(ov, "ilvl").and_then(|v| v.parse::<i64>().ok()) else {
+                continue;
+            };
+            let level = ov
+                .children()
+                .find(|n| n.has_tag_name("lvl"))
+                .map(|l| parse_num_level(l).1);
+            let start = ov
+                .children()
+                .find(|n| n.has_tag_name("startOverride"))
+                .and_then(|n| attr(n, "val"))
+                .and_then(|v| v.trim().parse::<i64>().ok())
+                .filter(|v| (0..=MAX_START_OVERRIDE).contains(v));
+            // The first `w:lvlOverride` for a level wins, like docling's
+            // `find`.
+            overrides
+                .entry((id.to_string(), ilvl))
+                .or_insert((level, start));
+        }
+    }
     // abstractNumId -> { ilvl -> NumLevel }
     let mut abstract_levels: HashMap<String, HashMap<i64, NumLevel>> = HashMap::new();
     // abstractNumId -> the numbering style its `numStyleLink` names
@@ -3724,42 +3756,15 @@ fn parse_numbering(
         }
         let mut levels = HashMap::new();
         for lvl in abs.children().filter(|n| n.has_tag_name("lvl")) {
-            let ilvl: i64 = attr(lvl, "ilvl").and_then(|v| v.parse().ok()).unwrap_or(0);
-            let num_fmt = lvl
-                .children()
-                .find(|n| n.has_tag_name("numFmt"))
-                .and_then(|n| attr(n, "val"));
-            let numbered = num_fmt.map(|v| v != "bullet").unwrap_or(true);
-            let visible = num_fmt.is_some_and(|v| VISIBLE_NUMBERING_FORMATS.contains(&v));
-            let start = lvl
-                .children()
-                .find(|n| n.has_tag_name("start"))
-                .and_then(|n| attr(n, "val"))
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(1);
-            let lvl_text = lvl
-                .children()
-                .find(|n| n.has_tag_name("lvlText"))
-                .and_then(|n| attr(n, "val"))
-                .unwrap_or("")
-                .to_string();
-            levels.insert(
-                ilvl,
-                NumLevel {
-                    numbered,
-                    visible,
-                    num_fmt: num_fmt.map(str::to_string),
-                    start,
-                    lvl_text,
-                    left: own_left_indent(lvl),
-                },
-            );
+            let (ilvl, level) = parse_num_level(lvl);
+            levels.insert(ilvl, level);
         }
         abstract_levels.insert(abs_id.to_string(), levels);
     }
     let ilvls: std::collections::BTreeSet<i64> = abstract_levels
         .values()
         .flat_map(|levels| levels.keys().copied())
+        .chain(overrides.keys().map(|(_, ilvl)| *ilvl))
         .collect();
     let resolve = |abs_id: &str, ilvl: i64| -> Option<&NumLevel> {
         let mut abs_id = abs_id.to_string();
@@ -3779,12 +3784,59 @@ fn parse_numbering(
     };
     for (num_id, abs_id) in &num_to_abstract {
         for &ilvl in &ilvls {
-            if let Some(level) = resolve(abs_id, ilvl) {
-                out.insert((num_id.clone(), ilvl), level.clone());
+            let key = (num_id.clone(), ilvl);
+            let (override_level, start) = match overrides.get(&key) {
+                Some((level, start)) => (level.as_ref(), *start),
+                None => (None, None),
+            };
+            if let Some(level) = override_level.or_else(|| resolve(abs_id, ilvl)) {
+                let mut level = level.clone();
+                if let Some(start) = start {
+                    level.start = start;
+                }
+                out.insert(key, level);
             }
         }
     }
     out
+}
+
+/// The largest `w:startOverride` applied — docling's `_MAX_START_OVERRIDE`.
+const MAX_START_OVERRIDE: i64 = 32767;
+
+/// One `w:lvl` of an `abstractNum` (or of a `w:lvlOverride`): its `ilvl`
+/// and the level.
+fn parse_num_level(lvl: XmlNode) -> (i64, NumLevel) {
+    let ilvl: i64 = attr(lvl, "ilvl").and_then(|v| v.parse().ok()).unwrap_or(0);
+    let num_fmt = lvl
+        .children()
+        .find(|n| n.has_tag_name("numFmt"))
+        .and_then(|n| attr(n, "val"));
+    let numbered = num_fmt.map(|v| v != "bullet").unwrap_or(true);
+    let visible = num_fmt.is_some_and(|v| VISIBLE_NUMBERING_FORMATS.contains(&v));
+    let start = lvl
+        .children()
+        .find(|n| n.has_tag_name("start"))
+        .and_then(|n| attr(n, "val"))
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1);
+    let lvl_text = lvl
+        .children()
+        .find(|n| n.has_tag_name("lvlText"))
+        .and_then(|n| attr(n, "val"))
+        .unwrap_or("")
+        .to_string();
+    (
+        ilvl,
+        NumLevel {
+            numbered,
+            visible,
+            num_fmt: num_fmt.map(str::to_string),
+            start,
+            lvl_text,
+            left: own_left_indent(lvl),
+        },
+    )
 }
 
 /// Cap on the `basedOn` walk when resolving a style's numbering — docling's
