@@ -111,6 +111,8 @@ pub struct LoadedFont {
     /// Type 3: `/Widths` are in glyph space (through `FontMatrix`).
     /// `ToUnicode`, for a fallback face's cmap lookups.
     to_unicode: HashMap<u32, String>,
+    /// CID → Unicode of the font's Adobe collection.
+    collection: Option<&'static HashMap<u32, String>>,
     /// Standard-14 metrics for a non-embedded font without `/Widths`.
     std14: Option<crate::std14::Std14Widths>,
     /// Glyph cache: code/CID → outline in text space (font size 1).
@@ -446,6 +448,11 @@ impl LoadedFont {
             .map(|d| crate::textparse::parse_tounicode(&d))
             .unwrap_or_default();
 
+        let collection = cmap
+            .as_ref()
+            .filter(|c| c.identity)
+            .and_then(|_| crate::textparse::cid_collection(doc, fdict));
+
         let vertical = cmap.as_ref().is_some_and(|c| c.vertical);
         LoadedFont {
             composite,
@@ -459,6 +466,7 @@ impl LoadedFont {
             widths,
             default_width,
             to_unicode,
+            collection,
             std14,
             cache: RefCell::new(HashMap::new()),
             advance_cache: RefCell::new(HashMap::new()),
@@ -544,9 +552,11 @@ impl LoadedFont {
             return char::from_u32(code).filter(|c| c.is_ascii_graphic() || *c == ' ');
         }
         if self.cmap.as_ref().is_some_and(|c| c.unicode_codes) {
-            return char::from_u32(code);
+            return crate::textparse::unicode_cmap_char(code);
         }
-        None
+        self.collection
+            .and_then(|t| t.get(&cid))
+            .and_then(|s| s.chars().next())
     }
 
     /// A Type 3 font's procedure name for `code` (its `/Encoding /Differences`).
@@ -1114,4 +1124,58 @@ impl FontCache {
 #[allow(dead_code)]
 fn _unused(_: &Dictionary) -> Option<&[u8]> {
     None.and_then(name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LoadedFont;
+    use lopdf::{dictionary, Document, Object};
+
+    #[test]
+    fn collection_cids_have_a_character() {
+        let type0 = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type0",
+            "BaseFont" => "Test-Font-Light",
+            "Encoding" => "Identity-H",
+            "DescendantFonts" => vec![Object::Dictionary(dictionary! {
+                "Type" => "Font",
+                "Subtype" => "CIDFontType0",
+                "BaseFont" => "Test-Font-Light",
+                "CIDSystemInfo" => dictionary! {
+                    "Registry" => Object::string_literal("Adobe"),
+                    "Ordering" => Object::string_literal("Japan1"),
+                    "Supplement" => 2,
+                },
+            })],
+        };
+        let font = LoadedFont::load(&Document::with_version("1.4"), &type0);
+        assert_eq!(font.unicode_of(0x0CD4, 0x0CD4), Some('日'));
+        assert_eq!(font.unicode_of(0x4507, 0x4507), Some('𢭏'));
+    }
+
+    #[test]
+    fn utf16_codes_have_a_character_and_one_advance() {
+        let type0 = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type0",
+            "Encoding" => "UniJIS-UTF16-H",
+            "DescendantFonts" => vec![Object::Dictionary(dictionary! {
+                "Subtype" => "CIDFontType0",
+                "DW" => 1000,
+            })],
+        };
+        let font = LoadedFont::load(&Document::with_version("1.4"), &type0);
+        let codes = font.decode(&[0x65, 0xe5, 0xd8, 0x42, 0xdf, 0xb7, 0x8a, 0x9e]);
+        assert_eq!(
+            codes,
+            vec![
+                (0x65e5, 0x65e5, false),
+                (0xd842dfb7, 0xd842dfb7, false),
+                (0x8a9e, 0x8a9e, false)
+            ]
+        );
+        assert_eq!(font.unicode_of(0xd842dfb7, 0xd842dfb7), Some('𠮷'));
+        assert_eq!(font.advance(0xd842dfb7, 0xd842dfb7), 1.0);
+    }
 }

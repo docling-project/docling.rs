@@ -61,7 +61,7 @@ its one-word lines too (`Offenlegungspf lichten`; no groundtruth file
 changes). That is the 407; #1001's cell normalization (docling#5069 —
 `’` → `'` inside TableFormer cells) took it to 405. (On the stale pre-refresh groundtruth the old tree
 read 10 / 18, 328 — a match to docling as it no longer is.) The two Korean
-image-only pages `skipped_1page` / `skipped_2pages` carry no text
+pages `skipped_1page` / `skipped_2pages` carry no Markdown
 groundtruth and are not scored.
 
 | PDF | diff | dominant remaining blocker |
@@ -441,7 +441,7 @@ normal_4pages 71 %, redp5110 65 %, 2206 61 %); the low ones are **model-level,
 not provenance**: the big table papers (2203 51 %, 2305 52 %) diverge in
 TableFormer cell structure (2203 alone is ~19 k table-grid diff lines),
 table_mislabeled/picture_classification in layout classification, and
-skipped_1/2page (Korean image pages) + right_to_left_03 in picture detection /
+skipped_1/2page (Korean) + right_to_left_03 in picture detection /
 bidi — the *same* blockers that cap the Markdown metric. The corpus average is
 bounded by these, so raising it further is a model problem, not a serialization
 one: every laid-out block kind now carries provenance, so the ±2 figure sits at

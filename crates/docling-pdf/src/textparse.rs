@@ -91,6 +91,8 @@ struct Font {
     two_byte: bool,
     /// code → Unicode string (from ToUnicode; may be multi-char, e.g. ligatures).
     to_unicode: HashMap<u32, String>,
+    /// For codes ToUnicode lacks (ISO 32000-1, 9.10.2).
+    cid_fallback: CidFallback,
     /// code → glyph advance, in 1000-unit glyph space.
     widths: HashMap<u32, f64>,
     default_width: f64,
@@ -146,6 +148,20 @@ impl Font {
             // base encoding left unmapped, so it never changes an existing decode.
             if let Some(&ch) = self.program_encoding.get(&(code as u8)) {
                 return (Some(decompose_ligatures(&ch.to_string())), w);
+            }
+        } else {
+            match self.cid_fallback {
+                CidFallback::None => {}
+                CidFallback::UnicodeCodes { .. } => {
+                    if let Some(ch) = unicode_cmap_char(code).filter(|c| !c.is_control()) {
+                        return (Some(ch.to_string()), w);
+                    }
+                }
+                CidFallback::Collection(table) => {
+                    if let Some(s) = table.get(&code) {
+                        return (Some(decompose_ligatures(s)), w);
+                    }
+                }
             }
         }
         (None, w)
@@ -291,6 +307,12 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
         }
     }
 
+    let cid_fallback = if two_byte {
+        cid_fallback(doc, fdict)
+    } else {
+        CidFallback::None
+    };
+
     let (mut widths, mut default_width) = if two_byte {
         cid_widths(doc, fdict)
     } else {
@@ -341,6 +363,7 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
     Font {
         two_byte,
         to_unicode,
+        cid_fallback,
         widths,
         default_width,
         simple_encoding,
@@ -354,6 +377,100 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
             &base_font_name(fdict).unwrap_or_else(|| name.to_vec()),
         )),
     }
+}
+
+#[derive(Clone, Copy)]
+enum CidFallback {
+    None,
+    UnicodeCodes { utf16: bool },
+    Collection(&'static HashMap<u32, String>),
+}
+
+/// A Unicode CMap code retains its original bytes for ToUnicode lookups;
+/// a four-byte UTF-16 code is a packed surrogate pair, not a scalar value.
+pub(crate) fn unicode_cmap_char(code: u32) -> Option<char> {
+    if code <= 0xffff {
+        char::from_u32(code)
+    } else {
+        let units = [(code >> 16) as u16, code as u16];
+        let mut chars = char::decode_utf16(units);
+        let ch = chars.next()?.ok()?;
+        chars.next().is_none().then_some(ch)
+    }
+}
+
+fn collection_table(ordering: &[u8]) -> Option<&'static HashMap<u32, String>> {
+    use std::sync::OnceLock;
+    macro_rules! table {
+        ($file:literal) => {{
+            static T: OnceLock<HashMap<u32, String>> = OnceLock::new();
+            T.get_or_init(|| {
+                characters(parse_tounicode(include_bytes!(concat!(
+                    "../data/mapping-resources-pdf/pdf2unicode/",
+                    $file
+                ))))
+            })
+        }};
+    }
+    // Adobe adds variation selectors for glyph variants, and maps CIDs
+    // without a character to U+0000, U+FFFD or a control code.
+    fn characters(table: HashMap<u32, String>) -> HashMap<u32, String> {
+        table
+            .into_iter()
+            .filter_map(|(cid, s)| {
+                let s: String = s
+                    .chars()
+                    .filter(|c| !matches!(c, '\u{FE00}'..='\u{FE0F}' | '\u{E0100}'..='\u{E01EF}'))
+                    .collect();
+                (!s.is_empty() && !s.chars().any(|c| c.is_control() || c == '\u{FFFD}'))
+                    .then_some((cid, s))
+            })
+            .collect()
+    }
+    Some(match ordering {
+        b"Japan1" => table!("Adobe-Japan1-UCS2"),
+        b"GB1" => table!("Adobe-GB1-UCS2"),
+        b"CNS1" => table!("Adobe-CNS1-UCS2"),
+        b"Korea1" => table!("Adobe-Korea1-UCS2"),
+        b"KR" => table!("Adobe-KR-UCS2"),
+        _ => return None,
+    })
+}
+
+fn cid_fallback(doc: &Document, fdict: &Dictionary) -> CidFallback {
+    let encoding = fdict
+        .get(b"Encoding")
+        .ok()
+        .and_then(|o| deref(doc, o))
+        .and_then(|o| o.as_name().ok())
+        .unwrap_or(&[]);
+    if encoding.starts_with(b"Uni")
+        && (encoding.windows(4).any(|w| w == b"UCS2") || encoding.windows(5).any(|w| w == b"UTF16"))
+    {
+        return CidFallback::UnicodeCodes {
+            utf16: encoding.windows(5).any(|w| w == b"UTF16"),
+        };
+    }
+    if encoding != b"Identity-H" && encoding != b"Identity-V" {
+        // Other CMaps need code → CID tables that are not bundled.
+        return CidFallback::None;
+    }
+    cid_collection(doc, fdict).map_or(CidFallback::None, CidFallback::Collection)
+}
+
+/// The CID → Unicode table of the character collection a Type0 font uses.
+pub(crate) fn cid_collection(
+    doc: &Document,
+    fdict: &Dictionary,
+) -> Option<&'static HashMap<u32, String>> {
+    let Object::Array(descendants) = deref(doc, fdict.get(b"DescendantFonts").ok()?)? else {
+        return None;
+    };
+    let descendant = as_dict(doc, descendants.first()?)?;
+    let info = as_dict(doc, descendant.get(b"CIDSystemInfo").ok()?)?;
+    let registry = deref(doc, info.get(b"Registry").ok()?)?.as_str().ok()?;
+    let ordering = deref(doc, info.get(b"Ordering").ok()?)?.as_str().ok()?;
+    (registry == b"Adobe").then(|| collection_table(ordering))?
 }
 
 /// A simple font's `/Encoding` `/Differences` array, dereferenced.
@@ -741,12 +858,17 @@ pub(crate) fn parse_tounicode(data: &[u8]) -> HashMap<u32, String> {
                             j += 1;
                         }
                         i = j + 1;
-                    } else if let Some(dst) = hex(tokens[i + 2]) {
-                        // `<lo> <hi> <dst>`: consecutive Unicode from a base.
-                        let base = code_of(&dst);
-                        for (k, code) in (lo..=hi).enumerate() {
-                            if let Some(ch) = char::from_u32(base + k as u32) {
-                                map.insert(code, ch.to_string());
+                    } else if let Some(mut dst) = hex(tokens[i + 2]) {
+                        // Increment the UTF-16BE string, preserving preceding
+                        // units (surrogate pairs and multi-character mappings).
+                        for code in lo..=hi {
+                            map.insert(code, u16s_to_string(&dst));
+                            for unit in dst.iter_mut().rev() {
+                                let (next, carry) = unit.overflowing_add(1);
+                                *unit = next;
+                                if !carry {
+                                    break;
+                                }
                             }
                         }
                         i += 3;
@@ -761,10 +883,11 @@ pub(crate) fn parse_tounicode(data: &[u8]) -> HashMap<u32, String> {
     map
 }
 
-/// Decode a PDF string literal in a Tj/TJ operand into raw code units.
+/// Decode a PDF string literal into codes, retaining packed UTF-16 pairs
+/// as the original four-byte keys used by ToUnicode.
 fn codes(font: &Font, bytes: &[u8]) -> Vec<u32> {
     if font.two_byte {
-        bytes
+        let mut units = bytes
             .chunks(2)
             .map(|c| {
                 if c.len() == 2 {
@@ -773,7 +896,18 @@ fn codes(font: &Font, bytes: &[u8]) -> Vec<u32> {
                     c[0] as u32
                 }
             })
-            .collect()
+            .peekable();
+        let utf16 = matches!(font.cid_fallback, CidFallback::UnicodeCodes { utf16: true });
+        let mut out = Vec::with_capacity(bytes.len() / 2 + 1);
+        while let Some(mut code) = units.next() {
+            if utf16 && (0xd800..=0xdbff).contains(&code) {
+                if let Some(low) = units.next_if(|u| (0xdc00..=0xdfff).contains(u)) {
+                    code = (code << 16) | low;
+                }
+            }
+            out.push(code);
+        }
+        out
     } else {
         bytes.iter().map(|&b| b as u32).collect()
     }
@@ -3382,7 +3516,7 @@ mod base14_fonts {
     }
 
     /// A one-page A4 PDF drawing `content` with `fontdict` as `/F1`.
-    fn pdf_with_content(fontdict: &[u8], content: &[u8]) -> Vec<u8> {
+    pub(super) fn pdf_with_content(fontdict: &[u8], content: &[u8]) -> Vec<u8> {
         pdf_with_fonts(&[fontdict], content)
     }
 
@@ -3428,7 +3562,7 @@ mod base14_fonts {
     }
 
     /// The parsed cells of the only page.
-    fn cells(pdf: &[u8]) -> Vec<crate::pdfium_backend::TextCell> {
+    pub(super) fn cells(pdf: &[u8]) -> Vec<crate::pdfium_backend::TextCell> {
         super::pdf_textlines(pdf)
             .into_iter()
             .flat_map(|(_, _, c)| c)
@@ -4025,5 +4159,105 @@ mod form_cache {
             assert!(!caches.forms.contains_key(own));
         }
         assert_eq!(caches.forms.len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod cid_collections {
+    use super::base14_fonts::{cells, pdf_with_content};
+
+    fn type0(encoding: &str) -> Vec<u8> {
+        format!(
+            "<</Type/Font/Subtype/Type0/BaseFont/Test-Font-Light/Encoding/{encoding}\
+             /DescendantFonts[<</Type/Font/Subtype/CIDFontType0/BaseFont/Test-Font-Light\
+             /CIDSystemInfo<</Registry(Adobe)/Ordering(Japan1)/Supplement 7>>/DW 1000>>]>>"
+        )
+        .into_bytes()
+    }
+
+    fn text(fontdict: &[u8], hex: &str) -> String {
+        let content = format!("BT /F1 12 Tf 72 700 Td <{hex}> Tj ET\n");
+        cells(&pdf_with_content(fontdict, content.as_bytes()))
+            .iter()
+            .map(|c| c.text.as_str())
+            .collect()
+    }
+
+    #[test]
+    fn identity_codes_read_through_the_collection() {
+        assert_eq!(text(&type0("Identity-H"), "0CD40E8A07A0"), "日本語");
+    }
+
+    #[test]
+    fn unicode_keyed_cmaps_read_the_code() {
+        assert_eq!(text(&type0("UniJIS-UCS2-H"), "65E5672C8A9E"), "日本語");
+    }
+
+    #[test]
+    fn collection_ranges_keep_supplementary_characters() {
+        assert_eq!(text(&type0("Identity-H"), "0CD44507450807A0"), "日𢭏𢭐語");
+        assert_eq!(super::collection_table(b"Japan1").unwrap()[&0x2714], "🄐");
+        assert_eq!(super::collection_table(b"CNS1").unwrap()[&0x3a32], "𡤃");
+    }
+
+    #[test]
+    fn collection_entries_are_plain_characters() {
+        assert_eq!(text(&type0("Identity-H"), "046D"), "逢");
+        let table = |o: &[u8]| super::collection_table(o).unwrap();
+        assert!(!table(b"Korea1").contains_key(&8752));
+        assert!(!table(b"KR").contains_key(&11704));
+    }
+
+    #[test]
+    fn tounicode_ranges_increment_the_utf16_string() {
+        let map = super::parse_tounicode(
+            b"3 beginbfrange\n\
+              <01> <02> <d842dfb7>\n\
+              <03> <04> <00660069>\n\
+              <05> <06> <0061>\n\
+              endbfrange",
+        );
+        assert_eq!(map[&1], "𠮷");
+        assert_eq!(map[&2], "𠮸");
+        assert_eq!(map[&3], "fi");
+        assert_eq!(map[&4], "fj");
+        assert_eq!(map[&5], "a");
+        assert_eq!(map[&6], "b");
+    }
+
+    #[test]
+    fn utf16_pairs_are_one_glyph_and_one_advance() {
+        let font = type0("UniJIS-UTF16-H");
+        assert_eq!(text(&font, "65E5D842DFB78A9E"), "日𠮷語");
+        let content = b"BT /F1 12 Tf 72 700 Td <65E5D842DFB78A9E> Tj ET\n";
+        let pdf = pdf_with_content(&font, content);
+        let doc = lopdf::Document::load_mem(&pdf).unwrap();
+        let glyphs = super::page_glyphs(&doc, doc.get_pages()[&1]);
+        assert_eq!(glyphs.len(), 3);
+        assert!((glyphs[2].l - glyphs[0].l - 24.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn utf16_codes_preserve_tounicode_keys_and_identity_cids() {
+        use lopdf::{dictionary, Document};
+        let doc = Document::with_version("1.4");
+        let dict = dictionary! {"Subtype" => "Type0", "Encoding" => "UniJIS-UTF16-H"};
+        let mut font = super::parse_font(&doc, b"F1", &dict);
+        assert_eq!(
+            super::codes(&font, &[0xd8, 0x42, 0xdf, 0xb7]),
+            vec![0xd842dfb7]
+        );
+        font.to_unicode.insert(0xd842dfb7, "override".into());
+        assert_eq!(font.decode_code(0xd842dfb7).0.as_deref(), Some("override"));
+        assert_eq!(
+            super::codes(&font, &[0xd8, 0x42, 0x65, 0xe5]),
+            vec![0xd842, 0x65e5]
+        );
+        let dict = dictionary! {"Subtype" => "Type0", "Encoding" => "Identity-H"};
+        let font = super::parse_font(&doc, b"F1", &dict);
+        assert_eq!(
+            super::codes(&font, &[0xd8, 0x42, 0xdf, 0xb7]),
+            vec![0xd842, 0xdfb7]
+        );
     }
 }

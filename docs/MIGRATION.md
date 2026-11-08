@@ -2223,10 +2223,7 @@ These are deliberate or unavoidable divergences, not bugs.
     real text, docling#4209) — are not ported: the first is the bare-picture
     pass, the second needs the page's vector shapes. On the PDF corpus it
     fires on 4 files; text appears on the attention-map figures of
-    1706.03762 (`Input-Input Layer5`, outlined titles), and on docling's two
-    Korean `skipped_*` pages, whose CID fonts the text layer cannot map, the
-    en/ch recognizers read a few stray glyphs (`[ 4-5] 8`) — as docling's
-    default RapidOCR would. `no_ocr` / `skip_ocr` keep the text layer
+    1706.03762 (`Input-Input Layer5`, outlined titles). `no_ocr` / `skip_ocr` keep the text layer
     alone; `full_page` and `layout_regions` both map onto the
     `force_full_page_ocr` machinery (the whole-page vs per-region *detector*
     distinction has no analogue in the det-free PP-OCR recognizer here).
