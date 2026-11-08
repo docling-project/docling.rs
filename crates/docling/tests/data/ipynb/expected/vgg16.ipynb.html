@@ -522,7 +522,7 @@ sess = tf.Session()
 imgs = tf.placeholder(tf.float32, [None, 224, 224, 3])
 vgg = vgg16(imgs, 'vgg16_weights.npz', sess)</code></pre>
 <p>Все ячейки выше не нуждаются в модификации для выполнения задания, и необходимы к исполнению только один раз, в порядке следования. Повторный запуск ячейки с инициализацией модели будет сжирать память. Вы предупреждены.</p>
-<h2><span class='inline-group'>Задание 1.</span></h2>
+<h2>Задание 1.</h2>
 <span class='inline-group'>Для начала нужно запустить готовую модель <code>vgg16</code>, предобученную на <code>imagenet</code>. Модель обучена с помощью <code>caffe</code> и сконвертирована в формат <code>tensorflow</code> - <code>vgg16_weights.npz</code>. Скрипт, иллюстрирующий применение этой модели к изображению, возвращает топ-5 классов из <code>imagenet</code> и уверенность в этих классах.</span>
 <span class='inline-group'><strong>Задание:</strong> Загрузите уверенность для первого класса для изображения <code>train/00002.jpg</code> с точностью до 1 знака после запятой в файл с ответом.</span>
 <pre><code># Ваш код здесь
@@ -531,7 +531,7 @@ print(prob1)</code></pre>
 <pre><code>ans1 = round(prob1[0][1], 1)
 print(ans1)
 save_answerNum("vgg16_answer1.txt", ans1 )</code></pre>
-<h2><span class='inline-group'>Задание 2.</span></h2>
+<h2>Задание 2.</h2>
 <span class='inline-group'>Научитесь извлекать <code>fc2</code> слой. Возьмите за основу код <code>process_image</code>, и модифицируйте, чтобы вместо последнего слоя извлекались выходы <code>fc2</code>.</span>
 <span class='inline-group'><strong>Задание:</strong> Посчитайте <code>fc2</code> для картинки <code>train/00002.jpg</code>.  Запишите первые 20 компонент.</span>
 <pre><code>def load_fc2_values(fname):
@@ -549,7 +549,7 @@ prob_fc2 = load_fc2_values('train/00002.jpg')</code></pre>
     # return [(class_names[p], prob[p]) for p in preds]
    
 save_answerArray("vgg16_answer2.txt",  prob_fc2[:20] )</code></pre>
-<h2><span class='inline-group'>Задание 3.</span></h2>
+<h2>Задание 3.</h2>
 <span class='inline-group'>Теперь необходимо дообучить классификатор на нашей базе. В качестве бейзлайна предлагается воспользоваться классификатором <code>svm</code> из пакета <code>scipy</code>.</span>
 <ul>
 <li>
