@@ -1095,8 +1095,8 @@
       "content_layer": "body",
       "label": "formula",
       "prov": [],
-      "orig": "e^{x}=1+\\frac{x}{1!}+\\frac{x^{2}}{2!}+\\frac{x^{3}}{3!}+ \\text{ \\textellipsis } , - \\infty  < x <  \\infty",
-      "text": "e^{x}=1+\\frac{x}{1!}+\\frac{x^{2}}{2!}+\\frac{x^{3}}{3!}+ \\text{ \\textellipsis } , - \\infty  < x <  \\infty"
+      "orig": "e^{x}=1+\\frac{x}{1!}+\\frac{x^{2}}{2!}+\\frac{x^{3}}{3!}+ \\text{ \\textellipsis } , - \\infty < x < \\infty",
+      "text": "e^{x}=1+\\frac{x}{1!}+\\frac{x^{2}}{2!}+\\frac{x^{3}}{3!}+ \\text{ \\textellipsis } , - \\infty < x < \\infty"
     },
     {
       "self_ref": "#/texts/58",
@@ -1335,8 +1335,8 @@
       "content_layer": "body",
       "label": "formula",
       "prov": [],
-      "orig": "\\operatorname{argmax}_{ \\epsilon}f(x),   \\lim_{n}{\\left(1+\\frac{1}{n}\\right)}^{n} ,  \\max_{0 \\leq x \\leq 1}xe^{-x^{2}},  unsupported_{n}{\\left(1+\\frac{1}{n}\\right)}^{n}",
-      "text": "\\operatorname{argmax}_{ \\epsilon}f(x),   \\lim_{n}{\\left(1+\\frac{1}{n}\\right)}^{n} ,  \\max_{0 \\leq x \\leq 1}xe^{-x^{2}},  unsupported_{n}{\\left(1+\\frac{1}{n}\\right)}^{n}"
+      "orig": "\\operatorname{argmax}_{ \\epsilon}f(x), \\lim_{n}{\\left(1+\\frac{1}{n}\\right)}^{n} , \\max_{0 \\leq x \\leq 1}xe^{-x^{2}}, unsupported_{n}{\\left(1+\\frac{1}{n}\\right)}^{n}",
+      "text": "\\operatorname{argmax}_{ \\epsilon}f(x), \\lim_{n}{\\left(1+\\frac{1}{n}\\right)}^{n} , \\max_{0 \\leq x \\leq 1}xe^{-x^{2}}, unsupported_{n}{\\left(1+\\frac{1}{n}\\right)}^{n}"
     },
     {
       "self_ref": "#/texts/78",

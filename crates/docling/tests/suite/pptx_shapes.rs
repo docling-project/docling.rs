@@ -7,7 +7,7 @@
 //! what docling 2.140.0's PowerPoint backend writes for `<name>.pptx`
 //! (`MsPowerpointDocumentBackend(...).convert()`, then `export_to_markdown()`
 //! and `export_to_dict()`; `<name>.dclg`, where present, its
-//! `export_to_doclang()`). The decks are upstream's test decks, rebuilt by
+//! `export_to_doclang()` by docling 2.148 / docling-core 2.106, DocLang 0.9). The decks are upstream's test decks, rebuilt by
 //! `make_decks.py` next to them. Re-create a reference with upstream's
 //! backend, never from our own output.
 use std::fs;

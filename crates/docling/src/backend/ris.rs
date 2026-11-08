@@ -143,10 +143,6 @@ impl DeclarativeBackend for RisBackend {
         }
         let mut doc = DoclingDocument::new(&source.name);
         let mut tree = b.tree;
-        // Our own tree, so DocLang serializes it too (docling-core's
-        // serializer over the tree, #884): formatting runs and the section
-        // groups reach it as they reach the JSON.
-        tree.doclang = true;
         // The runs keep their own whitespace (schema 1.11.0, #997).
         tree.inline_whitespace = true;
         collect_blocks(root, &b.el_of, &mut tree);

@@ -192,8 +192,8 @@
       "content_layer": "body",
       "label": "checkbox_selected",
       "prov": [],
-      "orig": "Orange juice",
-      "text": "Orange juice"
+      "orig": " Orange juice",
+      "text": " Orange juice"
     },
     {
       "self_ref": "#/texts/5",
@@ -204,8 +204,8 @@
       "content_layer": "body",
       "label": "checkbox_unselected",
       "prov": [],
-      "orig": "Tea",
-      "text": "Tea"
+      "orig": " Tea",
+      "text": " Tea"
     },
     {
       "self_ref": "#/texts/6",
@@ -216,8 +216,8 @@
       "content_layer": "body",
       "label": "checkbox_selected",
       "prov": [],
-      "orig": "Coffee",
-      "text": "Coffee"
+      "orig": " Coffee",
+      "text": " Coffee"
     },
     {
       "self_ref": "#/texts/7",
@@ -228,8 +228,8 @@
       "content_layer": "body",
       "label": "checkbox_unselected",
       "prov": [],
-      "orig": "Milk",
-      "text": "Milk"
+      "orig": " Milk",
+      "text": " Milk"
     },
     {
       "self_ref": "#/texts/8",
@@ -240,8 +240,8 @@
       "content_layer": "body",
       "label": "checkbox_selected",
       "prov": [],
-      "orig": "Water",
-      "text": "Water"
+      "orig": " Water",
+      "text": " Water"
     },
     {
       "self_ref": "#/texts/9",
@@ -264,8 +264,8 @@
       "content_layer": "body",
       "label": "checkbox_selected",
       "prov": [],
-      "orig": "Scramble eggs",
-      "text": "Scramble eggs"
+      "orig": " Scramble eggs",
+      "text": " Scramble eggs"
     },
     {
       "self_ref": "#/texts/11",
@@ -276,8 +276,8 @@
       "content_layer": "body",
       "label": "checkbox_unselected",
       "prov": [],
-      "orig": "Porridge",
-      "text": "Porridge"
+      "orig": " Porridge",
+      "text": " Porridge"
     },
     {
       "self_ref": "#/texts/12",
@@ -288,8 +288,8 @@
       "content_layer": "body",
       "label": "checkbox_selected",
       "prov": [],
-      "orig": "Bread",
-      "text": "Bread"
+      "orig": " Bread",
+      "text": " Bread"
     },
     {
       "self_ref": "#/texts/13",
@@ -300,8 +300,8 @@
       "content_layer": "body",
       "label": "checkbox_selected",
       "prov": [],
-      "orig": "Croissant",
-      "text": "Croissant"
+      "orig": " Croissant",
+      "text": " Croissant"
     },
     {
       "self_ref": "#/texts/14",
@@ -361,8 +361,8 @@
       "content_layer": "body",
       "label": "checkbox_selected",
       "prov": [],
-      "orig": "Design",
-      "text": "Design"
+      "orig": " Design",
+      "text": " Design"
     },
     {
       "self_ref": "#/texts/19",
@@ -373,8 +373,8 @@
       "content_layer": "body",
       "label": "checkbox_selected",
       "prov": [],
-      "orig": "Implementation",
-      "text": "Implementation"
+      "orig": " Implementation",
+      "text": " Implementation"
     },
     {
       "self_ref": "#/texts/20",
@@ -385,8 +385,8 @@
       "content_layer": "body",
       "label": "checkbox_unselected",
       "prov": [],
-      "orig": "Documentation of the task with a very long text that goes beyond the maximum length of a single line.",
-      "text": "Documentation of the task with a very long text that goes beyond the maximum length of a single line."
+      "orig": " Documentation of the task with a very long text that goes beyond the maximum length of a single line.",
+      "text": " Documentation of the task with a very long text that goes beyond the maximum length of a single line."
     },
     {
       "self_ref": "#/texts/21",
@@ -463,7 +463,7 @@
             "end_row_offset_idx": 3,
             "start_col_offset_idx": 0,
             "end_col_offset_idx": 1,
-            "text": "Choose as many as you like:Orange juiceTeaCoffeeMilkWater",
+            "text": "Choose as many as you like: Orange juice Tea Coffee Milk Water",
             "column_header": false,
             "row_header": false,
             "row_section": false,
@@ -479,7 +479,7 @@
             "end_row_offset_idx": 4,
             "start_col_offset_idx": 0,
             "end_col_offset_idx": 1,
-            "text": "Choose as many as you like:Scramble eggsPorridgeBreadCroissant",
+            "text": "Choose as many as you like: Scramble eggs Porridge Bread Croissant",
             "column_header": false,
             "row_header": false,
             "row_section": false,
@@ -531,7 +531,7 @@
               "end_row_offset_idx": 3,
               "start_col_offset_idx": 0,
               "end_col_offset_idx": 1,
-              "text": "Choose as many as you like:Orange juiceTeaCoffeeMilkWater",
+              "text": "Choose as many as you like: Orange juice Tea Coffee Milk Water",
               "column_header": false,
               "row_header": false,
               "row_section": false,
@@ -546,7 +546,7 @@
               "end_row_offset_idx": 4,
               "start_col_offset_idx": 0,
               "end_col_offset_idx": 1,
-              "text": "Choose as many as you like:Scramble eggsPorridgeBreadCroissant",
+              "text": "Choose as many as you like: Scramble eggs Porridge Bread Croissant",
               "column_header": false,
               "row_header": false,
               "row_section": false,

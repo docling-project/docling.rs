@@ -36,6 +36,11 @@ impl DeclarativeBackend for DoclangBackend {
             source.text()?.to_string()
         };
         super::xml_depth::check(&xml, "doclang")?;
+        // DocLang 0.9's reading rules first, as docling-core's deserializer
+        // applies them (`_apply_whitespace_rules`): each text node holds
+        // exactly its reading, so both walks below read text as is — a
+        // whitespace sequence one space, none at a block's edges.
+        let xml = docling_core::doclang_apply_reading_rules(&xml).unwrap_or(xml);
         let dom = Document::parse(&xml).map_err(|e| ConversionError::with_source("doclang", e))?;
         let root = dom.root_element();
         if root.tag_name().name() != "doclang" {
@@ -149,12 +154,10 @@ fn walk_body(parent: XmlNode, out: &mut Vec<Node>) {
                         text: inline.text,
                     }
                 } else if inline.href.is_some() {
-                    // A hyperlink text comes back as its plain anchor — the
-                    // target and any styling are dropped in docling's
-                    // round-trip.
-                    Node::Paragraph {
-                        text: strip_md_markers(&inline.text),
-                    }
+                    // A hyperlink text comes back as its anchor — the target
+                    // is dropped in docling's round-trip, its styling kept
+                    // (docling-core 2.106: `***italic and bold link***`).
+                    Node::Paragraph { text: inline.text }
                 } else {
                     Node::Paragraph { text: inline.text }
                 };
@@ -166,12 +169,12 @@ fn walk_body(parent: XmlNode, out: &mut Vec<Node>) {
             // body text (a furniture-layer one not at all).
             "footnote" | "page_header" | "page_footer" | "caption" => {
                 let inline = parse_inline(el);
-                if !inline.text.trim().is_empty() {
+                if !inline.text.trim_matches(XML_WS).is_empty() {
                     push_with_layer(
                         out,
                         inline.layer,
                         Node::Paragraph {
-                            text: inline.text.trim().to_string(),
+                            text: inline.text.trim_matches(XML_WS).to_string(),
                         },
                     );
                 }
@@ -182,38 +185,19 @@ fn walk_body(parent: XmlNode, out: &mut Vec<Node>) {
                     text: format!("$${text}$$"),
                 });
             }
-            "code" => {
-                let language = el
-                    .children()
-                    .find(|c| c.has_tag_name("label"))
-                    .and_then(|l| attr(l, "value"))
-                    .map(str::to_string);
-                out.push(Node::Code {
-                    language,
-                    text: code_text(el),
-                    orig: None,
-                    pretty: None,
-                });
-            }
+            "code" => push_float(el, el, Vec::new(), Vec::new(), out),
             "list" => parse_list(el, 0, out),
-            "table" => {
-                let layer = el
-                    .children()
-                    .find(|c| c.has_tag_name("layer"))
-                    .and_then(parse_layer);
-                if let Some(mut table) = parse_table(el) {
-                    // The caption, its runs kept as inline Markdown
-                    // (`Table **1** : results`, docling-core#865) — it used to
-                    // be dropped.
-                    table.caption = el
-                        .children()
-                        .find(|c| c.has_tag_name("caption"))
-                        .map(|c| parse_inline(c).text.trim().to_string())
-                        .filter(|s| !s.is_empty());
-                    push_with_layer(out, layer, Node::Table(table));
-                }
+            "table" | "picture" => push_float(el, el, Vec::new(), Vec::new(), out),
+            // docling-core#880: a media track is not supported yet — skipped
+            // with all its content (the tree walk warns).
+            "track" => {}
+            // A nameless group wrapping one float and its satellites — the
+            // float's footnotes, extra captions — is the float.
+            "group" if attr(el, "name").is_none_or(str::is_empty) && float_host(el).is_some() => {
+                let host = float_host(el).expect("checked");
+                let (captions, footnotes) = satellites(el);
+                push_float(el, host, captions, footnotes, out);
             }
-            "picture" => out.push(parse_picture(el)),
             "page_break" => out.push(Node::PageBreak),
             // A bare inline run at body level (an unwrapped inline group):
             // each styled element deserializes into its own text item; the
@@ -286,7 +270,7 @@ fn parse_inline(el: XmlNode) -> Inline {
     let mut inline = Inline::default();
     let mut parts: Vec<String> = Vec::new();
     collect_inline(el, &mut parts, &mut inline);
-    inline.text = join_inline(parts).trim().to_string();
+    inline.text = join_inline(parts).trim_matches(XML_WS).to_string();
     inline
 }
 
@@ -404,11 +388,16 @@ fn join_inline(parts: Vec<String>) -> String {
     s
 }
 
+/// `_XML_WHITESPACE`: what DocLang reads as whitespace — space, tab, CR,
+/// LF; a no-break or em space is an ordinary character, kept at an edge.
+const XML_WS: &[char] = &[' ', '\t', '\r', '\n'];
+
 fn parse_layer(el: XmlNode) -> Option<ContentLayer> {
     match attr(el, "value") {
         Some("furniture") => Some(ContentLayer::Furniture),
         Some("notes") => Some(ContentLayer::Notes),
         Some("invisible") => Some(ContentLayer::Invisible),
+        Some("background") => Some(ContentLayer::Background),
         _ => None,
     }
 }
@@ -416,11 +405,20 @@ fn parse_layer(el: XmlNode) -> Option<ContentLayer> {
 /// An element's direct text, verbatim except the outer trim — formulas keep
 /// their internal spacing exactly as serialized.
 fn raw_text(el: XmlNode) -> String {
-    let mut s = String::new();
-    for n in el.children().filter(|n| n.node_type() == NodeType::Text) {
-        s.push_str(n.text().unwrap_or(""));
+    // The reading rules have run: the text nodes hold their reading and a
+    // `<content>`'s text is literal (a formula's double spaces, #997).
+    fn collect(el: XmlNode, s: &mut String) {
+        for n in el.children() {
+            if n.is_text() {
+                s.push_str(n.text().unwrap_or(""));
+            } else if n.is_element() && n.has_tag_name("content") {
+                collect(n, s);
+            }
+        }
     }
-    s.trim().to_string()
+    let mut s = String::new();
+    collect(el, &mut s);
+    s.trim_matches(XML_WS).to_string()
 }
 
 /// All text under an element, whitespace-collapsed except CDATA (verbatim).
@@ -437,7 +435,7 @@ fn flatten_text(el: XmlNode) -> String {
             }
         }
     }
-    join_inline(parts).trim().to_string()
+    join_inline(parts).trim_matches(XML_WS).to_string()
 }
 
 /// A code block's text: CDATA verbatim; plain text trimmed of the layout
@@ -558,12 +556,14 @@ fn parse_list(el: XmlNode, level: u8, out: &mut Vec<Node>) {
                 })
                 .unwrap_or(*number);
             let text = match &inline.href {
-                Some(uri) if !inline.text.trim().is_empty() => {
-                    docling_core::hyperlink::markdown_link(inline.text.trim(), uri)
+                Some(uri) if !inline.text.trim_matches(XML_WS).is_empty() => {
+                    docling_core::hyperlink::markdown_link(inline.text.trim_matches(XML_WS), uri)
                 }
-                _ => inline.text.trim().to_string(),
+                // The reading rules trimmed the item's edges already; what
+                // whitespace is left came from a literal `<content>`.
+                _ => inline.text.clone(),
             };
-            if text.is_empty() {
+            if text.trim_matches(XML_WS).is_empty() {
                 return;
             }
             out.push(Node::ListItem {
@@ -667,6 +667,15 @@ fn collect_inline_single(el: XmlNode, parts: &mut Vec<String>, inline: &mut Inli
         "href" => inline.href = attr(el, "uri").map(str::to_string),
         "layer" => inline.layer = parse_layer(el),
         "location" => {}
+        // A checkbox inside a list item's or group's runs is a checkbox item
+        // of its own, its text the run after it (docling-core#955), which
+        // docling's Markdown writes as a task item there — `- - [ ] n` —
+        // without doubling the run's leading space.
+        "checkbox" => parts.push(if attr(el, "class") == Some("selected") {
+            "- [x] ".to_string()
+        } else {
+            "- [ ] ".to_string()
+        }),
         "content" => {
             let mut s = String::new();
             for t in el.children().filter(|n| n.node_type() == NodeType::Text) {
@@ -707,7 +716,7 @@ fn parse_table(el: XmlNode) -> Option<Table> {
                       row: &mut Vec<String>,
                       kind_row: &mut Vec<CellKind>| {
         if let Some((kind, inline)) = cell.take() {
-            row.push(inline.text.trim().to_string());
+            row.push(inline.text.trim_matches(XML_WS).to_string());
             kind_row.push(kind);
         }
     };
@@ -748,7 +757,7 @@ fn parse_table(el: XmlNode) -> Option<Table> {
                     other => {
                         if let Some((_, inline)) = cell.as_mut() {
                             let block = |inline: &mut Inline, seg: String| {
-                                let seg = seg.trim();
+                                let seg = seg.trim_matches(XML_WS);
                                 if !seg.is_empty() {
                                     // The text before keeps its boundary
                                     // space (#997); the block separator
@@ -926,7 +935,7 @@ fn flatten_cell_list(el: XmlNode) -> String {
     let mut number = 0u64;
     let flush = |current: &mut Option<String>, items: &mut Vec<String>, number: &mut u64| {
         if let Some(text) = current.take() {
-            let text = text.trim().to_string();
+            let text = text.trim_matches(XML_WS).to_string();
             if !text.is_empty() {
                 *number += 1;
                 if ordered {
@@ -991,12 +1000,120 @@ fn flatten_cell_list(el: XmlNode) -> String {
 /// Parse a `<picture>`: a chart (`class="chart"`, with its `<label>` kind and
 /// `<tabular>` data grid) maps back to [`Node::Chart`]; anything else becomes a
 /// plain picture with its caption (the `<src>` payload is not re-imported).
-fn parse_picture(el: XmlNode) -> Node {
-    let caption = el
-        .children()
-        .find(|c| c.has_tag_name("caption"))
-        .map(|c| parse_inline(c).text)
-        .filter(|s| !s.is_empty());
+/// `_float_group_host`: the one `<picture>`, `<table>`, `<index>` or
+/// `<code>` a `<group>` wraps with nothing but satellites (`<text>`,
+/// `<footnote>`, `<caption>`) beside it.
+fn float_host<'a, 'i>(el: XmlNode<'a, 'i>) -> Option<XmlNode<'a, 'i>> {
+    let mut hosts = Vec::new();
+    for n in el.children().filter(|c| c.is_element()) {
+        match n.tag_name().name() {
+            "picture" | "table" | "index" | "code" => hosts.push(n),
+            "text" | "footnote" | "caption" => {}
+            _ => return None,
+        }
+    }
+    match hosts[..] {
+        [host] => Some(host),
+        _ => None,
+    }
+}
+
+/// `_extract_satellites`: a float group's `<text>` siblings (extra
+/// captions, as written before DocLang 0.8) and `<footnote>`s, as text.
+fn satellites(el: XmlNode) -> (Vec<String>, Vec<String>) {
+    let mut captions = Vec::new();
+    let mut footnotes = Vec::new();
+    for n in el.children().filter(|c| c.is_element()) {
+        let into = match n.tag_name().name() {
+            "text" => &mut captions,
+            "footnote" => &mut footnotes,
+            _ => continue,
+        };
+        let text = parse_inline(n).text.trim_matches(XML_WS).to_string();
+        if !text.is_empty() {
+            into.push(text);
+        }
+    }
+    (captions, footnotes)
+}
+
+/// Every `<caption>` of an element head, as text (DocLang 0.8 allows
+/// several, docling-core#880; a mixed one keeps its runs as inline
+/// Markdown, docling-core#865).
+fn head_captions(el: XmlNode) -> Vec<String> {
+    el.children()
+        .filter(|c| c.has_tag_name("caption"))
+        .map(|c| parse_inline(c).text.trim_matches(XML_WS).to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// A float — `host`, read from `el` (itself, or the group wrapping it) —
+/// with its captions and footnotes, in docling's Markdown order: a picture
+/// or table opens with its captions joined by a space and is followed by
+/// its footnotes; a code block is followed by its footnotes, then its
+/// captions. The group's own `<caption>`s win over the host's.
+fn push_float(
+    el: XmlNode,
+    host: XmlNode,
+    extra_captions: Vec<String>,
+    footnotes: Vec<String>,
+    out: &mut Vec<Node>,
+) {
+    let mut captions = head_captions(el);
+    if captions.is_empty() && el != host {
+        captions = head_captions(host);
+    }
+    captions.extend(extra_captions);
+    let caption = (!captions.is_empty()).then(|| captions.join(" "));
+    let notes = |out: &mut Vec<Node>| {
+        for text in &footnotes {
+            out.push(Node::Paragraph { text: text.clone() });
+        }
+    };
+    match host.tag_name().name() {
+        "code" => {
+            let language = host
+                .children()
+                .find(|c| c.has_tag_name("label"))
+                .and_then(|l| attr(l, "value"))
+                .map(str::to_string);
+            out.push(Node::Code {
+                language,
+                text: code_text(host),
+                orig: None,
+                pretty: None,
+            });
+            notes(out);
+            if let Some(text) = caption {
+                out.push(Node::Paragraph { text });
+            }
+        }
+        "picture" => {
+            out.push(parse_picture(host, caption));
+            notes(out);
+        }
+        _ => {
+            let layer = host
+                .children()
+                .find(|c| c.has_tag_name("layer"))
+                .and_then(parse_layer);
+            // A table's footnotes ride on it (`Table::footnotes`, which the
+            // Markdown prints after the grid and the chunker keeps in the
+            // table's chunk, docling-core#675).
+            match parse_table(host) {
+                Some(mut table) => {
+                    table.caption = caption;
+                    table.footnotes = footnotes.clone();
+                    push_with_layer(out, layer, Node::Table(table));
+                }
+                None => notes(out),
+            }
+        }
+    }
+}
+
+fn parse_picture(el: XmlNode, caption: Option<String>) -> Node {
     if attr(el, "class") == Some("chart") {
         let kind = el
             .children()

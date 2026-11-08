@@ -176,7 +176,7 @@ codec or copybook when the conversion runs.
   converter routes it; `docling::backend::youtube` has the pieces
   (`video_id`, `parse_watch_page`, `pick_track`, `transcript_document`).
   Two CLI-only export options sit beside `--images`, outside the shared
-  table: `--layers body|all|LIST` (LIST from `body,furniture,notes,invisible`;
+  table: `--layers body|all|LIST` (LIST from `body,furniture,notes,invisible,background`;
   default `body`) and `--traverse-pictures` — docling-core's
   `export_to_markdown(included_content_layers=…, traverse_pictures=…)` for
   `--to md`/`text`/`html` (HTML takes the layers only), inert for the other

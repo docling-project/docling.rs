@@ -5,9 +5,10 @@
 //! `tests/data/pptx/hidden_layers/<name>.{md,json,dclg}` is **not** our
 //! output: it is what docling 2.140.0's PowerPoint backend writes for
 //! `<name>.pptx` (`MsPowerpointDocumentBackend(...).convert()`, then
-//! `export_to_markdown()`, `export_to_dict()` and the `document.xml` of
-//! docling-core 2.102's `save_as_doclang_archive()`, the DocLang that
-//! `export_to_doclang()` here mirrors). The decks are upstream's test decks, rebuilt by
+//! `export_to_markdown()` and `export_to_dict()`); the `.dclg` is the
+//! `document.xml` of `save_as_doclang_archive()` by docling 2.148 /
+//! docling-core 2.106 (DocLang 0.9), less the part's final newline — the
+//! DocLang that `export_to_doclang()` here mirrors. The decks are upstream's test decks, rebuilt by
 //! `make_decks.py` next to them. Re-create a reference with upstream's
 //! backend, never from our own output.
 use std::fs;

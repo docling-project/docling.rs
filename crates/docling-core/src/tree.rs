@@ -186,6 +186,12 @@ pub struct TreeItem {
     /// stays so every other index keeps its meaning, but the item is not
     /// numbered or written.
     pub deleted: bool,
+    /// docling's `FloatingItem.footnotes` for a picture or code item (a
+    /// DocLang float group's `<footnote>`s), as item indices — written as the
+    /// item's `footnotes` refs; a table keeps its own in
+    /// [`TreeKind::Table`]'s `footnotes`. Unrelated to [`Self::notes`], which
+    /// are note calls in a text.
+    pub footnotes: Vec<usize>,
     /// Footnotes / endnotes referenced from inside this text item (#538): the
     /// note call's position (chars into the item's text) and the note's text.
     /// docling keeps notes as unlinked furniture `footnote` items, so the
@@ -548,14 +554,6 @@ pub struct ItemTree {
     pub items: Vec<TreeItem>,
     /// The body's `children`, as item indices.
     pub body: Vec<usize>,
-    /// The DocLang export serializes this tree too (#884) — docling-core's
-    /// `DocLangDocSerializer` ported over the tree (`doclang_tree.rs`) —
-    /// instead of the flat nodes, which cannot carry a footnote's label, a
-    /// caption's or a cell's inline formulas, or text docling never wrote
-    /// as Markdown. Set by a backend whose tree is upstream's exact
-    /// structure (LaTeX); a tree the port does not cover falls back to the
-    /// nodes.
-    pub doclang: bool,
     /// The source's blocks (#903), in document order, when the backend
     /// enumerates them (HTML); each item's [`TreeItem::block`] points into
     /// this. Empty otherwise.
@@ -571,6 +569,12 @@ pub struct ItemTree {
     /// that join into them ([`Self::separate_legacy_inline_runs`]) so the
     /// output reads as it did.
     pub inline_whitespace: bool,
+    /// The DocLang export serializes the flat nodes rather than this tree,
+    /// which every other tree gets its DocLang from: the tree reproduces a
+    /// loss of docling's the nodes avoid (USPTO's tables, emptied when
+    /// docling's table regex misses them), and the DocLang follows the
+    /// Markdown there.
+    pub doclang_nodes: bool,
 }
 
 impl ItemTree {
@@ -592,6 +596,7 @@ impl ItemTree {
             comments: Vec::new(),
             source: None,
             deleted: false,
+            footnotes: Vec::new(),
             notes: Vec::new(),
             note_body: false,
             anchors: Vec::new(),
@@ -702,7 +707,12 @@ impl ItemTree {
         let shift = |i: usize| i + off;
         for mut item in other.items {
             item.parent = item.parent.map(shift);
-            for c in item.children.iter_mut().chain(item.comments.iter_mut()) {
+            for c in item
+                .children
+                .iter_mut()
+                .chain(item.comments.iter_mut())
+                .chain(item.footnotes.iter_mut())
+            {
                 *c = shift(*c);
             }
             match &mut item.kind {
@@ -800,6 +810,7 @@ impl ItemTree {
             item.parent = item.parent.and_then(|p| new_of[p]);
             remap(&mut item.children);
             remap(&mut item.comments);
+            remap(&mut item.footnotes);
             match &mut item.kind {
                 TreeKind::Table {
                     rich_cells,

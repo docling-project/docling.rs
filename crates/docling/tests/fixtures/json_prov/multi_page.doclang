@@ -1,4 +1,4 @@
-<doclang version="0.8">
+<doclang version="0.9">
   <heading level="2">
     <location value="62"/>
     <location value="46"/>
@@ -32,7 +32,8 @@
     <location value="148"/>
     <location value="431"/>
     <location value="179"/>
-<![CDATA[During this period, the term "word processing" didn't exist, but the typewriter laid the groundwork for future developments. Over time, advancements such as carbon paper (for copies) and the electric typewriter (introduced by IBM in 1935) improved the speed and convenience of document creation.]]>  </text>
+    <![CDATA[During this period, the term "word processing" didn't exist, but the typewriter laid the groundwork for future developments. Over time, advancements such as carbon paper (for copies) and the electric typewriter (introduced by IBM in 1935) improved the speed and convenience of document creation.]]>
+  </text>
   <heading level="2">
     <location value="62"/>
     <location value="207"/>
@@ -45,14 +46,15 @@
     <location value="225"/>
     <location value="447"/>
     <location value="248"/>
-<![CDATA[The term "word processor" first emerged in the 1960s and referred to any system designed to streamline written communication and document production. Early word processors were not software programs but rather standalone machines.]]>  </text>
+    <![CDATA[The term "word processor" first emerged in the 1960s and referred to any system designed to streamline written communication and document production. Early word processors were not software programs but rather standalone machines.]]>
+  </text>
   <list>
     <ldiv/>
     <location value="77"/>
     <location value="258"/>
     <location value="443"/>
     <location value="290"/>
-<![CDATA[∞ IBM MT/ST (Magnetic Tape/Selectric Typewriter): Introduced in 1964, this machine combined IBM's Selectric typewriter with magnetic tape storage. It allowed users to record, edit, and replay typed content-an early example of digital text storage.]]>    
+    <![CDATA[∞ IBM MT/ST (Magnetic Tape/Selectric Typewriter): Introduced in 1964, this machine combined IBM's Selectric typewriter with magnetic tape storage. It allowed users to record, edit, and replay typed content-an early example of digital text storage.]]>
     <ldiv/>
     <location value="77"/>
     <location value="292"/>
@@ -101,7 +103,8 @@
     <location value="46"/>
     <location value="442"/>
     <location value="69"/>
-<![CDATA[Other notable software from this era included WordPerfect, which was popular among legal professionals, and Apple's MacWrite, which leveraged the Macintosh's graphical capabilities.]]>  </text>
+    <![CDATA[Other notable software from this era included WordPerfect, which was popular among legal professionals, and Apple's MacWrite, which leveraged the Macintosh's graphical capabilities.]]>
+  </text>
   <heading level="2">
     <location value="62"/>
     <location value="97"/>
@@ -170,7 +173,8 @@
     <location value="64"/>
     <location value="440"/>
     <location value="87"/>
-<![CDATA[In addition to general-purpose word processors, specialized tools have emerged to cater to specific industries and needs. These tools incorporate unique features tailored to their users' workflows:]]>  </text>
+    <![CDATA[In addition to general-purpose word processors, specialized tools have emerged to cater to specific industries and needs. These tools incorporate unique features tailored to their users' workflows:]]>
+  </text>
   <list>
     <ldiv/>
     <location value="77"/>
@@ -203,7 +207,8 @@
     <location value="250"/>
     <location value="440"/>
     <location value="273"/>
-<![CDATA[The evolution of word processors wasn't just about hardware or software improvements-it was about the features that revolutionized how people wrote and edited. Some of these transformative features include:]]>  </text>
+    <![CDATA[The evolution of word processors wasn't just about hardware or software improvements-it was about the features that revolutionized how people wrote and edited. Some of these transformative features include:]]>
+  </text>
   <list class="ordered">
     <ldiv>
       <marker>1.</marker>
@@ -258,7 +263,8 @@
     <location value="419"/>
     <location value="444"/>
     <location value="442"/>
-<![CDATA[The word processor didn't just change workplaces-it changed culture. It democratized writing, enabling anyone with access to a computer to produce professional-quality documents. This shift had profound implications for education, business, and creative fields:]]>  </text>
+    <![CDATA[The word processor didn't just change workplaces-it changed culture. It democratized writing, enabling anyone with access to a computer to produce professional-quality documents. This shift had profound implications for education, business, and creative fields:]]>
+  </text>
   <page_break/>
   <list>
     <ldiv/>
@@ -334,7 +340,7 @@
     <location value="307"/>
     <location value="437"/>
     <location value="330"/>
-<![CDATA[Cross-Platform Accessibility: Thanks to cloud computing, documents can now be accessed and edited across devices. Whether you're on a desktop, tablet, or smartphone, you can continue working seamlessly.]]>    
+    <![CDATA[Cross-Platform Accessibility: Thanks to cloud computing, documents can now be accessed and edited across devices. Whether you're on a desktop, tablet, or smartphone, you can continue working seamlessly.]]>
   </list>
   <heading level="2">
     <location value="62"/>
@@ -348,7 +354,8 @@
     <location value="376"/>
     <location value="440"/>
     <location value="390"/>
-<![CDATA[The word processor's future lies in adaptability and intelligence. Some exciting possibilities include:]]>  </text>
+    <![CDATA[The word processor's future lies in adaptability and intelligence. Some exciting possibilities include:]]>
+  </text>
   <list>
     <ldiv/>
     <location value="77"/>
@@ -375,5 +382,6 @@
     <location value="63"/>
     <location value="437"/>
     <location value="102"/>
-<![CDATA[The journey of the word processor-from clunky typewriters to AI-powered platformsreflects humanity's broader technological progress. What began as a tool to simply replace handwriting has transformed into a powerful ally for creativity, communication, and collaboration. As technology continues to advance, the word processor will undoubtedly remain at the heart of how we express ideas and connect with one another.]]>  </text>
+    <![CDATA[The journey of the word processor-from clunky typewriters to AI-powered platformsreflects humanity's broader technological progress. What began as a tool to simply replace handwriting has transformed into a powerful ally for creativity, communication, and collaboration. As technology continues to advance, the word processor will undoubtedly remain at the heart of how we express ideas and connect with one another.]]>
+  </text>
 </doclang>

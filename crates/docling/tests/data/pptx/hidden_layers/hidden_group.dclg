@@ -1,6 +1,6 @@
-<doclang version="0.7">
+<doclang version="0.9">
   <text>
-    <layer value="invisible"/>
+    <layer value="background"/>
     <location value="51"/>
     <location value="68"/>
     <location value="256"/>
@@ -8,7 +8,7 @@
     Hidden group first
   </text>
   <text>
-    <layer value="invisible"/>
+    <layer value="background"/>
     <location value="51"/>
     <location value="137"/>
     <location value="256"/>
@@ -23,7 +23,7 @@
     Shown group kept
   </text>
   <text>
-    <layer value="invisible"/>
+    <layer value="background"/>
     <location value="51"/>
     <location value="341"/>
     <location value="256"/>
