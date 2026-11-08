@@ -19,7 +19,7 @@
 //! the same name): one identifier per line, sorted, for scripts that ask the
 //! binary what it converts instead of hard-coding a list.
 //!
-//! Usage: docling-rs [--strict] [--page-break-placeholder TEXT] [--layers body|all|LIST] [--traverse-pictures] [--to md|json|html|text|dclx|chunks|images|latex|pandoc|vtt] [--pages A-B] [--scale X] [--images MODE] [--input GLOB --output DIR [--jobs N]] [--output-file PATH] [--fetch-images] [--image-sources none|embedded|local|remote] [--image-hosts LIST] [--max-images N] [--max-image-bytes N] [--max-image-total-mb N] [--min-image-bytes N] [--list-attachments] [--skip-empty-cells] [--compact-tables] [--picture-alt-text] [--ebcdic-layout JSON|PATH] [--encoding LABEL] [--ipynb-outputs none|text] [--metadata none|json|frontmatter] [--track-changes accept|reject|all] [--extract-diagrams mermaid|none] [--no-outline-level-headings] [--from FORMAT] [--mime-type TYPE] [--no-url-fetch] [--no-stream] [--progress|--no-progress] [--no-table-former] [--no-ocr] [--text-layer-only] [--password PASSWORD | --password-file PATH] [--force-full-page-ocr] [--no-text-panels] [--heading-hierarchy] [--ocr-lang LANG] [--ocr-engine ppocr|tesseract] [--ocr-mode MODE] [--ocr-scale X] [--pdf-word-gap adaptive|legacy|F] [--pdf-keep-typography] [--pdf-report-repairs] [--ocr-textline-orientation] [--images-scale X] [--page-images] [--chunker hierarchical|hybrid] [--chunk-tokenizer PATH] [--chunk-max-tokens N] [--no-chunk-merge-peers] [--pipeline standard|vlm] [--vlm-endpoint URL] [--vlm-model NAME] [--vlm-api-key TOKEN] [--vlm-prompt TEXT] [--vlm-max-tokens N] [--asr-model PRESET] [--asr-lang CODE] [--video-frames N|all] [--video-scene-threshold X] [--video-frame-max-side PX] [--video-frame-dedupe N] [--xbrl-taxonomy DIR] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] [--picture-ocr] [--picture-ocr-classes LABELS] [--picture-ocr-min-side N] [--picture-ocr-scale X] [--no-picture-images] [--picture-description] [--picture-description-endpoint URL] [--picture-description-model NAME] [--picture-description-api-key TOKEN] [--picture-description-prompt TEXT] [--picture-description-mode caption|ocr] [--picture-description-concurrency N] [--redact-pii] [--redact-mode label|pseudonym|fixed:TEXT] [--redact-kinds LIST] [--redact-pattern NAME=REGEX]... [--redact-images drop|box_out|keep] [--redact-allow-terms LIST] [--redact-deny-terms LIST] [--redact-allow-pattern REGEX]... [--redact-ner-min-score X] [--document-timeout SECONDS] [--abort-on-error] [--output-dirs auto|flat|mirror] [--archive-merge|--no-archive-merge] <input-file> | - | URL | SOURCE...
+//! Usage: docling-rs [--strict] [--page-break-placeholder TEXT] [--layers body|all|LIST] [--traverse-pictures] [--to md|json|html|text|dclx|chunks|images|latex|pandoc|vtt] [--pages A-B] [--scale X] [--images MODE] [--input GLOB --output DIR [--jobs N]] [--output-file PATH] [--fetch-images] [--image-sources none|embedded|local|remote] [--image-hosts LIST] [--max-images N] [--max-image-bytes N] [--max-image-total-mb N] [--min-image-bytes N] [--list-attachments] [--skip-empty-cells] [--compact-tables] [--picture-alt-text] [--ebcdic-layout JSON|PATH] [--encoding LABEL] [--ipynb-outputs none|text] [--metadata none|json|frontmatter] [--track-changes accept|reject|all] [--extract-diagrams mermaid|none] [--no-outline-level-headings] [--from FORMAT] [--mime-type TYPE] [--no-url-fetch] [--no-stream] [--progress|--no-progress] [--no-table-former] [--no-ocr] [--text-layer-only] [--password PASSWORD | --password-file PATH] [--force-full-page-ocr] [--replace-broken-text-layer] [--no-text-panels] [--heading-hierarchy] [--ocr-lang LANG] [--ocr-engine ppocr|tesseract] [--ocr-mode MODE] [--ocr-scale X] [--pdf-word-gap adaptive|legacy|F] [--pdf-keep-typography] [--pdf-report-repairs] [--ocr-textline-orientation] [--images-scale X] [--page-images] [--chunker hierarchical|hybrid] [--chunk-tokenizer PATH] [--chunk-max-tokens N] [--no-chunk-merge-peers] [--pipeline standard|vlm] [--vlm-endpoint URL] [--vlm-model NAME] [--vlm-api-key TOKEN] [--vlm-prompt TEXT] [--vlm-max-tokens N] [--asr-model PRESET] [--asr-lang CODE] [--video-frames N|all] [--video-scene-threshold X] [--video-frame-max-side PX] [--video-frame-dedupe N] [--xbrl-taxonomy DIR] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] [--picture-ocr] [--picture-ocr-classes LABELS] [--picture-ocr-min-side N] [--picture-ocr-scale X] [--no-picture-images] [--picture-description] [--picture-description-endpoint URL] [--picture-description-model NAME] [--picture-description-api-key TOKEN] [--picture-description-prompt TEXT] [--picture-description-mode caption|ocr] [--picture-description-concurrency N] [--redact-pii] [--redact-mode label|pseudonym|fixed:TEXT] [--redact-kinds LIST] [--redact-pattern NAME=REGEX]... [--redact-images drop|box_out|keep] [--redact-allow-terms LIST] [--redact-deny-terms LIST] [--redact-allow-pattern REGEX]... [--redact-ner-min-score X] [--document-timeout SECONDS] [--abort-on-error] [--output-dirs auto|flat|mirror] [--archive-merge|--no-archive-merge] <input-file> | - | URL | SOURCE...
 //!   --to FORMAT        repeatable (#491, like Python's `docling convert --to
 //!                      md --to json`): each document converts once and is
 //!                      written in every format named, `<stem>.md` +
@@ -253,6 +253,10 @@
 //!   --force-full-page-ocr  OCR every PDF page even when it has a text layer
 //!                      (docling's force_full_page_ocr) — for layers that lie:
 //!                      broken encodings, forms with a few typed-in fields
+//!   --replace-broken-text-layer  OCR only the PDF pages whose text layer a
+//!                      broken font mapping produced (control / U+FFFD /
+//!                      private-use characters, mojibake Latin, too few
+//!                      vowels) — docling's replace_broken_text_layer (#1006)
 //!   --pdf-word-gap adaptive|legacy|F
 //!                      where a PDF's text layer splits words the file draws
 //!                      with a cursor move and no space glyph (#921): adaptive
@@ -645,6 +649,9 @@ PDF / IMAGE PIPELINE
                           (keeps it out of the process list)
   --force-full-page-ocr   OCR the whole page, discarding the text layer
                           (docling's deprecated --force-ocr; = --ocr-mode full_page)
+  --replace-broken-text-layer
+                          OCR only the pages whose text layer is broken (unmapped
+                          glyphs, mojibake); other pages keep their text layer
   --no-text-panels        disable the text-panel heuristic
   --heading-hierarchy     infer heading levels from font weight/slant/case
   --ocr-lang LANG         OCR recognition model (default: en): en | ch, or a
@@ -985,6 +992,7 @@ fn main() -> ExitCode {
                 }
             },
             "--force-full-page-ocr" => opts.force_full_page_ocr = Some(true),
+            "--replace-broken-text-layer" => opts.replace_broken_text_layer = Some(true),
             "--no-text-panels" => opts.no_text_panels = Some(true),
             "--heading-hierarchy" => opts.heading_hierarchy = Some(true),
             "--use-web-browser" => opts.use_web_browser = Some(true),
@@ -2806,6 +2814,7 @@ fn batch_pipeline<'a>(
             .text_layer_auto(o.text_layer_only == Some(docling::TextLayerOnly::Auto))
             .skip_ocr(o.ocr_disabled())
             .force_full_page_ocr(o.force_full_page_ocr.unwrap_or(false))
+            .replace_broken_text_layer(o.replace_broken_text_layer.unwrap_or(false))
             .no_text_panels(o.no_text_panels.unwrap_or(false))
             .heading_hierarchy(docling::HeadingHierarchyOptions::enabled(
                 o.heading_hierarchy.unwrap_or(false),

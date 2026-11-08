@@ -2272,6 +2272,17 @@ These are deliberate or unavoidable divergences, not bugs.
     alone; `full_page` and `layout_regions` both map onto the
     `force_full_page_ocr` machinery (the whole-page vs per-region *detector*
     distinction has no analogue in the det-free PP-OCR recognizer here).
+    **`replace_broken_text_layer`** (docling#4654, #1006; off by default —
+    `--replace-broken-text-layer`, every surface) ports
+    `is_broken_text_layer` check for check and replaces only the page it
+    judges broken with full-page OCR, its `parse_score` zeroed. Two
+    deliberate differences: the text layer here records no rendering mode,
+    so the check reads every cell (docling reads the visible ones) and a
+    replaced page keeps none of its invisible cells (docling merges them
+    back under the OCR) — an invisible layer over a scan is rarely judged
+    broken, and a page that is gets its text from the scan; and with no OCR
+    model to read the page the layer is kept rather than discarded
+    (degradation over failure).
     `ocr_scale` resamples the OCR input from the pipeline's 2.0 px/pt page
     render instead of re-rendering (docling renders natively at
     `72 × scale` dpi, default 3); unset keeps the pinned 144 dpi baseline,

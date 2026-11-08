@@ -81,6 +81,9 @@
 //!   `default` | `full_page` | `layout_regions` | `pdf_aware_layout_regions`
 //!   (`full_page`/`layout_regions` discard the text layer like
 //!   `force_full_page_ocr`)
+//! - `replace_broken_text_layer` — OCR only the PDF pages whose text layer a
+//!   broken font mapping produced (docling's `replace_broken_text_layer`,
+//!   #1006); every other page keeps its text layer
 //! - `ocr_scale` — OCR render scale in px per PDF point (docling's
 //!   `OcrOptions.scale`, #254); unset reads the pipeline's own 2.0 px/pt
 //!   render, docling's default is 3 (216 dpi)
@@ -3198,6 +3201,7 @@ fn convert_document_inner(
             pipeline.set_ocr_lang(o.ocr_lang().map_err(bad)?);
             pipeline.set_tesseract_lang(o.tesseract_lang().map_err(bad)?);
             pipeline.set_force_full_page_ocr(o.force_full_page_ocr.unwrap_or(false));
+            pipeline.set_replace_broken_text_layer(o.replace_broken_text_layer.unwrap_or(false));
             pipeline.set_ocr_mode(o.ocr_mode().map_err(bad)?);
             pipeline.set_ocr_scale(o.ocr_scale);
             pipeline.set_word_gap(o.pdf_word_gap().map_err(bad)?);

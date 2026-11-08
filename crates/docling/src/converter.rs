@@ -300,6 +300,9 @@ pub struct DocumentConverter {
     /// The password of an encrypted PDF (#611) or Office document (#625).
     password: Option<String>,
     force_full_page_ocr: bool,
+    /// OCR only the pages whose text layer is broken (#1006). See
+    /// [`Self::replace_broken_text_layer`].
+    replace_broken_text_layer: bool,
     /// OCR mode id (docling's `OcrMode`, #254); parsed at the ML call sites.
     ocr_mode: Option<String>,
     /// OCR engine id (`ppocr` | `tesseract`, #460); parsed at the ML call
@@ -622,6 +625,7 @@ impl Default for DocumentConverter {
             no_ocr: false,
             password: None,
             force_full_page_ocr: false,
+            replace_broken_text_layer: false,
             ocr_mode: None,
             ocr_engine: None,
             ocr_scale: None,
@@ -824,6 +828,7 @@ impl DocumentConverter {
         p.set_ocr_scale(self.ocr_scale_choice());
         p.set_word_gap(self.pdf_word_gap_choice());
         p.set_keep_typography(self.pdf_keep_typography);
+        p.set_replace_broken_text_layer(self.replace_broken_text_layer);
         p.set_images(docling_pdf::ImageOutput {
             scale: self.images_scale,
             page_images: self.generate_page_images,
@@ -2283,6 +2288,21 @@ impl DocumentConverter {
         self
     }
 
+    /// Replace a broken PDF text layer with OCR, page by page — docling's
+    /// `replace_broken_text_layer` (docling#4654, #1006). A page whose text
+    /// layer a broken font mapping produced (control, U+FFFD or private-use
+    /// characters; Latin letters standing for another script; too few
+    /// vowels — [`docling_pdf::quality::is_broken_text_layer`]) is read with
+    /// full-page OCR and its `parse_score` drops to 0; every other page
+    /// keeps its text layer. The targeted alternative to
+    /// [`force_full_page_ocr`](Self::force_full_page_ocr). Off by default;
+    /// ignored with [`no_ocr`](Self::no_ocr) or a missing OCR model (the
+    /// page keeps its layer).
+    pub fn replace_broken_text_layer(mut self, replace: bool) -> Self {
+        self.replace_broken_text_layer = replace;
+        self
+    }
+
     /// Which document regions feed the OCR — docling's `OcrMode` (#254):
     /// `default`, `full_page`, `layout_regions`, or
     /// `pdf_aware_layout_regions`. The default is the text-layer-aware
@@ -2782,6 +2802,7 @@ impl DocumentConverter {
             no_ocr: self.no_ocr,
             password: self.password.clone(),
             force_full_page_ocr: self.force_full_page_ocr,
+            replace_broken_text_layer: self.replace_broken_text_layer,
             enrich: self.enrich,
             page_range: self.page_range,
             ocr_lang: self.ocr_lang_choice(),

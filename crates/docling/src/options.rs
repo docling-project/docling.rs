@@ -192,6 +192,8 @@ pub struct ConvertOptions {
     pub password: Option<String>,
     /// OCR every page, discarding the text layer.
     pub force_full_page_ocr: Option<bool>,
+    /// OCR only the pages whose text layer is broken (#1006).
+    pub replace_broken_text_layer: Option<bool>,
     /// Skip TableFormer (geometric tables instead).
     pub no_table_former: Option<bool>,
     /// Disable the text-panel heuristic (#173).
@@ -642,6 +644,7 @@ pub const OPTIONS: &[OptionInfo] = &[
         ..row("password")
     },
     row("force_full_page_ocr"),
+    row("replace_broken_text_layer"),
     OptionInfo {
         python: Some("do_table_structure"),
         ..row("no_table_former")
@@ -1396,6 +1399,9 @@ impl ConvertOptions {
         }
         if let Some(v) = self.force_full_page_ocr {
             c = c.force_full_page_ocr(v);
+        }
+        if let Some(v) = self.replace_broken_text_layer {
+            c = c.replace_broken_text_layer(v);
         }
         if let Some(v) = self.no_table_former {
             c = c.no_table_former(v);

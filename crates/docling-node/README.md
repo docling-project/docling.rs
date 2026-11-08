@@ -525,6 +525,8 @@ constructor; output options (`to`, `imageMode`, `artifactsDir`) are per call.
   `iso:` prefix accepted). Other languages are rejected.
 - `forceFullPageOcr`: OCR every PDF page even when it carries a text layer
   (docling's `force_full_page_ocr`).
+- `replaceBrokenTextLayer`: OCR only the PDF pages whose text layer a broken
+  font mapping produced (docling's `replace_broken_text_layer`, #1006).
 - `noTextPanels`: keep every detected picture as a picture — disable the
   demotion of uncaptioned dense-text "picture" regions into paragraphs (#173).
 - `headingHierarchy`: infer PDF/image section-header levels after assembly

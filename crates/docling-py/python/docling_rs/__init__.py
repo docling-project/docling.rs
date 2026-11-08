@@ -508,6 +508,7 @@ class DocumentConverter:
         do_ocr: bool = True,
         do_table_structure: bool = True,
         force_full_page_ocr: bool = False,
+        replace_broken_text_layer: bool = False,
         no_text_panels: bool = False,
         heading_hierarchy: bool = False,
         do_picture_classification: bool = False,
@@ -611,6 +612,15 @@ class DocumentConverter:
                 pdf_opts, "force_full_page_ocr", force_full_page_ocr
             ) or getattr(
                 getattr(pdf_opts, "ocr_options", None), "force_full_page_ocr", False
+            )
+            # docling's OcrOptions.replace_broken_text_layer (#1006); the
+            # direct field is accepted too.
+            replace_broken_text_layer = getattr(
+                pdf_opts, "replace_broken_text_layer", replace_broken_text_layer
+            ) or getattr(
+                getattr(pdf_opts, "ocr_options", None),
+                "replace_broken_text_layer",
+                False,
             )
             no_text_panels = getattr(pdf_opts, "no_text_panels", no_text_panels)
             hh = getattr(pdf_opts, "heading_hierarchy_options", None)
@@ -791,6 +801,7 @@ class DocumentConverter:
             min_image_bytes=min_image_bytes,
             do_ocr=do_ocr,
             force_full_page_ocr=force_full_page_ocr,
+            replace_broken_text_layer=replace_broken_text_layer,
             no_text_panels=no_text_panels,
             heading_hierarchy=heading_hierarchy,
             do_table_structure=do_table_structure,
