@@ -55,6 +55,7 @@ fn typography_is_kept_when_asked() {
             docling_pdf::TextOptions {
                 word_gap: None,
                 keep_typography: keep,
+                ..Default::default()
             },
         )
         .expect("text-layer conversion")

@@ -2127,6 +2127,17 @@ These are deliberate or unavoidable divergences, not bugs.
 6. **Extracted image bytes are real but not byte-identical.** Cropped/embedded
    pixels are correct, but the PNG re-encoding differs from docling's, so the
    base64 in `embedded` mode / JSON `ImageRef`s won't match byte-for-byte.
+   With `use_embedded_picture_images` (#1007, docling#5143) a PDF picture
+   takes the embedded image it shows — native pixel size, `dpi` 72 — as
+   docling's option does, so the pixels themselves now match docling's
+   extraction instead of differing by renderer. One deliberate widening:
+   docling (both backends) refuses an image when any text or vector content
+   overlaps it, drawn before or after; here only content painted *after* it
+   counts (an opaque image hides what lies beneath, so a page background or
+   frame drawn first no longer forces the crop), plus the conditions docling
+   leaves to its renderers — no mask, soft mask, alpha or blend mode, upright
+   and unclipped, no `/Rotate` on the page. Text cells still refuse it
+   wherever they are.
 
 7. **XML format detection sniffs content.** JATS, USPTO, XBRL and RIS all use `.xml`;
    the converter routes by content markers (`us-patent` → USPTO, `us-gaap`/`dei`

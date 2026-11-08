@@ -491,6 +491,11 @@ class DocumentConverter:
       (docling only renders images then; without either, crops keep the
       engine's 2.0 px/pt render). Every picture's ``image.dpi`` is
       72·scale (#519).
+    * ``use_embedded_picture_images`` — docling's option of that name
+      (#1007, docling#5143; also read off ``PdfPipelineOptions``): a PDF
+      picture whose region holds exactly one embedded image with nothing
+      drawn over it gets that bitmap at native resolution (``dpi`` 72)
+      instead of the render crop.
     * ``artifacts_path`` — override the model cache dir (docling's
       ``artifacts_path``); defaults to ``~/.cache/docling.rs``.
     """
@@ -570,6 +575,7 @@ class DocumentConverter:
         page_range: Optional[Tuple[int, int]] = None,
         images_scale: Optional[float] = None,
         generate_page_images: bool = False,
+        use_embedded_picture_images: bool = False,
         text_layer_only: Union[bool, str] = False,
         list_attachments: bool = False,
         ebcdic_layout: Optional[str] = None,
@@ -670,6 +676,12 @@ class DocumentConverter:
                 scale = getattr(pdf_opts, "images_scale", None)
                 if scale is not None:
                     images_scale = float(scale)
+            # docling's use_embedded_picture_images (#1007, docling#5143).
+            use_embedded_picture_images = bool(
+                getattr(
+                    pdf_opts, "use_embedded_picture_images", use_embedded_picture_images
+                )
+            )
             # Map docling's ocr_options.lang (a list of language ids) onto the
             # engine's en/ch recognition-model switch. First entry wins;
             # anything that isn't recognisably English/Chinese is ignored with
@@ -839,6 +851,7 @@ class DocumentConverter:
             page_range=_page_range(page_range),
             images_scale=images_scale,
             generate_page_images=generate_page_images,
+            use_embedded_picture_images=use_embedded_picture_images,
             text_layer_only=text_layer_only,
             list_attachments=list_attachments,
             ebcdic_layout=ebcdic_layout,

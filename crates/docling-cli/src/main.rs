@@ -671,6 +671,10 @@ PDF / IMAGE PIPELINE
                           0.1-4.0 (docling's images_scale; default: the 2.0 render)
   --page-images           keep each page's render as the JSON page image
                           (docling's generate_page_images)
+  --use-embedded-picture-images
+                          a PDF picture whose box holds exactly one embedded
+                          image with nothing drawn over it gets that bitmap at
+                          native resolution instead of the render crop
   --enrich-picture-classes | --enrich-code | --enrich-formula
                           optional enrichment models (off by default)
   --picture-description   describe every picture (any format) through an
@@ -1416,6 +1420,7 @@ fn main() -> ExitCode {
                 }
             },
             "--page-images" => opts.page_images = Some(true),
+            "--use-embedded-picture-images" => opts.use_embedded_picture_images = Some(true),
             // Per-run `--to chunks` configuration (#256, mirrors the serve
             // fields / docling's service-datamodel `HybridChunkerOptions`);
             // the DOCLING_CHUNK_* env knobs stay the defaults.
@@ -1540,6 +1545,7 @@ fn main() -> ExitCode {
         keep_typography: opts
             .pdf_keep_typography
             .unwrap_or(docling::PdfTextOptions::from_env().keep_typography),
+        ..Default::default()
     };
     let strict = opts.strict.unwrap_or(false);
     let text_layer_mode = opts.text_layer_only.unwrap_or_default();
@@ -2812,6 +2818,7 @@ fn batch_pipeline<'a>(
             .keep_typography(o.pdf_keep_typography)
             .images_scale(o.images_scale)
             .generate_page_images(o.page_images.unwrap_or(false))
+            .use_embedded_picture_images(o.use_embedded_picture_images.unwrap_or(false))
             .enrichments(o.enrichments())
             .document_timeout(o.document_timeout().map_err(err)?);
         p.set_pages(cfg.pages);

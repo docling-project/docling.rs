@@ -103,6 +103,8 @@ pub(crate) struct StreamSettings {
     pub ocr_textline_orientation: Option<bool>,
     /// Picture-crop scale (#520); page images have no place in a stream.
     pub images_scale: Option<f32>,
+    /// [`DocumentConverter::use_embedded_picture_images`] (#1007).
+    pub embedded_pictures: bool,
     /// [`DocumentConverter::keep_picture_images`] (#645): off, each page
     /// batch loses its pictures' bytes before it is serialized (#896), as
     /// the buffered path's document does.
@@ -291,6 +293,7 @@ fn run_pdf(
             .word_gap(settings.word_gap)
             .keep_typography(settings.keep_typography)
             .images_scale(settings.images_scale)
+            .use_embedded_picture_images(settings.embedded_pictures)
             .enrichments(settings.enrich)
             .pages(settings.page_range)
             .document_timeout(settings.document_timeout)

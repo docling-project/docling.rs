@@ -189,6 +189,11 @@ class PdfPipelineOptions:
     images_scale: float = 1.0
     generate_page_images: bool = False
     generate_picture_images: bool = False
+    #: docling's ``use_embedded_picture_images`` (#1007, docling#5143): a
+    #: picture whose region holds exactly one embedded image with nothing
+    #: drawn over it gets that bitmap at native resolution instead of the
+    #: render crop; anything uncertain keeps the crop.
+    use_embedded_picture_images: bool = False
     #: docling's picture description enrichment. With
     #: :class:`PictureDescriptionApiOptions` (docling's, or this module's)
     #: the engine describes every picture through the OpenAI-compatible
