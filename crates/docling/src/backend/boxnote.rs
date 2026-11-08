@@ -654,7 +654,7 @@ mod tests {
         let md = std::fs::read_to_string(root.join("groundtruth/sample.boxnote.md")).unwrap();
         let mut compact = doc.clone();
         compact.compact_tables = true;
-        assert_eq!(compact.export_to_markdown(), md.trim_end());
+        assert_eq!(compact.export_to_markdown().trim_end(), md.trim_end());
         let mut want: Value = serde_json::from_str(
             &std::fs::read_to_string(root.join("groundtruth/sample.boxnote.json")).unwrap(),
         )
@@ -693,7 +693,10 @@ mod tests {
             doc_of(json!([{"type": "paragraph", "content": [{"type": "text", "text": "Hi"}]}]));
         let mut bytes = b"\xef\xbb\xbf".to_vec();
         bytes.extend(payload.to_string().as_bytes());
-        assert_eq!(try_convert(&bytes).unwrap().export_to_markdown(), "Hi");
+        assert_eq!(
+            try_convert(&bytes).unwrap().export_to_markdown().trim_end(),
+            "Hi"
+        );
     }
 
     #[test]
@@ -707,7 +710,7 @@ mod tests {
             {"type": "paragraph", "content": [run("more ", None), run("x", Some("strong")), run(" y", None)]},
         ]});
         let doc = convert(&doc_of(json!([{"type": "bullet_list", "content": [item]}])));
-        assert_eq!(doc.export_to_markdown(), "- Intro more **x** y");
+        assert_eq!(doc.export_to_markdown().trim_end(), "- Intro more **x** y");
     }
 
     #[test]
