@@ -2310,11 +2310,27 @@ These are deliberate or unavoidable divergences, not bugs.
     more and skips the probe, which costs a full-page text detection) is
     also probed for a sideways raster like a scan (#936) — a landscape table turned
     90° and outlined, beside an upright page number, is un-rotated before
-    layout and OCR instead of read as noise. Its
-    other two triggers — clusters over a bitmap, and clusters whose text
-    layer leaves a non-rule shape unexplained (an outlined glyph next to
-    real text, docling#4209) — are not ported: the first is the bare-picture
-    pass, the second needs the page's vector shapes. On the PDF corpus it
+    layout and OCR instead of read as noise. Its second trigger, clusters
+    over a bitmap, is ported by #999 (docling#4928) for scans: a scanned
+    form with one typed-in value used to keep its table region off the OCR
+    (the value is programmatic text), and TableFormer matched the native
+    word alone — a seven-row table read `| 420 |`. A text, furniture or
+    table region a page image covers at least half of is now OCR'd unless
+    the text layer accounts for the image there, by docling's own rule for
+    shapes (`_text_accounts_for`: a band at most two text lines thick is
+    explained by any text on it, a thicker one by text over a tenth of it).
+    The text parser records the image placements as it walks the page, so
+    finding them costs nothing. Two deliberate narrowings of docling, which
+    OCRs every cluster touching a bitmap: the half-cover rule, and the
+    text-layer check, so a searchable scan's invisible layer and a digital
+    page's logo beside its heading keep their text layer instead of paying
+    a second read. As in docling's `PDF_FIRST` merge, the native cells all
+    stay and an OCR cell is kept only where it touches none, and the
+    table's tokens are docling's `_words_and_ocr_cells`: the native words
+    no surviving OCR line covers, plus those lines. The third trigger,
+    clusters whose text layer leaves a non-rule shape unexplained (an
+    outlined glyph next to real text, docling#4209), is not ported: it
+    needs the page's vector shapes. On the PDF corpus it
     fires on the attention-map figures of 1706.03762 (`Input-Input Layer5`,
     outlined titles). On docling's two Korean `skipped_*` pages, whose
     Adobe-Korea1 CID fonts carry no ToUnicode, it used to OCR a few stray

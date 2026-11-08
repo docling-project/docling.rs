@@ -5105,6 +5105,7 @@ mod tests {
             cells: Vec::new(),
             code_cells: Vec::new(),
             checkboxes: Vec::new(),
+            bitmaps: Vec::new(),
             // "LinkedIn | GitHub | Credly" = 26 chars over x 100..360.
             word_cells: vec![cell(
                 "LinkedIn | GitHub | Credly",

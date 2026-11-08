@@ -1381,6 +1381,9 @@ pub struct PageParserCells {
     pub code: Vec<crate::pdfium_backend::TextCell>,
     /// Drawn checkbox squares (#609), in the cells' frame.
     pub checkboxes: Vec<crate::checkbox::CheckBox>,
+    /// Image placements (#999), in the cells' frame — see
+    /// [`crate::pdfium_backend::PdfPage::bitmaps`].
+    pub bitmaps: Vec<[f32; 4]>,
 }
 
 /// The parser text layer, driven one page at a time: the document is loaded
@@ -1500,7 +1503,7 @@ impl PageTextParser {
             return PageParserCells::default();
         };
         let (_w, h) = page_size(&self.doc, pid);
-        let (glyphs, inks) = page_glyphs_and_inks(&self.doc, pid, &mut self.caches);
+        let (glyphs, inks, bitmaps) = page_glyphs_and_inks(&self.doc, pid, &mut self.caches);
         let (prose, words) =
             crate::dp_lines::line_and_word_cells_with(&glyphs, h, true, self.word_gap);
         PageParserCells {
@@ -1508,6 +1511,7 @@ impl PageTextParser {
             words,
             code: crate::pdfium_backend::code_cells_from_glyphs(&glyphs, h),
             checkboxes: crate::checkbox::find(&inks, h),
+            bitmaps,
         }
     }
 
@@ -1522,7 +1526,7 @@ impl PageTextParser {
     /// document's cells. A blank page (no cells) for an index the page tree
     /// doesn't have.
     pub fn text_page(&mut self, index: usize) -> crate::pdfium_backend::PdfPage {
-        let (w, h, (glyphs, inks)) = match self.pages.get(index) {
+        let (w, h, (glyphs, inks, _)) = match self.pages.get(index) {
             Some(&pid) => {
                 let (w, h) = page_size(&self.doc, pid);
                 (w, h, page_glyphs_and_inks(&self.doc, pid, &mut self.caches))
@@ -1544,6 +1548,7 @@ impl PageTextParser {
             code_cells: crate::pdfium_backend::code_cells_from_glyphs(&glyphs, h),
             word_cells: words,
             checkboxes: crate::checkbox::find(&inks, h),
+            bitmaps: Vec::new(),
             #[cfg(feature = "ocr-prep")]
             image: image::RgbImage::new(1, 1),
             links: Vec::new(),
@@ -1744,20 +1749,22 @@ fn page_glyphs_cached(
 
 /// [`page_glyphs_cached`] plus the small painted path pieces the same walk
 /// passed — what [`crate::checkbox::find`] looks for checkbox squares in
-/// (#609) — in the glyphs' frame.
+/// (#609) — and the page's image placements (#999, `[l, t, r, b]` top-left
+/// page points clipped to the page, the cells' frame).
 fn page_glyphs_and_inks(
     doc: &Document,
     page_id: lopdf::ObjectId,
     caches: &mut DocCaches,
-) -> (Vec<Glyph>, Vec<crate::checkbox::Ink>) {
+) -> (Vec<Glyph>, Vec<crate::checkbox::Ink>, Vec<[f32; 4]>) {
     let mut out = Vec::new();
     let mut inks = Vec::new();
     // get_page_content returns the assembled content-stream bytes directly
     // (an empty Vec when the page has none).
     let content_bytes = doc.get_page_content(page_id);
     let Ok(content) = lopdf::content::Content::decode(&content_bytes) else {
-        return (out, inks);
+        return (out, inks, Vec::new());
     };
+    let mut bitmaps = Vec::new();
     if let Some(res) = page_res(doc, page_id) {
         // pdfium's page matrix: user space translated so the display box's
         // lower-left corner is the origin (see [`PageBox`]).
@@ -1780,8 +1787,19 @@ fn page_glyphs_and_inks(
         );
         out.retain(|g| on_page(g, pb.w, pb.h));
         drop_overprinted_spaces(&mut out);
+        let (w, h) = (f64::from(pb.w), f64::from(pb.h));
+        inks.retain(|ink| match *ink {
+            crate::checkbox::Ink::Bitmap { l, b, r, t } => {
+                let (l, r, b, t) = (l.max(0.0), r.min(w), b.max(0.0), t.min(h));
+                if r > l && t > b {
+                    bitmaps.push([l as f32, (h - t) as f32, r as f32, (h - b) as f32]);
+                }
+                false
+            }
+            _ => true,
+        });
     }
-    (out, inks)
+    (out, inks, bitmaps)
 }
 
 /// Drop a space glyph the next glyph is drawn over (#992). A typesetter
@@ -2130,9 +2148,12 @@ fn run_content(
                 };
             }
             "cs" => fill_light = false,
+            // An inline image: the unit square under the CTM (#999).
+            "BI" => inks.push(image_ink(ctm)),
             "Do" => {
                 // Invoke a Form XObject: bulk body text in many PDFs lives inside
-                // a form, reached only here. Image XObjects are skipped (no text).
+                // a form, reached only here. An image XObject carries no text,
+                // only its placement (#999).
                 if depth >= 8 {
                     continue;
                 }
@@ -2155,6 +2176,15 @@ fn run_content(
                     .and_then(|o| o.as_name().ok())
                     == Some(b"Form".as_slice());
                 if !is_form {
+                    let is_image = stream
+                        .dict
+                        .get(b"Subtype")
+                        .ok()
+                        .and_then(|o| o.as_name().ok())
+                        == Some(b"Image".as_slice());
+                    if is_image {
+                        inks.push(image_ink(ctm));
+                    }
                     continue;
                 }
                 // Decode a reused form's content once per document
@@ -2229,6 +2259,22 @@ fn run_content(
             _ => {}
         }
     }
+}
+
+/// An image placement's box — the unit square under `ctm`, y-up page
+/// points — as an [`Ink::Bitmap`](crate::checkbox::Ink::Bitmap).
+fn image_ink(ctm: Mat) -> crate::checkbox::Ink {
+    let pts = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)].map(|(x, y)| ctm.apply(x, y));
+    let (mut l, mut b, mut r, mut t) = (
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+    );
+    for (x, y) in pts {
+        (l, b, r, t) = (l.min(x), b.min(y), r.max(x), t.max(y));
+    }
+    crate::checkbox::Ink::Bitmap { l, b, r, t }
 }
 
 /// One piece of a path under construction, page space (see `run_content`).
@@ -3826,6 +3872,20 @@ mod base14_fonts {
                 .filter(|l| l.contains('\u{FFFD}'))
                 .collect::<Vec<_>>()
         );
+    }
+
+    /// The page's image placements reach the cells (#999): the scan under
+    /// the #999 fixture's one native word is the whole page.
+    #[test]
+    fn image_placements_are_the_pages_bitmaps() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../docling/tests/fixtures/partial_text_layer/scan_with_native_word.pdf");
+        let bytes = std::fs::read(path).expect("fixture");
+        let mut parser = super::PageTextParser::open(&bytes).expect("parser");
+        let page = parser.cells(0);
+        assert_eq!(page.bitmaps, vec![[0.0, 0.0, 612.0, 792.0]]);
+        assert_eq!(page.words.len(), 1);
+        assert!(page.checkboxes.is_empty());
     }
 
     /// A `bfrange` whose destination is a surrogate pair steps its last code

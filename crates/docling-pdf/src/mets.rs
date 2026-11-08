@@ -116,6 +116,7 @@ fn mets_pages(bytes: &[u8]) -> Result<Vec<PdfPage>, PdfError> {
             cells,
             code_cells: Vec::new(),
             checkboxes: Vec::new(),
+            bitmaps: Vec::new(),
             word_cells: Vec::new(),
             image,
             image_layout: None,
