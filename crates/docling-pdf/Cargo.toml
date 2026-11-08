@@ -3,7 +3,8 @@ name = "docling-pdf"
 description = "PDF/image backend for docling.rs: pure-Rust text layer and page renderer + ONNX layout/table/OCR pipeline."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+# Adobe's CID -> Unicode tables in data/mapping-resources-pdf/ are BSD-3-Clause.
+license = "MIT AND BSD-3-Clause"
 repository.workspace = true
 homepage.workspace = true
 readme.workspace = true
