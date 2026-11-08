@@ -202,6 +202,10 @@ pub struct ConverterOptions {
     /// (docling's `force_full_page_ocr`) — for text layers that exist but lie.
     /// Default `false`.
     pub force_full_page_ocr: Option<bool>,
+    /// OCR only the PDF pages whose text layer a broken font mapping
+    /// produced — control / U+FFFD / private-use characters, mojibake Latin
+    /// (docling's `replace_broken_text_layer`, #1006). Default `false`.
+    pub replace_broken_text_layer: Option<bool>,
     /// Keep every detected picture as a picture: disable the demotion of
     /// uncaptioned dense-text "picture" regions into paragraphs (the escape
     /// hatch for image-extraction workflows, #173). Default `false`.
@@ -556,6 +560,9 @@ pub struct ConvertOptions {
     /// OCR every PDF page even when it carries a text layer (docling's
     /// `force_full_page_ocr`). Default `false`.
     pub force_full_page_ocr: Option<bool>,
+    /// OCR only the pages whose text layer is broken (docling's
+    /// `replace_broken_text_layer`, #1006). Default `false`.
+    pub replace_broken_text_layer: Option<bool>,
     /// Keep every detected picture as a picture: disable text-panel demotion
     /// (#173). Default `false`.
     pub no_text_panels: Option<bool>,
@@ -1706,6 +1713,7 @@ struct WarmPipelineConfig {
     password: Option<String>,
     no_table_former: bool,
     force_full_page_ocr: bool,
+    replace_broken_text_layer: bool,
     no_text_panels: bool,
     heading_hierarchy: bool,
     page_range: Option<(usize, usize)>,
@@ -1751,6 +1759,7 @@ fn warm_pipeline_config(o: &ConverterOptions) -> Result<WarmPipelineConfig> {
         password: s.password.clone(),
         no_table_former: s.no_table_former.unwrap_or(false),
         force_full_page_ocr: s.force_full_page_ocr.unwrap_or(false),
+        replace_broken_text_layer: s.replace_broken_text_layer.unwrap_or(false),
         no_text_panels: s.no_text_panels.unwrap_or(false),
         heading_hierarchy: s.heading_hierarchy.unwrap_or(false),
         page_range: s.page_range().map_err(option_err)?,
@@ -1822,6 +1831,7 @@ impl Pipeline {
             .text_layer_auto(warm.text_layer_only == docling::TextLayerOnly::Auto)
             .no_table_former(warm.no_table_former)
             .force_full_page_ocr(warm.force_full_page_ocr)
+            .replace_broken_text_layer(warm.replace_broken_text_layer)
             .no_text_panels(warm.no_text_panels)
             .heading_hierarchy(docling::HeadingHierarchyOptions::enabled(
                 warm.heading_hierarchy,
@@ -3178,6 +3188,7 @@ mod tests {
                 password: None,
                 no_table_former: false,
                 force_full_page_ocr: false,
+                replace_broken_text_layer: false,
                 no_text_panels: false,
                 heading_hierarchy: false,
                 page_range: None,

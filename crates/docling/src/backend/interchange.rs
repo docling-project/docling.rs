@@ -304,6 +304,7 @@ fn convert_dbf(d: &[u8], doc: &mut DoclingDocument) -> Result<(), ConversionErro
         rows.push(row);
     }
     doc.push(Node::Table(Table {
+        footnotes: Vec::new(),
         rows,
         location: None,
         structure: None,

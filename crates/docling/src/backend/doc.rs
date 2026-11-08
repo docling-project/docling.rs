@@ -3919,6 +3919,7 @@ impl NodeBuilder {
             }
         };
         doc.push(Node::Table(Table {
+            footnotes: Vec::new(),
             rows,
             location: None,
             structure,

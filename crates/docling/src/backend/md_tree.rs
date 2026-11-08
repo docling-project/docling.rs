@@ -557,6 +557,7 @@ impl Walker<'_> {
             parent,
             None,
             TreeKind::Table {
+                footnotes: Vec::new(),
                 table: Table::default(),
                 rich_cells: Vec::new(),
                 captions: Vec::new(),

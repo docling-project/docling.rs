@@ -659,6 +659,7 @@ impl Builder {
             parent,
             None,
             TreeKind::Table {
+                footnotes: Vec::new(),
                 table: tree_table,
                 rich_cells: Vec::new(),
                 captions: Vec::new(),

@@ -1926,6 +1926,7 @@ impl<'a> Walker<'a> {
             parent,
             self.layer,
             TreeKind::Table {
+                footnotes: Vec::new(),
                 table: Table::default(),
                 rich_cells: Vec::new(),
                 captions: caption.into_iter().collect(),

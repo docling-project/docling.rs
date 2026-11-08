@@ -51,7 +51,7 @@ bulk of the porting under review).
 | | |
 |---|---|
 | **What** | A Rust port of docling's converter, backends, and discriminative PDF/ASR pipelines; same `convert → DoclingDocument → export_to_markdown()/json()` shape, single static binary, no Python/torch at runtime |
-| **Conformance** | Declarative formats byte-for-byte vs *live* PyPI docling (most 100%, see §2); `.dclx` DocLang 0.9 output 128/146 byte-exact, 99% mean vs docling 2.148's own `.dclx` (§2); PDF ML path 6/14 fixtures byte-exact, rest close; every optimization is gated on this not regressing |
+| **Conformance** | Declarative formats byte-for-byte vs *live* PyPI docling (most 100%, see §2); `.dclx` DocLang 0.9 output 132/146 byte-exact, 99% mean vs docling 2.148's own `.dclx` (§2); PDF ML path 6/14 fixtures byte-exact, rest close; every optimization is gated on this not regressing |
 | **Performance** | PDF ML pipeline **4.3× faster warm / 4.7× end-to-end** than Python docling at 2.3–2.6× less peak RAM (INT8 + SIMD, conformance-validated); declarative formats 20–60× warm, ~60× less RAM; XLSX sheets / PPTX slides additionally fan out over rayon (~2–3× on many-sheet/slide files, conformance byte-identical); details + methodology in [`PDF_CONFORMANCE.md`](./PDF_CONFORMANCE.md) |
 | **Models** | docling's own checkpoints, no retraining: layout heron and TableFormer are format-converted to ONNX by `scripts/install/export_layout.py` / `export_tableformer.py` (CodeFormula by `export_code_formula.py`); PP-OCRv3 and Whisper tiny ship as their upstream ONNX exports; INT8 variants are calibrated post-training quantizations (`scripts/install/quantize_models.py`) |
 | **Tracking upstream** | See [§9](#9-keeping-up-with-upstream-docling): conformance is measured against the *latest published* docling on demand, so an upstream release that changes output surfaces as a concrete per-fixture diff |
@@ -252,10 +252,10 @@ from 2.142.1 is mostly the inline whitespace contract (#997, § JSON):
 | DeepSeek-OCR Markdown | 3 | **3** | n/a | — (2.129's first-row-only `column_header` for HTML tables ported) |
 | AsciiDoc | 5 | **5** | **5** | — (JSON: docling's `parents`/`indents` tree — title root, headings at their level, nested `list` groups, body-level captions) |
 | LaTeX | 8 | **8** | 7 | docling 2.142's rewrite (docling#4817) ported in full — see § LaTeX. `1706.03762` differs in one `tabular` only: upstream writes a span into the cell's end offsets but leaves `row_span`/`col_span` at 1, here the two agree (a deliberate divergence). Upstream's 213 test-suite inputs (`tests/test_latex`) convert identically too, bar the same span fields (3) and, in Markdown only, the Python repr of a TikZ picture's `meta.code` docling-core prints (8) |
-| JATS | 7 | 1 | 1 | the inline whitespace matches throughout; what is left is upstream's other JATS changes since 2.142 — formatting in table cells (docling#4809), table footnotes (docling#4818), tables published as an image (docling#5078), reference ext-links — and the `elife-56337` one-run footnote (a divergence, § JATS) |
+| JATS | 7 | 2 | **5** | the inline whitespace, image tables, `<term>`s, reference links (#1015) and formatted table cells (#1016) match; what is left is table footnotes (docling#4818) in `pntd.0008301` / `pone.0234687`, and the `elife-56337` one-run footnote in Markdown (a divergence, § JATS) |
 | USPTO | 9 | **9** | **9** | — (JSON: the SAX handlers' `level`/`parents` tree — everything under the title, `ABSTRACT`/`CLAIMS` as level-2 headings holding `paragraph` items, `<heading level>` nesting, table placeholders at `</table>` filled with `XmlTable` cells that list a spanning entry once per covered column; `tables_ipa20180000016` fails in upstream) |
 | WebVTT | 4 | **4** | **4** | per-cue `source` (`kind: track`, start/end seconds, identifier, voice), inherited `formatting`, inline `WebVTT cue span` groups |
-| ODF | 7 | 6 | 6 | `text_document_03`: inline formatting inside table cells is docling#4809, not ported yet (the mirrored HTML groundtruth keeps those three cells' pre-#4809 shape) |
+| ODF | 7 | **7** | 6 | `text_document_03` JSON: its picture's alt text also sits in a `description` annotation, which upstream's groundtruth leaves out (#1016 ported docling#4809's formatted table cells, and the mirrored HTML groundtruth is upstream's own again) |
 | EPUB | 1 | **1** | **1** | — |
 | Email (`.eml`) | 2 | **2** | **2** | — (`.msg` is a docling.rs extension) |
 | iWork Pages | 3 | **3** | **3** | — (the password-protected and nested-dir fixtures fail in upstream) |
@@ -462,7 +462,7 @@ converted once more as that format with a warning.
 #### XLSX
 
 **Backend:** `xlsx.rs` (calamine)\
-**Status:** vs docling 2.142.1 (the mirrored corpus is 2.142.1's): **13/14 exact** Markdown, **JSON structurally identical for 13/14** — `xlsx_02_sample_sales_data` is the 20 date cells PR #4628's number formats print (below), still unmerged upstream
+**Status:** vs docling 2.142.1 (the mirrored corpus is 2.142.1's): **13/14 exact** Markdown, **JSON structurally identical for 13/14** — `xlsx_02_sample_sales_data` was the 20 date cells PR #4628's number formats print (below); that PR has since merged upstream (`25cdd57`) and the mirrored groundtruth's cells are now the ones our port prints (#1020; the count was measured against 2.142.1 and is not re-run here)
 
 - docling#4812 (2.142): a chart's data table holds the series of **every plot** of a combination chart (a column + line chart kept only its columns), the top-left cell is the title of its category axis (`col-1`, `Year` in `xlsx_01`/`_03`/`_04`), a date is ISO 8601 (`2012-01-01`, with a time `2012-01-01T12:30:00`) and every cell its value, not its displayed text; a cell-linked chart or axis title reads its cached text, a whole-column range (`$B:$B`) reads the used rows (it lost the chart), each range stops at its sheet's last used row and the table is trimmed and capped at 100,000 cells as the PPTX one is (one `build_chart_table` for both). The cached points of a DOCX/PPTX chart land at their index with the gaps empty, `ptCount` long — they were packed, shifting every value after a gap into the wrong row — and inline `numLit`/`strLit` data is read too. **Limit:** a combination chart's `classification` is its back-most plot's label alone, where docling lists one prediction per plot type (no fixture has one)
 - a threaded comment's `comment_section` group is one child of the body however many messages it holds (it was listed once per message, `xlsx_comments`)
@@ -498,7 +498,9 @@ converted once more as that format with a warning.
   - the built-in `mm-dd-yy` (14) / `m/d/yy h:mm` (22) as ISO
   - everything the PR does not interpret — `"EUR"` and other currency words, plain `#,##0`, `00000`, `[h]:mm:ss`, conditions, other locale markers, `#` optional decimals, scientific — stays `str(value)` as before, so no cell reads worse.
 - The codes come from `xl/styles.xml` + each sheet's `c/@s` (calamine exposes none of this); `.xls` reads the BIFF `FORMAT`/`XF` records and the cells' `ixfe`; `.xlsb` keeps printing raw.
-- Released docling (2.135) still writes `str(value)`, so the 20 date cells of `xlsx_02_sample_sales_data` differ from its groundtruth (`0:00:00`) until #4628 merges; the mirrored groundtruth is left as upstream has it.
+- docling#4628 merged upstream (`25cdd57`): the 20 date cells of `xlsx_02_sample_sales_data` in its refreshed groundtruth (`2024-01-01 0:00:00`, …) are what our port prints, cell for cell (#1020).
+- #1020: an error cell reads as Excel shows it — `#N/A`, `#VALUE!`, `#DIV/0!` (calamine's `Display`, openpyxl's text) — not as calamine's enum variant (`NA`, `Value`, `Div0`).
+- #1020 (docling#5030): the 100,000-cell chart-table cap counts the header row — `MAX / cols - 1` data rows; 1 series × 50,000 points emitted 100,002 cells (shared with PPTX/DOCX charts through `build_chart_table`; the iWork charts already counted it).
 - Fixtures: the issue's `xlsx_number_formats_min.xlsx`/`.xls`, docling#4619's "Order" sheet and the PR's review table (`xlsx_number_formats.xlsx`), a 1904-epoch workbook.
 - No opt-out, as the PR has none
 - Picture alt text (#676): the `descr`/`title` of a picture's non-visual properties is kept as the picture's description with `created_by: alt_text` — in the JSON always, in Markdown/HTML under `picture_alt_text` or strict Markdown (`![alt](…)`, a text line above a placeholder, the `<img alt>`), so the default Markdown is unchanged; MarkItDown prints it, docling drops it.
@@ -537,6 +539,11 @@ converted once more as that format with a warning.
   - the old "body placeholder is a list" default is gone, so the default template's "Section Header" body and any layout or master `buNone` give paragraphs, a master `buAutoNum` numbers the body, and a subtitle takes `otherStyle`'s marker (with it, a centred title can become a list item, as upstream's does)
   - a numbered group starts at its first paragraph's `a:buAutoNum/@startAt` (docling's `_get_auto_number_start`), and a bullet that joins a numbered group renders `N.` by position in Markdown, as docling-core does
   - `crates/docling/tests/data/pptx/list_cascade/` (the reporter's A–H decks plus I–K) matches upstream's Markdown and JSON 11/11
+- #1018 (docling#5122, #4989), ported with upstream's unit tests (`backend/pptx_upstream_unit.rs`: `test_backend_pptx_list_markers.py`, `test_backend_pptx_picture_fill.py`):
+  - a numbered item's marker follows its effective `a:buAutoNum/@type` — the same properties element that made it numbered, paragraph, shape list style, layout or master: `alpha{Lc,Uc}` / `roman{Lc,Uc}` with `Period` / `ParenR` / `ParenBoth` print `a.`, `IV.`, `(C)` (Markdown `- a. Plan`); every other scheme (`arabicParenR`, East Asian, …) keeps `N.`
+  - a `startAt` outside 1..=32767 (`ST_TextBulletStartAtNum`) is ignored and the list starts at 1 — a start of 2000000000 would build ~77M-character letter markers
+  - a `p:sp` filled with a picture (`p:spPr/a:blipFill/a:blip/@r:embed`) is a picture, then its text; a fill that only links (`r:link`), has an empty `r:embed` or points at a missing part adds none, and the text stays
+  - `.ppt`: the PP9 `TextAutoNumberScheme` maps to the same letter / Roman markers (the decimal schemes keep the plain numbering) and the same `startAt` cap applies; the binary reader emits no pictures, so the fill half does not apply there
 - #402: a slide's speaker notes and review comments reach the **JSON** as text items on docling's `notes` content layer (they were parsed all along, but only DocLang rendered them, so a consumer reading JSON alone could not see them)
   - Markdown is unchanged — it serializes the body layer.
 - Each slide is also a `chapter` group named `slide-{0-based}`, as docling writes it, and every slide is recorded as a page sized in EMU, so items carry provenance
@@ -576,6 +583,7 @@ converted once more as that format with a warning.
   - docling#4973: `_CODE_CALL_PATTERN`'s argument runs bounded at 200 characters — the same semantics, checked by a scan behind the unbounded pattern: the `regex` crate ran the counted-repetition pattern ~300× slower on a long paragraph
   - docling#4480: `use_outline_level_for_headings` (default on; `--no-outline-level-headings`, every surface — `docs/OPTIONS.md`) — off, an outline level alone no longer promotes a style that is not named a heading; the `.doc` reader honours it too
   - docling#4366 (`w:bCs` is not bold) was already ported
+  - docling#5123 (#1017): a `w:num`'s `w:lvlOverride` is applied — its `w:lvl` replaces the abstract level (format, `lvlText`, indentation), its `w:startOverride` sets the instance's start when it is an integer in 0..=32767 (docling's `_MAX_START_OVERRIDE`; anything else keeps the level's `w:start`); `test_backend_msword_list_overrides.py` ported, plus a `docx_chain_parity` case
 - docling#4863 (2.142): a sub-list is a child of the list item above it, not of the outer list group — the JSON tree, and with it the HTML export's nested `<ul>` inside its `<li>` (`docx_lists`, `docx_list_blank_spacer`, `docx_list_east_asian_num_fmt`, `unit_test_formatting`, `unit_test_headers_numbered`)
 - docling#4456: a paragraph's numbering is its own `w:pPr/w:numPr` only — reading it from any descendant took the numbering of a paragraph inside an anchored textbox, an empty list item and a stray empty list group after every numbered textbox (`textbox`)
 - docling-core 2.100's list markers: a marker holding any Unicode letter or digit is informative and prints after the bullet (`- 第九条 …`, `- （一） …`, `- ① …`); only ASCII ones did (`docx_list_east_asian_num_fmt`). The Markdown serializer applies docling-core's `orig_list_item_marker_mode=AUTO` rule to every backend's markers (an ODF list without a suffix keeps the model's `1.` marker for it)
@@ -817,7 +825,7 @@ converted once more as that format with a warning.
 #### ODF (odt/ods/odp)
 
 **Backend:** `odf.rs`\
-**Status:** vs docling 2.148.0 (#997): **6/7 exact**, JSON 6/7 — `text_document_03`'s formatted table cells are docling#4809, not ported yet; the runs keep their hyperlink-boundary whitespace (`belief, **Lorem Ipsum…**.`). Before: **7/7 exact**; **JSON: structurally identical to docling 2.129's on 7/7** (`odf_presentation_01` / `_02` against docling 2.142.1, #862)
+**Status:** vs docling 2.148.0 (#997, #1016): **7/7 exact**, JSON 6/7 — `text_document_03`'s formatted table cells (docling#4809) now match; its JSON differs only in its picture's alt text, which we also carry as a `description` annotation and upstream's groundtruth leaves out; the runs keep their hyperlink-boundary whitespace (`belief, **Lorem Ipsum…**.`). Before: **7/7 exact**; **JSON: structurally identical to docling 2.129's on 7/7** (`odf_presentation_01` / `_02` against docling 2.142.1, #862)
 
 - #862 (docling#4869, 2.141): an ODP slide's speaker notes (`<presentation:notes>`) are items on the **notes** layer under the slide's group, after the slide's content — the notes page's text boxes walked like a slide's (headings, paragraphs, lists), its thumbnail and slide-number / date / header / footer placeholders skipped. Exports leave the layer out by default, so the Markdown is unchanged; `odf_presentation_01`'s three notes reach the JSON (docling 2.129 dropped them). Both presentations' groundtruth is refreshed from docling 2.142.1 — besides the notes, its Markdown now repeats a merged cell's text in every slot it spans (docling-core#857), as ours already did, and `_02`'s picture is PIL's newer PNG encoding.
 - #527: `odf_presentation_02`'s JPEG is written as the PNG PIL re-encodes it to — pixel-identical — and the flat nodes carry the package's pictures too, so DocLang names and packages them
@@ -859,16 +867,24 @@ converted once more as that format with a warning.
   - **Beyond docling**, whose ODT backend reads the box as the paragraph's text (`odt_text_box.odt`, its twin's Markdown but for that table)
 - #851: the reader gives the accepted view (its `text:tracked-changes` region skipped, deletions left out)
   - `track_changes=accept` names it, `reject` / `all` are refused (`ConversionError::UnsupportedOption`) rather than answered with it
+- #1016 (docling#4809): a table cell (ODT, ODS, ODP) with a run that has formatting (bold, italic, strike, underline, a script) or a hyperlink is a rich cell, even when it is a typed one-paragraph cell — `text_document_03`'s `**bold**`, `~~strikethrough~~`, `*italic*`, `x`+superscript `2` and `H`+subscript `2`+`O` cells keep their runs (Markdown matches upstream's groundtruth; JSON cell for cell); a span whose style sets no formatting stays plain; a table nested in a rich cell is still flattened to its cells' plain text, as upstream prints it
 
 #### JATS
 
 **Backend:** `jats.rs` (roxmltree)\
-**Status:** vs docling 2.148.0 (#997): **1/7 Markdown exact, JSON 1/7** — the inline whitespace now matches throughout (`*B*. *malayi*`, `(CO2)`); the rest is upstream's other JATS changes since 2.142 (docling#4809, #4818, #5078, reference ext-links). Before, vs docling 2.142.1: **4/7 Markdown exact, 7/7 after whitespace normalization**; **JSON 7/7 structurally identical** — the three `elife-56337` copies differ in how a footnote of one run prints (below)
+**Status:** vs docling 2.148.0 (#997, #1015, #1016): **2/7 Markdown exact, JSON 5/7** — the inline whitespace now matches throughout (`*B*. *malayi*`, `(CO2)`), and so do image tables, reference links and formatted table cells; the rest is table footnotes (docling#4818) in `pntd.0008301` and `pone.0234687`, and the three `elife-56337` copies' one-run footnote in Markdown. Before, vs docling 2.142.1: **4/7 Markdown exact, 7/7 after whitespace normalization**; **JSON 7/7 structurally identical** — the three `elife-56337` copies differ in how a footnote of one run prints (below)
 
 - docling#4826 (2.142): a `<sub-article>`/`<response>` — an eLife decision letter, the author response — converts like a `<sec>`: its body and back matter under a heading with its title, a nested one under the heading of the one that holds it; they were dropped, and the article's own body and back are no longer looked up inside one
 - docling#4361 (2.142): an abstract's `<p>`s are walked as body paragraphs, so their italics, bold, sub- and superscripts stay (`*Yersinia pestis*`, `CO` + subscript `2`) — one text item or inline group per paragraph, where they were one flattened text item; a structured abstract's plain paragraphs come first and are kept beside its sections (they were dropped); a footnote keeps its runs, label and styling (`footnote` items, an inline group when there are several). docling-core joins an inline group's runs with a space, so the Markdown reads `*in vitro* .` and `CO 2` as upstream's does
 - every run's XML line breaks and the indentation around them collapse to one space (`_normalize_xml_line_breaks`), where a line break became a space and kept the indentation after it
 - **Divergence (Markdown):** a footnote of one run prints on its bullet (`- No competing interests declared.`); docling 2.142 prints an empty bullet with the text on the next line, its list item being empty with the text item under it — the JSON is the same
+- #1015 ports three content fixes (docling `bcb3678`):
+  - docling#5078: a `<table-wrap>` holding a `<graphic>` (direct or in `<alternatives>`) and no `<table>` — a table published as an image, as PMC often ships them — is a picture with its label + caption, like a `<fig>`, and its image is embedded under the same `fetch_images` policy; the caption and the table used to vanish together. A wrap with both cells and a graphic stays one table
+  - docling#5177: an inline `<term>` keeps its text (`The <term>PCR</term> step` was `The step`), in headings, paragraphs and captions alike
+  - docling#4813: a `<mixed-citation>` is walked like a paragraph, so an `<ext-link>` keeps its target and `<italic>`/`<bold>` their styling — one run stays a single list item (with its formatting / link), several become an empty list item holding an inline group. Six references in `pntd.0008301`, `pone.0234687` and `ptag100` gain their links, as in upstream's groundtruth
+  - an `<ext-link>`'s scheme and host fold to lower case as pydantic's `AnyUrl` stores them (`http://Srtm.Csi.Cgiar.Org/` → `http://srtm.csi.cgiar.org/`); the link text keeps its case
+  - the runs keep their boundary whitespace (the inline contract), so the Markdown reads `ttps://[www…](…)` as upstream's does
+- #1016 (docling#4809): a table cell with a styled, script, linked or inline-formula run is a `RichTableCell` — its runs in a `rich_cell_group_{T}_{col}_{row}` group under the table (one item, or an inline group), the JSON cell keeping its plain text; a `<p>`/`<list-item>` boundary inside the cell keeps a space; an unmapped tag (`<named-content>`) or a blank script leaves the cell plain. Markdown prints the runs (`*W*. *bancrofti* &amp; mixed`, escaped like body text), DocLang gets them as the cell's content. Every table row of `elife-56337`, `pntd.0008301` and `pone.0234687` now matches upstream's groundtruth, and the rich cells match its JSON cell for cell
 
 - #391 ports docling#4172, unreleased: a **structured abstract** keeps its `<sec>`s — where we flattened every section into one `Title: text` paragraph
   - each a heading one level below the abstract's (`hlevel + 2`, the abstract's being `hlevel + 1`, both with `hlevel` still 0 since the abstract precedes the body walk) with one text item per `<p>`
@@ -1551,12 +1567,14 @@ The `.dclx` DocLang output (§3) is scored against docling's own `.dclx` archive
 with `scripts/conformance/dclx_conformance.sh` — the extracted `document.xml`
 line-diffed, similarity `= 100·(1 − difflines / max_lines)`. Against docling
 2.148's archives (DocLang 0.9, `groundtruth_dclx` regenerated with
-`gen_dclx.py --force`): **128/146 byte-exact, 99% mean over the non-PDF
+`gen_dclx.py --force`): **132/146 byte-exact, 99% mean over the non-PDF
 corpus** (issue #32 target: ≥90%), per source format. What is left: the
-alt-text `<description>` (docx, a divergence above), the spreadsheet and
-slide captions' `<location>` (the flat nodes carry none), JATS's and ODF's
-formatted table cells (docling#4809, the backends' JSON too) and the
-`elife-56337.txt` routing.
+alt-text `<description>` (DOCX and ODF, a divergence above), the
+spreadsheet and slide captions' `<location>` (the flat nodes carry none),
+`xlsx_10`'s in-cell images (docling#5015) and the `elife-56337.txt`
+routing. A float's footnotes ride in a `<group>` with it, after it (the
+port has no provenance to place one above), as `_serialize_floating_satellites`
+writes an unplaced footnote.
 HTML rich table cells (#328) carry their block content — lists, ordered lists,
 nested tables, headings, `<pre>` runs — as `Table::cell_blocks`, so the
 DocLang `<fcel/>` bodies match upstream's `RichTableCell` serialization
@@ -1576,7 +1594,7 @@ fragments as XML.
 
 | Format | `.dclx` exact / similarity | Format | `.dclx` exact / similarity |
 |---|---|---|---|
-| CSV | **9/9**, 100% | JATS | 2/7, 90% |
+| CSV | **9/9**, 100% | JATS | 6/7, 93% |
 | AsciiDoc | **5/5**, 100% | Markdown | **11/11**, 100% |
 | DOCX | 33/38, 99% | LaTeX | **2/2**, 100% |
 | PPTX | 7/8, 99% | HTML | **32/32**, 100% |
@@ -1739,6 +1757,8 @@ pointed at the wrong item).
   - DocLang 0.9 reads and writes the same contract (§ DocLang): the writer serializes the item tree's runs, the only ones that carry their whitespace.
   - One deliberate divergence: a Markdown paragraph that ends in two hard-break spaces right before a table keeps them upstream (`"Line one  "`, a block edge marko leaves untrimmed there); ours trims every block's edges.
 - Reading it back: the `body` tree is walked once per item — a `$ref` reached through two parents (a DAG, 2^n paths on a crafted file) or a cycle renders its subtree once, at the first reference, and nesting stops at 256. docling-core 2.103.1 instead rejects such a file at load (`validate_tree`, #861); converting it is the deliberate divergence — the content is still a document — and a crafted one costs linear time either way. A table declaring more cells than `DOCLING_RS_MAX_TABLE_CELLS` / `_MAX_TOTAL_TABLE_CELLS` is rejected like upstream.
+- A reference reads under either key, `$ref` or `cref` (#1014: docling-core's `RefItem` is `populate_by_name`; upstream fixtures such as `table_footnotes_496.json` are written with `cref` and used to convert to an empty document).
+- Floating items' footnotes (docling-core#675, 2.106; #1009): a table's `footnotes` are `footnote` text items under it, written after it and listed in its `footnotes`; Markdown prints them after the grid, one paragraph each, HTML as `<div class="footnote">` after `</table>` (inside the `<figure>` for a picture; a code item with captions or footnotes is wrapped in a `<figure>` holding its `<figcaption>` and notes), and the hierarchical chunker closes the table's chunk with them (they are among its doc items). `table_footnotes_496.json` matches docling-core 2.106 in Markdown, HTML and chunks. **Divergence:** a docling-JSON input's *picture* or *code* footnotes are read as standalone `footnote` items right after the element — the Markdown is docling's, but the re-exported JSON / HTML no longer link them to the item (the flat picture/code nodes carry no footnote list; no backend of ours produces one).
 
 ### Plain text (`.txt`)
 
@@ -2283,6 +2303,17 @@ These are deliberate or unavoidable divergences, not bugs.
     alone; `full_page` and `layout_regions` both map onto the
     `force_full_page_ocr` machinery (the whole-page vs per-region *detector*
     distinction has no analogue in the det-free PP-OCR recognizer here).
+    **`replace_broken_text_layer`** (docling#4654, #1006; off by default —
+    `--replace-broken-text-layer`, every surface) ports
+    `is_broken_text_layer` check for check and replaces only the page it
+    judges broken with full-page OCR, its `parse_score` zeroed. Two
+    deliberate differences: the text layer here records no rendering mode,
+    so the check reads every cell (docling reads the visible ones) and a
+    replaced page keeps none of its invisible cells (docling merges them
+    back under the OCR) — an invisible layer over a scan is rarely judged
+    broken, and a page that is gets its text from the scan; and with no OCR
+    model to read the page the layer is kept rather than discarded
+    (degradation over failure).
     `ocr_scale` resamples the OCR input from the pipeline's 2.0 px/pt page
     render instead of re-rendering (docling renders natively at
     `72 × scale` dpi, default 3); unset keeps the pinned 144 dpi baseline,

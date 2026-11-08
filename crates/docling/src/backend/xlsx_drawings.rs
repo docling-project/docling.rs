@@ -382,9 +382,12 @@ pub fn build_chart_table(
     if populated == 0 {
         return None;
     }
+    // The header row counts against the cap (docling#5030, #1020): with it,
+    // `num_cols` columns hold at most `MAX / num_cols - 1` data rows. Leaving
+    // it out let 1 series × 50,000 points emit 100,002 cells.
     let num_cols = 1 + columns.len();
-    let rows = if populated * num_cols > MAX_CHART_TABLE_CELLS {
-        (MAX_CHART_TABLE_CELLS / num_cols).max(1)
+    let rows = if (populated + 1) * num_cols > MAX_CHART_TABLE_CELLS {
+        (MAX_CHART_TABLE_CELLS / num_cols).saturating_sub(1).max(1)
     } else {
         populated
     };
@@ -444,6 +447,7 @@ pub fn chart_table(
         r[0] = true;
     }
     Some(docling_core::Table {
+        footnotes: Vec::new(),
         rows,
         location: None,
         structure: Some(docling_core::TableStructure {
@@ -738,6 +742,46 @@ fn format_comment_time(raw: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn points(n: usize) -> (Vec<String>, Vec<String>) {
+        (
+            (0..n).map(|i| format!("c{i}")).collect(),
+            (0..n).map(|i| i.to_string()).collect(),
+        )
+    }
+
+    /// docling#5030's `test_chart_data_table_capped_at_max_cells` (#1020):
+    /// 60k points in 2 series are cut so the header row fits under the cap —
+    /// 3 columns hold `MAX / 3 - 1` data rows.
+    #[test]
+    fn chart_data_table_capped_at_max_cells() {
+        let (categories, values) = points(60_000);
+        let table = build_chart_table(
+            categories,
+            vec![("s1".into(), values.clone()), ("s2".into(), values)],
+            String::new(),
+        )
+        .unwrap();
+        let capped = MAX_CHART_TABLE_CELLS / 3 - 1;
+        assert_eq!(table.rows[0].len(), 3);
+        assert_eq!(table.rows.len(), capped + 1);
+        assert!(table.rows.len() * 3 <= MAX_CHART_TABLE_CELLS);
+        assert_eq!(table.rows[1][0], "c0");
+        assert_eq!(table.rows[capped][0], format!("c{}", capped - 1));
+    }
+
+    /// docling#5030's `test_chart_data_table_cap_reached_exactly`: 1 series
+    /// × 50k points is 100,002 cells with the header row — capped to exactly
+    /// `MAX` cells, where the data-rows-only check let it through.
+    #[test]
+    fn chart_data_table_cap_reached_exactly() {
+        let (categories, values) = points(50_000);
+        let table =
+            build_chart_table(categories, vec![("s1".into(), values)], String::new()).unwrap();
+        assert_eq!(table.rows[0].len(), 2);
+        assert_eq!(table.rows.len(), MAX_CHART_TABLE_CELLS / 2);
+        assert_eq!(table.rows.len() * 2, MAX_CHART_TABLE_CELLS);
+    }
 
     /// #405: a chart *sheet* anchors its chart with `<absoluteAnchor>` — no
     /// cell range — which docling's `_anchor_to_tuple` maps to `(0, 0, 0, 0)`.

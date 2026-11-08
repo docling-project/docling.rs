@@ -152,8 +152,10 @@ impl<'t> Ser<'t> {
     fn new(tree: &'t ItemTree, pictures: Pictures) -> Self {
         let n = tree.items.len();
         let mut caption = vec![false; n];
+        // `_satellites_of_some_item`: captions and footnotes alike — a
+        // float serializes them itself.
         for it in &tree.items {
-            for &c in captions_of(&it.kind) {
+            for &c in captions_of(&it.kind).iter().chain(&footnotes_of(it)) {
                 caption[c] = true;
             }
         }
@@ -248,12 +250,21 @@ impl<'t> Ser<'t> {
             TreeKind::Text { .. } | TreeKind::Code { .. } => {
                 if self.caption[id] {
                     String::new()
+                } else if matches!(item.kind, TreeKind::Code { .. }) && !inline {
+                    let host = self.text(id, inline);
+                    self.with_footnotes(id, host)
                 } else {
                     self.text(id, inline)
                 }
             }
-            TreeKind::Table { .. } => self.table(id),
-            TreeKind::Picture { .. } => self.picture(id),
+            TreeKind::Table { .. } => {
+                let host = self.table(id);
+                self.with_footnotes(id, host)
+            }
+            TreeKind::Picture { .. } => {
+                let host = self.picture(id);
+                self.with_footnotes(id, host)
+            }
             // `DocLangKeyValueSerializer` writes nothing; a field region never
             // gets here (`export` declines the tree).
             TreeKind::KeyValueGraph { .. } | TreeKind::FieldRegion { .. } => String::new(),
@@ -415,9 +426,17 @@ impl<'t> Ser<'t> {
     /// `serialize_captions`: each caption as a `<caption>` satellite — its
     /// head, its own text, then its children (an inline group of runs).
     fn captions(&mut self, id: usize) -> String {
+        let caps = captions_of(&self.tree.items[id].kind).to_vec();
+        self.satellites(&caps, "caption")
+    }
+
+    /// `_serialize_satellite` for each of `ids`: a `<caption>` or
+    /// `<footnote>` holding the item's head, its own text, then its
+    /// children.
+    fn satellites(&mut self, ids: &[usize], tag: &str) -> String {
         let tree = self.tree;
         let mut out = String::new();
-        for &c in captions_of(&tree.items[id].kind) {
+        for &c in ids {
             let TreeKind::Text { text, .. } = &tree.items[c].kind else {
                 continue;
             };
@@ -429,10 +448,27 @@ impl<'t> Ser<'t> {
                 s.push_str(&self.serialize(child, false));
             }
             if !s.is_empty() {
-                out.push_str(&wrap(&s, "caption"));
+                out.push_str(&wrap(&s, tag));
             }
         }
         out
+    }
+
+    /// `_serialize_floating_satellites`: a float with footnotes is wrapped
+    /// with them in a `<group>` so they re-attach on reading. Without
+    /// provenance a footnote's place is undetermined, which upstream puts
+    /// after the host.
+    fn with_footnotes(&mut self, id: usize, host: String) -> String {
+        let notes = footnotes_of(&self.tree.items[id]);
+        if notes.is_empty() {
+            return host;
+        }
+        let notes = self.satellites(&notes, "footnote");
+        if notes.is_empty() {
+            host
+        } else {
+            wrap(&format!("{host}{notes}"), "group")
+        }
     }
 
     /// `DocLangTextSerializer._serialize_single_item`.
@@ -763,6 +799,16 @@ fn picture_label(kind: &TreeKind) -> Option<&str> {
 
 fn is_list_label(label: &str) -> bool {
     matches!(label, "list" | "ordered_list")
+}
+
+/// A float's footnotes: a table's own list, a picture's or code item's
+/// [`crate::tree::TreeItem::footnotes`].
+fn footnotes_of(item: &crate::tree::TreeItem) -> Vec<usize> {
+    match &item.kind {
+        TreeKind::Table { footnotes, .. } => footnotes.clone(),
+        TreeKind::Picture { .. } | TreeKind::Code { .. } => item.footnotes.clone(),
+        _ => Vec::new(),
+    }
 }
 
 fn captions_of(kind: &TreeKind) -> &[usize] {

@@ -1054,6 +1054,11 @@ pub struct Table {
     /// pipeline's caption layout region, written as the caption item's
     /// `prov` (#609); see [`Node::Picture`]'s field of the same name.
     pub caption_location: Option<[u16; 4]>,
+    /// The table's footnotes (docling's `TableItem.footnotes`, #1009): one
+    /// text each, escaped like [`Self::caption`]. Markdown prints them after
+    /// the grid, one paragraph each; JSON emits `footnote` text items under
+    /// the table that its `footnotes` list references (docling-core#675).
+    pub footnotes: Vec<String>,
     /// Optional per-cell bounding boxes, same shape as [`Self::rows`]: `[l, t,
     /// r, b]` in page points with a **top-left** origin (the PDF pipeline's
     /// native space). Set by the ML pipeline's TableFormer paths — a spanned

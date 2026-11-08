@@ -1,7 +1,7 @@
 | name   | photo   |   price | stock   |
 |--------|---------|---------|---------|
-| apple  | Value   |     100 | NA      |
-| pear   | Value   |     200 | 7       |
+| apple  | #VALUE! |     100 | #N/A    |
+| pear   | #VALUE! |     200 | 7       |
 
-| Value   |
-|---------|
+| #VALUE!   |
+|-----------|

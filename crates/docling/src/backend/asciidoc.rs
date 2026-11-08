@@ -1092,6 +1092,7 @@ impl Parser<'_> {
                 })
                 .collect();
             let table = Table {
+                footnotes: Vec::new(),
                 rows,
                 location: None,
                 structure: None,
@@ -1127,6 +1128,7 @@ impl Parser<'_> {
                 parent,
                 None,
                 TreeKind::Table {
+                    footnotes: Vec::new(),
                     table: Table {
                         cells: Some(cells),
                         ..table.clone()

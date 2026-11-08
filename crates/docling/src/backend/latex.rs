@@ -635,6 +635,7 @@ impl Builder {
             parent,
             None,
             TreeKind::Table {
+                footnotes: Vec::new(),
                 table,
                 rich_cells: Vec::new(),
                 captions: Vec::new(),
@@ -878,6 +879,7 @@ impl Flat<'_> {
                 table,
                 rich_cells,
                 captions,
+                ..
             } => {
                 let mut flat = table.clone();
                 if let Some(cells) = &mut flat.cells {
@@ -2652,6 +2654,7 @@ impl Converter {
         let grid = table_grid(&cells, &vec![vec![String::new(); num_cols]; num_rows]);
         Some(ParsedTable {
             table: Table {
+                footnotes: Vec::new(),
                 rows: grid,
                 location: None,
                 structure: None,

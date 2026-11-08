@@ -895,6 +895,7 @@ fn parse_table(el: XmlNode) -> Option<Table> {
         .map(|k| pad(k).iter().map(|c| *c == CellKind::RowHeader).collect())
         .collect();
     Some(Table {
+        footnotes: Vec::new(),
         rows,
         location: None,
         structure: Some(TableStructure {
@@ -1097,11 +1098,17 @@ fn push_float(
                 .children()
                 .find(|c| c.has_tag_name("layer"))
                 .and_then(parse_layer);
-            if let Some(mut table) = parse_table(host) {
-                table.caption = caption;
-                push_with_layer(out, layer, Node::Table(table));
+            // A table's footnotes ride on it (`Table::footnotes`, which the
+            // Markdown prints after the grid and the chunker keeps in the
+            // table's chunk, docling-core#675).
+            match parse_table(host) {
+                Some(mut table) => {
+                    table.caption = caption;
+                    table.footnotes = footnotes.clone();
+                    push_with_layer(out, layer, Node::Table(table));
+                }
+                None => notes(out),
             }
-            notes(out);
         }
     }
 }

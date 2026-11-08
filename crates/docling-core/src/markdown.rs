@@ -1238,6 +1238,11 @@ fn render_item(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
             if !rendered.is_empty() {
                 blocks.push(rendered);
             }
+            // docling-core#675: the footnotes follow the grid, one paragraph
+            // each (`serialize_footnotes` with a `\n\n` delimiter).
+            for note in table.footnotes.iter().filter(|n| !n.is_empty()) {
+                blocks.push(ctx.text(note));
+            }
         }
         // Classification predictions don't affect docling's Markdown output;
         // a description (the picture-OCR text, #645) prints between the
@@ -2263,6 +2268,7 @@ mod tests {
         // the padded GitHub serializer (covered by the regression fixtures).
         doc.compact_tables = true;
         doc.push(Node::Table(Table {
+            footnotes: Vec::new(),
             rows: vec![vec!["a".into(), "b".into()], vec!["1".into(), "2".into()]],
             location: None,
             structure: None,
@@ -2280,6 +2286,7 @@ mod tests {
     fn renders_padded_github_table_by_default() {
         let mut doc = DoclingDocument::new("t");
         doc.push(Node::Table(Table {
+            footnotes: Vec::new(),
             rows: vec![vec!["a".into(), "b".into()], vec!["1".into(), "2".into()]],
             location: None,
             structure: None,
@@ -2402,6 +2409,7 @@ mod tests {
             pretty: None,
         });
         doc.push(Node::Table(Table {
+            footnotes: Vec::new(),
             rows: vec![vec!["a".into(), "b".into()], vec!["1".into(), "2".into()]],
             location: None,
             structure: None,

@@ -1304,16 +1304,16 @@ impl Builder<'_> {
             (otsl, captions, footnotes)
         };
         let Some(otsl) = otsl else {
-            let t = self.tree.add(
+            self.tree.add(
                 parent,
                 None,
                 TreeKind::Table {
+                    footnotes,
                     table: empty_table(),
                     rich_cells: Vec::new(),
                     captions,
                 },
             );
-            self.tree.items[t].footnotes = footnotes;
             return;
         };
         let (head, body) = split_head_body(otsl);
@@ -1323,6 +1323,7 @@ impl Builder<'_> {
             parent,
             layer,
             TreeKind::Table {
+                footnotes: Vec::new(),
                 table: empty_table(),
                 rich_cells: Vec::new(),
                 captions: captions.clone(),
@@ -1360,11 +1361,11 @@ impl Builder<'_> {
         }
         let table = table_from_cells(table_cells, num_rows, num_cols);
         self.tree.items[tbl].kind = TreeKind::Table {
+            footnotes,
             table,
             rich_cells,
             captions,
         };
-        self.tree.items[tbl].footnotes = footnotes;
     }
 
     /// `_otsl_parse_texts`: cells from the token stream — spans counted from
@@ -1763,6 +1764,7 @@ fn is_simple_virtual_text(nodes: &[XmlNode]) -> bool {
 
 fn empty_table() -> Table {
     Table {
+        footnotes: Vec::new(),
         rows: Vec::new(),
         location: None,
         structure: None,
@@ -1789,6 +1791,7 @@ pub(super) fn table_from_cells(cells: Vec<TableCell>, num_rows: usize, num_cols:
         }
     }
     Table {
+        footnotes: Vec::new(),
         rows,
         location: None,
         structure: None,

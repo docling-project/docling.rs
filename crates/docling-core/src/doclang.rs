@@ -733,6 +733,22 @@ fn emit_table(out: &mut Out, depth: i32, table: &Table) {
     }
     emit_table_rows(out, depth, table);
     out.push(depth, "</table>".to_string());
+    // `_serialize_floating_satellites`: a table with footnotes is wrapped
+    // with them in a `<group>`, the footnotes after it (the flat nodes do
+    // not place them by layout). The post-processing lays the group out.
+    let notes: Vec<&String> = table.footnotes.iter().filter(|n| !n.is_empty()).collect();
+    if !notes.is_empty() {
+        let at = out
+            .lines
+            .iter()
+            .rposition(|(d, line)| *d == depth && line == "<table>")
+            .unwrap_or(0);
+        out.lines.insert(at, (depth, "<group>".to_string()));
+        for note in notes {
+            out.push(depth, format!("<footnote>{}</footnote>", escape_text(note)));
+        }
+        out.push(depth, "</group>".to_string());
+    }
 }
 
 /// A chart — docling's `PictureItem` with a tabular chart-data annotation:

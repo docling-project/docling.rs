@@ -863,16 +863,51 @@ impl<'a> Serializer<'a> {
                 };
             }
         }
-        // A code item is a floating item: its captions and footnotes put it
-        // in a `<figure>` (`<figcaption>` is only valid there).
+        // A code item is docling's one floating text item (docling-core#675):
+        // its captions, then its footnotes, follow the code, and either wraps
+        // the whole in a `<figure>` — `<figcaption>` is only valid there.
         if is_code {
             let cap = self.captions(item, "figcaption");
-            let ftn = self.footnotes(item);
-            if !cap.is_empty() || !ftn.is_empty() {
-                text = format!("<figure>{text}{cap}{ftn}</figure>");
+            let notes = self.footnotes(item);
+            if !cap.is_empty() || !notes.is_empty() {
+                text = format!("<figure>{text}{cap}{notes}</figure>");
             }
         }
         text
+    }
+
+    /// docling-core#675's `serialize_footnotes`: one `<div class="footnote">`
+    /// per footnote text item the floating item lists, its text escaped.
+    fn footnotes(&mut self, item: &'a Value) -> String {
+        let mut out = String::new();
+        for r in item
+            .get("footnotes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let Some(note) = r
+                .get("$ref")
+                .and_then(Value::as_str)
+                .and_then(|c| self.resolve(c))
+            else {
+                continue;
+            };
+            if !Self::self_ref(note).starts_with("#/texts/") || self.excluded(note) {
+                continue;
+            }
+            let text = Self::text(note);
+            let dir = if text_direction(text) == "rtl" {
+                " dir=\"rtl\""
+            } else {
+                ""
+            };
+            out.push_str(&format!(
+                "<div class=\"footnote\"{dir}>{}</div>",
+                escape(text, true)
+            ));
+        }
+        out
     }
 
     /// Upstream's `_process_formula`: `latex2mathml` (see [`crate::mathml`])
@@ -978,41 +1013,6 @@ impl<'a> Serializer<'a> {
         }
     }
 
-    /// Upstream's `serialize_footnotes` (docling-core#675): each of a
-    /// floating item's footnotes as `<div class="footnote">` — its own text,
-    /// escaped, `dir="rtl"` when it reads right-to-left.
-    fn footnotes(&self, item: &'a Value) -> String {
-        let mut out = String::new();
-        for r in item
-            .get("footnotes")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-        {
-            let Some(ftn) = r
-                .get("$ref")
-                .and_then(Value::as_str)
-                .and_then(|c| self.resolve(c))
-            else {
-                continue;
-            };
-            if !Self::self_ref(ftn).starts_with("#/texts/") || self.excluded(ftn) {
-                continue;
-            }
-            let text = Self::text(ftn);
-            let dir = if text_direction(text) == "rtl" {
-                " dir=\"rtl\""
-            } else {
-                ""
-            };
-            out.push_str(&format!(
-                "<div class=\"footnote\"{dir}>{}</div>",
-                escape(text, true)
-            ));
-        }
-        out
-    }
-
     /// docling's `TableData.grid`: every position holds the cell covering it,
     /// and a position no cell covers holds an empty one-by-one placeholder
     /// (upstream fills the grid with empty `TableCell`s first), which the
@@ -1062,7 +1062,8 @@ impl<'a> Serializer<'a> {
         } else {
             format!("<table>{text}</table>")
         };
-        format!("{table}{}", self.footnotes(item))
+        // docling-core#675: the footnotes follow the table.
+        table + &self.footnotes(item)
     }
 
     /// The `<tr>` rows of a `TableData` (shared with the tabular-chart meta).
@@ -1163,7 +1164,11 @@ impl<'a> Serializer<'a> {
         if !meta.is_empty() {
             res_parts.push(meta);
         }
-        res_parts.push(self.footnotes(item));
+        // docling-core#675: the footnotes close the figure.
+        let notes = self.footnotes(item);
+        if !notes.is_empty() {
+            res_parts.push(notes);
+        }
         let text = res_parts.concat();
         if text.is_empty() {
             String::new()
@@ -1536,6 +1541,46 @@ impl<'a> Serializer<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1009 (docling-core#675): a picture's footnotes close its `<figure>`;
+    /// a code item with a caption or footnote is wrapped in a `<figure>`
+    /// with its `<figcaption>` and notes after the code. Expected strings are
+    /// docling-core 2.106's `export_to_html()` of the same document.
+    #[test]
+    fn floating_items_render_their_footnotes() {
+        let json: Value = serde_json::from_str(
+            r##"{"name":"t","body":{"self_ref":"#/body","children":[
+                {"$ref":"#/pictures/0"},{"$ref":"#/texts/1"},{"$ref":"#/texts/2"},
+                {"$ref":"#/tables/0"}],"content_layer":"body","label":"unspecified"},
+            "groups":[],
+            "texts":[
+              {"self_ref":"#/texts/0","parent":{"$ref":"#/pictures/0"},"children":[],"content_layer":"body","label":"footnote","text":"Source: a & b"},
+              {"self_ref":"#/texts/1","parent":{"$ref":"#/body"},"children":[],"content_layer":"body","label":"caption","text":"Figure 1"},
+              {"self_ref":"#/texts/2","parent":{"$ref":"#/body"},"children":[{"$ref":"#/texts/3"},{"$ref":"#/texts/4"}],"content_layer":"body","label":"code","text":"x = 1",
+               "captions":[{"$ref":"#/texts/3"}],"footnotes":[{"$ref":"#/texts/4"}],"code_language":"unknown"},
+              {"self_ref":"#/texts/3","parent":{"$ref":"#/texts/2"},"children":[],"content_layer":"body","label":"caption","text":"Listing 1"},
+              {"self_ref":"#/texts/4","parent":{"$ref":"#/texts/2"},"children":[],"content_layer":"body","label":"footnote","text":"Runs in O(1)."},
+              {"self_ref":"#/texts/5","parent":{"$ref":"#/tables/0"},"children":[],"content_layer":"body","label":"footnote","text":"*Note: 'Pending' awaits review."}],
+            "pictures":[{"self_ref":"#/pictures/0","parent":{"$ref":"#/body"},"children":[{"$ref":"#/texts/0"}],"content_layer":"body","label":"picture",
+               "captions":[{"$ref":"#/texts/1"}],"footnotes":[{"$ref":"#/texts/0"}],"annotations":[]}],
+            "tables":[{"self_ref":"#/tables/0","parent":{"$ref":"#/body"},"children":[{"$ref":"#/texts/5"}],"content_layer":"body","label":"table",
+               "captions":[],"footnotes":[{"$ref":"#/texts/5"}],
+               "data":{"num_rows":1,"num_cols":1,"table_cells":[{"text":"x","start_row_offset_idx":0,"end_row_offset_idx":1,"start_col_offset_idx":0,"end_col_offset_idx":1,"row_span":1,"col_span":1,"column_header":false,"row_header":false,"row_section":false}]}}]}"##,
+        )
+        .unwrap();
+        let options = HtmlExportOptions::default();
+        let mut ser = Serializer::new(&json, &options);
+        let body = ser.serialize_body();
+        assert_eq!(
+            body,
+            "<figure><figcaption><div class=\"caption\">Figure 1</div></figcaption>\
+             <div class=\"footnote\">Source: a &amp; b</div></figure>\n\
+             <figure><pre><code>x = 1</code></pre><figcaption><div class=\"caption\">Listing 1</div>\
+             </figcaption><div class=\"footnote\">Runs in O(1).</div></figure>\n\
+             <table><tbody><tr><td>x</td></tr></tbody></table>\
+             <div class=\"footnote\">*Note: &#x27;Pending&#x27; awaits review.</div>"
+        );
+    }
 
     #[test]
     fn escape_matches_python_html_escape() {

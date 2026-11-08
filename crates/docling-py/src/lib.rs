@@ -269,6 +269,8 @@ struct PyDocumentConverter {
     /// transient `inner` path reads them off the converter instead). Parsed /
     /// validated in `new`, so they hold engine values, not raw strings.
     force_full_page_ocr: bool,
+    /// OCR only the pages whose text layer is broken (#1006).
+    replace_broken_text_layer: bool,
     ocr_lang: Option<docling::OcrLang>,
     ocr_engine: Option<docling::OcrEngine>,
     /// Tesseract's `-l` argument from `ocr_lang` when the engine is Tesseract.
@@ -320,6 +322,10 @@ impl PyDocumentConverter {
     ///   pipeline — OCR included — when it does not).
     /// * `force_full_page_ocr` — OCR every PDF page even when it carries a
     ///   text layer (docling's `force_full_page_ocr`); ignored when
+    ///   `do_ocr=False`.
+    /// * `replace_broken_text_layer` — OCR only the PDF pages whose text
+    ///   layer a broken font mapping produced (docling's
+    ///   `OcrOptions.replace_broken_text_layer`, #1006); ignored when
     ///   `do_ocr=False`.
     /// * `do_table_structure` — recover table structure with TableFormer
     ///   (docling's `do_table_structure`).
@@ -480,6 +486,7 @@ impl PyDocumentConverter {
         min_image_bytes = None,
         do_ocr = true,
         force_full_page_ocr = false,
+        replace_broken_text_layer = false,
         do_table_structure = true,
         no_text_panels = false,
         heading_hierarchy = false,
@@ -563,6 +570,7 @@ impl PyDocumentConverter {
         min_image_bytes: Option<u64>,
         do_ocr: bool,
         force_full_page_ocr: bool,
+        replace_broken_text_layer: bool,
         do_table_structure: bool,
         no_text_panels: bool,
         heading_hierarchy: bool,
@@ -683,6 +691,7 @@ impl PyDocumentConverter {
             no_ocr: Some(!do_ocr),
             password: password.clone(),
             force_full_page_ocr: Some(force_full_page_ocr),
+            replace_broken_text_layer: Some(replace_broken_text_layer),
             no_table_former: Some(!do_table_structure),
             no_text_panels: Some(no_text_panels),
             heading_hierarchy: Some(heading_hierarchy),
@@ -771,6 +780,7 @@ impl PyDocumentConverter {
             heading_hierarchy,
             enrich: opts.enrichments(),
             force_full_page_ocr,
+            replace_broken_text_layer,
             // The typed values the warm pipeline is primed with in
             // `initialize_pipeline` (the transient `inner` path reads the
             // strings off the converter instead).
@@ -815,6 +825,7 @@ impl PyDocumentConverter {
         let heading_hierarchy = self.heading_hierarchy;
         let enrich = self.enrich;
         let force_full_page_ocr = self.force_full_page_ocr;
+        let replace_broken_text_layer = self.replace_broken_text_layer;
         let ocr_lang = self.ocr_lang;
         let ocr_engine = self.ocr_engine;
         let tesseract_lang = self.tesseract_lang.clone();
@@ -841,6 +852,7 @@ impl PyDocumentConverter {
                     // page window on the floor (#254) — prime it with the full
                     // option set the transient path honors.
                     .force_full_page_ocr(force_full_page_ocr)
+                    .replace_broken_text_layer(replace_broken_text_layer)
                     .ocr_lang(ocr_lang)
                     .ocr_engine(ocr_engine)
                     .tesseract_lang(tesseract_lang)

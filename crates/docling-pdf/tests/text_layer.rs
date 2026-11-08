@@ -222,3 +222,110 @@ trailer\n<< /Size 6 /Root 1 0 R >>\n%%EOF\n";
     let digital = convert(true);
     assert!(digital.confidence.as_ref().unwrap().ocr_cells(1).is_empty());
 }
+
+/// A one-page PDF drawing English prose in Helvetica whose `/ToUnicode` map
+/// moves every letter by three code points — the broken font mapping
+/// docling#4654's `replace_broken_text_layer` targets (#1006): the page shows
+/// "The quarterly report…", its text layer reads "Wkh txduwhuo|…".
+fn shifted_tounicode_pdf() -> Vec<u8> {
+    let line = "The quarterly report shows that revenue increased across regions";
+    let mut ops = String::from("BT /F1 11 Tf 14 TL 40 760 Td\n");
+    for _ in 0..12 {
+        ops.push_str(&format!("({line}) Tj T*\n"));
+    }
+    ops.push_str("ET");
+    let cmap = "/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n\
+/CMapName /Shift def 1 begincodespacerange <00> <FF> endcodespacerange\n\
+2 beginbfrange <41> <5A> <0044> <61> <7A> <0064> endbfrange\n\
+endcmap CMapName currentdict /CMap defineresource pop end end";
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
+         /Resources << /Font << /F1 5 0 R >> >> >>"
+            .to_string(),
+        format!("<< /Length {} >>\nstream\n{ops}\nendstream", ops.len() + 1),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /ToUnicode 6 0 R >>".to_string(),
+        format!(
+            "<< /Length {} >>\nstream\n{cmap}\nendstream",
+            cmap.len() + 1
+        ),
+    ];
+    let mut out = b"%PDF-1.4\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in objects.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref = out.len();
+    out.extend_from_slice(
+        format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes(),
+    );
+    for o in offsets {
+        out.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+            objects.len() + 1
+        )
+        .as_bytes(),
+    );
+    out
+}
+
+/// #1006: the text layer of the shifted-ToUnicode page reads as moved
+/// letters, and the detector judges it broken on exactly the cells the
+/// pipeline extracts — no models needed.
+#[test]
+fn shifted_tounicode_text_layer_is_judged_broken() {
+    let pdf = shifted_tounicode_pdf();
+    let md = docling_pdf::convert_text_layer(&pdf, "shifted.pdf")
+        .expect("text-layer conversion")
+        .export_to_markdown();
+    assert!(md.contains("Wkh txduwhuo"), "{md}");
+    assert!(docling_pdf::quality::is_broken_text_layer(&md), "{md}");
+    // The same page with its real text is kept.
+    assert!(!docling_pdf::quality::is_broken_text_layer(
+        &"The quarterly report shows that revenue increased across regions\n".repeat(12)
+    ));
+}
+
+/// #1006 end to end: with `replace_broken_text_layer` the broken page is
+/// OCR'd (its drawn words come back) and its `parse_score` is 0; without
+/// it the page keeps its (moved) text layer. Needs the layout + OCR models.
+#[test]
+fn broken_text_layer_is_replaced_by_ocr() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    if !root.join(".models/ocr_det.onnx").exists()
+        || !(root.join(".models/layout_heron.onnx").exists()
+            || root.join(".models/layout_heron_int8.onnx").exists())
+    {
+        eprintln!("skip: OCR/layout models not present");
+        return;
+    }
+    // Model resolution is CWD-relative; tests run from the crate dir.
+    std::env::set_current_dir(&root).expect("chdir to repo root");
+    let pdf = shifted_tounicode_pdf();
+    let convert = |replace: bool| {
+        docling_pdf::Pipeline::new()
+            .expect("pipeline")
+            .no_table_former(true)
+            .replace_broken_text_layer(replace)
+            .convert(&pdf, None, "shifted.pdf")
+            .expect("conversion")
+    };
+    let kept = convert(false);
+    assert!(kept.export_to_markdown().contains("Wkh txduwhuo"));
+    let parse = |d: &docling_core::DoclingDocument| {
+        d.confidence.as_ref().expect("confidence").pages[&1].parse_score
+    };
+    assert!(parse(&kept).is_some_and(|s| s > 0.0));
+
+    let replaced = convert(true);
+    let md = replaced.export_to_markdown();
+    // OCR reads the drawn words (its word spacing varies with the host font that stands in for the non-embedded Helvetica).
+    assert!(md.contains("quar") && md.contains("hat"), "{md}");
+    assert!(!md.contains("Wkh txduwhuo"), "{md}");
+    assert_eq!(parse(&replaced), Some(0.0));
+}
