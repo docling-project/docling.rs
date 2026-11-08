@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "inline_formatting_in_paragraphs",
   "origin": {
     "mimetype": "text/asciidoc",
@@ -98,8 +98,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Some",
-      "text": "Some"
+      "orig": "Some ",
+      "text": "Some "
     },
     {
       "self_ref": "#/texts/1",
@@ -129,8 +129,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ",",
-      "text": ","
+      "orig": ", ",
+      "text": ", "
     },
     {
       "self_ref": "#/texts/3",
@@ -160,8 +160,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and",
-      "text": "and"
+      "orig": " and ",
+      "text": " and "
     },
     {
       "self_ref": "#/texts/5",
@@ -188,8 +188,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "text, with",
-      "text": "text, with"
+      "orig": " text, with ",
+      "text": " text, with "
     },
     {
       "self_ref": "#/texts/7",
@@ -250,8 +250,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and snake_case_name and 2*3*4.",
-      "text": "and snake_case_name and 2*3*4."
+      "orig": " and snake_case_name and 2*3*4.",
+      "text": " and snake_case_name and 2*3*4."
     },
     {
       "self_ref": "#/texts/11",

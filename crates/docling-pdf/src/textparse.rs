@@ -1457,6 +1457,8 @@ impl PageTextParser {
             rotation: 0,
             keep_typography: self.keep_typography,
             #[cfg(feature = "render")]
+            embedded_images: Vec::new(),
+            #[cfg(feature = "render")]
             pending_image: None,
         }
     }

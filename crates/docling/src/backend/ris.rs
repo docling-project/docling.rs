@@ -147,6 +147,8 @@ impl DeclarativeBackend for RisBackend {
         // serializer over the tree, #884): formatting runs and the section
         // groups reach it as they reach the JSON.
         tree.doclang = true;
+        // The runs keep their own whitespace (schema 1.11.0, #997).
+        tree.inline_whitespace = true;
         collect_blocks(root, &b.el_of, &mut tree);
         doc.nodes = b.nodes;
         doc.tree = Some(tree);

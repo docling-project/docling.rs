@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "cookbook_chicken_tikka-wikibooks",
   "origin": {
     "mimetype": "text/plain",
@@ -3277,8 +3277,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Cookbook",
-      "text": "Cookbook",
+      "orig": "Cookbook ",
+      "text": "Cookbook ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Table_of_Contents"
     },
     {
@@ -3290,8 +3290,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "|",
-      "text": "|"
+      "orig": "| ",
+      "text": "| "
     },
     {
       "self_ref": "#/texts/108",
@@ -3302,8 +3302,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Recipes",
-      "text": "Recipes",
+      "orig": "Recipes ",
+      "text": "Recipes ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Recipes"
     },
     {
@@ -3315,8 +3315,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "|",
-      "text": "|"
+      "orig": "| ",
+      "text": "| "
     },
     {
       "self_ref": "#/texts/110",
@@ -3327,8 +3327,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Ingredients",
-      "text": "Ingredients",
+      "orig": "Ingredients ",
+      "text": "Ingredients ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Ingredients"
     },
     {
@@ -3340,8 +3340,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "|",
-      "text": "|"
+      "orig": "| ",
+      "text": "| "
     },
     {
       "self_ref": "#/texts/112",
@@ -3352,8 +3352,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Equipment",
-      "text": "Equipment",
+      "orig": "Equipment ",
+      "text": "Equipment ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Equipment"
     },
     {
@@ -3365,8 +3365,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "|",
-      "text": "|"
+      "orig": "| ",
+      "text": "| "
     },
     {
       "self_ref": "#/texts/114",
@@ -3377,8 +3377,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Techniques",
-      "text": "Techniques",
+      "orig": "Techniques ",
+      "text": "Techniques ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Cooking_Techniques"
     },
     {
@@ -3390,8 +3390,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "|",
-      "text": "|"
+      "orig": "| ",
+      "text": "| "
     },
     {
       "self_ref": "#/texts/116",
@@ -3402,8 +3402,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Cookbook Disambiguation Pages",
-      "text": "Cookbook Disambiguation Pages",
+      "orig": "Cookbook Disambiguation Pages ",
+      "text": "Cookbook Disambiguation Pages ",
       "hyperlink": "https://en.wikibooks.org/wiki/Category:Cookbook_disambiguation_pages"
     },
     {
@@ -3415,8 +3415,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "|",
-      "text": "|"
+      "orig": "| ",
+      "text": "| "
     },
     {
       "self_ref": "#/texts/118",
@@ -3427,8 +3427,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Recipes",
-      "text": "Recipes",
+      "orig": "Recipes ",
+      "text": "Recipes ",
       "hyperlink": "https://en.wikibooks.org/wiki/Category:Recipes"
     },
     {
@@ -3440,8 +3440,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "|",
-      "text": "|"
+      "orig": "| ",
+      "text": "| "
     },
     {
       "self_ref": "#/texts/120",
@@ -3452,8 +3452,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Meat recipes",
-      "text": "Meat recipes",
+      "orig": "Meat recipes ",
+      "text": "Meat recipes ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Meat_Recipes"
     },
     {
@@ -3465,8 +3465,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "|",
-      "text": "|"
+      "orig": "| ",
+      "text": "| "
     },
     {
       "self_ref": "#/texts/122",
@@ -3490,8 +3490,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Chicken tikka",
-      "text": "Chicken tikka",
+      "orig": "Chicken tikka ",
+      "text": "Chicken tikka ",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -3509,8 +3509,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "is a chicken dish originating in the Punjab region of the",
-      "text": "is a chicken dish originating in the Punjab region of the"
+      "orig": "is a chicken dish originating in the Punjab region of the ",
+      "text": "is a chicken dish originating in the Punjab region of the "
     },
     {
       "self_ref": "#/texts/125",
@@ -3521,8 +3521,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Indian Subcontinent",
-      "text": "Indian Subcontinent",
+      "orig": "Indian Subcontinent ",
+      "text": "Indian Subcontinent ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Cuisine_of_India"
     },
     {
@@ -3534,8 +3534,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "made by baking",
-      "text": "made by baking"
+      "orig": "made by baking ",
+      "text": "made by baking "
     },
     {
       "self_ref": "#/texts/127",
@@ -3546,8 +3546,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "chicken",
-      "text": "chicken",
+      "orig": "chicken ",
+      "text": "chicken ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Chicken"
     },
     {
@@ -3559,8 +3559,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "which has been",
-      "text": "which has been"
+      "orig": "which has been ",
+      "text": "which has been "
     },
     {
       "self_ref": "#/texts/129",
@@ -3571,8 +3571,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "marinated",
-      "text": "marinated",
+      "orig": "marinated ",
+      "text": "marinated ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Marinating"
     },
     {
@@ -3584,8 +3584,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "in",
-      "text": "in"
+      "orig": "in ",
+      "text": "in "
     },
     {
       "self_ref": "#/texts/131",
@@ -3596,8 +3596,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "spices",
-      "text": "spices",
+      "orig": "spices ",
+      "text": "spices ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Spices_and_herbs"
     },
     {
@@ -3609,8 +3609,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and",
-      "text": "and"
+      "orig": "and ",
+      "text": "and "
     },
     {
       "self_ref": "#/texts/133",
@@ -3634,8 +3634,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ". It should not be confused with",
-      "text": ". It should not be confused with"
+      "orig": ". It should not be confused with ",
+      "text": ". It should not be confused with "
     },
     {
       "self_ref": "#/texts/135",
@@ -3646,8 +3646,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Chicken Tikka Masala",
-      "text": "Chicken Tikka Masala",
+      "orig": "Chicken Tikka Masala ",
+      "text": "Chicken Tikka Masala ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Chicken_Tikka_Masala"
     },
     {
@@ -3659,8 +3659,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "(of which it is an ingredient). It is traditionally cooked on",
-      "text": "(of which it is an ingredient). It is traditionally cooked on"
+      "orig": "(of which it is an ingredient). It is traditionally cooked on ",
+      "text": "(of which it is an ingredient). It is traditionally cooked on "
     },
     {
       "self_ref": "#/texts/137",
@@ -3671,8 +3671,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "skewers",
-      "text": "skewers",
+      "orig": "skewers ",
+      "text": "skewers ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Skewer"
     },
     {
@@ -3684,8 +3684,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "in a",
-      "text": "in a"
+      "orig": "in a ",
+      "text": "in a "
     },
     {
       "self_ref": "#/texts/139",
@@ -3696,8 +3696,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tandoor",
-      "text": "tandoor",
+      "orig": "tandoor ",
+      "text": "tandoor ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Tandoor"
     },
     {
@@ -3753,8 +3753,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "edit",
-      "text": "edit",
+      "orig": "edit ",
+      "text": "edit ",
       "hyperlink": "https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&veaction=edit&section=1"
     },
     {
@@ -3766,8 +3766,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "|",
-      "text": "|"
+      "orig": "| ",
+      "text": "| "
     },
     {
       "self_ref": "#/texts/145",
@@ -3821,8 +3821,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "675",
-      "text": "675"
+      "orig": "675 ",
+      "text": "675 "
     },
     {
       "self_ref": "#/texts/149",
@@ -3833,8 +3833,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "g",
-      "text": "g",
+      "orig": "g ",
+      "text": "g ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:G"
     },
     {
@@ -3846,8 +3846,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "(1.5",
-      "text": "(1.5"
+      "orig": "(1.5 ",
+      "text": "(1.5 "
     },
     {
       "self_ref": "#/texts/151",
@@ -3871,8 +3871,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ") skinless and boneless",
-      "text": ") skinless and boneless"
+      "orig": ") skinless and boneless ",
+      "text": ") skinless and boneless "
     },
     {
       "self_ref": "#/texts/153",
@@ -3896,8 +3896,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ",",
-      "text": ","
+      "orig": ", ",
+      "text": ", "
     },
     {
       "self_ref": "#/texts/155",
@@ -3908,8 +3908,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "diced",
-      "text": "diced",
+      "orig": "diced ",
+      "text": "diced ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Dice"
     },
     {
@@ -3951,8 +3951,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "1",
-      "text": "1"
+      "orig": "1 ",
+      "text": "1 "
     },
     {
       "self_ref": "#/texts/159",
@@ -3963,8 +3963,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tbsp",
-      "text": "tbsp",
+      "orig": "tbsp ",
+      "text": "tbsp ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Tablespoon"
     },
     {
@@ -3976,8 +3976,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "mustard",
-      "text": "mustard",
+      "orig": "mustard ",
+      "text": "mustard ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Mustard"
     },
     {
@@ -4019,8 +4019,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "50",
-      "text": "50"
+      "orig": "50 ",
+      "text": "50 "
     },
     {
       "self_ref": "#/texts/164",
@@ -4031,8 +4031,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "ml",
-      "text": "ml",
+      "orig": "ml ",
+      "text": "ml ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:ML"
     },
     {
@@ -4044,8 +4044,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "(2",
-      "text": "(2"
+      "orig": "(2 ",
+      "text": "(2 "
     },
     {
       "self_ref": "#/texts/166",
@@ -4069,8 +4069,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ")",
-      "text": ")"
+      "orig": ") ",
+      "text": ") "
     },
     {
       "self_ref": "#/texts/168",
@@ -4112,8 +4112,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "150",
-      "text": "150"
+      "orig": "150 ",
+      "text": "150 "
     },
     {
       "self_ref": "#/texts/171",
@@ -4124,8 +4124,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "ml",
-      "text": "ml",
+      "orig": "ml ",
+      "text": "ml ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:ML"
     },
     {
@@ -4137,8 +4137,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "(5",
-      "text": "(5"
+      "orig": "(5 ",
+      "text": "(5 "
     },
     {
       "self_ref": "#/texts/173",
@@ -4162,8 +4162,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ") natural",
-      "text": ") natural"
+      "orig": ") natural ",
+      "text": ") natural "
     },
     {
       "self_ref": "#/texts/175",
@@ -4205,8 +4205,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "2",
-      "text": "2"
+      "orig": "2 ",
+      "text": "2 "
     },
     {
       "self_ref": "#/texts/178",
@@ -4217,8 +4217,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tbsp",
-      "text": "tbsp",
+      "orig": "tbsp ",
+      "text": "tbsp ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Tablespoon"
     },
     {
@@ -4261,8 +4261,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "1",
-      "text": "1"
+      "orig": "1 ",
+      "text": "1 "
     },
     {
       "self_ref": "#/texts/182",
@@ -4273,8 +4273,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tbsp",
-      "text": "tbsp",
+      "orig": "tbsp ",
+      "text": "tbsp ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Tablespoon"
     },
     {
@@ -4317,8 +4317,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "2",
-      "text": "2"
+      "orig": "2 ",
+      "text": "2 "
     },
     {
       "self_ref": "#/texts/186",
@@ -4329,8 +4329,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tbsp",
-      "text": "tbsp",
+      "orig": "tbsp ",
+      "text": "tbsp ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Tablespoon"
     },
     {
@@ -4342,8 +4342,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "chopped",
-      "text": "chopped",
+      "orig": "chopped ",
+      "text": "chopped ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Chopping"
     },
     {
@@ -4355,8 +4355,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "fresh",
-      "text": "fresh"
+      "orig": "fresh ",
+      "text": "fresh "
     },
     {
       "self_ref": "#/texts/189",
@@ -4367,8 +4367,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "cilantro",
-      "text": "cilantro",
+      "orig": "cilantro ",
+      "text": "cilantro ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Cilantro"
     },
     {
@@ -4410,8 +4410,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "4 large cloves of",
-      "text": "4 large cloves of"
+      "orig": "4 large cloves of ",
+      "text": "4 large cloves of "
     },
     {
       "self_ref": "#/texts/193",
@@ -4435,8 +4435,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ", finely",
-      "text": ", finely"
+      "orig": ", finely ",
+      "text": ", finely "
     },
     {
       "self_ref": "#/texts/195",
@@ -4478,8 +4478,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "1–4 chopped fresh red",
-      "text": "1-4 chopped fresh red"
+      "orig": "1–4 chopped fresh red ",
+      "text": "1-4 chopped fresh red "
     },
     {
       "self_ref": "#/texts/198",
@@ -4490,8 +4490,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "chillis",
-      "text": "chillis",
+      "orig": "chillis ",
+      "text": "chillis ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Chili_Pepper"
     },
     {
@@ -4533,8 +4533,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "2",
-      "text": "2"
+      "orig": "2 ",
+      "text": "2 "
     },
     {
       "self_ref": "#/texts/202",
@@ -4545,8 +4545,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tsp",
-      "text": "tsp",
+      "orig": "tsp ",
+      "text": "tsp ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Teaspoon"
     },
     {
@@ -4589,8 +4589,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "2",
-      "text": "2"
+      "orig": "2 ",
+      "text": "2 "
     },
     {
       "self_ref": "#/texts/206",
@@ -4601,8 +4601,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tsp",
-      "text": "tsp",
+      "orig": "tsp ",
+      "text": "tsp ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Teaspoon"
     },
     {
@@ -4645,8 +4645,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "1",
-      "text": "1"
+      "orig": "1 ",
+      "text": "1 "
     },
     {
       "self_ref": "#/texts/210",
@@ -4657,8 +4657,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tsp",
-      "text": "tsp",
+      "orig": "tsp ",
+      "text": "tsp ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Teaspoon"
     },
     {
@@ -4670,8 +4670,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "cumin",
-      "text": "cumin",
+      "orig": "cumin ",
+      "text": "cumin ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Cumin"
     },
     {
@@ -4713,8 +4713,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "½",
-      "text": "½"
+      "orig": "½ ",
+      "text": "½ "
     },
     {
       "self_ref": "#/texts/215",
@@ -4725,8 +4725,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tsp",
-      "text": "tsp",
+      "orig": "tsp ",
+      "text": "tsp ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Teaspoon"
     },
     {
@@ -4769,8 +4769,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "1",
-      "text": "1"
+      "orig": "1 ",
+      "text": "1 "
     },
     {
       "self_ref": "#/texts/219",
@@ -4781,8 +4781,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tsp",
-      "text": "tsp",
+      "orig": "tsp ",
+      "text": "tsp ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Teaspoon"
     },
     {
@@ -4794,8 +4794,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "salt",
-      "text": "salt",
+      "orig": "salt ",
+      "text": "salt ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Salt"
     },
     {
@@ -4851,8 +4851,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "edit",
-      "text": "edit",
+      "orig": "edit ",
+      "text": "edit ",
       "hyperlink": "https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&veaction=edit&section=2"
     },
     {
@@ -4864,8 +4864,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "|",
-      "text": "|"
+      "orig": "| ",
+      "text": "| "
     },
     {
       "self_ref": "#/texts/226",
@@ -4919,8 +4919,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Add all of the ingredients except the chicken to a non-metallic",
-      "text": "Add all of the ingredients except the chicken to a non-metallic"
+      "orig": "Add all of the ingredients except the chicken to a non-metallic ",
+      "text": "Add all of the ingredients except the chicken to a non-metallic "
     },
     {
       "self_ref": "#/texts/230",
@@ -4988,8 +4988,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Ideally, the chicken should now be left in a refrigerator to",
-      "text": "Ideally, the chicken should now be left in a refrigerator to"
+      "orig": "Ideally, the chicken should now be left in a refrigerator to ",
+      "text": "Ideally, the chicken should now be left in a refrigerator to "
     },
     {
       "self_ref": "#/texts/235",
@@ -5000,8 +5000,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "marinate",
-      "text": "marinate",
+      "orig": "marinate ",
+      "text": "marinate ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Marinating"
     },
     {
@@ -5043,8 +5043,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "For best results, place on skewers and cook in a",
-      "text": "For best results, place on skewers and cook in a"
+      "orig": "For best results, place on skewers and cook in a ",
+      "text": "For best results, place on skewers and cook in a "
     },
     {
       "self_ref": "#/texts/239",
@@ -5055,8 +5055,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tandoor",
-      "text": "tandoor",
+      "orig": "tandoor ",
+      "text": "tandoor ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Tandoor"
     },
     {
@@ -5068,8 +5068,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "or ceramic pot oven. The chicken can also be cooked on skewers under a medium",
-      "text": "or ceramic pot oven. The chicken can also be cooked on skewers under a medium"
+      "orig": "or ceramic pot oven. The chicken can also be cooked on skewers under a medium ",
+      "text": "or ceramic pot oven. The chicken can also be cooked on skewers under a medium "
     },
     {
       "self_ref": "#/texts/241",
@@ -5080,8 +5080,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "grill",
-      "text": "grill",
+      "orig": "grill ",
+      "text": "grill ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Grilling"
     },
     {
@@ -5123,8 +5123,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Serve with",
-      "text": "Serve with"
+      "orig": "Serve with ",
+      "text": "Serve with "
     },
     {
       "self_ref": "#/texts/245",
@@ -5148,8 +5148,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ", with",
-      "text": ", with"
+      "orig": ", with ",
+      "text": ", with "
     },
     {
       "self_ref": "#/texts/247",
@@ -5160,8 +5160,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "rice",
-      "text": "rice",
+      "orig": "rice ",
+      "text": "rice ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Rice"
     },
     {
@@ -5173,8 +5173,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "or use in a",
-      "text": "or use in a"
+      "orig": "or use in a ",
+      "text": "or use in a "
     },
     {
       "self_ref": "#/texts/249",
@@ -5242,8 +5242,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "edit",
-      "text": "edit",
+      "orig": "edit ",
+      "text": "edit ",
       "hyperlink": "https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&veaction=edit&section=3"
     },
     {
@@ -5255,8 +5255,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "|",
-      "text": "|"
+      "orig": "| ",
+      "text": "| "
     },
     {
       "self_ref": "#/texts/255",
@@ -5310,8 +5310,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Mustard seed oil is considered unfit for human consumption in many parts of the world and is therefore not readily available. A poor alternative can be made by crackling 1",
-      "text": "Mustard seed oil is considered unfit for human consumption in many parts of the world and is therefore not readily available. A poor alternative can be made by crackling 1"
+      "orig": "Mustard seed oil is considered unfit for human consumption in many parts of the world and is therefore not readily available. A poor alternative can be made by crackling 1 ",
+      "text": "Mustard seed oil is considered unfit for human consumption in many parts of the world and is therefore not readily available. A poor alternative can be made by crackling 1 "
     },
     {
       "self_ref": "#/texts/259",
@@ -5322,8 +5322,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tsp",
-      "text": "tsp",
+      "orig": "tsp ",
+      "text": "tsp ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Teaspoon"
     },
     {
@@ -5335,8 +5335,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "of",
-      "text": "of"
+      "orig": "of ",
+      "text": "of "
     },
     {
       "self_ref": "#/texts/261",
@@ -5347,8 +5347,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "mustard",
-      "text": "mustard",
+      "orig": "mustard ",
+      "text": "mustard ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Mustard"
     },
     {
@@ -5360,8 +5360,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "seeds in approximately 2",
-      "text": "seeds in approximately 2"
+      "orig": "seeds in approximately 2 ",
+      "text": "seeds in approximately 2 "
     },
     {
       "self_ref": "#/texts/263",
@@ -5372,8 +5372,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "tbs",
-      "text": "tbs",
+      "orig": "tbs ",
+      "text": "tbs ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Tablespoon"
     },
     {
@@ -5385,8 +5385,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "of very hot",
-      "text": "of very hot"
+      "orig": "of very hot ",
+      "text": "of very hot "
     },
     {
       "self_ref": "#/texts/265",
@@ -5397,8 +5397,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "vegetable",
-      "text": "vegetable",
+      "orig": "vegetable ",
+      "text": "vegetable ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Vegetable_Oil"
     },
     {
@@ -5410,8 +5410,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "or",
-      "text": "or"
+      "orig": "or ",
+      "text": "or "
     },
     {
       "self_ref": "#/texts/267",
@@ -5465,8 +5465,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "It is possible to make a tikka with almost any meat, the most commonly used other than chicken being",
-      "text": "It is possible to make a tikka with almost any meat, the most commonly used other than chicken being"
+      "orig": "It is possible to make a tikka with almost any meat, the most commonly used other than chicken being ",
+      "text": "It is possible to make a tikka with almost any meat, the most commonly used other than chicken being "
     },
     {
       "self_ref": "#/texts/271",
@@ -5477,8 +5477,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "lamb",
-      "text": "lamb",
+      "orig": "lamb ",
+      "text": "lamb ",
       "hyperlink": "https://en.wikibooks.org/wiki/Cookbook:Lamb"
     },
     {
@@ -5490,8 +5490,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and",
-      "text": "and"
+      "orig": "and ",
+      "text": "and "
     },
     {
       "self_ref": "#/texts/273",
@@ -5628,8 +5628,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "edit",
-      "text": "edit",
+      "orig": "edit ",
+      "text": "edit ",
       "hyperlink": "https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&veaction=edit&section=4"
     },
     {
@@ -5641,8 +5641,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "|",
-      "text": "|"
+      "orig": "| ",
+      "text": "| "
     },
     {
       "self_ref": "#/texts/282",
@@ -5715,8 +5715,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ", Piatkus, London —",
-      "text": ", Piatkus, London -"
+      "orig": ", Piatkus, London — ",
+      "text": ", Piatkus, London - "
     },
     {
       "self_ref": "#/texts/287",
@@ -5727,8 +5727,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "ISBN 0749912839",
-      "text": "ISBN 0749912839",
+      "orig": "ISBN 0749912839 ",
+      "text": "ISBN 0749912839 ",
       "hyperlink": "https://en.wikibooks.org/wiki/Special:BookSources/0749912839"
     },
     {
@@ -5789,8 +5789,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ", New Holland, London —",
-      "text": ", New Holland, London -"
+      "orig": ", New Holland, London — ",
+      "text": ", New Holland, London - "
     },
     {
       "self_ref": "#/texts/292",
@@ -5801,8 +5801,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "ISBN 978-1845376192",
-      "text": "ISBN 978-1845376192",
+      "orig": "ISBN 978-1845376192 ",
+      "text": "ISBN 978-1845376192 ",
       "hyperlink": "https://en.wikibooks.org/wiki/Special:BookSources/978-1845376192"
     },
     {
@@ -6217,8 +6217,8 @@
       "content_layer": "furniture",
       "label": "text",
       "prov": [],
-      "orig": "Text is available under the",
-      "text": "Text is available under the"
+      "orig": "Text is available under the ",
+      "text": "Text is available under the "
     },
     {
       "self_ref": "#/texts/322",
@@ -6242,8 +6242,8 @@
       "content_layer": "furniture",
       "label": "text",
       "prov": [],
-      "orig": "; additional terms may apply. By using this site, you agree to the",
-      "text": "; additional terms may apply. By using this site, you agree to the"
+      "orig": "; additional terms may apply. By using this site, you agree to the ",
+      "text": "; additional terms may apply. By using this site, you agree to the "
     },
     {
       "self_ref": "#/texts/324",
@@ -6254,8 +6254,8 @@
       "content_layer": "furniture",
       "label": "text",
       "prov": [],
-      "orig": "Terms of Use",
-      "text": "Terms of Use",
+      "orig": "Terms of Use ",
+      "text": "Terms of Use ",
       "hyperlink": "https://foundation.wikimedia.org/wiki/Special:MyLanguage/Policy:Terms_of_Use"
     },
     {
@@ -6267,8 +6267,8 @@
       "content_layer": "furniture",
       "label": "text",
       "prov": [],
-      "orig": "and",
-      "text": "and"
+      "orig": "and ",
+      "text": "and "
     },
     {
       "self_ref": "#/texts/326",

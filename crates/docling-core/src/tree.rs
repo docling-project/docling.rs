@@ -561,6 +561,14 @@ pub struct ItemTree {
     /// The source's containers that carry an `id` or a `class` (#910), in
     /// document order; see [`SourceElement`]. Empty when `blocks` is.
     pub containers: Vec<SourceElement>,
+    /// The runs of this tree's `inline` groups carry their own boundary
+    /// whitespace — docling-core's inline whitespace contract (schema 1.11.0,
+    /// [`crate::inline`]): a backend that keeps each run's spaces, as
+    /// docling's do since docling#3891, sets it. Unset, the runs are the
+    /// trimmed runs the old `" "` join expected, and the export re-injects
+    /// that join into them ([`Self::separate_legacy_inline_runs`]) so the
+    /// output reads as it did.
+    pub inline_whitespace: bool,
 }
 
 impl ItemTree {
@@ -835,6 +843,126 @@ impl ItemTree {
             None => self.body.retain(|&c| c != id),
         }
         self.items[id].deleted = true;
+    }
+
+    /// docling-core's `_migrate_legacy_inline_separators` (#997) over the
+    /// tree: every `inline` group's runs get the `" "` the pre-1.11 join put
+    /// between them ([`crate::inline::separate_legacy_runs`]) — on a plain
+    /// neighbour, never inside a code or formula run, a standalone `" "` text
+    /// run when both neighbours are delimited. The JSON export applies it to
+    /// a tree whose backend has not set [`Self::inline_whitespace`], so a
+    /// trimmed-run backend still reads `left bold right` under the faithful
+    /// join, as docling-core reads a document saved before the contract.
+    /// `text` changes, `orig` keeps the run's own text.
+    pub fn separate_legacy_inline_runs(&mut self) {
+        fn renders_text(t: &ItemTree, id: usize, depth: usize) -> bool {
+            let item = &t.items[id];
+            if item.deleted || depth > 64 {
+                return false;
+            }
+            let own = match &item.kind {
+                TreeKind::Text { text, .. } | TreeKind::Code { text, .. } => !text.is_empty(),
+                TreeKind::Group { .. } => false,
+                // docling-core resolves only `#/texts/` and `#/groups/`.
+                _ => return false,
+            };
+            own || item.children.iter().any(|&c| renders_text(t, c, depth + 1))
+        }
+        let groups: Vec<usize> = (0..self.items.len())
+            .filter(|&g| {
+                !self.items[g].deleted
+                    && matches!(&self.items[g].kind, TreeKind::Group { label, .. } if label == "inline")
+            })
+            .collect();
+        for g in groups {
+            let children: Vec<usize> = self.items[g]
+                .children
+                .iter()
+                .copied()
+                .filter(|&c| !self.items[c].deleted)
+                .collect();
+            let flags: Vec<(bool, bool, bool)> = children
+                .iter()
+                .map(|&c| {
+                    let item = &self.items[c];
+                    let (plain, empty_plain) = match &item.kind {
+                        TreeKind::Text { label, text, .. } => (
+                            label != "formula" && label != "code",
+                            label == "text" && text.is_empty() && item.children.is_empty(),
+                        ),
+                        _ => (false, false),
+                    };
+                    (renders_text(self, c, 0), plain, empty_plain)
+                })
+                .collect();
+            // Detach the texts so each run can be borrowed mutably at once.
+            let mut texts: Vec<String> = children
+                .iter()
+                .map(|&c| match &self.items[c].kind {
+                    TreeKind::Text { text, .. } | TreeKind::Code { text, .. } => text.clone(),
+                    _ => String::new(),
+                })
+                .collect();
+            let originals = texts.clone();
+            let standalone = {
+                let mut runs: Vec<crate::inline::LegacyRun<'_>> = texts
+                    .iter_mut()
+                    .zip(&flags)
+                    .map(
+                        |(text, &(renders_text, plain, empty_plain))| crate::inline::LegacyRun {
+                            text,
+                            renders_text,
+                            plain,
+                            empty_plain,
+                        },
+                    )
+                    .collect();
+                crate::inline::separate_legacy_runs(&mut runs)
+            };
+            for ((&c, new), old) in children.iter().zip(texts).zip(originals) {
+                if new == old {
+                    continue;
+                }
+                // docling-core rewrites `text` and leaves `orig` as it was.
+                if let TreeKind::Text { text, orig, .. } | TreeKind::Code { text, orig, .. } =
+                    &mut self.items[c].kind
+                {
+                    orig.get_or_insert(old);
+                    *text = new;
+                }
+            }
+            for at in standalone.into_iter().rev() {
+                let (left, right) = (children[at - 1], children[at]);
+                // The left run's location when both sit on one page, so a
+                // page filter keeps the separator exactly when it keeps both.
+                let prov = match (&self.items[left].prov, &self.items[right].prov) {
+                    (Some(l), Some(r)) if l.page_no == r.page_no => Some(TreeProv {
+                        charspan: [0, 1],
+                        ..l.clone()
+                    }),
+                    _ => None,
+                };
+                let layer = self.items[g].layer;
+                let id = self.add(
+                    Some(g),
+                    layer,
+                    TreeKind::Text {
+                        label: "text".into(),
+                        text: " ".into(),
+                        orig: None,
+                        formatting: None,
+                        hyperlink: None,
+                        level: None,
+                        list: None,
+                    },
+                );
+                self.items[id].prov = prov;
+                let kids = &mut self.items[g].children;
+                kids.pop();
+                let pos = kids.iter().position(|&k| k == right).unwrap_or(kids.len());
+                kids.insert(pos, id);
+            }
+        }
     }
 
     /// docling-core's `DoclingDocument.validate_misplaced_list_items` (a

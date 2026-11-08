@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "autolinks",
   "origin": {
     "mimetype": "text/markdown",
@@ -133,8 +133,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Heading",
-      "text": "Heading"
+      "orig": "Heading ",
+      "text": "Heading "
     },
     {
       "self_ref": "#/texts/2",
@@ -158,8 +158,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "See",
-      "text": "See"
+      "orig": "See ",
+      "text": "See "
     },
     {
       "self_ref": "#/texts/4",
@@ -183,8 +183,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and",
-      "text": "and"
+      "orig": " and ",
+      "text": " and "
     },
     {
       "self_ref": "#/texts/6",
@@ -238,8 +238,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "item",
-      "text": "item"
+      "orig": "item ",
+      "text": "item "
     },
     {
       "self_ref": "#/texts/10",

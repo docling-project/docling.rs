@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "tables_rich",
   "origin": {
     "mimetype": "text/markdown",
@@ -200,6 +200,9 @@
         },
         {
           "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
         }
       ],
       "content_layer": "body",
@@ -227,10 +230,10 @@
       },
       "children": [
         {
-          "$ref": "#/texts/7"
+          "$ref": "#/texts/8"
         },
         {
-          "$ref": "#/texts/8"
+          "$ref": "#/texts/9"
         }
       ],
       "content_layer": "body",
@@ -258,7 +261,7 @@
       },
       "children": [
         {
-          "$ref": "#/texts/9"
+          "$ref": "#/texts/10"
         }
       ],
       "content_layer": "body",
@@ -286,7 +289,7 @@
       },
       "children": [
         {
-          "$ref": "#/texts/10"
+          "$ref": "#/texts/11"
         }
       ],
       "content_layer": "body",
@@ -314,7 +317,7 @@
       },
       "children": [
         {
-          "$ref": "#/texts/11"
+          "$ref": "#/texts/12"
         }
       ],
       "content_layer": "body",
@@ -342,7 +345,7 @@
       },
       "children": [
         {
-          "$ref": "#/texts/12"
+          "$ref": "#/texts/13"
         }
       ],
       "content_layer": "body",
@@ -370,7 +373,7 @@
       },
       "children": [
         {
-          "$ref": "#/texts/13"
+          "$ref": "#/texts/14"
         }
       ],
       "content_layer": "body",
@@ -489,6 +492,18 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "orig": " ",
+      "text": " "
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/groups/11"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
       "orig": "B",
       "text": "B",
       "formatting": {
@@ -500,7 +515,7 @@
       }
     },
     {
-      "self_ref": "#/texts/7",
+      "self_ref": "#/texts/8",
       "parent": {
         "$ref": "#/groups/13"
       },
@@ -508,11 +523,11 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "foo",
-      "text": "foo"
+      "orig": "foo ",
+      "text": "foo "
     },
     {
-      "self_ref": "#/texts/8",
+      "self_ref": "#/texts/9",
       "parent": {
         "$ref": "#/groups/13"
       },
@@ -531,7 +546,7 @@
       }
     },
     {
-      "self_ref": "#/texts/9",
+      "self_ref": "#/texts/10",
       "parent": {
         "$ref": "#/groups/15"
       },
@@ -547,7 +562,7 @@
       "code_language": "unknown"
     },
     {
-      "self_ref": "#/texts/10",
+      "self_ref": "#/texts/11",
       "parent": {
         "$ref": "#/groups/17"
       },
@@ -560,7 +575,7 @@
       "hyperlink": "https://e.x/p"
     },
     {
-      "self_ref": "#/texts/11",
+      "self_ref": "#/texts/12",
       "parent": {
         "$ref": "#/groups/19"
       },
@@ -573,7 +588,7 @@
       "hyperlink": "http://www.e.x/"
     },
     {
-      "self_ref": "#/texts/12",
+      "self_ref": "#/texts/13",
       "parent": {
         "$ref": "#/groups/21"
       },
@@ -592,7 +607,7 @@
       }
     },
     {
-      "self_ref": "#/texts/13",
+      "self_ref": "#/texts/14",
       "parent": {
         "$ref": "#/groups/23"
       },

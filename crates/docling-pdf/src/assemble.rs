@@ -2971,6 +2971,17 @@ pub fn page_image(page: &PdfPage, scale: Option<f32>) -> Option<PictureImage> {
 /// is 72·scale (#519).
 #[cfg(feature = "ocr-prep")]
 fn crop_region(page: &PdfPage, region: &Region, scale: Option<f32>) -> Option<PictureImage> {
+    // `use_embedded_picture_images` (#1007): the one safe image the region
+    // holds, at its native size and docling's `dpi` of 72 — not resampled to
+    // `images_scale`, which only sizes render crops (docling likewise).
+    #[cfg(feature = "render")]
+    if let Some(img) = crate::embedded::match_region(
+        &page.embedded_images,
+        &page.cells,
+        [region.l, region.t, region.r, region.b],
+    ) {
+        return png_image(img, 1.0);
+    }
     #[cfg(feature = "ml")]
     debug_assert!(
         !page.image_pending(),
@@ -5110,6 +5121,8 @@ mod tests {
             ],
             rotation: 0,
             keep_typography: false,
+            #[cfg(feature = "render")]
+            embedded_images: Vec::new(),
             #[cfg(feature = "ml")]
             pending_image: None,
         };

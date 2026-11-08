@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "strikethrough",
   "origin": {
     "mimetype": "text/markdown",
@@ -89,8 +89,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "This is",
-      "text": "This is"
+      "orig": "This is ",
+      "text": "This is "
     },
     {
       "self_ref": "#/texts/1",
@@ -120,8 +120,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "new.",
-      "text": "new."
+      "orig": " new.",
+      "text": " new."
     },
     {
       "self_ref": "#/texts/3",
@@ -144,8 +144,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Single ~tilde~ here and",
-      "text": "Single ~tilde~ here and"
+      "orig": "Single ~tilde~ here and ",
+      "text": "Single ~tilde~ here and "
     },
     {
       "self_ref": "#/texts/5",
@@ -156,8 +156,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "spaced",
-      "text": "spaced",
+      "orig": " spaced ",
+      "text": " spaced ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -175,8 +175,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and a",
-      "text": "and a"
+      "orig": " and a",
+      "text": " and a"
     },
     {
       "self_ref": "#/texts/7",

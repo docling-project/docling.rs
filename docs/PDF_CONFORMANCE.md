@@ -33,7 +33,7 @@ older, pypdfium2-era docling's and the pipeline was scored with OCR on.
 
 ## Current state
 
-**8 / 18 strict** against upstream's current groundtruth — total **377
+**8 / 18 strict** against upstream's current groundtruth — total **373
 diff lines** (`scripts/conformance/pdf_groundtruth.sh`: `--skip-ocr
 --compact-tables`, docling-parse renderer). The groundtruth was refreshed
 for #921 from docling's `tests/data/pdf/groundtruth` at upstream `dc4693f`
@@ -60,7 +60,10 @@ whose lines mostly draw space glyphs keeps docling-parse 7's 0.35 floor on
 its one-word lines too (`Offenlegungspf lichten`; no groundtruth file
 changes). That is the 407; #998's reading-order port (docling#5131,
 docling#4438) took it to 8 / 18 and 379, #1001's cell normalization
-(docling#5069 — `’` → `'` inside TableFormer cells) to 377. (On the stale pre-refresh groundtruth the old tree
+(docling#5069 — `’` → `'` inside TableFormer cells) to 377, and the mirror
+refresh at docling `bcb3678` (#996) moved one groundtruth file —
+`normal_4pages.md` now carries the two `※` footnote lines our output already
+printed, 12 → 8 lines — to **373**. (On the stale pre-refresh groundtruth the old tree
 read 10 / 18, 328 — a match to docling as it no longer is.) The two Korean
 image-only pages `skipped_1page` / `skipped_2pages` carry no text
 groundtruth and are not scored.
@@ -77,7 +80,7 @@ groundtruth and are not scored.
 | right_to_left_02 | 2 | one word's place at a line start (`ووف`) |
 | 2203.01017v2 | 15 | line-end hyphens docling fuses (`im-`/`balance`, `appear-`/`ances`; `column- and` is our #920 divergence), one picture placeholder's slot; author names docling-parse 7 glues and we split (`KhurramAzeemHashmi`, `Harold WKuhn` — the #921 clustering clip), `\|T \|` |
 | 2305.03393v1 | 8 | two `\_ \_` items and the spacing of underscores in figure file names (`PMC5406406 \_ 003 \_ 01.png`) |
-| normal_4pages | 12 | docling folds the page-number glyph into the heading cluster (`## 들어가며 1`) where we emit it as its own item, and the `※` footnotes order |
+| normal_4pages | 8 | docling folds the page-number glyph into the heading cluster (`## 들어가며 1`) where we emit it as its own item, and one paragraph docling breaks before its last line (`… 못하` / `고 있는 실정이다.`) |
 | 2206.01062 | 24 | `mAP@ 0.5-0.95` (docling-parse 7 splits after `@`, we before it), `tildelow10%` (its glyph-name mapping; we read `~10%`); words docling-parse 7 glues and we split (`RELATEDWORK`, `ANNOTATIONCAMPAIGN`, `LoganMarkewich`, `→Document` — the #921 clustering clip) |
 | multi_page | 32 | docling-parse 7 maps the list bullet glyph to `∞` and docling keeps it as text (`- ∞ IBM MT/ST …`); we read a bullet and drop it as the marker |
 | table_misidentified_as_form | 46 | the form container's nested table / picture (docling#4064): docling nests them inside the form region and keeps the heading, we flatten the region |

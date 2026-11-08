@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "mixed_without_h1",
   "origin": {
     "mimetype": "text/plain",
@@ -166,8 +166,8 @@
       "content_layer": "body",
       "label": "list_item",
       "prov": [],
-      "orig": "2 . strange",
-      "text": "2 . strange",
+      "orig": "2. strange",
+      "text": "2. strange",
       "enumerated": false,
       "marker": ""
     },

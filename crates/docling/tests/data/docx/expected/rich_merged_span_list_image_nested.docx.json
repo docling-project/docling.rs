@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "rich_merged_span_list_image_nested",
   "origin": {
     "mimetype": "text/plain",
@@ -19,9 +19,6 @@
     "children": [
       {
         "$ref": "#/tables/0"
-      },
-      {
-        "$ref": "#/groups/46"
       }
     ],
     "content_layer": "body",
@@ -676,9 +673,22 @@
     {
       "self_ref": "#/groups/46",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/groups/47"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/49"
+        },
+        {
+          "$ref": "#/texts/50"
+        },
+        {
+          "$ref": "#/texts/51"
+        },
+        {
+          "$ref": "#/texts/52"
+        }
+      ],
       "content_layer": "body",
       "name": "group",
       "label": "inline"
@@ -837,16 +847,7 @@
           "$ref": "#/groups/45"
         },
         {
-          "$ref": "#/texts/49"
-        },
-        {
-          "$ref": "#/texts/50"
-        },
-        {
-          "$ref": "#/texts/51"
-        },
-        {
-          "$ref": "#/texts/52"
+          "$ref": "#/groups/46"
         },
         {
           "$ref": "#/pictures/0"
@@ -1893,14 +1894,14 @@
     {
       "self_ref": "#/texts/49",
       "parent": {
-        "$ref": "#/groups/47"
+        "$ref": "#/groups/46"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Texte",
-      "text": "Texte",
+      "orig": "Texte ",
+      "text": "Texte ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1912,7 +1913,7 @@
     {
       "self_ref": "#/texts/50",
       "parent": {
-        "$ref": "#/groups/47"
+        "$ref": "#/groups/46"
       },
       "children": [],
       "content_layer": "body",
@@ -1931,14 +1932,14 @@
     {
       "self_ref": "#/texts/51",
       "parent": {
-        "$ref": "#/groups/47"
+        "$ref": "#/groups/46"
       },
       "children": [],
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "et",
-      "text": "et",
+      "orig": " et ",
+      "text": " et ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -1950,7 +1951,7 @@
     {
       "self_ref": "#/texts/52",
       "parent": {
-        "$ref": "#/groups/47"
+        "$ref": "#/groups/46"
       },
       "children": [],
       "content_layer": "body",

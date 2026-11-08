@@ -194,7 +194,7 @@ pub(crate) fn pandoc_json(
 
 /// Convert a document (as bytes + filename, the extension drives format
 /// detection) to `to`: `"md"` (Markdown, default), `"json"` (docling-core's
-/// `DoclingDocument` wire format, schema 1.10.0), `"text"` (plain text,
+/// `DoclingDocument` wire format, schema 1.11.0), `"text"` (plain text,
 /// docling's `export_to_text`, #613), `"doclang"` (docling's
 /// DocLang XML serialization), `"latex"` (docling 2.124's LaTeX document,
 /// #317), `"html"`, `"pandoc"` (Pandoc's JSON AST for `pandoc -f json`,

@@ -379,9 +379,7 @@
                     , Str "on"
                     , Space
                     , Str "H"
-                    , Space
                     , Subscript [ Str "2" ]
-                    , Space
                     , Str "O"
                     , Space
                     , Str "surfaces."

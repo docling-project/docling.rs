@@ -78,6 +78,7 @@ own output options next to the shared ones.
 | `ocr_textline_orientation` | bool | false (`DOCLING_RS_OCR_TEXTLINE_ORIENTATION`) | `--ocr-textline-orientation` | `ocr_textline_orientation` | `ocrTextlineOrientation` | RapidOCR's text-line orientation handling (#666): oriented line crops, tall lines turned 90°, upside-down lines turned by the 0/180 classifier. PP-OCR pages and pictures alike. Python also maps docling's `RapidOcrOptions.use_cls`. |
 | `images_scale` | 0.1–4.0 px/pt | unset = the 2.0 render | `--images-scale` | `images_scale` | `imagesScale` | Picture-crop / page-image scale (docling's `images_scale`, #520). |
 | `page_images` | bool | false | `--page-images` | `generate_page_images` | `pageImages` | Keep each page's render as the JSON page image (docling's `generate_page_images`, #520). Python: `generate_page_images` (also accepted as a JSON alias). |
+| `use_embedded_picture_images` | bool | false | `--use-embedded-picture-images` | `use_embedded_picture_images` | `useEmbeddedPictureImages` | A PDF picture whose region holds exactly one embedded image (mutual intersection-over-self ≥ 0.8) with nothing drawn over it gets that bitmap at native resolution, `dpi` 72, instead of the render crop (docling's option, docling#5143, #1007). Masked, transparent, clipped, rotated or overlapped images, a second image or text in the box, and `/Rotate`d pages keep the crop. |
 | `do_picture_classification` | bool | false | `--enrich-picture-classes` | `do_picture_classification` | `doPictureClassification` | Enrichment: classify pictures with DocumentFigureClassifier (#423). CLI: `--enrich-picture-classes`. |
 | `do_code_enrichment` | bool | false | `--enrich-code` | `do_code_enrichment` | `doCodeEnrichment` | Enrichment: rewrite code blocks with CodeFormulaV2 (#423). CLI: `--enrich-code`. |
 | `do_formula_enrichment` | bool | false | `--enrich-formula` | `do_formula_enrichment` | `doFormulaEnrichment` | Enrichment: decode display formulas to LaTeX with CodeFormulaV2 (#423). CLI: `--enrich-formula`. |
@@ -312,6 +313,15 @@ codec or copybook when the conversion runs.
   `text_layer_only`, none in streamed Markdown. Python also takes both
   docling-shaped through `PdfPipelineOptions`, where `images_scale` applies
   once `generate_picture_images` or `generate_page_images` is on.
+  `use_embedded_picture_images` (#1007, docling#5143) swaps a picture's crop
+  for the embedded image it shows when that is unambiguous: exactly one image
+  XObject covering ≥ 0.8 of the region and covered ≥ 0.8 by it, no other
+  image and no text cell overlapping it, nothing painted *after* it over its
+  box (a path, shading, image or form-field appearance), opaque (no
+  `/SMask`/`/Mask`/`/ImageMask`, no ExtGState soft mask, alpha or blend
+  mode), drawn upright and unclipped, on a page without `/Rotate`, and
+  decodable. The bitmap keeps its native pixel size (`dpi` 72; `images_scale`
+  sizes render crops only). Everything else keeps the crop.
 
 ## VLM pipeline
 

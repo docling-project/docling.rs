@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "unclosed_inline_table",
   "origin": {
     "mimetype": "text/plain",
@@ -18,7 +18,7 @@
     "self_ref": "#/body",
     "children": [
       {
-        "$ref": "#/groups/0"
+        "$ref": "#/texts/0"
       },
       {
         "$ref": "#/tables/0"
@@ -27,7 +27,7 @@
         "$ref": "#/texts/1"
       },
       {
-        "$ref": "#/groups/1"
+        "$ref": "#/groups/0"
       }
     ],
     "content_layer": "body",
@@ -37,20 +37,6 @@
   "groups": [
     {
       "self_ref": "#/groups/0",
-      "parent": {
-        "$ref": "#/body"
-      },
-      "children": [
-        {
-          "$ref": "#/texts/0"
-        }
-      ],
-      "content_layer": "body",
-      "name": "group",
-      "label": "inline"
-    },
-    {
-      "self_ref": "#/groups/1",
       "parent": {
         "$ref": "#/body"
       },
@@ -71,7 +57,7 @@
     {
       "self_ref": "#/texts/0",
       "parent": {
-        "$ref": "#/groups/0"
+        "$ref": "#/body"
       },
       "children": [],
       "content_layer": "body",
@@ -102,7 +88,7 @@
     {
       "self_ref": "#/texts/2",
       "parent": {
-        "$ref": "#/groups/1"
+        "$ref": "#/groups/0"
       },
       "children": [],
       "content_layer": "body",
@@ -116,7 +102,7 @@
     {
       "self_ref": "#/texts/3",
       "parent": {
-        "$ref": "#/groups/1"
+        "$ref": "#/groups/0"
       },
       "children": [],
       "content_layer": "body",

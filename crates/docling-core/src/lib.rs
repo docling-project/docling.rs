@@ -22,6 +22,7 @@ mod encryption;
 pub mod env;
 mod html;
 pub mod hyperlink;
+pub mod inline;
 pub mod jpeg;
 mod json;
 mod labels;

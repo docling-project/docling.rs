@@ -28,6 +28,13 @@
 //! and those two JSON references are 2.142.1's. `edge_comments_in_blocks_and_lists`
 //! is docling `main`'s at 90234a7: its `/////` comment block closes only on
 //! an identical line since docling#4394, so it runs to the end.
+//!
+//! The documents whose output the inline whitespace contract moves (#997:
+//! `**bold**,` with no invented space, `**st**rong`) are docling 2.148.0's.
+//! Two are not recaptured: `block_title_without_floating_target_keeps_content`
+//! and `text_before_block_title_is_not_merged_with_text_after` — 2.148 also
+//! ends a block title's paragraph differently there, a change of its own
+//! this port does not carry yet; their references stay 2.140.0's.
 use std::fs;
 use std::path::{Path, PathBuf};
 

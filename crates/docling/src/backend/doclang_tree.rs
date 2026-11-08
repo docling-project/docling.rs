@@ -966,16 +966,61 @@ impl Builder<'_> {
             Some(v) if !v.is_empty() => v,
             _ => el.children().collect(),
         };
+        // DocLang 0.9's reading rule (docling-core#693): a whitespace
+        // sequence in bare text reads as one space, kept on its run as the
+        // boundary with the next one, none at the block's edges. Metadata
+        // elements (`<location>`, `<layer>`) take no part in the edges.
+        enum Run<'a, 'i> {
+            Text(String),
+            El(XmlNode<'a, 'i>),
+        }
+        let mut runs: Vec<Run> = Vec::new();
         for n in nodes {
             if n.is_element() {
-                self.dispatch(n, Some(g));
+                if matches!(n.tag_name().name(), "location" | "layer") {
+                    self.dispatch(n, Some(g));
+                } else {
+                    runs.push(Run::El(n));
+                }
             } else if n.is_text() {
-                for data in pieces(n) {
-                    let t = data.trim();
-                    if !t.is_empty() {
-                        self.tree
-                            .add(Some(g), None, Self::text_kind("text", t, None));
+                let data: String = pieces(n).concat();
+                let mut t = String::with_capacity(data.len());
+                let mut ws = false;
+                for c in data.chars() {
+                    if matches!(c, ' ' | '\t' | '\n' | '\r') {
+                        if !ws {
+                            t.push(' ');
+                        }
+                        ws = true;
+                    } else {
+                        t.push(c);
+                        ws = false;
                     }
+                }
+                if !t.is_empty() {
+                    runs.push(Run::Text(t));
+                }
+            }
+        }
+        // The block's edges: blank runs there go, the outer runs are trimmed.
+        while matches!(runs.first(), Some(Run::Text(t)) if t.trim().is_empty()) {
+            runs.remove(0);
+        }
+        while matches!(runs.last(), Some(Run::Text(t)) if t.trim().is_empty()) {
+            runs.pop();
+        }
+        if let Some(Run::Text(t)) = runs.first_mut() {
+            *t = t.trim_start().to_string();
+        }
+        if let Some(Run::Text(t)) = runs.last_mut() {
+            *t = t.trim_end().to_string();
+        }
+        for run in runs {
+            match run {
+                Run::El(n) => self.dispatch(n, Some(g)),
+                Run::Text(t) => {
+                    self.tree
+                        .add(Some(g), None, Self::text_kind("text", &t, None));
                 }
             }
         }

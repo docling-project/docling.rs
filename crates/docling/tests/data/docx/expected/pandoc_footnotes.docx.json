@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "pandoc_footnotes",
   "origin": {
     "mimetype": "text/plain",
@@ -165,8 +165,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Plain start,",
-      "text": "Plain start,",
+      "orig": "Plain start, ",
+      "text": "Plain start, ",
       "formatting": {
         "bold": false,
         "italic": false,
@@ -203,8 +203,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "and the end.",
-      "text": "and the end.",
+      "orig": " and the end.",
+      "text": " and the end.",
       "formatting": {
         "bold": false,
         "italic": false,

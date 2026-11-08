@@ -401,6 +401,10 @@ impl PyDocumentConverter {
     ///   `document.pages[n].image` (docling's `generate_page_images`, #520),
     ///   which docling-core's `TableItem.get_image` / `FormulaItem.get_image`
     ///   crop from.
+    /// * `use_embedded_picture_images` — a PDF picture whose region holds
+    ///   exactly one embedded image with nothing drawn over it gets that
+    ///   bitmap at native resolution (`dpi` 72) instead of the render crop
+    ///   (docling's `use_embedded_picture_images`, #1007).
     /// * `ocr_engine` — which OCR engine reads scanned pages (#460):
     ///   `"ppocr"` (default, the built-in PP-OCRv3 recognizer) or
     ///   `"tesseract"` (the system `tesseract` binary, docling's
@@ -529,6 +533,7 @@ impl PyDocumentConverter {
         allowed_formats = None,
         images_scale = None,
         generate_page_images = false,
+        use_embedded_picture_images = false,
         text_layer_only = None,
         list_attachments = false,
         skip_empty_cells = false,
@@ -611,6 +616,7 @@ impl PyDocumentConverter {
         allowed_formats: Option<Vec<String>>,
         images_scale: Option<f32>,
         generate_page_images: bool,
+        use_embedded_picture_images: bool,
         text_layer_only: Option<Py<PyAny>>,
         list_attachments: bool,
         skip_empty_cells: bool,
@@ -690,6 +696,7 @@ impl PyDocumentConverter {
             ocr_textline_orientation,
             images_scale,
             page_images: Some(generate_page_images),
+            use_embedded_picture_images: Some(use_embedded_picture_images),
             do_picture_classification: Some(do_picture_classification),
             do_code_enrichment: Some(do_code_enrichment),
             do_formula_enrichment: Some(do_formula_enrichment),
@@ -843,6 +850,7 @@ impl PyDocumentConverter {
                     .keep_typography(keep_typography)
                     .images_scale(images.scale)
                     .generate_page_images(images.page_images)
+                    .use_embedded_picture_images(images.embedded_pictures)
                     .pages(page_range)
                     .document_timeout(document_timeout)
                     .enrichments(enrich);

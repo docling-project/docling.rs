@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "rust_blog",
   "origin": {
     "mimetype": "text/plain",
@@ -722,8 +722,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "If you have a previous version of Rust installed via `rustup` , you can get 1.99.0 with:",
-      "text": "If you have a previous version of Rust installed via `rustup` , you can get 1.99.0 with:"
+      "orig": "If you have a previous version of Rust installed via `rustup`, you can get 1.99.0 with:",
+      "text": "If you have a previous version of Rust installed via `rustup`, you can get 1.99.0 with:"
     },
     {
       "self_ref": "#/texts/20",
@@ -750,8 +750,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "If you don't have it already, you can get [`rustup`](https://www.rust-lang.org/install.html) from the appropriate page on our website, and check out the [detailed release notes for 1.99.0](https://doc.rust-lang.org/stable/releases.html#version-1990-2026-10-01) .",
-      "text": "If you don't have it already, you can get [`rustup`](https://www.rust-lang.org/install.html) from the appropriate page on our website, and check out the [detailed release notes for 1.99.0](https://doc.rust-lang.org/stable/releases.html#version-1990-2026-10-01) ."
+      "orig": "If you don't have it already, you can get [`rustup`](https://www.rust-lang.org/install.html) from the appropriate page on our website, and check out the [detailed release notes for 1.99.0](https://doc.rust-lang.org/stable/releases.html#version-1990-2026-10-01).",
+      "text": "If you don't have it already, you can get [`rustup`](https://www.rust-lang.org/install.html) from the appropriate page on our website, and check out the [detailed release notes for 1.99.0](https://doc.rust-lang.org/stable/releases.html#version-1990-2026-10-01)."
     },
     {
       "self_ref": "#/texts/22",
@@ -762,8 +762,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "If you'd like to help us out by testing future releases, you might consider updating locally to use the beta channel ( `rustup default beta` ) or the nightly channel ( `rustup default nightly` ). Please [report](https://github.com/rust-lang/rust/issues/new/choose) any bugs you might come across!",
-      "text": "If you'd like to help us out by testing future releases, you might consider updating locally to use the beta channel ( `rustup default beta` ) or the nightly channel ( `rustup default nightly` ). Please [report](https://github.com/rust-lang/rust/issues/new/choose) any bugs you might come across!"
+      "orig": "If you'd like to help us out by testing future releases, you might consider updating locally to use the beta channel (`rustup default beta`) or the nightly channel (`rustup default nightly`). Please [report](https://github.com/rust-lang/rust/issues/new/choose) any bugs you might come across!",
+      "text": "If you'd like to help us out by testing future releases, you might consider updating locally to use the beta channel (`rustup default beta`) or the nightly channel (`rustup default nightly`). Please [report](https://github.com/rust-lang/rust/issues/new/choose) any bugs you might come across!"
     },
     {
       "self_ref": "#/texts/23",
@@ -800,8 +800,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Rust 1.99.0 stabilizes defining C-ABI variadic functions with \"C\" and \"C-unwind\" ABIs. Variadic functions defined this way use a variable argument list ( `...` ) and accept an arbitrary number of arguments. Rust could already call externally-defined variadic functions (e.g., `libc::printf` ). With Rust 1.99, these functions can now be written in Rust itself:",
-      "text": "Rust 1.99.0 stabilizes defining C-ABI variadic functions with \"C\" and \"C-unwind\" ABIs. Variadic functions defined this way use a variable argument list ( `...` ) and accept an arbitrary number of arguments. Rust could already call externally-defined variadic functions (e.g., `libc::printf` ). With Rust 1.99, these functions can now be written in Rust itself:"
+      "orig": "Rust 1.99.0 stabilizes defining C-ABI variadic functions with \"C\" and \"C-unwind\" ABIs. Variadic functions defined this way use a variable argument list (`...`) and accept an arbitrary number of arguments. Rust could already call externally-defined variadic functions (e.g., `libc::printf`). With Rust 1.99, these functions can now be written in Rust itself:",
+      "text": "Rust 1.99.0 stabilizes defining C-ABI variadic functions with \"C\" and \"C-unwind\" ABIs. Variadic functions defined this way use a variable argument list (`...`) and accept an arbitrary number of arguments. Rust could already call externally-defined variadic functions (e.g., `libc::printf`). With Rust 1.99, these functions can now be written in Rust itself:"
     },
     {
       "self_ref": "#/texts/26",
@@ -828,8 +828,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "The type of `...` is [`VaList`](https://doc.rust-lang.org/std/ffi/struct.VaList.html) , which is ABI-compatible with the C `va_list` type across targets. What types can be read from a `VaList` is guarded by the [`VaArgSafe`](https://doc.rust-lang.org/std/ffi/trait.VaArgSafe.html) trait.",
-      "text": "The type of `...` is [`VaList`](https://doc.rust-lang.org/std/ffi/struct.VaList.html) , which is ABI-compatible with the C `va_list` type across targets. What types can be read from a `VaList` is guarded by the [`VaArgSafe`](https://doc.rust-lang.org/std/ffi/trait.VaArgSafe.html) trait."
+      "orig": "The type of `...` is [`VaList`](https://doc.rust-lang.org/std/ffi/struct.VaList.html), which is ABI-compatible with the C `va_list` type across targets. What types can be read from a `VaList` is guarded by the [`VaArgSafe`](https://doc.rust-lang.org/std/ffi/trait.VaArgSafe.html) trait.",
+      "text": "The type of `...` is [`VaList`](https://doc.rust-lang.org/std/ffi/struct.VaList.html), which is ABI-compatible with the C `va_list` type across targets. What types can be read from a `VaList` is guarded by the [`VaArgSafe`](https://doc.rust-lang.org/std/ffi/trait.VaArgSafe.html) trait."
     },
     {
       "self_ref": "#/texts/28",
@@ -840,8 +840,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "For more details on c-variadic functions, see the [Reference](https://doc.rust-lang.org/reference/items/functions.html#c-variadic-functions) . This release also stabilizes support for defining naked variadic functions with non-\"C\" ABIs, which must be written via inline assembly.",
-      "text": "For more details on c-variadic functions, see the [Reference](https://doc.rust-lang.org/reference/items/functions.html#c-variadic-functions) . This release also stabilizes support for defining naked variadic functions with non-\"C\" ABIs, which must be written via inline assembly."
+      "orig": "For more details on c-variadic functions, see the [Reference](https://doc.rust-lang.org/reference/items/functions.html#c-variadic-functions). This release also stabilizes support for defining naked variadic functions with non-\"C\" ABIs, which must be written via inline assembly.",
+      "text": "For more details on c-variadic functions, see the [Reference](https://doc.rust-lang.org/reference/items/functions.html#c-variadic-functions). This release also stabilizes support for defining naked variadic functions with non-\"C\" ABIs, which must be written via inline assembly."
     },
     {
       "self_ref": "#/texts/29",
@@ -865,8 +865,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "This release settles the safety requirements for retrieving the size and alignment on raw pointers to both `Sized` (trivially safe, already possible on stable) and non- `Sized` types.",
-      "text": "This release settles the safety requirements for retrieving the size and alignment on raw pointers to both `Sized` (trivially safe, already possible on stable) and non- `Sized` types."
+      "orig": "This release settles the safety requirements for retrieving the size and alignment on raw pointers to both `Sized` (trivially safe, already possible on stable) and non-`Sized` types.",
+      "text": "This release settles the safety requirements for retrieving the size and alignment on raw pointers to both `Sized` (trivially safe, already possible on stable) and non-`Sized` types."
     },
     {
       "self_ref": "#/texts/31",
@@ -1232,8 +1232,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Check out everything that changed in [Rust](https://github.com/rust-lang/rust/releases/tag/1.99.0) , [Cargo](https://doc.rust-lang.org/nightly/cargo/CHANGELOG.html#cargo-199-2026-10-01) , and [Clippy](https://github.com/rust-lang/rust-clippy/blob/master/CHANGELOG.md#rust-199) .",
-      "text": "Check out everything that changed in [Rust](https://github.com/rust-lang/rust/releases/tag/1.99.0) , [Cargo](https://doc.rust-lang.org/nightly/cargo/CHANGELOG.html#cargo-199-2026-10-01) , and [Clippy](https://github.com/rust-lang/rust-clippy/blob/master/CHANGELOG.md#rust-199) ."
+      "orig": "Check out everything that changed in [Rust](https://github.com/rust-lang/rust/releases/tag/1.99.0), [Cargo](https://doc.rust-lang.org/nightly/cargo/CHANGELOG.html#cargo-199-2026-10-01), and [Clippy](https://github.com/rust-lang/rust-clippy/blob/master/CHANGELOG.md#rust-199).",
+      "text": "Check out everything that changed in [Rust](https://github.com/rust-lang/rust/releases/tag/1.99.0), [Cargo](https://doc.rust-lang.org/nightly/cargo/CHANGELOG.html#cargo-199-2026-10-01), and [Clippy](https://github.com/rust-lang/rust-clippy/blob/master/CHANGELOG.md#rust-199)."
     },
     {
       "self_ref": "#/texts/58",
@@ -1306,8 +1306,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "This post explains why we chose to support the Cargo team specifically, and introduces [Scott Schafer](https://blog.rust-lang.org/2026/09/22/announcing-a-maintainer-in-residence-scott-schafer-for-the-cargo-team/#introducing-scott-schafer) , the new Cargo Maintainer in Residence.",
-      "text": "This post explains why we chose to support the Cargo team specifically, and introduces [Scott Schafer](https://blog.rust-lang.org/2026/09/22/announcing-a-maintainer-in-residence-scott-schafer-for-the-cargo-team/#introducing-scott-schafer) , the new Cargo Maintainer in Residence."
+      "orig": "This post explains why we chose to support the Cargo team specifically, and introduces [Scott Schafer](https://blog.rust-lang.org/2026/09/22/announcing-a-maintainer-in-residence-scott-schafer-for-the-cargo-team/#introducing-scott-schafer), the new Cargo Maintainer in Residence.",
+      "text": "This post explains why we chose to support the Cargo team specifically, and introduces [Scott Schafer](https://blog.rust-lang.org/2026/09/22/announcing-a-maintainer-in-residence-scott-schafer-for-the-cargo-team/#introducing-scott-schafer), the new Cargo Maintainer in Residence."
     },
     {
       "self_ref": "#/texts/64",
@@ -1331,8 +1331,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "The new MiR full-time position is dedicated to helping with the maintenance of [Cargo](https://github.com/rust-lang/cargo) , our build system and package manager. The Cargo project is deeply involved in many new Rust features, improvements, and [Project Goals](https://goals.rust-lang.org/2026/goals.html#cargo-team) . Combined with its cross-cutting nature, where it has to support many different use-cases and integrate with several other tools, it takes a lot of work just to keep up with its maintenance needs, let alone support so many feature requests and proposed changes.",
-      "text": "The new MiR full-time position is dedicated to helping with the maintenance of [Cargo](https://github.com/rust-lang/cargo) , our build system and package manager. The Cargo project is deeply involved in many new Rust features, improvements, and [Project Goals](https://goals.rust-lang.org/2026/goals.html#cargo-team) . Combined with its cross-cutting nature, where it has to support many different use-cases and integrate with several other tools, it takes a lot of work just to keep up with its maintenance needs, let alone support so many feature requests and proposed changes."
+      "orig": "The new MiR full-time position is dedicated to helping with the maintenance of [Cargo](https://github.com/rust-lang/cargo), our build system and package manager. The Cargo project is deeply involved in many new Rust features, improvements, and [Project Goals](https://goals.rust-lang.org/2026/goals.html#cargo-team). Combined with its cross-cutting nature, where it has to support many different use-cases and integrate with several other tools, it takes a lot of work just to keep up with its maintenance needs, let alone support so many feature requests and proposed changes.",
+      "text": "The new MiR full-time position is dedicated to helping with the maintenance of [Cargo](https://github.com/rust-lang/cargo), our build system and package manager. The Cargo project is deeply involved in many new Rust features, improvements, and [Project Goals](https://goals.rust-lang.org/2026/goals.html#cargo-team). Combined with its cross-cutting nature, where it has to support many different use-cases and integrate with several other tools, it takes a lot of work just to keep up with its maintenance needs, let alone support so many feature requests and proposed changes."
     },
     {
       "self_ref": "#/texts/66",
@@ -1343,8 +1343,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Because of that, the Cargo team has sometimes struggled with meeting its maintenance demands. You might remember that for several years, it actually held a [feature freeze](https://blog.rust-lang.org/inside-rust/2022/03/31/cargo-team-changes/) , to reduce Cargo's internal tech debt, perform necessary refactorings, go through the issue and pull request backlog, and come up with scalable internal development and design processes, so that they could eventually go back to even thinking about adding new features.",
-      "text": "Because of that, the Cargo team has sometimes struggled with meeting its maintenance demands. You might remember that for several years, it actually held a [feature freeze](https://blog.rust-lang.org/inside-rust/2022/03/31/cargo-team-changes/) , to reduce Cargo's internal tech debt, perform necessary refactorings, go through the issue and pull request backlog, and come up with scalable internal development and design processes, so that they could eventually go back to even thinking about adding new features."
+      "orig": "Because of that, the Cargo team has sometimes struggled with meeting its maintenance demands. You might remember that for several years, it actually held a [feature freeze](https://blog.rust-lang.org/inside-rust/2022/03/31/cargo-team-changes/), to reduce Cargo's internal tech debt, perform necessary refactorings, go through the issue and pull request backlog, and come up with scalable internal development and design processes, so that they could eventually go back to even thinking about adding new features.",
+      "text": "Because of that, the Cargo team has sometimes struggled with meeting its maintenance demands. You might remember that for several years, it actually held a [feature freeze](https://blog.rust-lang.org/inside-rust/2022/03/31/cargo-team-changes/), to reduce Cargo's internal tech debt, perform necessary refactorings, go through the issue and pull request backlog, and come up with scalable internal development and design processes, so that they could eventually go back to even thinking about adding new features."
     },
     {
       "self_ref": "#/texts/67",
@@ -1404,8 +1404,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "We are very happy to welcome Scott Schafer ( [@muscraft](https://github.com/Muscraft) ) into the Maintainer in Residence role! Scott has joined the Cargo team [three years ago](https://blog.rust-lang.org/inside-rust/2023/04/06/cargo-new-members/) , and apart from working on Cargo, he is also the lead of the Rust [Docker team](https://rust-lang.org/governance/teams/#team-docker) , which prepares official Docker images for every Rust version.",
-      "text": "We are very happy to welcome Scott Schafer ( [@muscraft](https://github.com/Muscraft) ) into the Maintainer in Residence role! Scott has joined the Cargo team [three years ago](https://blog.rust-lang.org/inside-rust/2023/04/06/cargo-new-members/) , and apart from working on Cargo, he is also the lead of the Rust [Docker team](https://rust-lang.org/governance/teams/#team-docker) , which prepares official Docker images for every Rust version."
+      "orig": "We are very happy to welcome Scott Schafer ([@muscraft](https://github.com/Muscraft)) into the Maintainer in Residence role! Scott has joined the Cargo team [three years ago](https://blog.rust-lang.org/inside-rust/2023/04/06/cargo-new-members/), and apart from working on Cargo, he is also the lead of the Rust [Docker team](https://rust-lang.org/governance/teams/#team-docker), which prepares official Docker images for every Rust version.",
+      "text": "We are very happy to welcome Scott Schafer ([@muscraft](https://github.com/Muscraft)) into the Maintainer in Residence role! Scott has joined the Cargo team [three years ago](https://blog.rust-lang.org/inside-rust/2023/04/06/cargo-new-members/), and apart from working on Cargo, he is also the lead of the Rust [Docker team](https://rust-lang.org/governance/teams/#team-docker), which prepares official Docker images for every Rust version."
     },
     {
       "self_ref": "#/texts/72",
@@ -1526,8 +1526,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "The Rust Security Response Team was notified that Miri stores all environment variables to `target/` , allowing secrets to persist in caches.",
-      "text": "The Rust Security Response Team was notified that Miri stores all environment variables to `target/` , allowing secrets to persist in caches."
+      "orig": "The Rust Security Response Team was notified that Miri stores all environment variables to `target/`, allowing secrets to persist in caches.",
+      "text": "The Rust Security Response Team was notified that Miri stores all environment variables to `target/`, allowing secrets to persist in caches."
     },
     {
       "self_ref": "#/texts/82",
@@ -1563,8 +1563,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "GitHub Actions makes it possible to cache directories between runs. Typical setups allow CI runs on `main` (and other branches) to *write* to cache, and PRs can only *read* from cache (preventing cache poisoning). Rust projects tend to speed up CI by caching binaries built by `cargo install` and sometimes the contents of `target/` .",
-      "text": "GitHub Actions makes it possible to cache directories between runs. Typical setups allow CI runs on `main` (and other branches) to *write* to cache, and PRs can only *read* from cache (preventing cache poisoning). Rust projects tend to speed up CI by caching binaries built by `cargo install` and sometimes the contents of `target/` ."
+      "orig": "GitHub Actions makes it possible to cache directories between runs. Typical setups allow CI runs on `main` (and other branches) to *write* to cache, and PRs can only *read* from cache (preventing cache poisoning). Rust projects tend to speed up CI by caching binaries built by `cargo install` and sometimes the contents of `target/`.",
+      "text": "GitHub Actions makes it possible to cache directories between runs. Typical setups allow CI runs on `main` (and other branches) to *write* to cache, and PRs can only *read* from cache (preventing cache poisoning). Rust projects tend to speed up CI by caching binaries built by `cargo install` and sometimes the contents of `target/`."
     },
     {
       "self_ref": "#/texts/85",
@@ -1599,8 +1599,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "When `cargo miri` is invoked, Miri needs to retain build-relevant environment variables between runs [[1]](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/#fn-1) . The current code to do so achieves this by storing [all environment variables to target/](https://github.com/rust-lang/miri/blob/165a9c3c96f0f4e6232278e62cb64648215bbc37/cargo-miri/src/util.rs#L40-L42) . This, of course, persists when `target/` is cached.",
-      "text": "When `cargo miri` is invoked, Miri needs to retain build-relevant environment variables between runs [[1]](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/#fn-1) . The current code to do so achieves this by storing [all environment variables to target/](https://github.com/rust-lang/miri/blob/165a9c3c96f0f4e6232278e62cb64648215bbc37/cargo-miri/src/util.rs#L40-L42) . This, of course, persists when `target/` is cached."
+      "orig": "When `cargo miri` is invoked, Miri needs to retain build-relevant environment variables between runs[[1]](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/#fn-1). The current code to do so achieves this by storing [all environment variables to target/](https://github.com/rust-lang/miri/blob/165a9c3c96f0f4e6232278e62cb64648215bbc37/cargo-miri/src/util.rs#L40-L42). This, of course, persists when `target/` is cached.",
+      "text": "When `cargo miri` is invoked, Miri needs to retain build-relevant environment variables between runs[[1]](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/#fn-1). The current code to do so achieves this by storing [all environment variables to target/](https://github.com/rust-lang/miri/blob/165a9c3c96f0f4e6232278e62cb64648215bbc37/cargo-miri/src/util.rs#L40-L42). This, of course, persists when `target/` is cached."
     },
     {
       "self_ref": "#/texts/88",
@@ -1636,8 +1636,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Our [short term fix](https://github.com/rust-lang/miri/pull/5337) for this is to make Miri only preserve `CARGO_*` environment variables (excepting `CARGO_*_TOKEN` ) and `OUT_DIR` . In the longer term, Miri and cargo may figure out better ways to inform Miri of the relevant list of environment variables. Note that this patch may not be available on nightly yet.",
-      "text": "Our [short term fix](https://github.com/rust-lang/miri/pull/5337) for this is to make Miri only preserve `CARGO_*` environment variables (excepting `CARGO_*_TOKEN` ) and `OUT_DIR` . In the longer term, Miri and cargo may figure out better ways to inform Miri of the relevant list of environment variables. Note that this patch may not be available on nightly yet."
+      "orig": "Our [short term fix](https://github.com/rust-lang/miri/pull/5337) for this is to make Miri only preserve `CARGO_*` environment variables (excepting `CARGO_*_TOKEN`) and `OUT_DIR`. In the longer term, Miri and cargo may figure out better ways to inform Miri of the relevant list of environment variables. Note that this patch may not be available on nightly yet.",
+      "text": "Our [short term fix](https://github.com/rust-lang/miri/pull/5337) for this is to make Miri only preserve `CARGO_*` environment variables (excepting `CARGO_*_TOKEN`) and `OUT_DIR`. In the longer term, Miri and cargo may figure out better ways to inform Miri of the relevant list of environment variables. Note that this patch may not be available on nightly yet."
     },
     {
       "self_ref": "#/texts/91",
@@ -1853,8 +1853,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Once done, [please clear the cache](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manage-caches#deleting-cache-entries) . Consider rotating any secrets that might have leaked.",
-      "text": "Once done, [please clear the cache](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manage-caches#deleting-cache-entries) . Consider rotating any secrets that might have leaked."
+      "orig": "Once done, [please clear the cache](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manage-caches#deleting-cache-entries). Consider rotating any secrets that might have leaked.",
+      "text": "Once done, [please clear the cache](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manage-caches#deleting-cache-entries). Consider rotating any secrets that might have leaked."
     },
     {
       "self_ref": "#/texts/107",
@@ -1914,8 +1914,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "If caching `target/` , it is worth making sure that the inputs to processes that create `target/` (anything invoking `cargo` ) do not have secrets available. It is generally rare for standard `cargo` build/test subcommands to need any secrets or tokens [[2]](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/#fn-2) , so this is mostly a matter of being careful about having secrets exposed as environment variables to the entire job.",
-      "text": "If caching `target/` , it is worth making sure that the inputs to processes that create `target/` (anything invoking `cargo` ) do not have secrets available. It is generally rare for standard `cargo` build/test subcommands to need any secrets or tokens [[2]](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/#fn-2) , so this is mostly a matter of being careful about having secrets exposed as environment variables to the entire job."
+      "orig": "If caching `target/`, it is worth making sure that the inputs to processes that create `target/` (anything invoking `cargo`) do not have secrets available. It is generally rare for standard `cargo` build/test subcommands to need any secrets or tokens[[2]](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/#fn-2), so this is mostly a matter of being careful about having secrets exposed as environment variables to the entire job.",
+      "text": "If caching `target/`, it is worth making sure that the inputs to processes that create `target/` (anything invoking `cargo`) do not have secrets available. It is generally rare for standard `cargo` build/test subcommands to need any secrets or tokens[[2]](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/#fn-2), so this is mostly a matter of being careful about having secrets exposed as environment variables to the entire job."
     },
     {
       "self_ref": "#/texts/112",
@@ -1926,8 +1926,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Cargo/Miri/Rust does not guarantee that environment variables will be safe from being copied into `target/` . While we are treating this as a security issue and patching it out of an abundance of caution, this is not something you should rely on in general. Beyond official Rust tooling, it is possible for build scripts to be doing things that lead to the environment being stored in compilation artifacts.",
-      "text": "Cargo/Miri/Rust does not guarantee that environment variables will be safe from being copied into `target/` . While we are treating this as a security issue and patching it out of an abundance of caution, this is not something you should rely on in general. Beyond official Rust tooling, it is possible for build scripts to be doing things that lead to the environment being stored in compilation artifacts."
+      "orig": "Cargo/Miri/Rust does not guarantee that environment variables will be safe from being copied into `target/`. While we are treating this as a security issue and patching it out of an abundance of caution, this is not something you should rely on in general. Beyond official Rust tooling, it is possible for build scripts to be doing things that lead to the environment being stored in compilation artifacts.",
+      "text": "Cargo/Miri/Rust does not guarantee that environment variables will be safe from being copied into `target/`. While we are treating this as a security issue and patching it out of an abundance of caution, this is not something you should rely on in general. Beyond official Rust tooling, it is possible for build scripts to be doing things that lead to the environment being stored in compilation artifacts."
     },
     {
       "self_ref": "#/texts/113",

@@ -242,10 +242,10 @@ fn verbatim_keeps_definitions_and_first_line_indentation() {
 #[test]
 fn custom_macro_arguments_with_inline_math() {
     let markdown = md("\\documentclass{article}\n\\newcommand{\\pair}[2]{#1 and #2}\n\\begin{document}\n\\textbf{\\pair{A}{B} $x$}\n\\end{document}\n");
-    assert_eq!(markdown, "A and B  $x$");
+    assert_eq!(markdown, "A and B $x$");
     let markdown =
         md("\\documentclass{article}\n\\begin{document}\n\\textbf{Before \\begin{math}x\\end{math} after.}\n\\end{document}\n");
-    assert_eq!(markdown, "Before  $x$  after.");
+    assert_eq!(markdown, "Before $x$ after.");
 }
 
 #[test]
@@ -314,11 +314,11 @@ fn inline_math_is_an_inline_group_of_text_and_formulas() {
     assert_eq!(texts[0]["parent"]["$ref"], "#/groups/0");
     assert_eq!(j["groups"][0]["name"], "metadata");
     assert_eq!(j["groups"][1]["name"], "authors");
-    // docling-core joins an inline group's parts with spaces; the text run
-    // keeps its own trailing one (upstream's Markdown, byte for byte).
+    // The text run keeps its own trailing space and docling-core 2.106
+    // concatenates the parts (#997): one space, as written.
     let markdown = md(tex);
     assert!(
-        markdown.contains("## Math\n\nInline math:  $x$\n\nDisplay:\n\n$$y = 1$$"),
+        markdown.contains("## Math\n\nInline math: $x$\n\nDisplay:\n\n$$y = 1$$"),
         "{markdown}"
     );
     assert!(
@@ -333,7 +333,7 @@ fn inline_math_in_headings_captions_and_list_items() {
         \\begin{figure}\\includegraphics{x.png}\\caption{Cap with $q$}\\end{figure}\n\\end{document}";
     assert_eq!(
         md(tex),
-        "## Intro with  $\\alpha$\n\n- First  $z$  item\n\nCap with  $q$\n\n<!-- image -->"
+        "## Intro with $\\alpha$\n\n- First $z$ item\n\nCap with $q$\n\n<!-- image -->"
     );
 }
 
@@ -422,10 +422,10 @@ fn front_matter_keeps_roles_and_inline_math() {
     let markdown = md(tex);
     assert!(!markdown.contains("11cm"), "{markdown}");
     assert!(
-        markdown.contains("Present address: Faculty  $B_3$"),
+        markdown.contains("Present address: Faculty $B_3$"),
         "{markdown}"
     );
-    assert!(markdown.contains("C. Balázs $^{1}$"), "{markdown}");
+    assert!(markdown.contains("C. Balázs$^{1}$"), "{markdown}");
 }
 
 #[test]
@@ -509,11 +509,7 @@ fn table_captions_print_before_the_table() {
     let j = json(tex);
     let caption = resolve(&j, &j["tables"][0]["captions"][0]);
     assert_eq!(caption["label"], "caption");
-    assert!(
-        md(tex).starts_with("Tab  $t$  cap\n\n| x   |"),
-        "{}",
-        md(tex)
-    );
+    assert!(md(tex).starts_with("Tab $t$ cap\n\n| x   |"), "{}", md(tex));
 }
 
 #[test]

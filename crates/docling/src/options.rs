@@ -230,6 +230,10 @@ pub struct ConvertOptions {
     /// `generate_page_images`, #520 — accepted as an alias).
     #[serde(alias = "generate_page_images")]
     pub page_images: Option<bool>,
+    /// A PDF picture takes its one safe embedded image at native resolution
+    /// instead of the render crop (docling's `use_embedded_picture_images`,
+    /// #1007). Default off.
+    pub use_embedded_picture_images: Option<bool>,
     /// Enrichment: classify pictures with DocumentFigureClassifier (#423).
     pub do_picture_classification: Option<bool>,
     /// Enrichment: rewrite code blocks with CodeFormulaV2 (#423).
@@ -658,6 +662,7 @@ pub const OPTIONS: &[OptionInfo] = &[
         python: Some("generate_page_images"),
         ..row("page_images")
     },
+    row("use_embedded_picture_images"),
     OptionInfo {
         cli: Some("--enrich-picture-classes"),
         ..row("do_picture_classification")
@@ -1431,6 +1436,9 @@ impl ConvertOptions {
         if let Some(v) = self.page_images {
             c = c.generate_page_images(v);
         }
+        if let Some(v) = self.use_embedded_picture_images {
+            c = c.use_embedded_picture_images(v);
+        }
         if let Some(v) = self.do_picture_classification {
             c = c.do_picture_classification(v);
         }
@@ -1617,6 +1625,7 @@ impl ConvertOptions {
         crate::ImageOutput {
             scale: self.images_scale,
             page_images: self.page_images.unwrap_or(false),
+            embedded_pictures: self.use_embedded_picture_images.unwrap_or(false),
         }
     }
 
@@ -1827,6 +1836,17 @@ mod tests {
             ),
             vec!["strictness".to_string()]
         );
+    }
+
+    /// #1007: `use_embedded_picture_images` reaches the pipeline's image
+    /// output, off unless asked for.
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn use_embedded_picture_images_reaches_the_image_output() {
+        let on: ConvertOptions =
+            serde_json::from_str(r#"{"use_embedded_picture_images": true}"#).unwrap();
+        assert!(on.image_output().embedded_pictures);
+        assert!(!ConvertOptions::default().image_output().embedded_pictures);
     }
 
     /// #647: `video_frames` reads an integer, `"all"`, a digit string (the

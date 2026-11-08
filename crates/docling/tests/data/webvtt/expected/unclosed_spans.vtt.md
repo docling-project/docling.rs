@@ -2,6 +2,6 @@
 
 what she said
 
-He said  *stop*
+He said *stop*
 
-Hi  **there**
+Hi **there**

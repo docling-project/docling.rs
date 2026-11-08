@@ -1,5 +1,5 @@
 //! Export a [`DoclingDocument`] to docling-core's native JSON wire format
-//! (`DoclingDocument` schema v1.10.0) — the same shape `export_to_dict()` /
+//! (`DoclingDocument` schema v1.11.0) — the same shape `export_to_dict()` /
 //! `save_as_json()` produce in Python docling, and the inverse of the
 //! JSON-docling reader.
 //!
@@ -12,7 +12,7 @@ use serde_json::{json, Map, Value};
 
 use crate::document::{CaptionParent, ContentLayer, DoclingDocument, Node, Table};
 
-const SCHEMA_VERSION: &str = "1.10.0";
+const SCHEMA_VERSION: &str = "1.11.0";
 
 /// docling-core's `CodeLanguageLabel` values (anything else serializes as
 /// `unknown`, which the model requires for code items).
@@ -312,6 +312,12 @@ fn build_parts(doc: &DoclingDocument, note_keys: bool) -> Parts {
             // document it serializes; apply it the same way (keeping the
             // items' children, which docling-core drops — #586).
             let mut tree = tree.clone();
+            // Schema 1.11.0's inline runs own their whitespace (#997); a
+            // backend still building trimmed runs gets the old join back in
+            // the runs, as docling-core migrates a pre-1.11 document on load.
+            if !tree.inline_whitespace {
+                tree.separate_legacy_inline_runs();
+            }
             tree.wrap_misplaced_list_items();
             b.write_tree(&tree).into_iter().map(Child::json).collect()
         }
@@ -3678,7 +3684,7 @@ mod tests {
 
         let v: Value = serde_json::from_str(&doc.export_to_json()).unwrap();
         assert_eq!(v["schema_name"], "DoclingDocument");
-        assert_eq!(v["version"], "1.10.0");
+        assert_eq!(v["version"], "1.11.0");
         assert_eq!(v["texts"][0]["label"], "title");
         assert_eq!(v["texts"][1]["label"], "section_header");
         assert_eq!(v["texts"][1]["level"], 1); // heading level 2 → docling level 1
@@ -4121,10 +4127,66 @@ mod tests {
     }
 
     #[test]
+    fn a_trimmed_run_tree_gets_the_legacy_join_in_its_runs() {
+        use crate::tree::{ItemTree, TreeKind, TreeProv};
+        let text = |label: &str, txt: &str| TreeKind::Text {
+            label: label.into(),
+            text: txt.into(),
+            orig: None,
+            formatting: None,
+            hyperlink: None,
+            level: None,
+            list: None,
+        };
+        let mut t = ItemTree::default();
+        let g = t.add(
+            None,
+            None,
+            TreeKind::Group {
+                label: "inline".into(),
+                name: "group".into(),
+            },
+        );
+        t.add(Some(g), None, text("text", "left"));
+        let prov = TreeProv {
+            page_no: 1,
+            bbox: [0.0, 0.0, 1.0, 1.0],
+            bottom_left: false,
+            charspan: [0, 1],
+        };
+        t.add_with_prov(Some(g), None, text("formula", "a"), prov.clone());
+        t.add_with_prov(Some(g), None, text("formula", "b"), prov);
+        t.add(Some(g), None, text("text", "right"));
+        let doc = DoclingDocument {
+            tree: Some(t),
+            ..DoclingDocument::new("t")
+        };
+        let v: Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+        let texts: Vec<&str> = v["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["text"].as_str().unwrap())
+            .collect();
+        // `left ` · `a` · ` ` (standalone, appended) · `b` · ` right`.
+        assert_eq!(texts, ["left ", "a", "b", " right", " "]);
+        assert_eq!(v["texts"][0]["orig"], "left");
+        assert_eq!(v["groups"][0]["children"][2]["$ref"], "#/texts/4");
+        assert_eq!(
+            v["texts"][4]["prov"][0]["charspan"],
+            serde_json::json!([0, 1])
+        );
+    }
+
+    #[test]
     #[cfg(feature = "preserve-order")] // field-order assertions (#970)
     fn a_backend_item_tree_is_written_verbatim() {
         use crate::tree::{Formatting, ItemTree, ListMeta, TreeKind};
-        let mut t = ItemTree::default();
+        let mut t = ItemTree {
+            // Runs as written: no legacy separator injection (#997).
+            inline_whitespace: true,
+            ..ItemTree::default()
+        };
         let text = |label: &str, txt: &str| TreeKind::Text {
             label: label.into(),
             text: txt.into(),

@@ -48,7 +48,7 @@ Published on: Mon, 28 Sep 2026 12:47:00 +0000
 
 World Wide Web Consortium Members have elected seven individuals to the World Wide Web Consortium, Inc. Board of Directors
 
-We are pleased to announce that W3C Consortium Members have elected the following seven people, listed in alphabetical order, to the World Wide Web Consortium, Inc. [Board of Directors](https://www.w3.org/groups/other/board/) :
+We are pleased to announce that W3C Consortium Members have elected the following seven people, listed in alphabetical order, to the World Wide Web Consortium, Inc. [Board of Directors](https://www.w3.org/groups/other/board/):
 
 - Koichi Moriyama
 - Chris Needham
@@ -293,9 +293,9 @@ EPUB® 3 defines a distribution and interchange format for digital publications 
 
 The [Publishing Maintenance Working Group](https://www.w3.org/groups/wg/pm/) invites implementations of the following three Candidate Recommendation Snapshots:
 
-- [EPUB 3.4](https://www.w3.org/TR/2026/CR-epub-34-20260721/) : EPUB® 3 defines a distribution and interchange format for digital publications and documents. The EPUB format provides a means of representing, packaging, and encoding structured and semantically enhanced web content - including HTML, CSS, SVG, and other resources - for distribution in a single-file container. This specification defines the authoring requirements for EPUB publications and represents the fourth major revision of the standard.
-- [EPUB Reading Systems 3.4](https://www.w3.org/TR/2026/CR-epub-rs-34-20260721/) : This specification defines the conformance requirements for EPUB 3 reading systems - the user agents that render EPUB publications.
-- [EPUB Accessibility 1.2](https://www.w3.org/TR/2026/CR-epub-a11y-12-20260721/) : This specification specifies content conformance requirements for verifying the accessibility of EPUB® Publications. It also specifies accessibility metadata requirements for the discoverability of EPUB publications.
+- [EPUB 3.4](https://www.w3.org/TR/2026/CR-epub-34-20260721/): EPUB® 3 defines a distribution and interchange format for digital publications and documents. The EPUB format provides a means of representing, packaging, and encoding structured and semantically enhanced web content - including HTML, CSS, SVG, and other resources - for distribution in a single-file container. This specification defines the authoring requirements for EPUB publications and represents the fourth major revision of the standard.
+- [EPUB Reading Systems 3.4](https://www.w3.org/TR/2026/CR-epub-rs-34-20260721/): This specification defines the conformance requirements for EPUB 3 reading systems - the user agents that render EPUB publications.
+- [EPUB Accessibility 1.2](https://www.w3.org/TR/2026/CR-epub-a11y-12-20260721/): This specification specifies content conformance requirements for verifying the accessibility of EPUB® Publications. It also specifies accessibility metadata requirements for the discoverability of EPUB publications.
 
 Comments are welcome via [GitHub issues](https://github.com/w3c/epub-specs/issues/) by **19 October 2026**.
 
