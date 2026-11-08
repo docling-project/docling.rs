@@ -1680,6 +1680,7 @@ fn add_table(out: &mut Out, parent: Option<usize>, node: XmlNode) {
         parent,
         None,
         TreeKind::Table {
+            footnotes: Vec::new(),
             table: table.clone(),
             rich_cells: Vec::new(),
             captions,
@@ -1785,6 +1786,7 @@ fn parse_jats_table(table: XmlNode) -> Option<Table> {
         col_header,
     });
     Some(Table {
+        footnotes: Vec::new(),
         rows: grid,
         location: None,
         structure,

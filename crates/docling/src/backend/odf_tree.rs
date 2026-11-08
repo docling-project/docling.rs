@@ -1333,6 +1333,7 @@ impl<'s> Walker<'s> {
         }
         self.tables += 1;
         let kind = TreeKind::Table {
+            footnotes: Vec::new(),
             table: Table {
                 rows: vec![vec![String::new(); width]; height],
                 cells: Some(Vec::new()),

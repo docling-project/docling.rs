@@ -631,6 +631,7 @@ fn parse_otsl(toks: &[Tok], i: &mut usize, out: &mut Vec<Node>, budget: &mut Bud
             .collect(),
     };
     out.push(Node::Table(Table {
+        footnotes: Vec::new(),
         rows,
         location: (locs.len() == 4).then(|| [locs[0], locs[1], locs[2], locs[3]]),
         structure: Some(structure),

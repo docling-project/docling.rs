@@ -843,6 +843,7 @@ impl<'a> Parser<'a> {
             row.resize(width, String::new());
         }
         doc.push(Node::Table(Table {
+            footnotes: Vec::new(),
             rows,
             location: None,
             structure: None,

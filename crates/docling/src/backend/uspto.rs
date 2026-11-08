@@ -232,6 +232,7 @@ impl PatentTree {
             parent,
             None,
             TreeKind::Table {
+                footnotes: Vec::new(),
                 table,
                 rich_cells: Vec::new(),
                 captions: Vec::new(),
@@ -1245,6 +1246,7 @@ fn parse_table(table: XmlNode) -> Option<Table> {
         return None;
     }
     Some(Table {
+        footnotes: Vec::new(),
         rows,
         location: None,
         structure: Some(TableStructure {

@@ -1128,6 +1128,7 @@ impl Builder<'_> {
                 parent,
                 None,
                 TreeKind::Table {
+                    footnotes: Vec::new(),
                     table: empty_table(),
                     rich_cells: Vec::new(),
                     captions,
@@ -1142,6 +1143,7 @@ impl Builder<'_> {
             parent,
             layer,
             TreeKind::Table {
+                footnotes: Vec::new(),
                 table: empty_table(),
                 rich_cells: Vec::new(),
                 captions: captions.clone(),
@@ -1173,6 +1175,7 @@ impl Builder<'_> {
         }
         let table = table_from_cells(table_cells, num_rows, num_cols);
         self.tree.items[tbl].kind = TreeKind::Table {
+            footnotes: Vec::new(),
             table,
             rich_cells,
             captions,
@@ -1535,6 +1538,7 @@ fn is_simple_virtual_text(nodes: &[XmlNode]) -> bool {
 
 fn empty_table() -> Table {
     Table {
+        footnotes: Vec::new(),
         rows: Vec::new(),
         location: None,
         structure: None,
@@ -1561,6 +1565,7 @@ pub(super) fn table_from_cells(cells: Vec<TableCell>, num_rows: usize, num_cols:
         }
     }
     Table {
+        footnotes: Vec::new(),
         rows,
         location: None,
         structure: None,

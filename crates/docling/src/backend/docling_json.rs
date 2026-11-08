@@ -38,6 +38,10 @@ impl DeclarativeBackend for DoclingJsonBackend {
         if !crate::backend::text::is_docling_document(&root) {
             return crate::backend::text::convert_json_text(source);
         }
+        // docling-core's `RefItem` reads a reference under either key
+        // (`populate_by_name`): upstream fixtures written with `cref`
+        // (`table_footnotes_496.json`) read like `$ref` ones (#1014).
+        normalize_crefs(&mut root);
         check_table_budget(&root)?;
         // A document saved before schema 1.11.0 has trimmed inline runs its
         // producer expected joined with `" "`; put that join back in the
@@ -57,6 +61,7 @@ impl DeclarativeBackend for DoclingJsonBackend {
         }
         let mut guard = WalkGuard {
             pages: page_sizes(&root),
+            claimed_footnotes: claimed_footnotes(&root),
             ..WalkGuard::default()
         };
         if let Some(children) = root["body"]["children"].as_array() {
@@ -201,6 +206,72 @@ struct WalkGuard {
     cur_page: usize,
     /// Pages a [`Node::PageInfo`] marker was emitted for.
     seen_pages: std::collections::BTreeSet<usize>,
+    /// Refs some table, picture or code item lists in its `footnotes`
+    /// (docling-core#675): rendered by that item, skipped by the walk.
+    claimed_footnotes: std::collections::HashSet<String>,
+}
+
+/// Rewrite every `{"cref": …}` reference object to `{"$ref": …}`.
+/// serde_json's own recursion limit (128) bounds the depth.
+fn normalize_crefs(v: &mut Value) {
+    match v {
+        Value::Object(map) => {
+            if map.len() == 1 {
+                if let Some(r) = map.remove("cref") {
+                    map.insert("$ref".into(), r);
+                    return;
+                }
+            }
+            for child in map.values_mut() {
+                normalize_crefs(child);
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(normalize_crefs),
+        _ => {}
+    }
+}
+
+/// Every ref a floating item (table, picture, code) lists as a footnote.
+fn claimed_footnotes(root: &Value) -> std::collections::HashSet<String> {
+    ["tables", "pictures", "texts"]
+        .iter()
+        .filter_map(|bucket| root[bucket].as_array())
+        .flatten()
+        .filter_map(|it| it["footnotes"].as_array())
+        .flatten()
+        .filter_map(|r| r["$ref"].as_str().map(String::from))
+        .collect()
+}
+
+/// An item's `footnotes`, each footnote item's plain text escaped (the flat
+/// nodes' convention) — docling-core#675's `serialize_footnotes` prints
+/// `it.text` without the run's formatting.
+fn footnotes_of(item: &Value, root: &Value) -> Vec<String> {
+    item["footnotes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|r| resolve(r, root))
+        .filter(|it| it["content_layer"].as_str() != Some("furniture"))
+        .filter_map(|it| it["text"].as_str())
+        .filter(|t| !t.is_empty())
+        .map(escape_text)
+        .collect()
+}
+
+/// A picture's or code item's footnotes as standalone `footnote` items
+/// after it: the flat [`Node::Picture`] / [`Node::Code`] carry no list of
+/// their own, so the Markdown matches docling's (one paragraph each, after
+/// the element) while the JSON re-export loses the item's `footnotes` link —
+/// see `docs/MIGRATION.md`.
+fn push_footnotes(item: &Value, root: &Value, doc: &mut DoclingDocument) {
+    for text in footnotes_of(item, root) {
+        doc.push(Node::LabeledText {
+            label: "footnote".into(),
+            text,
+            href: None,
+        });
+    }
 }
 
 /// The document's `pages` map: `{"1": {"size": {"width", "height"}, …}}`.
@@ -375,6 +446,10 @@ fn walk_inner(
         return;
     }
     let kind = ref_kind(reference);
+    if g.claimed_footnotes.contains(kind) {
+        // A footnote renders with the floating item listing it.
+        return;
+    }
     if kind.starts_with("#/texts/") {
         text_item(item, root, level, doc, g);
         // docling nests a section's content under its heading (and a list
@@ -467,6 +542,9 @@ fn text_node(
                 orig: None,
                 pretty: None,
             });
+            // docling-core#675: the footnotes come right after the code,
+            // ahead of its trailing captions.
+            push_footnotes(item, root, doc);
             // A `CodeItem` is docling's only *floating* text item, and the
             // text serializer appends a floating item's captions **after** its
             // own text — the opposite of a picture or a table, which lead with
@@ -740,6 +818,7 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
             caption: caption_of(item, root),
             caption_parent: caption_parent_of(item, root),
             caption_location: None,
+            footnotes: footnotes_of(item, root),
         }));
     }
 }
@@ -759,6 +838,7 @@ fn picture_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
         classification: picture_classification(item),
         description: picture_description(item),
     });
+    push_footnotes(item, root, doc);
 }
 
 /// The picture's description (#975): docling's `meta.description`
@@ -1006,6 +1086,100 @@ mod tests {
             ))
             .unwrap()
             .export_to_markdown()
+    }
+
+    /// #1009 / #1014: upstream's `table_footnotes_496.json` shape — `cref`
+    /// references, a table whose two `footnote` texts it lists in
+    /// `footnotes`. Expected output is docling-core 2.106's
+    /// `export_to_markdown()` / `export_to_html()` / `HierarchicalChunker`.
+    #[test]
+    fn table_footnotes_read_from_cref_references() {
+        let json = r##"{"schema_name":"DoclingDocument","version":"1.10.0","name":"t",
+          "body":{"self_ref":"#/body","children":[{"cref":"#/texts/0"},{"cref":"#/tables/0"},{"cref":"#/texts/3"}],
+                  "content_layer":"body","name":"_root_","label":"unspecified"},
+          "groups":[],"pictures":[],
+          "texts":[
+            {"self_ref":"#/texts/0","parent":{"cref":"#/body"},"children":[],"content_layer":"body","label":"text","prov":[],"orig":"Before.","text":"Before."},
+            {"self_ref":"#/texts/1","parent":{"cref":"#/tables/0"},"children":[],"content_layer":"body","label":"footnote","prov":[],"orig":"*Note: 'Pending' awaits review.","text":"*Note: 'Pending' awaits review."},
+            {"self_ref":"#/texts/2","parent":{"cref":"#/tables/0"},"children":[],"content_layer":"body","label":"footnote","prov":[],"orig":"**Note: a_b.","text":"**Note: a_b."},
+            {"self_ref":"#/texts/3","parent":{"cref":"#/body"},"children":[],"content_layer":"body","label":"text","prov":[],"orig":"After.","text":"After."}],
+          "tables":[{"self_ref":"#/tables/0","parent":{"cref":"#/body"},"children":[{"cref":"#/texts/1"},{"cref":"#/texts/2"}],
+            "content_layer":"body","label":"table","prov":[],"captions":[],"references":[],
+            "footnotes":[{"cref":"#/texts/1"},{"cref":"#/texts/2"}],
+            "data":{"num_rows":2,"num_cols":2,"table_cells":[
+              {"text":"ID","row_span":1,"col_span":1,"start_row_offset_idx":0,"end_row_offset_idx":1,"start_col_offset_idx":0,"end_col_offset_idx":1,"column_header":true,"row_header":false},
+              {"text":"Status","row_span":1,"col_span":1,"start_row_offset_idx":0,"end_row_offset_idx":1,"start_col_offset_idx":1,"end_col_offset_idx":2,"column_header":true,"row_header":false},
+              {"text":"1","row_span":1,"col_span":1,"start_row_offset_idx":1,"end_row_offset_idx":2,"start_col_offset_idx":0,"end_col_offset_idx":1,"column_header":false,"row_header":false},
+              {"text":"Pending*","row_span":1,"col_span":1,"start_row_offset_idx":1,"end_row_offset_idx":2,"start_col_offset_idx":1,"end_col_offset_idx":2,"column_header":false,"row_header":false}],"grid":[
+              [{"text":"ID","start_row_offset_idx":0,"end_row_offset_idx":1,"start_col_offset_idx":0,"end_col_offset_idx":1,"column_header":true,"row_header":false},
+               {"text":"Status","start_row_offset_idx":0,"end_row_offset_idx":1,"start_col_offset_idx":1,"end_col_offset_idx":2,"column_header":true,"row_header":false}],
+              [{"text":"1","start_row_offset_idx":1,"end_row_offset_idx":2,"start_col_offset_idx":0,"end_col_offset_idx":1,"column_header":false,"row_header":false},
+               {"text":"Pending*","start_row_offset_idx":1,"end_row_offset_idx":2,"start_col_offset_idx":1,"end_col_offset_idx":2,"column_header":false,"row_header":false}]]}}],
+          "key_value_items":[],"form_items":[],"pages":{}}"##;
+        let doc = DoclingJsonBackend
+            .convert(&SourceDocument::from_bytes(
+                "t.json",
+                InputFormat::JsonDocling,
+                json.as_bytes().to_vec(),
+            ))
+            .unwrap();
+        assert_eq!(
+            doc.export_to_markdown(),
+            "Before.\n\n|   ID | Status   |\n|------|----------|\n|    1 | Pending* |\n\n\
+             *Note: 'Pending' awaits review.\n\n**Note: a\\_b.\n\nAfter.\n"
+        );
+        let html = doc.export_to_html();
+        assert!(
+            html.contains(
+                "</table><div class=\"footnote\">*Note: &#x27;Pending&#x27; awaits review.</div>\
+                 <div class=\"footnote\">**Note: a_b.</div>\n<p>After.</p>"
+            ),
+            "{html}"
+        );
+        // The JSON re-export keeps the footnotes on the table.
+        let v: Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+        assert_eq!(v["tables"][0]["footnotes"][1]["$ref"], "#/texts/2");
+        assert_eq!(v["texts"][2]["label"], "footnote");
+        assert_eq!(v["texts"][2]["parent"]["$ref"], "#/tables/0");
+        // The table's chunk ends with its notes and lists them.
+        let chunks = docling_core::chunker::HierarchicalChunker.chunk(&doc);
+        assert_eq!(chunks.len(), 3, "{chunks:?}");
+        assert_eq!(
+            chunks[1].text,
+            "1, Status = Pending*\n\n*Note: 'Pending' awaits review.\n\n**Note: a_b."
+        );
+        let refs: Vec<&str> = chunks[1]
+            .doc_items
+            .iter()
+            .map(|i| i.self_ref.as_str())
+            .collect();
+        assert_eq!(refs, ["#/tables/0", "#/texts/1", "#/texts/2"]);
+        assert_eq!(chunks[2].doc_items[0].self_ref, "#/texts/3");
+    }
+
+    /// #1009: a picture's and a code item's footnotes print after the
+    /// element (and before the code's trailing caption) — docling-core
+    /// 2.106's Markdown; a footnote some item lists is not printed again
+    /// where the body walk meets it.
+    #[test]
+    fn picture_and_code_footnotes_follow_the_element() {
+        let json = r##"{"schema_name":"DoclingDocument","name":"t",
+          "body":{"self_ref":"#/body","children":[{"$ref":"#/pictures/0"},{"$ref":"#/texts/1"},{"$ref":"#/texts/2"},{"$ref":"#/texts/0"}],"label":"unspecified"},
+          "groups":[],"tables":[],
+          "texts":[
+            {"self_ref":"#/texts/0","parent":{"$ref":"#/body"},"children":[],"content_layer":"body","label":"footnote","text":"Source: a & b"},
+            {"self_ref":"#/texts/1","parent":{"$ref":"#/body"},"children":[],"content_layer":"body","label":"caption","text":"Figure 1"},
+            {"self_ref":"#/texts/2","parent":{"$ref":"#/body"},"children":[{"$ref":"#/texts/3"},{"$ref":"#/texts/4"}],"content_layer":"body","label":"code","text":"x = 1",
+             "captions":[{"$ref":"#/texts/3"}],"footnotes":[{"$ref":"#/texts/4"}],"code_language":"unknown"},
+            {"self_ref":"#/texts/3","parent":{"$ref":"#/texts/2"},"children":[],"content_layer":"body","label":"caption","text":"Listing 1"},
+            {"self_ref":"#/texts/4","parent":{"$ref":"#/texts/2"},"children":[],"content_layer":"body","label":"footnote","text":"Runs in O(1)."}],
+          "pictures":[{"self_ref":"#/pictures/0","parent":{"$ref":"#/body"},"children":[],"content_layer":"body","label":"picture",
+             "captions":[{"$ref":"#/texts/1"}],"footnotes":[{"$ref":"#/texts/0"}],"annotations":[]}]}"##;
+        assert_eq!(
+            md(json),
+            "Figure 1\n\n<!-- image -->\n\nSource: a &amp; b\n\n```\nx = 1\n```\n\n\
+             Runs in O(1).\n\nListing 1\n"
+        );
     }
 
     /// A `children` reference back to an ancestor, a chain of thousands of

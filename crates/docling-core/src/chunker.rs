@@ -505,14 +505,30 @@ impl Walker<'_> {
             Node::Table(t) => {
                 let self_ref = self.alloc.table();
                 let body = triplet_table_text(t);
-                self.emit(
-                    body.clone(),
-                    vec![ChunkItem {
-                        self_ref,
-                        kind: ChunkItemKind::Table,
-                        text: body,
-                    }],
-                );
+                let mut items = vec![ChunkItem {
+                    self_ref,
+                    kind: ChunkItemKind::Table,
+                    text: body.clone(),
+                }];
+                // docling-core#675: the table's footnotes (the `footnote`
+                // texts the JSON writes after it) close its chunk, one
+                // paragraph each, and are among its doc items.
+                let mut parts = vec![body];
+                for note in t.footnotes.iter().filter(|n| !n.is_empty()) {
+                    let text = unescape_text(note);
+                    parts.push(text.clone());
+                    items.push(ChunkItem {
+                        self_ref: self.alloc.text(),
+                        kind: ChunkItemKind::Text,
+                        text,
+                    });
+                }
+                let body = parts
+                    .into_iter()
+                    .filter(|p| !p.is_empty())
+                    .collect::<Vec<_>>()
+                    .join("\n\n");
+                self.emit(body, items);
             }
             Node::Picture {
                 caption,

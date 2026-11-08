@@ -331,6 +331,7 @@ fn render_page(
             });
         }
         doc.push(Node::Table(Table {
+            footnotes: Vec::new(),
             rows,
             location: None,
             structure: None,
@@ -665,6 +666,7 @@ mod tests {
                 Node::Paragraph { text: "App".into() },
                 Node::Paragraph { text: "DB".into() },
                 Node::Table(Table {
+                    footnotes: Vec::new(),
                     rows: vec![
                         vec!["From".into(), "To".into(), "Label".into()],
                         vec!["App".into(), "DB".into(), "reads".into()],
