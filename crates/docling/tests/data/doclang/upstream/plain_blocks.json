@@ -1,7 +1,7 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
-  "name": "Document",
+  "version": "1.11.0",
+  "name": "plain_blocks",
   "origin": {
     "mimetype": "application/xml",
     "binary_hash": 7087637693817989197,
@@ -191,8 +191,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Lone",
-      "text": "Lone"
+      "orig": "Lone ",
+      "text": "Lone "
     },
     {
       "self_ref": "#/texts/7",
@@ -222,8 +222,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "caption",
-      "text": "caption"
+      "orig": " caption",
+      "text": " caption"
     },
     {
       "self_ref": "#/texts/9",
@@ -234,8 +234,8 @@
       "content_layer": "furniture",
       "label": "text",
       "prov": [],
-      "orig": "Furn",
-      "text": "Furn"
+      "orig": "Furn ",
+      "text": "Furn "
     },
     {
       "self_ref": "#/texts/10",
@@ -265,8 +265,8 @@
       "content_layer": "furniture",
       "label": "text",
       "prov": [],
-      "orig": "text",
-      "text": "text"
+      "orig": " text",
+      "text": " text"
     },
     {
       "self_ref": "#/texts/12",
@@ -308,8 +308,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Located",
-      "text": "Located"
+      "orig": "Located ",
+      "text": "Located "
     },
     {
       "self_ref": "#/texts/14",

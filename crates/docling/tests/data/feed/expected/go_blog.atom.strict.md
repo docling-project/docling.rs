@@ -40,9 +40,9 @@ Go's [`net/http`](https://go.dev/pkg/net/http) package supports HTTP/1.0, HTTP/1
 
 <!-- image -->
 
-1. **TCP handshake (1 RTT)** : the client sends a `SYN` packet, the server replies with `SYN-ACK`, and the client replies with `ACK`. Because the client can send the first TLS message alongside that final `ACK`, establishing the TCP connection takes 1 round-trip time (RTT).
-2. **TLS handshake (2 RTT)** : next, a TLS handshake exchanges encryption keys and verifies the server's identity; using TLS 1.2, this takes 2 RTT.
-3. **HTTP request** : with the keys exchanged, HTTP requests can finally be sent after a total of 3 RTT.
+1. **TCP handshake (1 RTT)**: the client sends a `SYN` packet, the server replies with `SYN-ACK`, and the client replies with `ACK`. Because the client can send the first TLS message alongside that final `ACK`, establishing the TCP connection takes 1 round-trip time (RTT).
+2. **TLS handshake (2 RTT)**: next, a TLS handshake exchanges encryption keys and verifies the server's identity; using TLS 1.2, this takes 2 RTT.
+3. **HTTP request**: with the keys exchanged, HTTP requests can finally be sent after a total of 3 RTT.
 
 These round trips (plus some CPU time spent on TLS handshakes) add up quickly. In cross-region communications, one-way latencies often reach or exceed the 50 ms (100 ms RTT) shown in the diagram above. Compared to the 300 ms spent just setting up the connection, the HTTP request itself can be cheap to serve, taking only a little over 1 RTT when bandwidth is plentiful or the HTTP response is small.
 
@@ -52,9 +52,9 @@ Even in more favorable conditions, opening a new connection can still be expensi
 
 To avoid paying this setup cost on every request, HTTP clients and servers try to reuse existing connections across multiple requests when possible. The mechanics of this differ based on the HTTP version:
 
-- **HTTP/1.0** : while not part of the official specification, clients and servers often opt into connection reuse by sending a `Connection: keep-alive` header. Reuse continues until either endpoint omits the header or sends a `Connection: close` header.
-- **HTTP/1.1** : connections are persistent by default, and can be reused for subsequent requests and responses unless either side declares otherwise by sending a `Connection: close` header.
-- **HTTP/2** : multiple requests and responses can be multiplexed over a single TCP connection.
+- **HTTP/1.0**: while not part of the official specification, clients and servers often opt into connection reuse by sending a `Connection: keep-alive` header. Reuse continues until either endpoint omits the header or sends a `Connection: close` header.
+- **HTTP/1.1**: connections are persistent by default, and can be reused for subsequent requests and responses unless either side declares otherwise by sending a `Connection: close` header.
+- **HTTP/2**: multiple requests and responses can be multiplexed over a single TCP connection.
 
 ## When connection reuse fails
 
@@ -66,7 +66,7 @@ As shown in the diagram, [`net/http.Get`](https://go.dev/pkg/net/http#Get) reads
 
 Because responses are sent back-to-back on the same stream, [`net/http`](https://go.dev/pkg/net/http) can only find the start of the next response after the current response body has been read to the very end (as determined by the `Content-Length` or `Transfer-Encoding` header).
 
-Now look back at our example program, where we never read `resp.Body` :
+Now look back at our example program, where we never read `resp.Body`:
 
 ```go
 func getStatus(url string) (int, error) {
@@ -248,8 +248,8 @@ Across different vector widths, element types, and architectures, we use the sam
 
 Methods require a receiver value, which doesn't work for creating a vector from memory or a scalar. For those, `archsimd` provides package-level functions named with the target vector type:
 
-- **Slices (the default)** : In Go 1.27, loading and storing slices use the shortest names: `archsimd.LoadFloat32x4(s []float32) Float32x4` and `x.Store(s []float32)`. For tail elements that may be shorter than a full vector, `archsimd.LoadFloat32x4Part(s []float32) (Float32x4, int)` zero-fills the remaining lanes and returns the number of elements loaded, paired with `x.StorePart(s []float32) int`.
-- **Arrays and Broadcasts** : Fixed-size array pointers use the `Array` suffix (`archsimd.LoadFloat32x4Array(y *[4]float32)` and `x.StoreArray(y *[4]float32)`), and `archsimd.BroadcastFloat32x4(v float32)` broadcasts a scalar to all lanes.
+- **Slices (the default)**: In Go 1.27, loading and storing slices use the shortest names: `archsimd.LoadFloat32x4(s []float32) Float32x4` and `x.Store(s []float32)`. For tail elements that may be shorter than a full vector, `archsimd.LoadFloat32x4Part(s []float32) (Float32x4, int)` zero-fills the remaining lanes and returns the number of elements loaded, paired with `x.StorePart(s []float32) int`.
+- **Arrays and Broadcasts**: Fixed-size array pointers use the `Array` suffix (`archsimd.LoadFloat32x4Array(y *[4]float32)` and `x.StoreArray(y *[4]float32)`), and `archsimd.BroadcastFloat32x4(v float32)` broadcasts a scalar to all lanes.
 
 ### Type Reinterpretation
 
@@ -385,7 +385,7 @@ func Transpose8(a0, a1, a2, a3, a4, a5, a6, a7 archsimd.Int32x8) (
 When walking through the examples above, you might have a few questions:
 
 - What is `archsimd.X86.AVX512GFNI()`, and can I omit it?
-- Why is the strided loop written as `i = 0; i < len(src)-v.Len()+1; i += v.Len()`, instead of `i = 0; i + v.Len() <= len(src); i += v.Len()` ?
+- Why is the strided loop written as `i = 0; i < len(src)-v.Len()+1; i += v.Len()`, instead of `i = 0; i + v.Len() <= len(src); i += v.Len()`?
 - Why does `Transpose8` take 8 vector parameters rather than a struct or an `[8]archsimd.Int32x8` array?
 
 At first glance these choices might look like minor stylistic preferences, but each of them is chosen for an important performance or correctness reason:
@@ -402,7 +402,7 @@ In Go 1.27, `GOEXPERIMENT=simd` supports `amd64` (AVX, AVX2, and AVX-512), `arm6
 GOEXPERIMENT=simd go test simd/archsimd/...
 ```
 
-You can also cross-test `wasm` (or `amd64` via Rosetta emulation on Apple Silicon) by setting `GOARCH` :
+You can also cross-test `wasm` (or `amd64` via Rosetta emulation on Apple Silicon) by setting `GOARCH`:
 
 ```sh
 # Run wasm SIMD tests using a WASI runtime:

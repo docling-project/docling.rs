@@ -94,6 +94,7 @@ impl Fmt {
 
 /// One inline run of a JATS paragraph: styled text, or an inline formula whose
 /// `text` is the LaTeX body (docling PR #3726's `InlineSegment`).
+#[derive(Clone)]
 struct Seg {
     formula: bool,
     text: String,
@@ -240,7 +241,11 @@ impl DeclarativeBackend for JatsBackend {
         let mut doc = DoclingDocument::new(&source.name);
         let mut out = Out {
             doc: &mut doc,
-            tree: ItemTree::default(),
+            tree: ItemTree {
+                // The runs keep their boundary whitespace (schema 1.11.0, #997).
+                inline_whitespace: true,
+                ..ItemTree::default()
+            },
         };
 
         // --- metadata -------------------------------------------------------
@@ -1026,10 +1031,30 @@ fn walk_inline_formula(node: XmlNode, fmt: Fmt, hyperlink: Option<&str>) -> Vec<
                 });
             }
         } else {
-            extend_segments(
-                &mut segments,
-                walk_inline_formula(child, current, hyperlink),
-            );
+            let child_segments = walk_inline_formula(child, current, hyperlink);
+            let ws_end = segments
+                .last()
+                .is_some_and(|s: &Seg| s.text.ends_with(char::is_whitespace));
+            let ws_start = child_segments
+                .first()
+                .is_some_and(|s| s.text.starts_with(char::is_whitespace));
+            if child.tag_name().name() == "p"
+                && !segments.is_empty()
+                && !child_segments.is_empty()
+                && !ws_end
+                && !ws_start
+            {
+                // A paragraph is a block: keep the boundary to what precedes
+                // it (`<fn><label>1</label><p>See` reads "1 See",
+                // docling#3891).
+                segments.push(Seg {
+                    formula: false,
+                    text: " ".into(),
+                    fmt: Fmt::default(),
+                    hyperlink: None,
+                });
+            }
+            extend_segments(&mut segments, child_segments);
         }
         if let Some(tail) = child.tail() {
             append_run(&mut segments, tail, current, hyperlink);
@@ -1121,7 +1146,14 @@ fn extend_segments(segments: &mut Vec<Seg>, more: Vec<Seg>) {
     }
 }
 
-/// docling's `_strip_segments`: each run trimmed, the blank ones dropped.
+/// docling#3891's `_trim_segment_edges`: the sequence's outer edges
+/// trimmed, interior whitespace (whitespace-only runs included) kept.
+fn trim_segment_edges(segments: Vec<Seg>) -> Vec<Seg> {
+    docling_core::inline::trim_run_edges(segments, |s| s.text.as_str(), |s, t| s.text = t, |_| true)
+}
+
+/// The pre-#997 `_strip_segments`: each run trimmed, the blank ones
+/// dropped — the shape the DocLang runs keep (ticket B).
 fn strip_segments(segments: Vec<Seg>) -> Vec<Seg> {
     segments
         .into_iter()
@@ -1138,17 +1170,15 @@ fn strip_segments(segments: Vec<Seg>) -> Vec<Seg> {
 /// styled run carries its emphasis into DocLang while Markdown keeps the
 /// baked-in `*…*`/`**…**` markers.
 fn emit_inline(out: &mut Out, parent: Option<usize>, segments: Vec<Seg>) {
-    let stripped = strip_segments(segments);
-    if stripped.is_empty() {
+    let trimmed = trim_segment_edges(segments);
+    if trimmed.is_empty() {
         return;
     }
-    // Markdown joins the runs with a single space (docling's inline-group
-    // serialization); each run carries its own emphasis / `$…$` markers.
-    let md_text = stripped
-        .iter()
-        .map(seg_markdown)
-        .collect::<Vec<_>>()
-        .join(" ");
+    // Markdown concatenates the runs (docling-core 2.106's inline group,
+    // #997); each run carries its own boundary whitespace, hoisted outside
+    // its emphasis / `$…$` markers.
+    let md_text: String = trimmed.iter().map(seg_markdown).collect();
+    let stripped = strip_segments(trimmed.clone());
     let runs = stripped
         .iter()
         .map(|s| {
@@ -1168,12 +1198,12 @@ fn emit_inline(out: &mut Out, parent: Option<usize>, segments: Vec<Seg>) {
     out.doc.push(inline_paragraph_node(md_text, runs, true));
     // Tree: one item under `parent`, or an `inline` group of one item per run
     // (docling's `_emit_inline`); a formula run is a `formula` item.
-    let container = if stripped.len() > 1 {
+    let container = if trimmed.len() > 1 {
         Some(out.group(parent, "inline", "group"))
     } else {
         parent
     };
-    for seg in &stripped {
+    for seg in &trimmed {
         let label = if seg.formula { "formula" } else { "text" };
         out.text(
             container,
@@ -1193,7 +1223,11 @@ fn seg_markdown(s: &Seg) -> String {
     if s.formula {
         return format!("${}$", s.text);
     }
-    let mut out = escape_text(&s.text);
+    docling_core::inline::hoist(&s.text, |core| seg_markdown_core(s, core))
+}
+
+fn seg_markdown_core(s: &Seg, text: &str) -> String {
+    let mut out = escape_text(text);
     if s.fmt.bold {
         out = format!("**{out}**");
     }
@@ -1783,7 +1817,7 @@ fn add_footnote_group(out: &mut Out, parent: Option<usize>, node: XmlNode, hleve
     let footnotes: Vec<Vec<Seg>> = node
         .children()
         .filter(|c| c.has_tag_name("fn"))
-        .map(|f| strip_segments(walk_inline_formula(f, Fmt::default(), None)))
+        .map(|f| trim_segment_edges(walk_inline_formula(f, Fmt::default(), None)))
         .filter(|segs| !segs.is_empty())
         .collect();
     if footnotes.is_empty() {
@@ -1824,7 +1858,7 @@ fn add_footnote_group(out: &mut Out, parent: Option<usize>, node: XmlNode, hleve
                 None,
             );
         }
-        let text = segs.iter().map(seg_markdown).collect::<Vec<_>>().join(" ");
+        let text: String = segs.iter().map(seg_markdown).collect();
         out.doc.push(Node::ListItem {
             ordered: false,
             number: 0,
@@ -2555,7 +2589,7 @@ Sectioned.
 
     /// docling PR #3726: `<italic>`/`<bold>` emphasis renders as Markdown
     /// markers and an `<inline-formula>`'s `<tex-math>` stays inline as `$…$`;
-    /// docling's inline-group serialization joins the runs with single spaces.
+    /// the runs keep their own whitespace and concatenate (#997).
     #[test]
     fn emphasis_and_inline_formula() {
         let xml = r#"<article><body><sec><title>S</title>
@@ -2569,7 +2603,7 @@ Sectioned.
             .export_to_markdown();
         assert!(
             md.contains(
-                "We combined *B* . *malayi* with a **strong** effect and mass $m c^2$ energy."
+                "We combined *B*. *malayi* with a **strong** effect and mass $m c^2$ energy."
             ),
             "emphasis + inline formula:\n{md}"
         );

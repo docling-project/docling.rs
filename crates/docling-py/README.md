@@ -11,7 +11,7 @@ from docling_rs import DocumentConverter
 
 result = DocumentConverter().convert("document.pdf")
 print(result.document.export_to_markdown())
-data = result.document.export_to_dict()     # docling-core JSON wire format (schema 1.10.0)
+data = result.document.export_to_dict()     # docling-core JSON wire format (schema 1.11.0)
 ```
 
 **Coming from [MarkItDown](https://github.com/microsoft/markitdown)?** The same

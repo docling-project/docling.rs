@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "autolinks_edge_cases",
   "origin": {
     "mimetype": "text/markdown",
@@ -147,8 +147,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Mail",
-      "text": "Mail"
+      "orig": "Mail ",
+      "text": "Mail "
     },
     {
       "self_ref": "#/texts/1",
@@ -172,8 +172,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "or write to",
-      "text": "or write to"
+      "orig": " or write to ",
+      "text": " or write to "
     },
     {
       "self_ref": "#/texts/3",
@@ -209,8 +209,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Visit",
-      "text": "Visit"
+      "orig": "Visit ",
+      "text": "Visit "
     },
     {
       "self_ref": "#/texts/6",
@@ -234,8 +234,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ", (see",
-      "text": ", (see"
+      "orig": ", (see ",
+      "text": ", (see "
     },
     {
       "self_ref": "#/texts/8",
@@ -259,8 +259,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": ") and",
-      "text": ") and"
+      "orig": ") and ",
+      "text": ") and "
     },
     {
       "self_ref": "#/texts/10",
@@ -302,8 +302,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Not a link: http://localhost or https://x.y_z.com and",
-      "text": "Not a link: http://localhost or https://x.y_z.com and"
+      "orig": "Not a link: http://localhost or https://x.y_z.com and ",
+      "text": "Not a link: http://localhost or https://x.y_z.com and "
     },
     {
       "self_ref": "#/texts/13",
@@ -355,8 +355,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "then",
-      "text": "then"
+      "orig": " then ",
+      "text": " then "
     },
     {
       "self_ref": "#/texts/17",

@@ -19,6 +19,13 @@
 //! hand: `autolinks_edge_cases`' `(https://example.com/a_%28b%29)` is
 //! docling-core 2.104's `markdown_link_destination` (#860), which the
 //! 2.140.0 capture predates.
+//!
+//! Recaptured with docling 2.148.0 / docling-core 2.106.0 for the inline
+//! whitespace contract (#997): runs keep their boundary whitespace and
+//! concatenate. One edit by hand: `tables_plain`'s paragraph right before
+//! its table keeps marko's two trailing hard-break spaces upstream
+//! (`"Line one  "`, a block edge marko leaves untrimmed there); ours trims
+//! the block edge, as for every other paragraph.
 use std::fs;
 use std::path::{Path, PathBuf};
 

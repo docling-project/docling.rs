@@ -53,7 +53,7 @@ is also streamlined for easier integration. Moreover, Mistral\textasciitilde{}7B
 
 \begin{figure}[h]
 % image
-\caption{Sliding Window Attention. The number of operations in vanilla attention is quadratic in the sequence length, and the memory increases linearly with the number of tokens. At inference time, this incurs higher latency and smaller throughput due to reduced cache availability. To alleviate this issue, we use sliding window attention: each token can attend to at most  \$W\$  tokens from the previous layer (here,  \$W=3\$ ). Note that tokens outside the sliding window still influence next word prediction. At each attention layer, information can move forward by  \$W\$  tokens. Hence, after  \$k\$  attention layers, information can move forward by up to  \$k \textbackslash{}times W\$  tokens.}
+\caption{Sliding Window Attention. The number of operations in vanilla attention is quadratic in the sequence length, and the memory increases linearly with the number of tokens. At inference time, this incurs higher latency and smaller throughput due to reduced cache availability. To alleviate this issue, we use sliding window attention: each token can attend to at most \$W\$ tokens from the previous layer (here, \$W=3\$). Note that tokens outside the sliding window still influence next word prediction. At each attention layer, information can move forward by \$W\$ tokens. Hence, after \$k\$ attention layers, information can move forward by up to \$k \textbackslash{}times W\$ tokens.}
 \end{figure}
 
 r0.275
@@ -79,18 +79,18 @@ Model architecture.
 
 Mistral\textasciitilde{}7B\textbackslash{}xspaceis based on a transformer architecture[vaswani2017attention]. The main parameters of the architecture are summarized in Table[tab:param]. Compared to Llama\textbackslash{}xspace, it introduces a few changes that we summarize below.
 
-=-1 Sliding Window Attention. SWA exploits the stacked layers of a transformer to attend information beyond the window size  $W$ . The hidden state in position  $i$  of the layer  $k$ ,  $h_i$ , attends to all hidden states from the previous layer with positions between  $i-W$  and  $i$ . Recursively,  $h_i$  can access tokens from the input layer at a distance of up to  $W \times k$  tokens, as illustrated in Figure[fig:swa]. At the last layer, using a window size of  $W=4096$ , we have a theoretical attention span of approximately  $131K$  tokens. In practice, for a sequence length of 16K and  $W=4096$ , changes made to FlashAttention[dao2022flashattention] and xFormers[xFormers2022] yield a 2x speed improvement over a vanilla attention baseline.
+=-1 Sliding Window Attention. SWA exploits the stacked layers of a transformer to attend information beyond the window size $W$. The hidden state in position $i$ of the layer $k$, $h_i$, attends to all hidden states from the previous layer with positions between $i-W$ and $i$. Recursively, $h_i$ can access tokens from the input layer at a distance of up to $W \times k$ tokens, as illustrated in Figure[fig:swa]. At the last layer, using a window size of $W=4096$, we have a theoretical attention span of approximately $131K$ tokens. In practice, for a sequence length of 16K and $W=4096$, changes made to FlashAttention[dao2022flashattention] and xFormers[xFormers2022] yield a 2x speed improvement over a vanilla attention baseline.
 
-=-1 Rolling Buffer Cache. A fixed attention span means that we can limit our cache size using a rolling buffer cache. The cache has a fixed size of  $W$ , and the keys and values for the timestep  $i$  are stored in position  $i \bmod W$  of the cache. As a result, when the position  $i$  is larger than  $W$ , past values in the cache are overwritten, and the size of the cache stops increasing. We provide an illustration in Figure[fig:cache] for  $W=3$ . On a sequence length of 32k tokens, this reduces the cache memory usage by 8x, without impacting the model quality.
+=-1 Rolling Buffer Cache. A fixed attention span means that we can limit our cache size using a rolling buffer cache. The cache has a fixed size of $W$, and the keys and values for the timestep $i$ are stored in position $i \bmod W$ of the cache. As a result, when the position $i$ is larger than $W$, past values in the cache are overwritten, and the size of the cache stops increasing. We provide an illustration in Figure[fig:cache] for $W=3$. On a sequence length of 32k tokens, this reduces the cache memory usage by 8x, without impacting the model quality.
 
 [][c]
 
 \begin{figure}[h]
 % image
-\caption{Rolling buffer cache. The cache has a fixed size of  \$W=4\$ . Keys and values for position  \$i\$  are stored in position  \$i \textbackslash{}bmod W\$  of the cache. When the position  \$i\$  is larger than  \$W\$ , past values in the cache are overwritten. The hidden state corresponding to the latest generated tokens are colored in orange.}
+\caption{Rolling buffer cache. The cache has a fixed size of \$W=4\$. Keys and values for position \$i\$ are stored in position \$i \textbackslash{}bmod W\$ of the cache. When the position \$i\$ is larger than \$W\$, past values in the cache are overwritten. The hidden state corresponding to the latest generated tokens are colored in orange.}
 \end{figure}
 
-=-1 Pre-fill and Chunking. When generating a sequence, we need to predict tokens one-by-one, as each token is conditioned on the previous ones. However, the prompt is known in advance, and we can pre-fill the ( $k$ ,  $v$ ) cache with the prompt. If the prompt is very large, we can chunk it into smaller pieces, and pre-fill the cache with each chunk. For this purpose, we can select the window size as our chunk size. For each chunk, we thus need to compute the attention over the cache and over the chunk. Figure[fig:chunking] shows how the attention mask works over both the cache and the chunk.
+=-1 Pre-fill and Chunking. When generating a sequence, we need to predict tokens one-by-one, as each token is conditioned on the previous ones. However, the prompt is known in advance, and we can pre-fill the ($k$, $v$) cache with the prompt. If the prompt is very large, we can chunk it into smaller pieces, and pre-fill the cache with each chunk. For this purpose, we can select the window size as our chunk size. For each chunk, we thus need to compute the attention over the cache and over the chunk. Figure[fig:chunking] shows how the attention mask works over both the cache and the chunk.
 
 \begin{figure}[h]
 % image
@@ -184,9 +184,9 @@ r0.38
 \begin{tabular}{|l|l|}
 \hline
 Guardrails & MT Bench \\ \hline
-No system prompt & 6.84  \$\textbackslash{}pm\$  0.07 \\ \hline
-Llama\textbackslash{}xspace2 system prompt & 6.38  \$\textbackslash{}pm\$  0.07 \\ \hline
-Mistral system prompt & 6.58  \$\textbackslash{}pm\$  0.05 \\ \hline
+No system prompt & 6.84 \$\textbackslash{}pm\$ 0.07 \\ \hline
+Llama\textbackslash{}xspace2 system prompt & 6.38 \$\textbackslash{}pm\$ 0.07 \\ \hline
+Mistral system prompt & 6.58 \$\textbackslash{}pm\$ 0.05 \\ \hline
  &  \\ \hline
 \end{tabular}
 \end{table}

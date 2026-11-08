@@ -2,7 +2,7 @@
 
 The Pythagorean theorem can be written as an equation relating the lengths of the sides *a*, *b* and the hypotenuse *c*.
 
-To use Docling, simply install `docling` from your package manager, e.g. pip: `pip install docling`
+To use Docling, simply install `docling`from your package manager, e.g. pip: `pip install docling`
 
 To convert individual documents with python, use `convert()`, for example:
 

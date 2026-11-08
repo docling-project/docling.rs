@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "autolinks_emphasis",
   "origin": {
     "mimetype": "text/markdown",
@@ -224,8 +224,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "A",
-      "text": "A"
+      "orig": "A ",
+      "text": "A "
     },
     {
       "self_ref": "#/texts/1",
@@ -256,8 +256,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "B",
-      "text": "B"
+      "orig": " B",
+      "text": " B"
     },
     {
       "self_ref": "#/texts/3",
@@ -268,8 +268,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "C",
-      "text": "C"
+      "orig": "C ",
+      "text": "C "
     },
     {
       "self_ref": "#/texts/4",
@@ -300,8 +300,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "D",
-      "text": "D"
+      "orig": " D",
+      "text": " D"
     },
     {
       "self_ref": "#/texts/6",
@@ -312,8 +312,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "E",
-      "text": "E"
+      "orig": "E ",
+      "text": "E "
     },
     {
       "self_ref": "#/texts/7",
@@ -343,8 +343,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "F",
-      "text": "F"
+      "orig": " F",
+      "text": " F"
     },
     {
       "self_ref": "#/texts/9",
@@ -355,8 +355,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "G",
-      "text": "G"
+      "orig": "G ",
+      "text": "G "
     },
     {
       "self_ref": "#/texts/10",
@@ -367,8 +367,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "see",
-      "text": "see",
+      "orig": "see ",
+      "text": "see ",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -406,8 +406,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "now",
-      "text": "now",
+      "orig": " now",
+      "text": " now",
       "formatting": {
         "bold": false,
         "italic": true,
@@ -425,8 +425,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "H",
-      "text": "H"
+      "orig": " H",
+      "text": " H"
     },
     {
       "self_ref": "#/texts/14",
@@ -474,8 +474,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "K",
-      "text": "K"
+      "orig": "K ",
+      "text": "K "
     },
     {
       "self_ref": "#/texts/18",
@@ -523,8 +523,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Q",
-      "text": "Q"
+      "orig": "Q ",
+      "text": "Q "
     },
     {
       "self_ref": "#/texts/22",

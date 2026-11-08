@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "docx_bold_tail",
   "origin": {
     "mimetype": "text/plain",
@@ -99,8 +99,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Plain tail.",
-      "text": "Plain tail.",
+      "orig": " Plain tail.",
+      "text": " Plain tail.",
       "formatting": {
         "bold": false,
         "italic": false,

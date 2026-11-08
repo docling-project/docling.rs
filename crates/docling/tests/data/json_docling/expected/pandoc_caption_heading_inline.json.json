@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "min_caption_and_heading_inline",
   "origin": {
     "mimetype": "text/plain",

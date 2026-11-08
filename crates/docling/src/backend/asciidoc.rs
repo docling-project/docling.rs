@@ -109,6 +109,8 @@ fn parse(text: &str, name: &str, images: &dyn ImageResolver) -> DoclingDocument 
         }
     }
     p.finish(&mut doc);
+    // The runs keep their boundary whitespace (schema 1.11.0, #997).
+    p.tree.inline_whitespace = true;
     doc.tree = Some(std::mem::take(&mut p.tree));
     doc
 }
@@ -978,19 +980,53 @@ impl Parser<'_> {
                 name: "group".into(),
             },
         );
-        let mut md = Vec::new();
-        let mut node_runs = Vec::new();
-        for run in runs {
-            let t = run.text.trim();
-            if t.is_empty() {
+        // The DocLang runs keep the stripped shape (ticket B).
+        let node_runs: Vec<InlineRun> = runs
+            .iter()
+            .filter(|r| !r.text.trim().is_empty())
+            .map(|r| InlineRun {
+                text: r.text.trim().to_string(),
+                bold: r.bold,
+                italic: r.italic,
+                code: r.code,
+                ..InlineRun::default()
+            })
+            .collect();
+        // docling#3891: the runs keep their boundary whitespace and only the
+        // block's outer edges are trimmed; a code run's edge whitespace moves
+        // out into a plain run of its own, never inside the backticks.
+        let mut spaced: Vec<(String, bool, bool, bool)> = Vec::new();
+        for run in &runs {
+            let (lead, core, trail) = docling_core::inline::split_edges(&run.text);
+            if !run.code || core.is_empty() {
+                spaced.push((run.text.clone(), run.bold, run.italic, false));
                 continue;
             }
-            if run.code {
+            for (part, code) in [(lead, false), (core, true), (trail, false)] {
+                if !part.is_empty() {
+                    let (b, i) = if code {
+                        (run.bold, run.italic)
+                    } else {
+                        (false, false)
+                    };
+                    spaced.push((part.to_string(), b, i, code));
+                }
+            }
+        }
+        let spaced = docling_core::inline::trim_run_edges(
+            spaced,
+            |r| r.0.as_str(),
+            |r, t| r.0 = t,
+            |_| true,
+        );
+        let mut md_text = String::new();
+        for (t, bold, italic, code) in spaced {
+            if code {
                 self.tree.add(
                     Some(group),
                     None,
                     TreeKind::Code {
-                        text: t.to_string(),
+                        text: t.clone(),
                         orig: None,
                         language: None,
                         formatting: None,
@@ -998,33 +1034,27 @@ impl Parser<'_> {
                         captions: Vec::new(),
                     },
                 );
-                md.push(docling_core::code_span(t));
+                md_text.push_str(&docling_core::code_span(&t));
             } else {
-                let formatting = (run.bold || run.italic).then(|| Formatting {
-                    bold: run.bold,
-                    italic: run.italic,
+                let formatting = (bold || italic).then(|| Formatting {
+                    bold,
+                    italic,
                     ..Formatting::default()
                 });
-                self.add_tree_text(Some(group), "text", t, formatting, None, None);
-                let escaped = escape_text(t);
-                md.push(match (run.bold, run.italic) {
-                    (true, true) => format!("***{escaped}***"),
-                    (true, false) => format!("**{escaped}**"),
-                    (false, true) => format!("*{escaped}*"),
-                    (false, false) => escaped,
-                });
+                self.add_tree_text(Some(group), "text", &t, formatting, None, None);
+                md_text.push_str(&docling_core::inline::hoist(&t, |core| {
+                    let escaped = escape_text(core);
+                    match (bold, italic) {
+                        (true, true) => format!("***{escaped}***"),
+                        (true, false) => format!("**{escaped}**"),
+                        (false, true) => format!("*{escaped}*"),
+                        (false, false) => escaped,
+                    }
+                }));
             }
-            node_runs.push(InlineRun {
-                text: t.to_string(),
-                bold: run.bold,
-                italic: run.italic,
-                code: run.code,
-                ..InlineRun::default()
-            });
         }
         // Under a heading the group is the heading's child, which DocLang
         // writes without an enclosing `<text>`.
-        let md_text = md.join(" ");
         if let Some(level) = list_level {
             doc.push(Node::ListText {
                 level,
@@ -1672,7 +1702,7 @@ mod tests {
         // Under a heading the paragraph is an inline group of formatted items.
         assert_eq!(
             md("= T\n\nSome *bold* and `x`.\n"),
-            "# T\n\nSome **bold** and `x` .\n"
+            "# T\n\nSome **bold** and `x`.\n"
         );
     }
 

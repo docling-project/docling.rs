@@ -19,21 +19,21 @@
 
 Задача заключается в том, чтобы применить предобученную на imagenet нейронную сеть на практической задаче классификации автомобилей.
 
-Учиться применять нейронные сети для анализа изображений мы будем на библиотеке TensorFlow. Это известный опенсорсный проект, разработанный инженерами Google Brain Team. Подробнее почитать о TensorFlow можно на официальном сайте, на \href{https://github.com/tensorflow/tensorflow}{гитхабе} или \href{https://habrahabr.ru/post/270543/}{на хабре} .
+Учиться применять нейронные сети для анализа изображений мы будем на библиотеке TensorFlow. Это известный опенсорсный проект, разработанный инженерами Google Brain Team. Подробнее почитать о TensorFlow можно на официальном сайте, на \href{https://github.com/tensorflow/tensorflow}{гитхабе} или \href{https://habrahabr.ru/post/270543/}{на хабре}.
 
 \subsection{Установка окружения}
 
-В первую очередь нам будет необходимо установить \textbf{TensorFlow} .
+В первую очередь нам будет необходимо установить \textbf{TensorFlow}.
 
 \begin{itemize}
-\item \href{https://www.tensorflow.org/versions/r0.10/get\_started/os\_setup.html\#download-and-setup}{Инструкции по установке на сайте} .
-\item Если есть опыт работы с Docker, то можно воспользоваться готовым \href{https://www.tensorflow.org/versions/r0.10/get\_started/os\_setup.html\#docker-installation}{докер-контейнером с тензорфлоу} .
+\item \href{https://www.tensorflow.org/versions/r0.10/get\_started/os\_setup.html\#download-and-setup}{Инструкции по установке на сайте}.
+\item Если есть опыт работы с Docker, то можно воспользоваться готовым \href{https://www.tensorflow.org/versions/r0.10/get\_started/os\_setup.html\#docker-installation}{докер-контейнером с тензорфлоу}.
 \end{itemize}
 
 \textbf{Важно!} Если вы пользователь Windows, то уставить tensorflow напрямую, к сожалению, не получится:
 
 \begin{itemize}
-\item для пользователей Windows 10 (и выше) нужно использовать \textbf{Docker} ( \href{https://www.docker.com/products/docker\#/windows}{ссылка на дистрибутив} );
+\item для пользователей Windows 10 (и выше) нужно использовать \textbf{Docker} (\href{https://www.docker.com/products/docker\#/windows}{ссылка на дистрибутив});
 \item если у вас Windows старше версии 10, то и вариант с докером не подойдет — он не установится. В таком случае советуем установить линукс на локальную машину как еще одну операционную систему (поможет избежать страданий в будущем при работе с некоторыми библиотеками для ML).
 \end{itemize}
 
@@ -43,13 +43,13 @@
 
 Тем не менее, мы понимаем, что в силу временных ограничений курса кто-то может успеть установить TensorFlow. Поэтому мы сделали пункты 1 и 2 необязательными. На оценку они не повлияют — можете сразу переходить к третьему пункту.
 
-Помимо tensorflow, потребуется библиотека \texttt{scipy} . Если вы уже работали с Anaconda и/или выполняли задания в нашей специализации, то она должна присутствовать.
+Помимо tensorflow, потребуется библиотека \texttt{scipy}. Если вы уже работали с Anaconda и/или выполняли задания в нашей специализации, то она должна присутствовать.
 
 \section{Данные}
 
 Скачать данные нужно тут: \href{https://yadi.sk/d/6m\_KbM4HvmLfs}{https://yadi.sk/d/6m\_KbM4HvmLfs}
 
-Данные это часть выборки \textit{Cars Dataset} ( \href{http://ai.stanford.edu/\textasciitilde{}jkrause/cars/car\_dataset.html}{link} ). Исходный датасет содержит 16,185 изображений автомобилей, принадлежащих к 196 классам. Данные разделены на 8,144 тренировочных и 8,041 тестовых изображений, при этом каждый класс разделён приблизительно поровну между тестом и трейном. Все классы уровня параметров \textit{Марка} , \textit{Год} , \textit{Модель} и др. (например, \textit{2012 Tesla Model S or 2012 BMW M3 coupe} ).
+Данные это часть выборки \textit{Cars Dataset} (\href{http://ai.stanford.edu/\textasciitilde{}jkrause/cars/car\_dataset.html}{link}). Исходный датасет содержит 16,185 изображений автомобилей, принадлежащих к 196 классам. Данные разделены на 8,144 тренировочных и 8,041 тестовых изображений, при этом каждый класс разделён приблизительно поровну между тестом и трейном. Все классы уровня параметров \textit{Марка}, \textit{Год}, \textit{Модель} и др. (например, \textit{2012 Tesla Model S or 2012 BMW M3 coupe}).
 
 В нашем же случае в \texttt{train} 204 изображения, и в \texttt{test} — 202 изображения.
 
@@ -58,7 +58,7 @@
 Помимо данных, потребуется скачать:
 
 \begin{itemize}
-\item \href{https://github.com/ton4eg/coursera\_pa}{код} ,
+\item \href{https://github.com/ton4eg/coursera\_pa}{код},
 \item веса модели \href{https://yadi.sk/d/9-3kXyxRvnBwh}{по ссылке}
 \end{itemize}
 
@@ -412,9 +412,9 @@ vgg = vgg16(imgs, 'vgg16_weights.npz', sess)
 
 Все ячейки выше не нуждаются в модификации для выполнения задания, и необходимы к исполнению только один раз, в порядке следования. Повторный запуск ячейки с инициализацией модели будет сжирать память. Вы предупреждены.
 
-\section{Задание 1 .}
+\section{Задание 1.}
 
-Для начала нужно запустить готовую модель \texttt{vgg16} , предобученную на \texttt{imagenet} . Модель обучена с помощью \texttt{caffe} и сконвертирована в формат \texttt{tensorflow} - \texttt{vgg16_weights.npz} . Скрипт, иллюстрирующий применение этой модели к изображению, возвращает топ-5 классов из \texttt{imagenet} и уверенность в этих классах.
+Для начала нужно запустить готовую модель \texttt{vgg16}, предобученную на \texttt{imagenet}. Модель обучена с помощью \texttt{caffe} и сконвертирована в формат \texttt{tensorflow} - \texttt{vgg16_weights.npz}. Скрипт, иллюстрирующий применение этой модели к изображению, возвращает топ-5 классов из \texttt{imagenet} и уверенность в этих классах.
 
 \textbf{Задание:} Загрузите уверенность для первого класса для изображения \texttt{train/00002.jpg} с точностью до 1 знака после запятой в файл с ответом.
 
@@ -430,11 +430,11 @@ print(ans1)
 save_answerNum("vgg16_answer1.txt", ans1 )
 \end{verbatim}
 
-\section{Задание 2 .}
+\section{Задание 2.}
 
-Научитесь извлекать \texttt{fc2} слой. Возьмите за основу код \texttt{process_image} , и модифицируйте, чтобы вместо последнего слоя извлекались выходы \texttt{fc2} .
+Научитесь извлекать \texttt{fc2} слой. Возьмите за основу код \texttt{process_image}, и модифицируйте, чтобы вместо последнего слоя извлекались выходы \texttt{fc2}.
 
-\textbf{Задание:} Посчитайте \texttt{fc2} для картинки \texttt{train/00002.jpg} .  Запишите первые 20 компонент.
+\textbf{Задание:} Посчитайте \texttt{fc2} для картинки \texttt{train/00002.jpg}.  Запишите первые 20 компонент.
 
 \begin{verbatim}
 def load_fc2_values(fname):
@@ -457,19 +457,19 @@ for p in prob_fc2[:20]:
 save_answerArray("vgg16_answer2.txt",  prob_fc2[:20] )
 \end{verbatim}
 
-\section{Задание 3 .}
+\section{Задание 3.}
 
-Теперь необходимо дообучить классификатор на нашей базе. В качестве бейзлайна предлагается воспользоваться классификатором \texttt{svm} из пакета \texttt{scipy} .
+Теперь необходимо дообучить классификатор на нашей базе. В качестве бейзлайна предлагается воспользоваться классификатором \texttt{svm} из пакета \texttt{scipy}.
 
 \begin{itemize}
-\item Модифицировать функцию \texttt{get_features} и добавить возможность вычислять \texttt{fc2} . (Аналогично второму заданию).
-\item Применить \texttt{get_feautures} , чтобы получить \texttt{X_test} и \texttt{Y_test} .
-\item Воспользоваться классификатором \texttt{SVC} с \texttt{random_state=0} .
+\item Модифицировать функцию \texttt{get_features} и добавить возможность вычислять \texttt{fc2}. (Аналогично второму заданию).
+\item Применить \texttt{get_feautures}, чтобы получить \texttt{X_test} и \texttt{Y_test}.
+\item Воспользоваться классификатором \texttt{SVC} с \texttt{random_state=0}.
 \end{itemize}
 
-\textbf{Важно!} Если вам не удалось поставить \texttt{tensorflow} , то необходимо вместо использования функции \texttt{get_features} , загрузить предпосчитанные \texttt{X} , \texttt{Y} , \texttt{X_test} , \texttt{Y_test} из архива: \href{https://yadi.sk/d/RzMOK8Fjvs6Ln}{https://yadi.sk/d/RzMOK8Fjvs6Ln} и воспользоваться функцией \texttt{np.load} для их загрузки, а после этого два последних пункта.
+\textbf{Важно!} Если вам не удалось поставить \texttt{tensorflow}, то необходимо вместо использования функции \texttt{get_features}, загрузить предпосчитанные \texttt{X}, \texttt{Y}, \texttt{X_test}, \texttt{Y_test} из архива: \href{https://yadi.sk/d/RzMOK8Fjvs6Ln}{https://yadi.sk/d/RzMOK8Fjvs6Ln} и воспользоваться функцией \texttt{np.load} для их загрузки, а после этого два последних пункта.
 
-\textbf{Задание:} Сколько правильных ответов получается на валидационной выборке из папки \texttt{test} ? Запишите в файл.
+\textbf{Задание:} Сколько правильных ответов получается на валидационной выборке из папки \texttt{test}? Запишите в файл.
 
 \begin{verbatim}
 # Функция, возвращающая признаковое описание для каждого файла jpg в заданной папке

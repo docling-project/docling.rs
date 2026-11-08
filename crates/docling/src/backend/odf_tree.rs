@@ -303,9 +303,11 @@ fn formatting_of(fmt: Fmt) -> Option<Formatting> {
     })
 }
 
-/// `_normalize_odf_text_runs`: merge same-format/same-link neighbours, strip
-/// the whitespace at a hyperlink boundary, drop blank edge runs and trim the
-/// paragraph's two ends.
+/// `_normalize_odf_text_runs`: merge same-format/same-link neighbours and
+/// trim the paragraph's two ends (`trim_run_edges`). A hyperlink boundary is
+/// not special under the whitespace contract (docling#3891): the boundary
+/// space stays in whichever run owns it, and the serializer places it
+/// outside the link markup.
 fn normalize_runs(runs: Vec<Run>) -> Vec<Run> {
     let mut merged: Vec<Run> = Vec::new();
     for run in runs {
@@ -318,33 +320,9 @@ fn normalize_runs(runs: Vec<Run>) -> Vec<Run> {
                 continue;
             }
         }
-        let mut text = run.text;
-        if let Some(last) = merged.last_mut() {
-            if last.href != run.href {
-                last.text = last.text.trim_end().to_string();
-                text = text.trim_start().to_string();
-            }
-        }
-        merged.push(Run {
-            text,
-            fmt: run.fmt,
-            href: run.href,
-        });
+        merged.push(run);
     }
-    while merged.first().is_some_and(|r| r.text.trim().is_empty()) {
-        merged.remove(0);
-    }
-    if let Some(first) = merged.first_mut() {
-        first.text = first.text.trim_start().to_string();
-    }
-    while merged.last().is_some_and(|r| r.text.trim().is_empty()) {
-        merged.pop();
-    }
-    if let Some(last) = merged.last_mut() {
-        last.text = last.text.trim_end().to_string();
-    }
-    merged.retain(|r| !r.text.is_empty());
-    merged
+    docling_core::inline::trim_run_edges(merged, |r| r.text.as_str(), |r, t| r.text = t, |_| true)
 }
 
 /// `_odf_text_from_runs`.
@@ -613,7 +591,11 @@ fn data_bounds(grid: &Grid) -> (usize, usize, usize, usize) {
 impl<'s> Walker<'s> {
     fn new(styles: &'s Styles) -> Self {
         Walker {
-            tree: ItemTree::default(),
+            tree: ItemTree {
+                // The runs keep their boundary whitespace (schema 1.11.0, #997).
+                inline_whitespace: true,
+                ..ItemTree::default()
+            },
             styles,
             tables: 0,
             note_calls: Vec::new(),

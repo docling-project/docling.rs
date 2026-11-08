@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "cp1251_meta_charset",
   "origin": {
     "mimetype": "text/plain",

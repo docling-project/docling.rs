@@ -651,8 +651,8 @@ pub(crate) fn uniform_run(runs: &[Run]) -> (Option<&Run>, bool) {
 
 /// `_add_paragraph` / `_add_runs`: a title, a section header at its level, or
 /// body text. A paragraph whose runs differ in formatting or link becomes an
-/// inline group of items (docling's shape for mixed runs, whose Markdown joins
-/// the items with single spaces); a uniform one is a single item.
+/// inline group of items (docling's shape for mixed runs, whose Markdown
+/// concatenates them, #997); a uniform one is a single item.
 pub(crate) fn paragraph_node(p: &Paragraph) -> Node {
     match p.label {
         // `Node::Heading` level 1 is docling's title; a section header of
@@ -677,11 +677,18 @@ pub(crate) fn paragraph_node(p: &Paragraph) -> Node {
                     .unwrap_or_default();
                 inline_paragraph_node(md, inline, false)
             } else {
-                let md = runs
+                // The runs keep their own whitespace and concatenate, their
+                // markers hoisted inside it (docling-core 2.106, #997):
+                // `Plain ` + `bold` is `Plain **bold**`.
+                let md: String = runs
                     .iter()
-                    .map(|r| serialize_run(&r.text, r.fmt, r.link.as_deref()))
-                    .collect::<Vec<_>>()
-                    .join(" ");
+                    .map(|r| {
+                        docling_core::inline::hoist(&r.text, |core| {
+                            serialize_run(core, r.fmt, r.link.as_deref())
+                        })
+                    })
+                    .collect();
+                let md = md.trim().to_string();
                 let inline = runs.iter().map(|r| inline_run(&r.text, r.fmt)).collect();
                 inline_paragraph_node(md, inline, false)
             }
@@ -907,7 +914,7 @@ mod tests {
         // "Plain  **bold**" — the double space is upstream's, kept for parity.
         assert_eq!(
             md,
-            "# T\n\nPlain  **bold**\n\n**all bold**\n\n1. one\n2. two\n    - deep\n\n| c   |\n|-----|\n\n- again\n"
+            "# T\n\nPlain **bold**\n\n**all bold**\n\n1. one\n2. two\n    - deep\n\n| c   |\n|-----|\n\n- again\n"
         );
         assert!(matches!(&doc.nodes[1], Node::Commented { comments, .. } if comments == &[0]));
         assert!(matches!(

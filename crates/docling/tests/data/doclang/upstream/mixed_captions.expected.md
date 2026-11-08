@@ -1,10 +1,10 @@
-Table **1** : results
+Table **1**: results
 
 |   A |   B |
 |-----|-----|
 |   1 |   2 |
 
-Figure *2* : chart
+Figure *2*: chart
 
 <!-- image -->
 

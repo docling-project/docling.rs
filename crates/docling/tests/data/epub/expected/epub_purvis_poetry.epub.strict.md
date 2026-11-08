@@ -60,7 +60,7 @@ No arm is stretched to rescue, and to save.
 Oh! ye who boast of Freedom's sacred claims,  
 Do ye not blush to see our galling chains;  
 To hear that sounding word-"that all are free"-  
-When thousands groan in hopeless *slavery* ?
+When thousands groan in hopeless *slavery*?
 
 Upon your land it is a cruel stain-  
 Freedom, what art thou?-nothing but a name.  
@@ -311,12 +311,12 @@ Unhonored and unnamed.
 Oh! speak not of heathenish darkness again,  
 Nor tell me of lands held in error's dread chain!  
 Where-where is the nation so erring as we,  
-Who claim the proud name of the " **home of the free** "!  
+Who claim the proud name of the "**home of the free**"!  
 What a throb do the lov'd ties of country awake  
 In the heart of the exile!-for time cannot break  
 The sweet vision of home, and all he loved well,  
 Which has thrown o'er his pathway a magical spell.  
-Can the name of " **my country** "-the deeds which we sing-  
+Can the name of "**my country**"-the deeds which we sing-  
 Be honored-revered-'midst pollution and sin?  
 Can the names of our fathers who perished in fight,  
 Be hallowed in story, midst slavery's blight?  

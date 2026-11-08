@@ -625,11 +625,8 @@
     , Str "equations:"
     , Space
     , Math InlineMath "N_{s}^{H}"
-    , Space
     , Str "/"
-    , Space
     , Math InlineMath "N_{s}^{P}"
-    , Space
     , Str "\8203."
     , Space
     , Str "If"

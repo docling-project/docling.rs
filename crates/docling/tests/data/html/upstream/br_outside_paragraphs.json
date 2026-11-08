@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "br_outside_paragraphs",
   "origin": {
     "mimetype": "text/html",
@@ -21,7 +21,7 @@
         "$ref": "#/texts/0"
       },
       {
-        "$ref": "#/texts/9"
+        "$ref": "#/texts/10"
       }
     ],
     "content_layer": "body",
@@ -57,6 +57,9 @@
         },
         {
           "$ref": "#/texts/5"
+        },
+        {
+          "$ref": "#/texts/6"
         }
       ],
       "content_layer": "body",
@@ -70,7 +73,7 @@
       },
       "children": [
         {
-          "$ref": "#/texts/6"
+          "$ref": "#/texts/7"
         }
       ],
       "content_layer": "body",
@@ -80,11 +83,11 @@
     {
       "self_ref": "#/groups/3",
       "parent": {
-        "$ref": "#/texts/6"
+        "$ref": "#/texts/7"
       },
       "children": [
         {
-          "$ref": "#/texts/7"
+          "$ref": "#/texts/8"
         }
       ],
       "content_layer": "body",
@@ -98,10 +101,13 @@
       },
       "children": [
         {
-          "$ref": "#/texts/11"
+          "$ref": "#/texts/12"
         },
         {
-          "$ref": "#/texts/12"
+          "$ref": "#/texts/13"
+        },
+        {
+          "$ref": "#/texts/14"
         }
       ],
       "content_layer": "body",
@@ -115,7 +121,7 @@
       },
       "children": [
         {
-          "$ref": "#/texts/13"
+          "$ref": "#/texts/15"
         }
       ],
       "content_layer": "body",
@@ -153,7 +159,7 @@
           "$ref": "#/groups/2"
         },
         {
-          "$ref": "#/texts/8"
+          "$ref": "#/texts/9"
         },
         {
           "$ref": "#/tables/0"
@@ -162,7 +168,7 @@
           "$ref": "#/pictures/0"
         },
         {
-          "$ref": "#/texts/10"
+          "$ref": "#/texts/11"
         },
         {
           "$ref": "#/groups/4"
@@ -238,6 +244,18 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
+      "orig": "\n",
+      "text": "\n"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
       "orig": "italic",
       "text": "italic",
       "formatting": {
@@ -249,7 +267,7 @@
       }
     },
     {
-      "self_ref": "#/texts/6",
+      "self_ref": "#/texts/7",
       "parent": {
         "$ref": "#/groups/2"
       },
@@ -274,7 +292,7 @@
       "marker": ""
     },
     {
-      "self_ref": "#/texts/7",
+      "self_ref": "#/texts/8",
       "parent": {
         "$ref": "#/groups/3"
       },
@@ -288,7 +306,7 @@
       "marker": ""
     },
     {
-      "self_ref": "#/texts/8",
+      "self_ref": "#/texts/9",
       "parent": {
         "$ref": "#/texts/1"
       },
@@ -300,7 +318,7 @@
       "text": "Caption\nline"
     },
     {
-      "self_ref": "#/texts/9",
+      "self_ref": "#/texts/10",
       "parent": {
         "$ref": "#/body"
       },
@@ -312,7 +330,7 @@
       "text": "Figure\nline"
     },
     {
-      "self_ref": "#/texts/10",
+      "self_ref": "#/texts/11",
       "parent": {
         "$ref": "#/texts/1"
       },
@@ -328,7 +346,7 @@
       "code_language": "unknown"
     },
     {
-      "self_ref": "#/texts/11",
+      "self_ref": "#/texts/12",
       "parent": {
         "$ref": "#/groups/4"
       },
@@ -351,7 +369,19 @@
       "code_language": "unknown"
     },
     {
-      "self_ref": "#/texts/12",
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/groups/4"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [],
+      "orig": "\n",
+      "text": "\n"
+    },
+    {
+      "self_ref": "#/texts/14",
       "parent": {
         "$ref": "#/groups/4"
       },
@@ -374,7 +404,7 @@
       "code_language": "unknown"
     },
     {
-      "self_ref": "#/texts/13",
+      "self_ref": "#/texts/15",
       "parent": {
         "$ref": "#/groups/5"
       },
@@ -398,7 +428,7 @@
       "prov": [],
       "captions": [
         {
-          "$ref": "#/texts/9"
+          "$ref": "#/texts/10"
         }
       ],
       "references": [],
@@ -418,7 +448,7 @@
       "prov": [],
       "captions": [
         {
-          "$ref": "#/texts/8"
+          "$ref": "#/texts/9"
         }
       ],
       "references": [],

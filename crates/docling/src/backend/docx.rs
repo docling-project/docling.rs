@@ -1115,7 +1115,9 @@ fn handle_paragraph_body(
             .find(|n| n.has_tag_name("checked"))
             .and_then(|n| attr(n, "val"))
             == Some("1");
-        let text = clean_checkbox_symbols(&paragraph_markdown(p, ctx));
+        let text = clean_checkbox_symbols(&paragraph_markdown(p, ctx))
+            .trim_end()
+            .to_string();
         doc.push(Node::CheckboxItem { checked, text });
         state.end_list_run();
         state.last_list_num_id = None;
@@ -1404,7 +1406,26 @@ fn handle_paragraph_body(
             // one TextItem per element, keeping its formatting): a plain segment
             // is a paragraph, a formatted one an InlineGroup whose single run
             // carries the style (`<text><underline>…</underline></text>`).
-            for (t, f, l) in run_groups(paragraph_run_tuples(p, ctx)) {
+            // docling#3891 keeps a cell paragraph's runs in their inline
+            // group, which moves into the cell as a whole: several groups
+            // are one inline item, concatenated with their own spacing.
+            let tuples = paragraph_run_tuples(p, ctx);
+            let groups = run_groups(tuples.clone());
+            let multi = groups.len() > 1;
+            if multi {
+                let groups = groups.clone();
+                let runs = groups
+                    .into_iter()
+                    .filter(|(t, _, _)| !t.is_empty())
+                    .map(|(t, f, _)| f.to_inline_run(&t))
+                    .collect();
+                doc.push(Node::InlineGroup {
+                    unwrapped: false,
+                    runs,
+                    md_text: group_runs(tuples),
+                });
+            }
+            for (t, f, l) in groups.into_iter().filter(|_| !multi) {
                 let seg = serialize_run(&t, f, l.as_deref());
                 if seg.is_empty() {
                     continue;
@@ -1950,10 +1971,12 @@ pub(super) fn child_elements<'a, 'i>(n: XmlNode<'a, 'i>) -> impl Iterator<Item =
 
 /// Strip a leading checkbox glyph (matches docling's `_clean_checkbox_symbols`).
 pub(super) fn clean_checkbox_symbols(text: &str) -> String {
-    let t = text.trim();
+    // Only the leading edge (docling#3891): the text may be the first of
+    // several inline runs.
+    let t = text.trim_start();
     for sym in ['☐', '☑', '☒', '□', '■', '▪', '▫'] {
         if let Some(rest) = t.strip_prefix(sym) {
-            return rest.trim().to_string();
+            return rest.trim_start().to_string();
         }
     }
     t.to_string()
@@ -1965,6 +1988,43 @@ pub(super) fn clean_checkbox_symbols(text: &str) -> String {
 /// `_get_paragraph_elements` segmentation, shared by the Markdown and the
 /// structured-run builders so both see the same text items.
 fn run_groups(runs: Vec<(String, Fmt, Option<String>)>) -> Vec<(String, Fmt, Option<String>)> {
+    group_by_format(runs, true)
+}
+
+/// docling#3891's `_get_paragraph_elements`: the same groups concatenated
+/// as they are — in DOCX the boundary space very often lives inside a
+/// formatted run, and it is that run's own text — then only the
+/// paragraph's outer edges trimmed (`trim_run_edges`). The Markdown side
+/// reads these; the DocLang runs keep [`run_groups`]' stripped ones.
+fn faithful_groups(runs: Vec<(String, Fmt, Option<String>)>) -> Vec<(String, Fmt, Option<String>)> {
+    docling_core::inline::trim_run_edges(
+        group_by_format(runs, false),
+        |g| g.0.as_str(),
+        |g, t| g.0 = t,
+        |_| true,
+    )
+}
+
+/// The grouping behind [`run_groups`] (`strip`: each group stripped, blank
+/// ones dropped — the pre-#997 shape) and [`faithful_groups`].
+fn group_by_format(
+    runs: Vec<(String, Fmt, Option<String>)>,
+    strip: bool,
+) -> Vec<(String, Fmt, Option<String>)> {
+    let keep = |t: &str| {
+        if strip {
+            !t.trim().is_empty()
+        } else {
+            !t.is_empty()
+        }
+    };
+    let cut = |t: &str| {
+        if strip {
+            t.trim().to_string()
+        } else {
+            t.to_string()
+        }
+    };
     let mut groups: Vec<(String, Fmt, Option<String>)> = Vec::new();
     let mut group_text = String::new();
     let mut previous_format: Option<Fmt> = None;
@@ -1972,30 +2032,26 @@ fn run_groups(runs: Vec<(String, Fmt, Option<String>)>) -> Vec<(String, Fmt, Opt
     for (text, fmt, link) in runs {
         last_format = fmt;
         if (!text.trim().is_empty() && Some(fmt) != previous_format) || link.is_some() {
-            if !group_text.trim().is_empty() {
-                groups.push((
-                    group_text.trim().to_string(),
-                    previous_format.unwrap_or_default(),
-                    None,
-                ));
+            if keep(&group_text) {
+                groups.push((cut(&group_text), previous_format.unwrap_or_default(), None));
             }
             group_text.clear();
             if link.is_some() {
-                groups.push((text.trim().to_string(), fmt, link));
+                groups.push((cut(&text), fmt, link));
                 continue;
             }
             previous_format = Some(fmt);
         }
         group_text.push_str(&text);
     }
-    if !group_text.trim().is_empty() {
+    if keep(&group_text) {
         // The trailing group closes under the format that *opened* it, as in
         // docling — a whitespace-only run never opens a group (its text is
         // just appended), so it must not decide the group's format either.
         // Taking the last run's format instead lost the bold/italic of a
         // paragraph that ends with an unformatted space (#408).
         groups.push((
-            group_text.trim().to_string(),
+            cut(&group_text),
             previous_format.unwrap_or(last_format),
             None,
         ));
@@ -2003,19 +2059,17 @@ fn run_groups(runs: Vec<(String, Fmt, Option<String>)>) -> Vec<(String, Fmt, Opt
     groups
 }
 
-/// One serialized Markdown segment per format group — docling's
-/// `_get_paragraph_elements`.
-fn run_segments(runs: Vec<(String, Fmt, Option<String>)>) -> Vec<String> {
-    run_groups(runs)
-        .iter()
-        .map(|(t, f, l)| serialize_run(t, *f, l.as_deref()))
-        .filter(|s| !s.is_empty())
-        .collect()
-}
-
-/// The segments joined with single spaces (a body paragraph's inline group).
+/// A paragraph's Markdown: one serialized segment per format group
+/// (docling's `_get_paragraph_elements`), concatenated as they are — each
+/// carries its own boundary whitespace, hoisted outside its markers
+/// (schema 1.11.0, #997).
 fn group_runs(runs: Vec<(String, Fmt, Option<String>)>) -> String {
-    run_segments(runs).join(" ")
+    faithful_groups(runs)
+        .iter()
+        .map(|(t, f, l)| {
+            docling_core::inline::hoist(t, |core| serialize_run(core, *f, l.as_deref()))
+        })
+        .collect()
 }
 
 /// One ordered fragment of a paragraph that mixes text and OMML: a raw text run
@@ -2110,22 +2164,23 @@ fn serialize_inline_equations(parts: &[EqPart]) -> String {
         match part {
             EqPart::Eq(e) => out.push(format!("${e}$")),
             EqPart::Text(t) => {
-                // The whole reconstructed text is stripped at its ends; the final
-                // text fragment is additionally stripped in full.
-                let s = if i == n - 1 {
-                    t.trim()
-                } else if i == 0 {
-                    t.trim_start()
-                } else {
-                    t.as_str()
-                };
+                // Only the paragraph's outer edges are trimmed: the
+                // whitespace around an inline equation is a run boundary
+                // (`$A=\pi r^{2}$ is the area formula`, docling#3891).
+                let mut s = t.as_str();
+                if i == 0 {
+                    s = s.trim_start();
+                }
+                if i == n - 1 {
+                    s = s.trim_end();
+                }
                 if !s.is_empty() {
                     out.push(escape_text(s));
                 }
             }
         }
     }
-    out.join(" ")
+    out.concat()
 }
 
 /// Structured [`InlineRun`]s for a mixed text/equation paragraph — the DocLang
