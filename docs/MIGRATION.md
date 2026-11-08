@@ -537,6 +537,11 @@ converted once more as that format with a warning.
   - the old "body placeholder is a list" default is gone, so the default template's "Section Header" body and any layout or master `buNone` give paragraphs, a master `buAutoNum` numbers the body, and a subtitle takes `otherStyle`'s marker (with it, a centred title can become a list item, as upstream's does)
   - a numbered group starts at its first paragraph's `a:buAutoNum/@startAt` (docling's `_get_auto_number_start`), and a bullet that joins a numbered group renders `N.` by position in Markdown, as docling-core does
   - `crates/docling/tests/data/pptx/list_cascade/` (the reporter's A–H decks plus I–K) matches upstream's Markdown and JSON 11/11
+- #1018 (docling#5122, #4989), ported with upstream's unit tests (`backend/pptx_upstream_unit.rs`: `test_backend_pptx_list_markers.py`, `test_backend_pptx_picture_fill.py`):
+  - a numbered item's marker follows its effective `a:buAutoNum/@type` — the same properties element that made it numbered, paragraph, shape list style, layout or master: `alpha{Lc,Uc}` / `roman{Lc,Uc}` with `Period` / `ParenR` / `ParenBoth` print `a.`, `IV.`, `(C)` (Markdown `- a. Plan`); every other scheme (`arabicParenR`, East Asian, …) keeps `N.`
+  - a `startAt` outside 1..=32767 (`ST_TextBulletStartAtNum`) is ignored and the list starts at 1 — a start of 2000000000 would build ~77M-character letter markers
+  - a `p:sp` filled with a picture (`p:spPr/a:blipFill/a:blip/@r:embed`) is a picture, then its text; a fill that only links (`r:link`), has an empty `r:embed` or points at a missing part adds none, and the text stays
+  - `.ppt`: the PP9 `TextAutoNumberScheme` maps to the same letter / Roman markers (the decimal schemes keep the plain numbering) and the same `startAt` cap applies; the binary reader emits no pictures, so the fill half does not apply there
 - #402: a slide's speaker notes and review comments reach the **JSON** as text items on docling's `notes` content layer (they were parsed all along, but only DocLang rendered them, so a consumer reading JSON alone could not see them)
   - Markdown is unchanged — it serializes the body layer.
 - Each slide is also a `chapter` group named `slide-{0-based}`, as docling writes it, and every slide is recorded as a page sized in EMU, so items carry provenance
