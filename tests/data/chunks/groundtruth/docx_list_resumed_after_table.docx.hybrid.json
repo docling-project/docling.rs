@@ -1,0 +1,27 @@
+[
+ {
+  "text": "Introductory paragraph.\n1. First item before the table\n2. Second item before the table\nalpha, Value = 1\n3. Item after the table\n4. Another item after the table",
+  "headings": [
+   "List interrupted by a table"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3",
+   "#/tables/0",
+   "#/texts/5",
+   "#/texts/6"
+  ],
+  "contextualize": "List interrupted by a table\nIntroductory paragraph.\n1. First item before the table\n2. Second item before the table\nalpha, Value = 1\n3. Item after the table\n4. Another item after the table"
+ },
+ {
+  "text": "Paragraph that closes the document.",
+  "headings": [
+   "Next section"
+  ],
+  "doc_items": [
+   "#/texts/8"
+  ],
+  "contextualize": "Next section\nParagraph that closes the document."
+ }
+]

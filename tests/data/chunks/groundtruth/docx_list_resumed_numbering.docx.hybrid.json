@@ -1,0 +1,16 @@
+[
+ {
+  "text": "1. First ordered item\n2. Second ordered item\n- bullet one\n- bullet two\n3. Third ordered item",
+  "headings": [
+   "Ordered list resumed after an intervening bullet list"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5"
+  ],
+  "contextualize": "Ordered list resumed after an intervening bullet list\n1. First ordered item\n2. Second ordered item\n- bullet one\n- bullet two\n3. Third ordered item"
+ }
+]

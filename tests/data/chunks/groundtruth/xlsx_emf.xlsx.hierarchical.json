@@ -1,0 +1,26 @@
+[
+ {
+  "text": "Raster in emf, Objective = Test image in EMF format",
+  "headings": null,
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Raster in emf, Objective = Test image in EMF format"
+ },
+ {
+  "text": "Vector in emf, Objective = Test image in EMF format",
+  "headings": null,
+  "doc_items": [
+   "#/tables/1"
+  ],
+  "contextualize": "Vector in emf, Objective = Test image in EMF format"
+ },
+ {
+  "text": "Raster in webp, Objective = Test image in WebP format",
+  "headings": null,
+  "doc_items": [
+   "#/tables/2"
+  ],
+  "contextualize": "Raster in webp, Objective = Test image in WebP format"
+ }
+]

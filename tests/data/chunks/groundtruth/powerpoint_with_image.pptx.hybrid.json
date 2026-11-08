@@ -9,5 +9,15 @@
    "#/texts/2"
   ],
   "contextualize": "Docling\nImage test\nImage linked to file"
+ },
+ {
+  "text": "This is a picture inserted through a layout’s picture placeholder",
+  "headings": [
+   "Picture placeholder"
+  ],
+  "doc_items": [
+   "#/texts/4"
+  ],
+  "contextualize": "Picture placeholder\nThis is a picture inserted through a layout’s picture placeholder"
  }
 ]

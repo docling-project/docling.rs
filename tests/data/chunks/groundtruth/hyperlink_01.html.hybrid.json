@@ -1,6 +1,6 @@
 [
  {
-  "text": "Please follow the link to:\n[This page](#)\n.",
+  "text": "Please follow the link to: \n[This page](#) \n.",
   "headings": [
    "Something"
   ],
@@ -9,6 +9,6 @@
    "#/texts/2",
    "#/texts/3"
   ],
-  "contextualize": "Something\nPlease follow the link to:\n[This page](#)\n."
+  "contextualize": "Something\nPlease follow the link to: \n[This page](#) \n."
  }
 ]

@@ -36,23 +36,27 @@
   "contextualize": "Test with tables\nA non-uniform table with all kinds of spans and empty cells"
  },
  {
-  "text": "\nCell 1.0, Header 0.1 = Merged Cell 1.1 2.1. Cell 1.0, Header 0.2 = Cell 1.2. Cell 1.0,  = . Cell 1.0,  = . Cell 2.0, Header 0.1 = Merged Cell 1.1 2.1. Cell 2.0, Header 0.2 = Cell 2.2. Cell 2.0,  = . Cell 2.0,  = . Cell 3.0, Header 0.1 = Merged Cell 3.1 4.1. Cell 3.0, Header 0.2 = Cell 3.2. Cell 3.0,  = . Cell 3.0,  = . Cell 4.0, Header 0.1 = Merged Cell 3.1 4.1. Cell 4.0, Header 0.2 = Cell 4.2. Cell 4.0,  = . Cell 4.0,  = Merged Cell 4.4 5.4. , Header 0.1 = . , Header 0.2 = . ,  = . ,  = Merged Cell 4.4 5.4. , Header 0.1 = . , Header 0.2 = . ,  = . ,  = . , Header 0.1 = . ,",
+  "text": "| - |\n| Cell 1.0, Header 0.1 = Merged Cell 1.1 2.1. Cell 1.0, Header 0.2 = Cell 1.2. Cell 1.0,  = . Cell 1.0,  = . Cell 2.0, Header 0.1 = Merged Cell 1.1 2.1. Cell 2.0, Header 0.2 = Cell 2.2. Cell 2.0,  = . Cell 2.0,  = . Cell 3.0, Header 0.1 = Merged Cell 3.1 4.1. Cell 3.0, Header 0.2 = Cell 3.2. Cell 3.0,  = . Cell 3.0,  = . Cell 4.0, Header 0.1 = Merged Cell 3.1 4.1. Cell 4.0, Header 0.2 = Cell 4.2. Cell 4.0,  = . Cell 4.0,  = Merged Cell 4.4 5.4. , Header 0.1 = . , Header 0.2 = . ,  = . ,  = Merged Cell 4.4 5.4. , Header 0.1 = . , Header 0.2 = . ,  = . ,  = . ,",
   "headings": [
    "Test with tables"
   ],
   "doc_items": [
    "#/tables/4"
   ],
-  "contextualize": "Test with tables\n\nCell 1.0, Header 0.1 = Merged Cell 1.1 2.1. Cell 1.0, Header 0.2 = Cell 1.2. Cell 1.0,  = . Cell 1.0,  = . Cell 2.0, Header 0.1 = Merged Cell 1.1 2.1. Cell 2.0, Header 0.2 = Cell 2.2. Cell 2.0,  = . Cell 2.0,  = . Cell 3.0, Header 0.1 = Merged Cell 3.1 4.1. Cell 3.0, Header 0.2 = Cell 3.2. Cell 3.0,  = . Cell 3.0,  = . Cell 4.0, Header 0.1 = Merged Cell 3.1 4.1. Cell 4.0, Header 0.2 = Cell 4.2. Cell 4.0,  = . Cell 4.0,  = Merged Cell 4.4 5.4. , Header 0.1 = . , Header 0.2 = . ,  = . ,  = Merged Cell 4.4 5.4. , Header 0.1 = . , Header 0.2 = . ,  = . ,  = . , Header 0.1 = . ,"
+  "contextualize": "Test with tables\n| - |\n| Cell 1.0, Header 0.1 = Merged Cell 1.1 2.1. Cell 1.0, Header 0.2 = Cell 1.2. Cell 1.0,  = . Cell 1.0,  = . Cell 2.0, Header 0.1 = Merged Cell 1.1 2.1. Cell 2.0, Header 0.2 = Cell 2.2. Cell 2.0,  = . Cell 2.0,  = . Cell 3.0, Header 0.1 = Merged Cell 3.1 4.1. Cell 3.0, Header 0.2 = Cell 3.2. Cell 3.0,  = . Cell 3.0,  = . Cell 4.0, Header 0.1 = Merged Cell 3.1 4.1. Cell 4.0, Header 0.2 = Cell 4.2. Cell 4.0,  = . Cell 4.0,  = Merged Cell 4.4 5.4. , Header 0.1 = . , Header 0.2 = . ,  = . ,  = Merged Cell 4.4 5.4. , Header 0.1 = . , Header 0.2 = . ,  = . ,  = . ,"
  },
  {
-  "text": " Header 0.2 = . ,  = . ,  = . , Header 0.1 = . , Header 0.2 = . ,  = . ,  = Cell 8.4",
+  "text": "| - |\n Header 0.1 = . , Header 0.2 = . ,  = . ,  = . , Header 0.1 = . , Header 0.2 = . ,  = . ,  = Cell 8.4 |\n\nA non-uniform table with a row starting late\n, Header 0.1 = Cell 1.1\nA non-uniform table with a vertical span over a row starting late\n, Header 0.1 = . , Merged Cell 0.2 1.2 = Merged Cell 0.2 1.2",
   "headings": [
    "Test with tables"
   ],
   "doc_items": [
-   "#/tables/4"
+   "#/tables/4",
+   "#/texts/12",
+   "#/tables/5",
+   "#/texts/13",
+   "#/tables/6"
   ],
-  "contextualize": "Test with tables\n Header 0.2 = . ,  = . ,  = . , Header 0.1 = . , Header 0.2 = . ,  = . ,  = Cell 8.4"
+  "contextualize": "Test with tables\n| - |\n Header 0.1 = . , Header 0.2 = . ,  = . ,  = . , Header 0.1 = . , Header 0.2 = . ,  = . ,  = Cell 8.4 |\n\nA non-uniform table with a row starting late\n, Header 0.1 = Cell 1.1\nA non-uniform table with a vertical span over a row starting late\n, Header 0.1 = . , Merged Cell 0.2 1.2 = Merged Cell 0.2 1.2"
  }
 ]

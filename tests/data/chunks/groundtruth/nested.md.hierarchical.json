@@ -68,5 +68,29 @@
    "#/texts/25"
   ],
   "contextualize": "Nesting\n- First item\n- Second item with subitems:\n    - Subitem 1\n    - Subitem 2\n- Last list item"
+ },
+ {
+  "text": "A nested ordered list:",
+  "headings": [
+   "Nesting"
+  ],
+  "doc_items": [
+   "#/texts/26"
+  ],
+  "contextualize": "Nesting\nA nested ordered list:"
+ },
+ {
+  "text": "1. First main item\n2. Second main item\n    1. First nested sub-item\n    2. Second nested sub-item\n3. Third main item",
+  "headings": [
+   "Nesting"
+  ],
+  "doc_items": [
+   "#/texts/27",
+   "#/texts/28",
+   "#/texts/29",
+   "#/texts/30",
+   "#/texts/31"
+  ],
+  "contextualize": "Nesting\n1. First main item\n2. Second main item\n    1. First nested sub-item\n    2. Second nested sub-item\n3. Third main item"
  }
 ]

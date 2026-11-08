@@ -150,8 +150,9 @@ captions) with its heading path; `HybridChunker` refines them with a
 tokenizer — splits oversized chunks (item boundaries, then docling's
 `semchunk` inside text, tables line by line) and merges undersized
 same-heading neighbours. Against docling's chunkers on the 83-document
-corpus (`scripts/conformance/chunks_conformance.sh`): hierarchical 98.8 % /
-hybrid 96.2 % identical chunk records.
+corpus (`scripts/conformance/chunks_conformance.sh`, docling 2.148): hierarchical
+92.3 % / hybrid 69.6 % identical chunk records. Each chunk's `doc_items` refs
+name items of the document's own JSON export (#1041).
 
 ```rust
 use docling::chunker::{contextualize, HierarchicalChunker, HybridChunker, HuggingFaceTokenizer};

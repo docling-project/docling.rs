@@ -1,0 +1,34 @@
+[
+ {
+  "text": "1. First ordered item\n2. Second ordered item",
+  "headings": [
+   "Ordered list resumed after an intervening bullet list"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2"
+  ],
+  "contextualize": "Ordered list resumed after an intervening bullet list\n1. First ordered item\n2. Second ordered item"
+ },
+ {
+  "text": "- bullet one\n- bullet two",
+  "headings": [
+   "Ordered list resumed after an intervening bullet list"
+  ],
+  "doc_items": [
+   "#/texts/3",
+   "#/texts/4"
+  ],
+  "contextualize": "Ordered list resumed after an intervening bullet list\n- bullet one\n- bullet two"
+ },
+ {
+  "text": "3. Third ordered item",
+  "headings": [
+   "Ordered list resumed after an intervening bullet list"
+  ],
+  "doc_items": [
+   "#/texts/5"
+  ],
+  "contextualize": "Ordered list resumed after an intervening bullet list\n3. Third ordered item"
+ }
+]

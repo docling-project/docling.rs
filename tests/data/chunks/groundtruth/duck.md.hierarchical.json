@@ -93,9 +93,7 @@
    "Let’s eat"
   ],
   "doc_items": [
-   "#/texts/15",
-   "#/texts/16",
-   "#/texts/17"
+   "#/texts/15"
   ],
   "contextualize": "Swimming in the lake\nLet’s eat\nAfter we had a good day of swimming in the lake, it’s important to eat something nice"
  },
@@ -106,7 +104,7 @@
    "Let’s eat"
   ],
   "doc_items": [
-   "#/texts/18"
+   "#/texts/16"
   ],
   "contextualize": "Swimming in the lake\nLet’s eat\nI like to eat leaves"
  },
@@ -117,7 +115,7 @@
    "Let’s eat"
   ],
   "doc_items": [
-   "#/texts/19"
+   "#/texts/17"
   ],
   "contextualize": "Swimming in the lake\nLet’s eat\nHere are some interesting things a respectful duck could eat:"
  },
@@ -139,7 +137,7 @@
    "Let’s eat"
   ],
   "doc_items": [
-   "#/texts/20"
+   "#/texts/18"
   ],
   "contextualize": "Swimming in the lake\nLet’s eat\nAnd let’s add another list in the end:"
  },
@@ -150,9 +148,9 @@
    "Let’s eat"
   ],
   "doc_items": [
-   "#/texts/21",
-   "#/texts/22",
-   "#/texts/23"
+   "#/texts/19",
+   "#/texts/20",
+   "#/texts/21"
   ],
   "contextualize": "Swimming in the lake\nLet’s eat\n- Leaves\n- Berries\n- Grain"
  },
@@ -163,7 +161,7 @@
    "Let’s eat"
   ],
   "doc_items": [
-   "#/texts/24"
+   "#/texts/22"
   ],
   "contextualize": "Swimming in the lake\nLet’s eat\nAnd here my listing in code:"
  },
@@ -174,7 +172,7 @@
    "Let’s eat"
   ],
   "doc_items": [
-   "#/texts/25"
+   "#/texts/23"
   ],
   "contextualize": "Swimming in the lake\nLet’s eat\n```\nLeaves\n\nBerries\nGrain\n```"
  }

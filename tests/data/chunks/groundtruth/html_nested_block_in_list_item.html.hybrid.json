@@ -37,5 +37,31 @@
    "#/texts/20"
   ],
   "contextualize": "Nested list in divs\n- Step instruction text\n- Nested detail 1\n- Nested detail 2"
+ },
+ {
+  "text": "- First item\nA paragraph placed directly inside the list.\n- Second item\nAfter.",
+  "headings": [
+   "Paragraph between list items"
+  ],
+  "doc_items": [
+   "#/texts/22",
+   "#/texts/23",
+   "#/texts/24",
+   "#/texts/25"
+  ],
+  "contextualize": "Paragraph between list items\n- First item\nA paragraph placed directly inside the list.\n- Second item\nAfter."
+ },
+ {
+  "text": "1. \nA, 1 = B\n2. \n3. Third item",
+  "headings": [
+   "List items without text"
+  ],
+  "doc_items": [
+   "#/texts/27",
+   "#/tables/0",
+   "#/texts/28",
+   "#/texts/29"
+  ],
+  "contextualize": "List items without text\n1. \nA, 1 = B\n2. \n3. Third item"
  }
 ]

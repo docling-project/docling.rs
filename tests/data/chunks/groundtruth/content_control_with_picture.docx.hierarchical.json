@@ -1,0 +1,18 @@
+[
+ {
+  "text": "COVER TITLE INSIDE SDT",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0"
+  ],
+  "contextualize": "COVER TITLE INSIDE SDT"
+ },
+ {
+  "text": "BODY TEXT OUTSIDE SDT",
+  "headings": null,
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "BODY TEXT OUTSIDE SDT"
+ }
+]

@@ -1,6 +1,6 @@
 [
  {
-  "text": "The Pythagorean theorem can be written as an equation relating the lengths of the sides *a* , *b* and the hypotenuse *c* .",
+  "text": "The Pythagorean theorem can be written as an equation relating the lengths of the sides *a*, *b* and the hypotenuse *c*.",
   "headings": [
    "Code snippets"
   ],
@@ -13,10 +13,10 @@
    "#/texts/7",
    "#/texts/8"
   ],
-  "contextualize": "Code snippets\nThe Pythagorean theorem can be written as an equation relating the lengths of the sides *a* , *b* and the hypotenuse *c* ."
+  "contextualize": "Code snippets\nThe Pythagorean theorem can be written as an equation relating the lengths of the sides *a*, *b* and the hypotenuse *c*."
  },
  {
-  "text": "To use Docling, simply install `docling` from your package manager, e.g. pip: `pip install docling`",
+  "text": "To use Docling, simply install `docling`from your package manager, e.g. pip: `pip install docling`",
   "headings": [
    "Code snippets"
   ],
@@ -26,10 +26,10 @@
    "#/texts/11",
    "#/texts/12"
   ],
-  "contextualize": "Code snippets\nTo use Docling, simply install `docling` from your package manager, e.g. pip: `pip install docling`"
+  "contextualize": "Code snippets\nTo use Docling, simply install `docling`from your package manager, e.g. pip: `pip install docling`"
  },
  {
-  "text": "To convert individual documents with python, use `convert()` , for example:",
+  "text": "To convert individual documents with python, use `convert()`, for example:",
   "headings": [
    "Code snippets"
   ],
@@ -38,7 +38,7 @@
    "#/texts/14",
    "#/texts/15"
   ],
-  "contextualize": "Code snippets\nTo convert individual documents with python, use `convert()` , for example:"
+  "contextualize": "Code snippets\nTo convert individual documents with python, use `convert()`, for example:"
  },
  {
   "text": "```\nfrom docling.document_converter import DocumentConverter\n\nsource = \"https://arxiv.org/pdf/2408.09869\"\nconverter = DocumentConverter()\nresult = converter.convert(source)\nprint(result.document.export_to_markdown())\n```",
@@ -72,7 +72,7 @@
   "contextualize": "Code snippets\nPrefetch the models:"
  },
  {
-  "text": "- Use the `docling-tools models download` utility:\n- Alternatively, models can be programmatically downloaded using `docling.utils.model_downloader.download_models()` .\n- Also, you can use download-hf-repo parameter to download arbitrary models from HuggingFace by specifying repo id: `$ docling-tools models download-hf-repo ds4sd/SmolDocling-256M-preview Downloading ds4sd/SmolDocling-256M-preview model from HuggingFace...`",
+  "text": "- Use the `docling-tools models download` utility:\n- Alternatively, models can be programmatically downloaded using `docling.utils.model_downloader.download_models()`.\n- Also, you can use download-hf-repo parameter to download arbitrary models from HuggingFace by specifying repo id: `$ docling-tools models download-hf-repo ds4sd/SmolDocling-256M-preview Downloading ds4sd/SmolDocling-256M-preview model from HuggingFace...`",
   "headings": [
    "Code snippets"
   ],
@@ -81,6 +81,6 @@
    "#/texts/24",
    "#/texts/28"
   ],
-  "contextualize": "Code snippets\n- Use the `docling-tools models download` utility:\n- Alternatively, models can be programmatically downloaded using `docling.utils.model_downloader.download_models()` .\n- Also, you can use download-hf-repo parameter to download arbitrary models from HuggingFace by specifying repo id: `$ docling-tools models download-hf-repo ds4sd/SmolDocling-256M-preview Downloading ds4sd/SmolDocling-256M-preview model from HuggingFace...`"
+  "contextualize": "Code snippets\n- Use the `docling-tools models download` utility:\n- Alternatively, models can be programmatically downloaded using `docling.utils.model_downloader.download_models()`.\n- Also, you can use download-hf-repo parameter to download arbitrary models from HuggingFace by specifying repo id: `$ docling-tools models download-hf-repo ds4sd/SmolDocling-256M-preview Downloading ds4sd/SmolDocling-256M-preview model from HuggingFace...`"
  }
 ]

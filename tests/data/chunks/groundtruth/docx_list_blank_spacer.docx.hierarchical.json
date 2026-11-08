@@ -1,0 +1,34 @@
+[
+ {
+  "text": "1. First section\n    - 1.1. Sub one",
+  "headings": [
+   "List with a blank spacer paragraph"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/texts/2"
+  ],
+  "contextualize": "List with a blank spacer paragraph\n1. First section\n    - 1.1. Sub one"
+ },
+ {
+  "text": "Prose that belongs under Sub one.",
+  "headings": [
+   "List with a blank spacer paragraph"
+  ],
+  "doc_items": [
+   "#/texts/4"
+  ],
+  "contextualize": "List with a blank spacer paragraph\nProse that belongs under Sub one."
+ },
+ {
+  "text": "- 1.2. Sub two\n2. Second section",
+  "headings": [
+   "List with a blank spacer paragraph"
+  ],
+  "doc_items": [
+   "#/texts/5",
+   "#/texts/6"
+  ],
+  "contextualize": "List with a blank spacer paragraph\n- 1.2. Sub two\n2. Second section"
+ }
+]

@@ -1,23 +1,23 @@
 [
  {
-  "text": "This is a word document and this is an inline equation:  $A= \\pi r^{2}$ .",
+  "text": "This is a word document and this is an inline equation: $A= \\pi r^{2}$.",
   "headings": null,
   "doc_items": [
    "#/texts/0",
    "#/texts/1",
    "#/texts/2"
   ],
-  "contextualize": "This is a word document and this is an inline equation:  $A= \\pi r^{2}$ ."
+  "contextualize": "This is a word document and this is an inline equation: $A= \\pi r^{2}$."
  },
  {
-  "text": "- First item with inline equation:  $A= \\pi r^{2}$ is the area formula.\n- Second item with equations:  $E=mc^{2}$  and  $F=ma$ are physics formulas.\n- The formula  $a^{2}+b^{2}=c^{2}$ is the Pythagorean theorem.",
+  "text": "- First item with inline equation: $A= \\pi r^{2}$ is the area formula.\n- Second item with equations: $E=mc^{2}$ and $F=ma$ are physics formulas.\n- The formula $a^{2}+b^{2}=c^{2}$ is the Pythagorean theorem.",
   "headings": null,
   "doc_items": [
    "#/texts/3",
    "#/texts/7",
    "#/texts/13"
   ],
-  "contextualize": "- First item with inline equation:  $A= \\pi r^{2}$ is the area formula.\n- Second item with equations:  $E=mc^{2}$  and  $F=ma$ are physics formulas.\n- The formula  $a^{2}+b^{2}=c^{2}$ is the Pythagorean theorem."
+  "contextualize": "- First item with inline equation: $A= \\pi r^{2}$ is the area formula.\n- Second item with equations: $E=mc^{2}$ and $F=ma$ are physics formulas.\n- The formula $a^{2}+b^{2}=c^{2}$ is the Pythagorean theorem."
  },
  {
   "text": "If instead, I want an equation by line, I can do this:",
@@ -68,14 +68,14 @@
   "contextualize": "This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text."
  },
  {
-  "text": "This is a word document and this is an inline equation:  $A= \\pi r^{2}$ . If instead, I want an equation by line, I can do this:",
+  "text": "This is a word document and this is an inline equation: $A= \\pi r^{2}$. If instead, I want an equation by line, I can do this:",
   "headings": null,
   "doc_items": [
    "#/texts/28",
    "#/texts/29",
    "#/texts/30"
   ],
-  "contextualize": "This is a word document and this is an inline equation:  $A= \\pi r^{2}$ . If instead, I want an equation by line, I can do this:"
+  "contextualize": "This is a word document and this is an inline equation: $A= \\pi r^{2}$. If instead, I want an equation by line, I can do this:"
  },
  {
   "text": "$$\\left(x+a\\right)^{n}=\\sum_{k=0}^{n}\\left(\\genfrac{}{}{0pt}{}{n}{k}\\right)x^{k}a^{n-k}$$",
@@ -118,7 +118,7 @@
   "contextualize": "This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text. This is text."
  },
  {
-  "text": "This is a word document and these are inline equations:  $N_{s}^{H}$ / $N_{s}^{P}$ ​. If instead, I want an equation by line, I can do this:",
+  "text": "This is a word document and these are inline equations: $N_{s}^{H}$/$N_{s}^{P}$​. If instead, I want an equation by line, I can do this:",
   "headings": null,
   "doc_items": [
    "#/texts/43",
@@ -127,7 +127,7 @@
    "#/texts/46",
    "#/texts/47"
   ],
-  "contextualize": "This is a word document and these are inline equations:  $N_{s}^{H}$ / $N_{s}^{P}$ ​. If instead, I want an equation by line, I can do this:"
+  "contextualize": "This is a word document and these are inline equations: $N_{s}^{H}$/$N_{s}^{P}$​. If instead, I want an equation by line, I can do this:"
  },
  {
   "text": "$$e^{x}=1+\\frac{x}{1!}+\\frac{x^{2}}{2!}+\\frac{x^{3}}{3!}+ \\text{ \\textellipsis } , - \\infty  < x <  \\infty$$",

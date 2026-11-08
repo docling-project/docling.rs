@@ -38,7 +38,7 @@
   "contextualize": "Swimming in the lake\nLet’s swim!\nTo get started with swimming, first lay down in a water and try not to drown:\n- You can relax and look around\n- Paddle about\n- Enjoy summer warmth\nAlso, don’t forget:\n- Wear sunglasses\n- Don’t forget to drink water\n- Use sun cream\nHmm, what else…"
  },
  {
-  "text": "After we had a good day of swimming in the lake,\nit’s important to eat\nsomething nice\nI like to eat leaves\nHere are some interesting things a respectful duck could eat:\nLeaves, Food = Ash, Elm, Maple. Leaves, Calories per portion = 50. Berries, Food = Blueberry, Strawberry, Cranberry. Berries, Calories per portion = 150. Grain, Food = Corn, Buckwheat, Barley. Grain, Calories per portion = 200\nAnd let’s add another list in the end:\n- Leaves\n- Berries\n- Grain\nAnd here my listing in code:\n```\nLeaves\n\nBerries\nGrain\n```",
+  "text": "After we had a good day of swimming in the lake, it’s important to eat something nice\nI like to eat leaves\nHere are some interesting things a respectful duck could eat:\nLeaves, Food = Ash, Elm, Maple. Leaves, Calories per portion = 50. Berries, Food = Blueberry, Strawberry, Cranberry. Berries, Calories per portion = 150. Grain, Food = Corn, Buckwheat, Barley. Grain, Calories per portion = 200\nAnd let’s add another list in the end:\n- Leaves\n- Berries\n- Grain\nAnd here my listing in code:\n```\nLeaves\n\nBerries\nGrain\n```",
   "headings": [
    "Swimming in the lake",
    "Let’s eat"
@@ -47,16 +47,14 @@
    "#/texts/15",
    "#/texts/16",
    "#/texts/17",
+   "#/tables/0",
    "#/texts/18",
    "#/texts/19",
-   "#/tables/0",
    "#/texts/20",
    "#/texts/21",
    "#/texts/22",
-   "#/texts/23",
-   "#/texts/24",
-   "#/texts/25"
+   "#/texts/23"
   ],
-  "contextualize": "Swimming in the lake\nLet’s eat\nAfter we had a good day of swimming in the lake,\nit’s important to eat\nsomething nice\nI like to eat leaves\nHere are some interesting things a respectful duck could eat:\nLeaves, Food = Ash, Elm, Maple. Leaves, Calories per portion = 50. Berries, Food = Blueberry, Strawberry, Cranberry. Berries, Calories per portion = 150. Grain, Food = Corn, Buckwheat, Barley. Grain, Calories per portion = 200\nAnd let’s add another list in the end:\n- Leaves\n- Berries\n- Grain\nAnd here my listing in code:\n```\nLeaves\n\nBerries\nGrain\n```"
+  "contextualize": "Swimming in the lake\nLet’s eat\nAfter we had a good day of swimming in the lake, it’s important to eat something nice\nI like to eat leaves\nHere are some interesting things a respectful duck could eat:\nLeaves, Food = Ash, Elm, Maple. Leaves, Calories per portion = 50. Berries, Food = Blueberry, Strawberry, Cranberry. Berries, Calories per portion = 150. Grain, Food = Corn, Buckwheat, Barley. Grain, Calories per portion = 200\nAnd let’s add another list in the end:\n- Leaves\n- Berries\n- Grain\nAnd here my listing in code:\n```\nLeaves\n\nBerries\nGrain\n```"
  }
 ]

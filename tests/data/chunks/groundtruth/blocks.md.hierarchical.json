@@ -150,5 +150,75 @@
    "#/texts/18"
   ],
   "contextualize": "my setext heading level 1\nmy setext heading level 2\nEmpty fenced code block:"
+ },
+ {
+  "text": "Ordered list starting at a non-1 number:",
+  "headings": [
+   "my setext heading level 1",
+   "my setext heading level 2"
+  ],
+  "doc_items": [
+   "#/texts/19"
+  ],
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\nOrdered list starting at a non-1 number:"
+ },
+ {
+  "text": "5. Fifth step\n6. Sixth step\n7. Seventh step",
+  "headings": [
+   "my setext heading level 1",
+   "my setext heading level 2"
+  ],
+  "doc_items": [
+   "#/texts/20",
+   "#/texts/21",
+   "#/texts/22"
+  ],
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\n5. Fifth step\n6. Sixth step\n7. Seventh step"
+ },
+ {
+  "text": "Ordered list split by a prose paragraph (numbers must continue, not restart):",
+  "headings": [
+   "my setext heading level 1",
+   "my setext heading level 2"
+  ],
+  "doc_items": [
+   "#/texts/23"
+  ],
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\nOrdered list split by a prose paragraph (numbers must continue, not restart):"
+ },
+ {
+  "text": "1. Install the package.\n2. Set the API key.",
+  "headings": [
+   "my setext heading level 1",
+   "my setext heading level 2"
+  ],
+  "doc_items": [
+   "#/texts/24",
+   "#/texts/25"
+  ],
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\n1. Install the package.\n2. Set the API key."
+ },
+ {
+  "text": "Restart the shell before continuing.",
+  "headings": [
+   "my setext heading level 1",
+   "my setext heading level 2"
+  ],
+  "doc_items": [
+   "#/texts/26"
+  ],
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\nRestart the shell before continuing."
+ },
+ {
+  "text": "3. Run the import.\n4. Check the output.",
+  "headings": [
+   "my setext heading level 1",
+   "my setext heading level 2"
+  ],
+  "doc_items": [
+   "#/texts/27",
+   "#/texts/28"
+  ],
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\n3. Run the import.\n4. Check the output."
  }
 ]
