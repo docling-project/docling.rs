@@ -99,11 +99,25 @@ jobs:
           path: |
             .models
             .docling-parse
-          key: pdf-conformance-models-${{ hashFiles('scripts/install/download_dependencies.sh') }}
+          # v2: a fresh entry, the v1 one may hold no renderer plugin.
+          key: pdf-conformance-models-v2-${{ hashFiles('scripts/install/download_dependencies.sh') }}
 
+      # Runs on a cache hit too: the downloader skips every asset already
+      # present, so a warm cache costs seconds — and a cache entry saved
+      # without the renderer plugin (a download that failed once, under the
+      # same script hash) no longer leaves every later run without it, the
+      # snapshot and groundtruth scripts failing on `MISSING: …/libdparse_render.so`.
       - name: Fetch the models and the docling-parse renderer
-        if: steps.models.outputs.cache-hit != 'true'
         run: scripts/install/download_dependencies.sh --no-asr --no-chunk --with-docling-parse
+
+      # Fail here, with the reason, rather than after the 25-minute build.
+      - name: Check the docling-parse renderer plugin
+        shell: bash
+        run: |
+          ls .docling-parse/lib/libdparse_render.* >/dev/null 2>&1 || {
+            echo "::error::.docling-parse/lib/libdparse_render.so is missing after the download (models-v1 asset docling-parse-render-linux-x64.tar.gz)"
+            exit 1
+          }
 
       - name: Build
         shell: bash
