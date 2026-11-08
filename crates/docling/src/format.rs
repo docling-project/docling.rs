@@ -171,6 +171,11 @@ pub enum InputFormat {
     /// read through the HTML backend — MarkItDown's `_rss_converter`
     /// shape. A docling.rs extension: docling has no feed backend.
     Feed,
+    /// A Box Note (`.boxnote`, `application/vnd.box.boxnote`, #1033): Box's
+    /// ProseMirror JSON document, read as docling's `BoxNoteDocumentBackend`
+    /// does. A `.json` holding one (a top-level `doc` node) takes the same
+    /// route.
+    Boxnote,
     /// A format only a backend registered on the converter reads (#680,
     /// [`DocumentConverter::register_backend`](crate::DocumentConverter::register_backend)):
     /// what [`DocumentConverter::load_file`](crate::DocumentConverter::load_file)
@@ -246,6 +251,7 @@ impl InputFormat {
             InputFormat::Xml => "xml",
             InputFormat::Ipynb => "ipynb",
             InputFormat::Feed => "feed",
+            InputFormat::Boxnote => "boxnote",
             InputFormat::Plugin => "plugin",
         }
     }
@@ -315,6 +321,7 @@ impl InputFormat {
             "xml" => InputFormat::Xml,
             "ipynb" => InputFormat::Ipynb,
             "feed" => InputFormat::Feed,
+            "boxnote" => InputFormat::Boxnote,
             "plugin" => InputFormat::Plugin,
             _ => return None,
         })
@@ -363,6 +370,7 @@ impl InputFormat {
             }
             "application/xml" | "text/xml" => InputFormat::Xml,
             "application/x-ipynb+json" => InputFormat::Ipynb,
+            "application/vnd.box.boxnote" => InputFormat::Boxnote,
             "application/rss+xml" | "application/atom+xml" | "application/rdf+xml" => {
                 InputFormat::Feed
             }
@@ -583,6 +591,7 @@ const EXTENSIONS: &[(&str, InputFormat)] = {
         ("rss", Feed),
         ("atom", Feed),
         ("rdf", Feed),
+        ("boxnote", Boxnote),
         // `.mpga` *is* MPEG audio (an mp3 stream) — symphonia probes the
         // codec from the bytes, the extension is just the alias (#208).
         ("wav", Audio),

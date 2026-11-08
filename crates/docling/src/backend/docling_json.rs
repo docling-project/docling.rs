@@ -22,7 +22,7 @@ pub struct DoclingJsonBackend;
 impl DeclarativeBackend for DoclingJsonBackend {
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
         let text = source.text()?;
-        let mut root: Value = match serde_json::from_str(&text) {
+        let root: Value = match serde_json::from_str(&text) {
             Ok(v) => v,
             // Not JSON at all — but not a docling document either (its
             // schema name is nowhere in the text): the bytes as a json
@@ -38,52 +38,67 @@ impl DeclarativeBackend for DoclingJsonBackend {
         if !crate::backend::text::is_docling_document(&root) {
             return crate::backend::text::convert_json_text(source);
         }
-        // docling-core's `RefItem` reads a reference under either key
-        // (`populate_by_name`): upstream fixtures written with `cref`
-        // (`table_footnotes_496.json`) read like `$ref` ones (#1014).
-        normalize_crefs(&mut root);
-        check_table_budget(&root)?;
-        // A document saved before schema 1.11.0 has trimmed inline runs its
-        // producer expected joined with `" "`; put that join back in the
-        // runs, as docling-core does on load (#997), before the faithful join.
-        docling_core::inline::migrate_legacy_json(&mut root);
-        // Referenced images resolve against the JSON file's directory (#403).
-        inline_referenced_images(
-            &mut root,
+        read_document(
+            root,
+            &source.name,
             source.path.as_deref().and_then(std::path::Path::parent),
-        );
-        let root = root;
-        let name = root["name"].as_str().unwrap_or(&source.name).to_string();
-        let mut doc = DoclingDocument::new(name);
-        // The `metadata` object (#679) a docling.rs export carried.
-        if root["metadata"].is_object() {
-            doc.metadata = docling_core::DocumentMetadata::from_json(&root["metadata"]);
-        }
-        let mut guard = WalkGuard {
-            pages: page_sizes(&root),
-            claimed_footnotes: claimed_footnotes(&root),
-            ..WalkGuard::default()
-        };
-        if let Some(children) = root["body"]["children"].as_array() {
-            for c in children {
-                walk(c, &root, 0, &mut doc, &mut guard);
-            }
-        }
-        // A page no body item sits on (a blank page, a furniture-only one)
-        // is still a page of the document: its marker keeps it in the
-        // exported `pages` map. Trailing markers render nothing — Markdown's
-        // page break goes only between two rendered blocks.
-        for (&page_no, &(width, height)) in &guard.pages {
-            if !guard.seen_pages.contains(&page_no) {
-                doc.push(Node::PageInfo {
-                    page_no,
-                    width,
-                    height,
-                });
-            }
-        }
-        Ok(doc)
+        )
     }
+}
+
+/// Read a parsed `DoclingDocument` JSON value into the flat [`Node`] model —
+/// the walk behind [`DoclingJsonBackend`], shared with backends that build
+/// docling's item tree and take their Markdown nodes from that tree's own
+/// JSON (the Box Note backend, #1033), so both read the same structure the
+/// way docling-core's serializers do. `base` resolves referenced images;
+/// `fallback_name` names a document whose JSON has no `name`.
+pub(crate) fn read_document(
+    mut root: Value,
+    fallback_name: &str,
+    base: Option<&std::path::Path>,
+) -> Result<DoclingDocument, ConversionError> {
+    // docling-core's `RefItem` reads a reference under either key
+    // (`populate_by_name`): upstream fixtures written with `cref`
+    // (`table_footnotes_496.json`) read like `$ref` ones (#1014).
+    normalize_crefs(&mut root);
+    check_table_budget(&root)?;
+    // A document saved before schema 1.11.0 has trimmed inline runs its
+    // producer expected joined with `" "`; put that join back in the
+    // runs, as docling-core does on load (#997), before the faithful join.
+    docling_core::inline::migrate_legacy_json(&mut root);
+    // Referenced images resolve against the JSON file's directory (#403).
+    inline_referenced_images(&mut root, base);
+    let root = root;
+    let name = root["name"].as_str().unwrap_or(fallback_name).to_string();
+    let mut doc = DoclingDocument::new(name);
+    // The `metadata` object (#679) a docling.rs export carried.
+    if root["metadata"].is_object() {
+        doc.metadata = docling_core::DocumentMetadata::from_json(&root["metadata"]);
+    }
+    let mut guard = WalkGuard {
+        pages: page_sizes(&root),
+        claimed_footnotes: claimed_footnotes(&root),
+        ..WalkGuard::default()
+    };
+    if let Some(children) = root["body"]["children"].as_array() {
+        for c in children {
+            walk(c, &root, 0, &mut doc, &mut guard);
+        }
+    }
+    // A page no body item sits on (a blank page, a furniture-only one)
+    // is still a page of the document: its marker keeps it in the
+    // exported `pages` map. Trailing markers render nothing — Markdown's
+    // page break goes only between two rendered blocks.
+    for (&page_no, &(width, height)) in &guard.pages {
+        if !guard.seen_pages.contains(&page_no) {
+            doc.push(Node::PageInfo {
+                page_no,
+                width,
+                height,
+            });
+        }
+    }
+    Ok(doc)
 }
 
 /// Every table of the file against the cell budget (#861; docling-core

@@ -24,6 +24,7 @@ macro_rules! cached_regex {
 
 mod abw;
 mod asciidoc;
+pub(crate) mod boxnote;
 #[cfg(feature = "web-browser")]
 pub(crate) mod browser;
 pub(crate) mod cfb;
@@ -121,6 +122,7 @@ pub(crate) mod xml_depth;
 
 pub use abw::AbwBackend;
 pub use asciidoc::AsciiDocBackend;
+pub use boxnote::BoxNoteBackend;
 pub use chandra::looks_like_chandra;
 #[cfg(feature = "vlm")]
 pub(crate) use chandra::parse_chandra_pages as chandra_pages;

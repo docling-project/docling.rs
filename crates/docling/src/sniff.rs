@@ -236,14 +236,17 @@ fn looks_like_xml_root(lower: &[u8], bytes: &[u8]) -> bool {
     tail[..end].ends_with(&close)
 }
 
-/// Well-formed JSON: a Jupyter notebook by its keys, else the docling-JSON
-/// route, which renders a `DoclingDocument` and keeps any other JSON as a
-/// code block (#671). The whole input is validated, nothing is kept.
+/// Well-formed JSON: a Jupyter notebook by its keys, a Box Note by its `doc`
+/// node (#1033), else the docling-JSON route, which renders a
+/// `DoclingDocument` and keeps any other JSON as a code block (#671). The whole input is validated, nothing is kept.
 fn json_kind(bytes: &[u8]) -> Option<InputFormat> {
     let text = std::str::from_utf8(bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes)).ok()?;
     serde_json::from_str::<serde::de::IgnoredAny>(text).ok()?;
     Some(if crate::backend::ipynb::looks_like_notebook(text) {
         InputFormat::Ipynb
+    } else if crate::backend::boxnote::looks_like_boxnote(text) {
+        // A Box Note (#1033): a top-level `doc` node of type `doc`.
+        InputFormat::Boxnote
     } else {
         InputFormat::JsonDocling
     })

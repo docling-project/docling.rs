@@ -2788,6 +2788,7 @@ pub fn supported_formats() -> Vec<String> {
         "xml",
         "ipynb",
         "feed",
+        "boxnote",
     ]
     .iter()
     .map(|s| s.to_string())
