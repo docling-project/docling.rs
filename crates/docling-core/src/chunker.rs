@@ -416,31 +416,22 @@ impl Walker<'_> {
                 } else {
                     level.saturating_sub(1)
                 };
-                let self_ref = self.alloc.text();
+                self.alloc.text();
                 // docling stores heading text unformatted: a heading that is one
                 // uniformly formatted span keeps its plain text; a *partially*
-                // formatted heading becomes an empty heading whose content is an
-                // inline group — which the chunker then yields as a chunk of its
-                // own (under the freshly-set empty heading).
+                // formatted heading becomes an empty heading whose only child is
+                // an inline group. docling-core 2.106 (docling-core#924, #1012)
+                // serializes that child as the heading's context and consumes
+                // it, so it is no longer a body chunk under an empty heading.
                 let runs = crate::inline_runs_from_markdown(text);
-                if runs.len() <= 1 {
-                    let plain = runs
-                        .first()
+                let heading = if runs.len() <= 1 {
+                    runs.first()
                         .map(|r| r.text.clone())
-                        .unwrap_or_else(|| text.clone());
-                    self.set_heading(doc_level, unescape_text(&plain));
+                        .unwrap_or_else(|| text.clone())
                 } else {
-                    self.set_heading(doc_level, String::new());
-                    let body = unescape_text(text);
-                    self.emit(
-                        body.clone(),
-                        vec![ChunkItem {
-                            self_ref,
-                            kind: ChunkItemKind::Text,
-                            text: body,
-                        }],
-                    );
-                }
+                    text.clone()
+                };
+                self.set_heading(doc_level, unescape_text(&heading));
             }
             Node::Paragraph { text } | Node::ListText { text, .. } => {
                 let t = text.trim();
@@ -2466,6 +2457,64 @@ mod tests {
         ]);
         let chunks = HierarchicalChunker.chunk(&doc);
         assert_eq!(chunks[0].headings.as_deref(), Some(&["B".into()][..]));
+    }
+
+    /// #1012 (docling-core#924, `test_rich_heading_chunk_metadata`): a
+    /// partially formatted heading — an empty heading over an inline group
+    /// in docling — is the heading context of the body, not a chunk of its
+    /// own under an empty heading.
+    #[test]
+    fn rich_heading_is_the_heading_context() {
+        for body in [Some("Body."), None] {
+            let mut nodes = vec![Node::Heading {
+                level: 1,
+                text: "Hello **bold** world".into(),
+            }];
+            if let Some(b) = body {
+                nodes.push(Node::Paragraph { text: b.into() });
+            }
+            let doc = doc_with(nodes);
+            for chunks in [
+                HierarchicalChunker.chunk(&doc),
+                HybridChunker::new(WordTok(64)).chunk(&doc),
+            ] {
+                let got: Vec<_> = chunks
+                    .iter()
+                    .map(|c| (c.text.as_str(), c.headings.clone()))
+                    .collect();
+                let want: Vec<_> = body
+                    .map(|b| (b, Some(vec!["Hello **bold** world".to_string()])))
+                    .into_iter()
+                    .collect();
+                assert_eq!(got, want);
+            }
+        }
+    }
+
+    /// #1012 (docling-core#924,
+    /// `test_rich_heading_is_emitted_before_a_sibling_heading`): a rich
+    /// heading shadowed by a sibling leaves no chunk, and the sibling's body
+    /// carries only the sibling.
+    #[test]
+    fn rich_heading_shadowed_by_a_sibling() {
+        let doc = doc_with(vec![
+            Node::Heading {
+                level: 1,
+                text: "Energy *E* here".into(),
+            },
+            Node::Heading {
+                level: 1,
+                text: "Next".into(),
+            },
+            Node::Paragraph {
+                text: "Body.".into(),
+            },
+        ]);
+        let chunks = HierarchicalChunker.chunk(&doc);
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].text, "Body.");
+        assert_eq!(chunks[0].headings.as_deref(), Some(&["Next".into()][..]));
+        assert_eq!(chunks[0].doc_items[0].self_ref, "#/texts/2");
     }
 
     /// docling.rs#987 (docling-core#690): table pieces are budgeted at the
