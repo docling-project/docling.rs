@@ -1424,7 +1424,20 @@ pub fn cluster_cids(regions: &[Region], cells: &[TextCell]) -> Vec<usize> {
 /// `None` when the text doesn't start with `digits.`.
 /// docling's `ListItemMarkerProcessor` bullet patterns
 /// (`docling/models/postprocessing/list_marker_processor.py`), one glyph each.
-const LIST_BULLET_MARKERS: &str = "\u{2022}\u{2023}\u{25E6}\u{2043}\u{204C}\u{204D}\u{2219}\u{25AA}\u{25AB}\u{25CF}\u{25CB}-*+•·‣⁃►▶▸➤➢✓✔✗✘";
+/// The last eight are docling#5043's Symbol/Wingdings bullets as the fonts'
+/// private-use code points ([`PUA_FONT_BULLETS`]).
+const LIST_BULLET_MARKERS: &str = "\u{2022}\u{2023}\u{25E6}\u{2043}\u{204C}\u{204D}\u{2219}\u{25AA}\u{25AB}\u{25CF}\u{25CB}-*+•·‣⁃►▶▸➤➢✓✔✗✘\u{F0B7}\u{F0A7}\u{F06E}\u{F076}\u{F0D8}\u{F0E0}\u{F0FC}\u{F0A8}";
+
+/// Symbol and Wingdings bullets as the fonts' private-use code points
+/// (docling#5043) — what the text layer of a Word-exported PDF holds when its
+/// ToUnicode CMap maps the symbol-font byte to `U+F000 + byte` (`U+F0B7` is
+/// Symbol's `•`; `U+F0A7`/`U+F06E`/`U+F0A8` Wingdings' squares, `U+F076`
+/// its `❖`, `U+F0D8`/`U+F0E0` its arrows, `U+F0FC` its tick). A bullet
+/// class of their own, so the glued-bullet strip in [`list_item_node`]
+/// drops them too.
+const PUA_FONT_BULLETS: [char; 8] = [
+    '\u{F0B7}', '\u{F0A7}', '\u{F06E}', '\u{F076}', '\u{F0D8}', '\u{F0E0}', '\u{F0FC}', '\u{F0A8}',
+];
 
 /// docling's numbered-marker patterns as byte-length scanners over the start
 /// of the text, in its first-wins order (the compound ones first, as they are
@@ -1605,8 +1618,13 @@ fn list_item_node(text: &str, loc: [u16; 4], first_in_list: bool) -> Node {
     // docling's match runs on the text as docling-parse hands it over; the
     // glued symbol-font bullets it never sees are stripped only when the raw
     // text matches no marker (`•Text` → `Text`, but `• Text` → marker `•`).
+    // The private-use Symbol/Wingdings bullets (docling#5043) are stripped
+    // the same way: glued to the text they match no marker either, and a
+    // PUA code left in the item text prints as tofu.
     let stripped = text
-        .trim_start_matches(['•', '◦', '▪', '·', '*'])
+        .trim_start_matches(|c| {
+            matches!(c, '•' | '◦' | '▪' | '·' | '*') || PUA_FONT_BULLETS.contains(&c)
+        })
         .trim_start();
     let split = split_list_marker(text).or_else(|| split_list_marker(stripped));
     let bullet = |text: String, marker: &str| Node::ListItem {
@@ -2174,7 +2192,9 @@ fn assign_cells(regions: &[Region], cells: &[TextCell]) -> Vec<Vec<usize>> {
 /// ([`LIST_BULLET_MARKERS`]), not a box. Symbol-font boxes that reach the text
 /// layer as Private Use Area codes or as their ASCII byte (Wingdings `o`,
 /// `þ`) are not recognized: without the font the code is ambiguous (`U+F06F`
-/// is Symbol's omicron too).
+/// is Symbol's omicron too). The private-use codes docling#5043 made list
+/// bullets ([`PUA_FONT_BULLETS`] — Wingdings' `U+F0A8` square and `U+F0FC`
+/// tick among them) stay bullets here as well, as docling reads them.
 pub(crate) fn checkbox_glyph(c: char) -> Option<bool> {
     match c {
         '☐' | '□' | '▢' | '◻' | '❏' | '❐' | '❑' | '❒' => Some(false),
@@ -5406,6 +5426,35 @@ mod tests {
             text_of(&super::list_item_node("•Glued", loc, false)),
             (false, 0, "Glued".into(), Some("·".into()))
         );
+        // docling#5043's `test_private_use_font_bullets_are_markers`: the
+        // Symbol/Wingdings bullets as private-use code points (a Word-exported
+        // PDF's text layer) are bullet markers, never part of the item text.
+        for bullet in ['\u{F0B7}', '\u{F0A7}', '\u{F0D8}'] {
+            let input = format!("{bullet} Transcribo: converts audio to text");
+            assert_eq!(
+                text_of(&super::list_item_node(&input, loc, false)),
+                (
+                    false,
+                    0,
+                    "Transcribo: converts audio to text".into(),
+                    Some(bullet.to_string())
+                )
+            );
+            assert_eq!(super::split_list_marker(&input).map(|m| m.2), Some(false));
+            assert_eq!(super::checkbox_glyph(bullet), None);
+        }
+        for bullet in super::PUA_FONT_BULLETS {
+            assert!(super::LIST_BULLET_MARKERS.contains(bullet), "{bullet:?}");
+            // Glued to the text it is stripped like `•Glued`.
+            assert_eq!(
+                text_of(&super::list_item_node(
+                    &format!("{bullet}Glued"),
+                    loc,
+                    false
+                )),
+                (false, 0, "Glued".into(), Some("·".into()))
+            );
+        }
         // No whitespace after the glyph → not a marker (docling's `\s` is required).
         assert_eq!(
             text_of(&super::list_item_node("-5 degrees", loc, false)),
