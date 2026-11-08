@@ -420,6 +420,7 @@ def test_image_options_forward_and_validate():
 
     for converter in (
         DocumentConverter(images_scale=1.5, generate_page_images=True),
+        DocumentConverter(use_embedded_picture_images=True),
         DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfFormatOption(
@@ -427,6 +428,7 @@ def test_image_options_forward_and_validate():
                         images_scale=2.0,
                         generate_page_images=True,
                         generate_picture_images=True,
+                        use_embedded_picture_images=True,
                     )
                 )
             }

@@ -105,6 +105,9 @@
 //!   2.0 px/pt render. The JSON picture `dpi` is 72·scale (#519)
 //! - `page_images` — keep each page's render as the JSON `pages[n].image`
 //!   (docling's `generate_page_images`, #520; off by default)
+//! - `use_embedded_picture_images` — a PDF picture whose box holds exactly
+//!   one embedded image with nothing drawn over it gets that bitmap at native
+//!   resolution instead of the render crop (docling's option, #1007; off)
 //! - `fetch_images` — resolve external `<img src>` for HTML/EPUB/MHTML/JATS (outbound
 //!   fetch, so honored only under `--allow-url-fetch`; the alias of
 //!   `image_sources=remote`)

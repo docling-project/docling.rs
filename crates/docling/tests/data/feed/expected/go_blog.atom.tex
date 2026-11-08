@@ -23,8 +23,6 @@ Updated on: 2026-10-14T00:00:00+00:00
 
 Go 1.27 includes a change to the HTTP client that can make programs sending many sequential HTTP/1 requests significantly faster.
 
-\title{\href{https://go.dev/blog/}{The Go Blog}}
-
 Nicholas Husin and Damien Neil
 14 October 2026
 
@@ -43,7 +41,7 @@ func getStatus(url string) (int, error) {
 
 It sends a \texttt{GET} request to \texttt{url} and returns the HTTP status code.
 
-Using HTTP/1 ( \texttt{GODEBUG=http2client=0} ), calling this function 100 times against \href{https://index.golang.org/}{index.golang.org} takes \textasciitilde{}710 milliseconds on Go 1.26 on my machine. On Go 1.27, the same program takes \textasciitilde{}150 milliseconds.
+Using HTTP/1 (\texttt{GODEBUG=http2client=0}), calling this function 100 times against \href{https://index.golang.org/}{index.golang.org} takes \textasciitilde{}710 milliseconds on Go 1.26 on my machine. On Go 1.27, the same program takes \textasciitilde{}150 milliseconds.
 
 That is almost 5 times faster! How is such a drastic performance difference possible?
 
@@ -58,23 +56,23 @@ Go's \texttt{net/http} package supports HTTP/1.0, HTTP/1.1, and HTTP/2. All thre
 \end{figure}
 
 \begin{enumerate}
-\item \textbf{TCP handshake (1 RTT)} : the client sends a \texttt{SYN} packet, the server replies with \texttt{SYN-ACK} , and the client replies with \texttt{ACK} . Because the client can send the first TLS message alongside that final \texttt{ACK} , establishing the TCP connection takes 1 round-trip time (RTT).
-\item \textbf{TLS handshake (2 RTT)} : next, a TLS handshake exchanges encryption keys and verifies the server's identity; using TLS 1.2, this takes 2 RTT.
-\item \textbf{HTTP request} : with the keys exchanged, HTTP requests can finally be sent after a total of 3 RTT.
+\item \textbf{TCP handshake (1 RTT)}: the client sends a \texttt{SYN} packet, the server replies with \texttt{SYN-ACK}, and the client replies with \texttt{ACK}. Because the client can send the first TLS message alongside that final \texttt{ACK}, establishing the TCP connection takes 1 round-trip time (RTT).
+\item \textbf{TLS handshake (2 RTT)}: next, a TLS handshake exchanges encryption keys and verifies the server's identity; using TLS 1.2, this takes 2 RTT.
+\item \textbf{HTTP request}: with the keys exchanged, HTTP requests can finally be sent after a total of 3 RTT.
 \end{enumerate}
 
 These round trips (plus some CPU time spent on TLS handshakes) add up quickly. In cross-region communications, one-way latencies often reach or exceed the 50 ms (100 ms RTT) shown in the diagram above. Compared to the 300 ms spent just setting up the connection, the HTTP request itself can be cheap to serve, taking only a little over 1 RTT when bandwidth is plentiful or the HTTP response is small.
 
-Even in more favorable conditions, opening a new connection can still be expensive. Our opening benchmark queries \href{https://index.golang.org/}{index.golang.org} , which is distributed worldwide and supports TLS 1.3. This means that latency is relatively low, and the TLS handshake can actually finish in just 1 RTT. Even so, the performance difference is still very noticeable.
+Even in more favorable conditions, opening a new connection can still be expensive. Our opening benchmark queries \href{https://index.golang.org/}{index.golang.org}, which is distributed worldwide and supports TLS 1.3. This means that latency is relatively low, and the TLS handshake can actually finish in just 1 RTT. Even so, the performance difference is still very noticeable.
 
 \section{Connection reuse}
 
 To avoid paying this setup cost on every request, HTTP clients and servers try to reuse existing connections across multiple requests when possible. The mechanics of this differ based on the HTTP version:
 
 \begin{itemize}
-\item \textbf{HTTP/1.0} : while not part of the official specification, clients and servers often opt into connection reuse by sending a \texttt{Connection: keep-alive} header. Reuse continues until either endpoint omits the header or sends a \texttt{Connection: close} header.
-\item \textbf{HTTP/1.1} : connections are persistent by default, and can be reused for subsequent requests and responses unless either side declares otherwise by sending a \texttt{Connection: close} header.
-\item \textbf{HTTP/2} : multiple requests and responses can be multiplexed over a single TCP connection.
+\item \textbf{HTTP/1.0}: while not part of the official specification, clients and servers often opt into connection reuse by sending a \texttt{Connection: keep-alive} header. Reuse continues until either endpoint omits the header or sends a \texttt{Connection: close} header.
+\item \textbf{HTTP/1.1}: connections are persistent by default, and can be reused for subsequent requests and responses unless either side declares otherwise by sending a \texttt{Connection: close} header.
+\item \textbf{HTTP/2}: multiple requests and responses can be multiplexed over a single TCP connection.
 \end{itemize}
 
 \section{When connection reuse fails}
@@ -85,11 +83,11 @@ In HTTP/1 (both HTTP/1.0 and HTTP/1.1), multiple requests and responses on the s
 % image
 \end{figure}
 
-As shown in the diagram, \texttt{net/http.Get} reads and parses the status line and headers from the byte stream to populate \texttt{net/http.Response} , then returns immediately. The response body remains unread on the connection and is consumed only as the caller reads from \texttt{net/http.Response.Body} .
+As shown in the diagram, \texttt{net/http.Get} reads and parses the status line and headers from the byte stream to populate \texttt{net/http.Response}, then returns immediately. The response body remains unread on the connection and is consumed only as the caller reads from \texttt{net/http.Response.Body}.
 
 Because responses are sent back-to-back on the same stream, \texttt{net/http} can only find the start of the next response after the current response body has been read to the very end (as determined by the \texttt{Content-Length} or \texttt{Transfer-Encoding} header).
 
-Now look back at our example program, where we never read \texttt{resp.Body} :
+Now look back at our example program, where we never read \texttt{resp.Body}:
 
 \begin{verbatim}
 func getStatus(url string) (int, error) {
@@ -110,7 +108,7 @@ Through Go 1.26, when \texttt{resp.Body.Close} is called, \texttt{net/http} sees
 
 This subtlety of HTTP/1 connection reuse can cause silent performance degradation in seemingly innocuous code.
 
-As in our opening example, a client might only care about an API response's status code. However, the API endpoint it is talking to might send bodies that provide more detailed but ultimately unused information, such as \texttt{{"success": true, "message": "update processed"}} . This will unfortunately cause connection reuse to fail.
+As in our opening example, a client might only care about an API response's status code. However, the API endpoint it is talking to might send bodies that provide more detailed but ultimately unused information, such as \texttt{{"success": true, "message": "update processed"}}. This will unfortunately cause connection reuse to fail.
 
 Even programs that do read the response body can run into this issue if they stop just short of the end of the body. For example, \texttt{encoding/json.Decoder} stops reading as soon as it sees the closing \texttt{}} of a JSON object. If a server sends a JSON response terminated with a newline, decoding the JSON object will leave the newline still unread. The connection cannot be reused for a new request until that newline is consumed. Thus, a healthy connection might end up being abandoned, even though it was only a single byte away from being reusable.
 
@@ -219,29 +217,27 @@ Updated on: 2026-10-02T00:00:00+00:00
 
 Go 1.27 introduces experimental arch-specific SIMD vector APIs
 
-\title{\href{https://go.dev/blog/}{The Go Blog}}
-
 Junyang Shao and David Chase
 2 October 2026
 
-Since Go 1.26, we have supported an experimental \texttt{amd64} SIMD API. Now in Go 1.27, we support two more architectures: \texttt{arm64} and \texttt{wasm} .
+Since Go 1.26, we have supported an experimental \texttt{amd64} SIMD API. Now in Go 1.27, we support two more architectures: \texttt{arm64} and \texttt{wasm}.
 
 The new APIs can be accessed by setting \texttt{GOEXPERIMENT=simd} when building a program. They are defined in the \texttt{simd/archsimd} package.
 
-\texttt{archsimd} is the lower-level infrastructure that \texttt{simd} builds on, essentially the intrinsics layer in other languages. For exotic operations that only exist on a specific architecture, users can access them by transitioning from \texttt{simd} to \texttt{archsimd} (via \texttt{ToArch} and \texttt{<Types>FromArch} ). For details, please refer to the \href{https://go.dev/blog/simd-experiment}{simd blog} post.
+\texttt{archsimd} is the lower-level infrastructure that \texttt{simd} builds on, essentially the intrinsics layer in other languages. For exotic operations that only exist on a specific architecture, users can access them by transitioning from \texttt{simd} to \texttt{archsimd} (via \texttt{ToArch} and \texttt{<Types>FromArch}). For details, please refer to the \href{https://go.dev/blog/simd-experiment}{simd blog} post.
 
 For readers with prior knowledge of SIMD intrinsics in other languages, you might find that our \texttt{archsimd} API does not directly mirror the underlying hardware instructions:
 
 \begin{itemize}
-\item We give our APIs sensible names: e.g., instead of \texttt{_mm512_slli_epi64} , we just call it \texttt{ShiftAllLeft} .
-\item We leave some architecture details to compiler optimizations rather than exposing them in the API: e.g., instead of \texttt{_mm512_maskz_add_ps(m, x, y)} , we optimize \texttt{x.Add(y).Masked(m)} into the same instruction.
+\item We give our APIs sensible names: e.g., instead of \texttt{_mm512_slli_epi64}, we just call it \texttt{ShiftAllLeft}.
+\item We leave some architecture details to compiler optimizations rather than exposing them in the API: e.g., instead of \texttt{_mm512_maskz_add_ps(m, x, y)}, we optimize \texttt{x.Add(y).Masked(m)} into the same instruction.
 \end{itemize}
 
 These design decisions make our APIs smaller and more accessible, and they also happily make the \texttt{simd} implementation much easier.
 
 For readers without prior knowledge of SIMD intrinsics, we hope our low-level API is a natural and pleasant journey for you.
 
-Please share your feedback and comments. Anything about usability, performance, etc., is appreciated. The parent issue for this project is \href{https://go.dev/issue/73787}{\#73787} .
+Please share your feedback and comments. Anything about usability, performance, etc., is appreciated. The parent issue for this project is \href{https://go.dev/issue/73787}{\#73787}.
 
 \section{What is SIMD}
 
@@ -251,7 +247,7 @@ Until now, anyone who wanted to use SIMD in Go had to endure the friction of wri
 
 \section{Goals}
 
-The goal is to support as many SIMD instructions across different architectures as possible. Currently, we have \texttt{amd64} , \texttt{arm64} , and \texttt{wasm} available. Our \texttt{amd64} support has the largest API surface, covering AVX, AVX2, and many AVX-512 extensions. Our \texttt{arm64} support currently covers NEON, with SVE and some SVE2 already on the way. Our \texttt{wasm} support is also mostly complete, thanks to its well-defined 128-bit SIMD abstraction.
+The goal is to support as many SIMD instructions across different architectures as possible. Currently, we have \texttt{amd64}, \texttt{arm64}, and \texttt{wasm} available. Our \texttt{amd64} support has the largest API surface, covering AVX, AVX2, and many AVX-512 extensions. Our \texttt{arm64} support currently covers NEON, with SVE and some SVE2 already on the way. Our \texttt{wasm} support is also mostly complete, thanks to its well-defined 128-bit SIMD abstraction.
 
 Some users might be interested in matrix extensions on certain architectures, such as AMX and SME. We haven't fully settled on how to represent matrices effectively in Go, so they are not yet supported, but we might support them in the future.
 
@@ -259,23 +255,23 @@ Some users might be interested in matrix extensions on certain architectures, su
 
 \subsection{Types}
 
-The architecture-specific SIMD API is imported from \texttt{simd/archsimd} . \texttt{archsimd} uses distinct struct types, such as \texttt{Float32x4} , \texttt{Int32x8} , or \texttt{Uint8x16} , to signal the shape and element type of each vector, and defines operations as methods on those types. At this moment, \texttt{archsimd} supports only fixed-width vector extensions. Scalable vector extensions like \texttt{arm64} SVE and RVV will have different struct types to represent vectors. Mask types also come with vector-like shapes, e.g., \texttt{Mask32x4} .
+The architecture-specific SIMD API is imported from \texttt{simd/archsimd}. \texttt{archsimd} uses distinct struct types, such as \texttt{Float32x4}, \texttt{Int32x8}, or \texttt{Uint8x16}, to signal the shape and element type of each vector, and defines operations as methods on those types. At this moment, \texttt{archsimd} supports only fixed-width vector extensions. Scalable vector extensions like \texttt{arm64} SVE and RVV will have different struct types to represent vectors. Mask types also come with vector-like shapes, e.g., \texttt{Mask32x4}.
 
 \subsection{Methods}
 
 Across different vector widths, element types, and architectures, we use the same method name whenever operations are semantically identical:
 
 \begin{itemize}
-\item Regardless of vector width or architecture, element-wise addition is simply \texttt{x.Add(y)} ; the type of \texttt{x} determines which instruction to emit. Instead of 18 different function names for addition, there is only one method name.
-\item When instructions on different architectures look similar at a glance but differ in edge-case behavior, we give them distinct names so differences don't silently bite you. For example, 16-byte table lookup on \texttt{amd64} ( \texttt{VPSHUFB} ) zeros the output byte when the index is negative ( \texttt{index < 0} ) and wraps modulo 16 otherwise, so we call it \texttt{PermuteOrZero} . On \texttt{arm64} NEON ( \texttt{VTBL} ) and \texttt{wasm} ( \texttt{i8x16.swizzle} ), any out-of-range index ( \texttt{index < 0 || index >= 16} ) zeros the output byte, so we call it \texttt{LookupOrZero} .
-\item On \texttt{amd64} , many 256-bit and 512-bit instructions operate independently within 128-bit lanes rather than across the entire register. We explicitly suffix those methods with \texttt{Grouped} (such as \texttt{InterleaveLoGrouped} or \texttt{PermuteOrZeroGrouped} ) to make the 128-bit lane boundary obvious.
+\item Regardless of vector width or architecture, element-wise addition is simply \texttt{x.Add(y)}; the type of \texttt{x} determines which instruction to emit. Instead of 18 different function names for addition, there is only one method name.
+\item When instructions on different architectures look similar at a glance but differ in edge-case behavior, we give them distinct names so differences don't silently bite you. For example, 16-byte table lookup on \texttt{amd64} (\texttt{VPSHUFB}) zeros the output byte when the index is negative (\texttt{index < 0}) and wraps modulo 16 otherwise, so we call it \texttt{PermuteOrZero}. On \texttt{arm64} NEON (\texttt{VTBL}) and \texttt{wasm} (\texttt{i8x16.swizzle}), any out-of-range index (\texttt{index < 0 || index >= 16}) zeros the output byte, so we call it \texttt{LookupOrZero}.
+\item On \texttt{amd64}, many 256-bit and 512-bit instructions operate independently within 128-bit lanes rather than across the entire register. We explicitly suffix those methods with \texttt{Grouped} (such as \texttt{InterleaveLoGrouped} or \texttt{PermuteOrZeroGrouped}) to make the 128-bit lane boundary obvious.
 \end{itemize}
 
 Methods require a receiver value, which doesn't work for creating a vector from memory or a scalar. For those, \texttt{archsimd} provides package-level functions named with the target vector type:
 
 \begin{itemize}
-\item \textbf{Slices (the default)} : In Go 1.27, loading and storing slices use the shortest names: \texttt{archsimd.LoadFloat32x4(s []float32) Float32x4} and \texttt{x.Store(s []float32)} . For tail elements that may be shorter than a full vector, \texttt{archsimd.LoadFloat32x4Part(s []float32) (Float32x4, int)} zero-fills the remaining lanes and returns the number of elements loaded, paired with \texttt{x.StorePart(s []float32) int} .
-\item \textbf{Arrays and Broadcasts} : Fixed-size array pointers use the \texttt{Array} suffix ( \texttt{archsimd.LoadFloat32x4Array(y *[4]float32)} and \texttt{x.StoreArray(y *[4]float32)} ), and \texttt{archsimd.BroadcastFloat32x4(v float32)} broadcasts a scalar to all lanes.
+\item \textbf{Slices (the default)}: In Go 1.27, loading and storing slices use the shortest names: \texttt{archsimd.LoadFloat32x4(s []float32) Float32x4} and \texttt{x.Store(s []float32)}. For tail elements that may be shorter than a full vector, \texttt{archsimd.LoadFloat32x4Part(s []float32) (Float32x4, int)} zero-fills the remaining lanes and returns the number of elements loaded, paired with \texttt{x.StorePart(s []float32) int}.
+\item \textbf{Arrays and Broadcasts}: Fixed-size array pointers use the \texttt{Array} suffix (\texttt{archsimd.LoadFloat32x4Array(y *[4]float32)} and \texttt{x.StoreArray(y *[4]float32)}), and \texttt{archsimd.BroadcastFloat32x4(v float32)} broadcasts a scalar to all lanes.
 \end{itemize}
 
 \subsection{Type Reinterpretation}
@@ -287,25 +283,25 @@ In the Go 1.26 experiment, we implemented this with \texttt{As<Type>} methods, w
 In Go 1.27, we replace them with composable zero-cost conversions:
 
 \begin{itemize}
-\item \texttt{ToBits()} reinterprets a signed integer or float vector as an unsigned integer vector of the same element width (e.g., \texttt{Int32x4.ToBits() -> Uint32x4} ), and \texttt{BitsToInt32()} / \texttt{BitsToFloat32()} converts back.
-\item \texttt{ReshapeToUint<W>s()} on unsigned vectors changes the element width within the same register width. For example, if \texttt{x} is an \texttt{archsimd.Uint8x16} , then \texttt{x.ReshapeToUint32s().BitsToFloat32()} reinterprets the bits of \texttt{x} as an \texttt{archsimd.Float32x4} at zero runtime cost.
+\item \texttt{ToBits()} reinterprets a signed integer or float vector as an unsigned integer vector of the same element width (e.g., \texttt{Int32x4.ToBits() -> Uint32x4}), and \texttt{BitsToInt32()} / \texttt{BitsToFloat32()} converts back.
+\item \texttt{ReshapeToUint<W>s()} on unsigned vectors changes the element width within the same register width. For example, if \texttt{x} is an \texttt{archsimd.Uint8x16}, then \texttt{x.ReshapeToUint32s().BitsToFloat32()} reinterprets the bits of \texttt{x} as an \texttt{archsimd.Float32x4} at zero runtime cost.
 \end{itemize}
 
 \subsection{Masks}
 
-Different architectures encode vector masks very differently, e.g. \texttt{k} mask registers on AVX-512, full vector bitmasks on AVX/AVX2, NEON, and \texttt{wasm} , and predicate registers on SVE. To hide this hardware detail, \texttt{archsimd} provides opaque \texttt{Mask} types (such as \texttt{Mask32x4} ) matching each vector shape:
+Different architectures encode vector masks very differently, e.g. \texttt{k} mask registers on AVX-512, full vector bitmasks on AVX/AVX2, NEON, and \texttt{wasm}, and predicate registers on SVE. To hide this hardware detail, \texttt{archsimd} provides opaque \texttt{Mask} types (such as \texttt{Mask32x4}) matching each vector shape:
 
 \begin{itemize}
-\item Comparisons like \texttt{x.Greater(y)} produce a \texttt{Mask} .
+\item Comparisons like \texttt{x.Greater(y)} produce a \texttt{Mask}.
 \item \texttt{x.Masked(m)} zeros elements where \texttt{m} is false, and \texttt{x.IfElse(m, y)} (which replaces \texttt{Merge} from Go 1.26) selects elements from \texttt{x} where \texttt{m} is true and from \texttt{y} where \texttt{m} is false.
-\item The compiler peepholes mask operations with the surrounding instructions: on AVX-512, \texttt{x.Add(y).Masked(m)} or \texttt{x.Add(y).IfElse(m, z)} compiles into a single zero-masked or merge-masked \texttt{VPADD} instruction; on AVX2, NEON, or \texttt{wasm} , it lowers to the appropriate bitwise \texttt{AND} or blend/bitselect instruction.
+\item The compiler peepholes mask operations with the surrounding instructions: on AVX-512, \texttt{x.Add(y).Masked(m)} or \texttt{x.Add(y).IfElse(m, z)} compiles into a single zero-masked or merge-masked \texttt{VPADD} instruction; on AVX2, NEON, or \texttt{wasm}, it lowers to the appropriate bitwise \texttt{AND} or blend/bitselect instruction.
 \end{itemize}
 
 \section{Examples}
 
 Portable algorithms like inner product can easily be implemented using the portable \texttt{simd} package, as shown in the companion \href{https://go.dev/blog/simd-experiment}{simd blog} post. However, we still expose \texttt{archsimd} to tap into exotic, architecture-specific instructions that do not fit into a portable intersection API, or instructions that can simply do things faster than what \texttt{simd} provides.
 
-On \texttt{amd64} , the GFNI extension exposes \texttt{GaloisFieldAffineTransform} operations. Putting aside what a Galois Field is, these operations do a simple thing:
+On \texttt{amd64}, the GFNI extension exposes \texttt{GaloisFieldAffineTransform} operations. Putting aside what a Galois Field is, these operations do a simple thing:
 
 \begin{verbatim}
 // Each element of A is interpreted as a matrix of 8 rows of vectors of 8 bits.
@@ -320,9 +316,9 @@ On \texttt{amd64} , the GFNI extension exposes \texttt{GaloisFieldAffineTransfor
 func (x Uint8x16) GaloisFieldAffineTransform(A Uint64x2, b uint8) Uint8x16
 \end{verbatim}
 
-Each 8x8 bit matrix \texttt{A} is packed row-by-row into a single \texttt{uint64} . Because any linear combination or permutation of the 8 bits within a byte can be written as an 8x8 bit matrix, this single instruction is a Swiss Army knife for byte-level bit manipulation.
+Each 8x8 bit matrix \texttt{A} is packed row-by-row into a single \texttt{uint64}. Because any linear combination or permutation of the 8 bits within a byte can be written as an 8x8 bit matrix, this single instruction is a Swiss Army knife for byte-level bit manipulation.
 
-For example, reversing the bit order of every byte ( \texttt{bits.Reverse8} ) normally requires nibble lookup tables, masks, shifts, and ORs in SIMD. With \texttt{GaloisFieldAffineTransform} , we can simply multiply each byte by the 8x8 anti-diagonal identity matrix ( \texttt{0x8040201008040201} ) to reverse all 8 bits of 64 bytes at a time in a single instruction:
+For example, reversing the bit order of every byte (\texttt{bits.Reverse8}) normally requires nibble lookup tables, masks, shifts, and ORs in SIMD. With \texttt{GaloisFieldAffineTransform}, we can simply multiply each byte by the 8x8 anti-diagonal identity matrix (\texttt{0x8040201008040201}) to reverse all 8 bits of 64 bytes at a time in a single instruction:
 
 \begin{verbatim}
 /*
@@ -360,7 +356,7 @@ func ReverseBits(dst, src []uint8) {
 }
 \end{verbatim}
 
-Another example is matrix transpose. On \texttt{amd64} , the permutation instructions are shaped in a non-portable way, so using \texttt{simd} is cumbersome and might incur emulations. An efficient implementation can be written more directly in \texttt{archsimd} . The example below transposes an 8-by-8 matrix of 32-bit integers in registers on \texttt{amd64} using AVX2's 128-bit lane-grouped interleaves ( \texttt{InterleaveLoGrouped} , \texttt{InterleaveHiGrouped} ) and cross-lane permutations ( \texttt{ConcatPermuteScalarsGrouped} , \texttt{ConcatPermute128Scalars} ):
+Another example is matrix transpose. On \texttt{amd64}, the permutation instructions are shaped in a non-portable way, so using \texttt{simd} is cumbersome and might incur emulations. An efficient implementation can be written more directly in \texttt{archsimd}. The example below transposes an 8-by-8 matrix of 32-bit integers in registers on \texttt{amd64} using AVX2's 128-bit lane-grouped interleaves (\texttt{InterleaveLoGrouped}, \texttt{InterleaveHiGrouped}) and cross-lane permutations (\texttt{ConcatPermuteScalarsGrouped}, \texttt{ConcatPermute128Scalars}):
 
 \begin{verbatim}
 func Transpose8(a0, a1, a2, a3, a4, a5, a6, a7 archsimd.Int32x8) (
@@ -416,17 +412,17 @@ func Transpose8(a0, a1, a2, a3, a4, a5, a6, a7 archsimd.Int32x8) (
 When walking through the examples above, you might have a few questions:
 
 \begin{itemize}
-\item What is \texttt{archsimd.X86.AVX512GFNI()} , and can I omit it?
-\item Why is the strided loop written as \texttt{i = 0; i < len(src)-v.Len()+1; i += v.Len()} , instead of \texttt{i = 0; i + v.Len() <= len(src); i += v.Len()} ?
+\item What is \texttt{archsimd.X86.AVX512GFNI()}, and can I omit it?
+\item Why is the strided loop written as \texttt{i = 0; i < len(src)-v.Len()+1; i += v.Len()}, instead of \texttt{i = 0; i + v.Len() <= len(src); i += v.Len()}?
 \item Why does \texttt{Transpose8} take 8 vector parameters rather than a struct or an \texttt{[8]archsimd.Int32x8} array?
 \end{itemize}
 
 At first glance these choices might look like minor stylistic preferences, but each of them is chosen for an important performance or correctness reason:
 
 \begin{itemize}
-\item CPU feature checks ( \texttt{archsimd.X86.*} , \texttt{archsimd.ARM64.*} ) On \texttt{amd64} , we provide runtime feature checks like \texttt{archsimd.X86.AVX()} , \texttt{AVX2()} , \texttt{AVX512()} , and extension checks like \texttt{AVX512GFNI()} or \texttt{AVX512VNNI()} ; on \texttt{arm64} , NEON is always available, and we provide checks for optional extensions like \texttt{archsimd.ARM64.PMULL()} , \texttt{SVE()} , and \texttt{SVE2()} . The compiler doesn't know ahead of time whether the machine running your binary supports optional SIMD extensions. If you don't guard your SIMD code with the appropriate feature check, your program may crash with \texttt{SIGILL} on hardware that lacks the instruction. Just as importantly, CPU feature checks act as \textbf{compiler optimization hints} . For example, AVX-512 supports hardware merge-masking on instruction outputs. How the compiler lowers \texttt{x.Add(y).IfElse(m, z)} on a 128-bit or 256-bit vector depends on which CPU features are known to be available. If the code is not guarded by \texttt{archsimd.X86.AVX512()} , the compiler must conservatively emit a vector \texttt{VPADD} followed by a \texttt{VPBLEND} instruction. Inside an \texttt{if archsimd.X86.AVX512()} block, however, the compiler knows AVX-512 is available and fuses the sequence into a single merge-masked AVX-512 \texttt{VPADD} instruction.
-\item Bounds check elimination in strided loops How you write the loop bound determines whether the compiler's \texttt{prove} pass can eliminate slice bounds checks inside the loop. In \texttt{i + v.Len() <= len(src)} , the addition \texttt{i + v.Len()} could theoretically overflow to a negative \texttt{int} if \texttt{len(src)} were near \texttt{math.MaxInt} , which prevents the compiler from proving that \texttt{i} is always non-negative and in-bounds. Writing \texttt{i < len(src)-v.Len()+1} avoids that potential overflow, allowing the loop body to compile with zero bounds checks.
-\item Keeping vectors in registers (avoiding large composite types) \texttt{Transpose8} passes 8 vector parameters rather than a struct of 8 fields or an \texttt{[8]archsimd.Int32x8} array because Go's ABI and SSA backend currently place large composite types in memory rather than in registers (a known issue tracked at \href{https://go.dev/issue/24416}{\#24416} ). Because SIMD vectors are 16 to 64 bytes each, spilling them to the stack hurts performance much more than spilling scalar values. This applies to both function parameters and local variables, so avoid wrapping SIMD vectors inside large arrays or structs in hot loops. There are ongoing efforts to promote composite memory accesses back into registers, which have not yet landed in Go 1.27.
+\item CPU feature checks (\texttt{archsimd.X86.*}, \texttt{archsimd.ARM64.*}) On \texttt{amd64}, we provide runtime feature checks like \texttt{archsimd.X86.AVX()}, \texttt{AVX2()}, \texttt{AVX512()}, and extension checks like \texttt{AVX512GFNI()} or \texttt{AVX512VNNI()}; on \texttt{arm64}, NEON is always available, and we provide checks for optional extensions like \texttt{archsimd.ARM64.PMULL()}, \texttt{SVE()}, and \texttt{SVE2()}. The compiler doesn't know ahead of time whether the machine running your binary supports optional SIMD extensions. If you don't guard your SIMD code with the appropriate feature check, your program may crash with \texttt{SIGILL} on hardware that lacks the instruction. Just as importantly, CPU feature checks act as \textbf{compiler optimization hints}. For example, AVX-512 supports hardware merge-masking on instruction outputs. How the compiler lowers \texttt{x.Add(y).IfElse(m, z)} on a 128-bit or 256-bit vector depends on which CPU features are known to be available. If the code is not guarded by \texttt{archsimd.X86.AVX512()}, the compiler must conservatively emit a vector \texttt{VPADD} followed by a \texttt{VPBLEND} instruction. Inside an \texttt{if archsimd.X86.AVX512()} block, however, the compiler knows AVX-512 is available and fuses the sequence into a single merge-masked AVX-512 \texttt{VPADD} instruction.
+\item Bounds check elimination in strided loops How you write the loop bound determines whether the compiler's \texttt{prove} pass can eliminate slice bounds checks inside the loop. In \texttt{i + v.Len() <= len(src)}, the addition \texttt{i + v.Len()} could theoretically overflow to a negative \texttt{int} if \texttt{len(src)} were near \texttt{math.MaxInt}, which prevents the compiler from proving that \texttt{i} is always non-negative and in-bounds. Writing \texttt{i < len(src)-v.Len()+1} avoids that potential overflow, allowing the loop body to compile with zero bounds checks.
+\item Keeping vectors in registers (avoiding large composite types) \texttt{Transpose8} passes 8 vector parameters rather than a struct of 8 fields or an \texttt{[8]archsimd.Int32x8} array because Go's ABI and SSA backend currently place large composite types in memory rather than in registers (a known issue tracked at \href{https://go.dev/issue/24416}{\#24416}). Because SIMD vectors are 16 to 64 bytes each, spilling them to the stack hurts performance much more than spilling scalar values. This applies to both function parameters and local variables, so avoid wrapping SIMD vectors inside large arrays or structs in hot loops. There are ongoing efforts to promote composite memory accesses back into registers, which have not yet landed in Go 1.27.
 \end{itemize}
 
 \section{Trying it out}
@@ -437,7 +433,7 @@ In Go 1.27, \texttt{GOEXPERIMENT=simd} supports \texttt{amd64} (AVX, AVX2, and A
 GOEXPERIMENT=simd go test simd/archsimd/...
 \end{verbatim}
 
-You can also cross-test \texttt{wasm} (or \texttt{amd64} via Rosetta emulation on Apple Silicon) by setting \texttt{GOARCH} :
+You can also cross-test \texttt{wasm} (or \texttt{amd64} via Rosetta emulation on Apple Silicon) by setting \texttt{GOARCH}:
 
 \begin{verbatim}
 # Run wasm SIMD tests using a WASI runtime:
@@ -447,11 +443,11 @@ GOOS=wasip1 GOARCH=wasm GOEXPERIMENT=simd go test simd/archsimd/...
 GOARCH=amd64 GOEXPERIMENT=simd go test simd/archsimd/...
 \end{verbatim}
 
-We're interested in all sorts of feedback! Early users have already helped us catch bugs (such as \href{https://go.dev/issue/77582}{\#77582} ) and identify places where code generation or API ergonomics could be improved. We tried hard to pick clear, consistent names and cover the most useful instructions, but \texttt{archsimd} is a massive API surface and there is always room to improve.
+We're interested in all sorts of feedback! Early users have already helped us catch bugs (such as \href{https://go.dev/issue/77582}{\#77582}) and identify places where code generation or API ergonomics could be improved. We tried hard to pick clear, consistent names and cover the most useful instructions, but \texttt{archsimd} is a massive API surface and there is always room to improve.
 
 \section{Future work}
 
-For Go 1.28 and beyond, we are actively working on completing \texttt{arm64} SVE and SVE2 support in \texttt{archsimd} (introducing width-agnostic scalable vector types like \texttt{archsimd.Float32s} backed directly by hardware SVE registers and predicates) and wiring it into \texttt{simd} . We also plan to expand \texttt{archsimd} to additional architectures such as \texttt{riscv64} , \texttt{ppc64} , \texttt{s390x} , and \texttt{loong64} , improve register promotion for composite types, and continue filling in instructions and compiler optimizations based on community feedback.
+For Go 1.28 and beyond, we are actively working on completing \texttt{arm64} SVE and SVE2 support in \texttt{archsimd} (introducing width-agnostic scalable vector types like \texttt{archsimd.Float32s} backed directly by hardware SVE registers and predicates) and wiring it into \texttt{simd}. We also plan to expand \texttt{archsimd} to additional architectures such as \texttt{riscv64}, \texttt{ppc64}, \texttt{s390x}, and \texttt{loong64}, improve register promotion for composite types, and continue filling in instructions and compiler optimizations based on community feedback.
 
 \textbf{Next article:} \href{https://go.dev/blog/http-connection-reuse}{Better HTTP/1 connection reuse} \textbf{Previous article:} \href{https://go.dev/blog/simd-experiment}{Platform-independent SIMD in Go} \href{https://go.dev/blog/all}{\textbf{Blog Index}}
 

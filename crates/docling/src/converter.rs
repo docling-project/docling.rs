@@ -325,6 +325,9 @@ pub struct DocumentConverter {
     /// Keep page renders as the document's page images (docling's
     /// `generate_page_images`, #520).
     generate_page_images: bool,
+    /// Pictures take their one safe embedded image instead of a render crop
+    /// (docling's `use_embedded_picture_images`, #1007).
+    use_embedded_picture_images: bool,
     /// Infer PDF/image section-header levels after assembly (#302, docling's
     /// `HeadingHierarchyModel`): bookmarks > numbering > font style. Off by
     /// default — heading levels then stay exactly as detected.
@@ -628,6 +631,7 @@ impl Default for DocumentConverter {
             ocr_textline_orientation: None,
             images_scale: None,
             generate_page_images: false,
+            use_embedded_picture_images: false,
             heading_hierarchy: false,
             use_web_browser: false,
             asr_model: None,
@@ -823,6 +827,7 @@ impl DocumentConverter {
         p.set_images(docling_pdf::ImageOutput {
             scale: self.images_scale,
             page_images: self.generate_page_images,
+            embedded_pictures: self.use_embedded_picture_images,
         });
         p.set_heading_hierarchy(docling_pdf::HeadingHierarchyOptions::enabled(
             self.heading_hierarchy,
@@ -2381,6 +2386,7 @@ impl DocumentConverter {
         docling_pdf::TextOptions {
             word_gap: self.pdf_word_gap_choice(),
             keep_typography: self.pdf_keep_typography.unwrap_or(env.keep_typography),
+            ..env
         }
     }
 
@@ -2419,6 +2425,20 @@ impl DocumentConverter {
     /// only; text-layer-only (`text_layer_only`) and streaming conversions get none.
     pub fn generate_page_images(mut self, enabled: bool) -> Self {
         self.generate_page_images = enabled;
+        self
+    }
+
+    /// Give a PDF picture its embedded image instead of the render crop
+    /// when the picture's region holds exactly one image XObject (mutual
+    /// intersection-over-self ≥ 0.8) with nothing painted over it — docling's
+    /// `use_embedded_picture_images` (#1007, docling#5143). The bitmap keeps
+    /// its native pixel size (`dpi` 72, not [`Self::images_scale`]); a
+    /// masked, transparent, clipped, rotated or overlapped image, a second
+    /// image or text in the box, or a `/Rotate`d page keep the crop. Off by
+    /// default; layout, OCR and page images are unaffected. PDF ML pipeline
+    /// only.
+    pub fn use_embedded_picture_images(mut self, enabled: bool) -> Self {
+        self.use_embedded_picture_images = enabled;
         self
     }
 
@@ -2773,6 +2793,7 @@ impl DocumentConverter {
             keep_typography: self.pdf_keep_typography,
             ocr_textline_orientation: self.ocr_textline_orientation,
             images_scale: self.images_scale,
+            embedded_pictures: self.use_embedded_picture_images,
             keep_picture_images: self.keep_picture_images,
             page_break_placeholder: self.page_break_placeholder.clone(),
             compact_tables: self.compact_tables,

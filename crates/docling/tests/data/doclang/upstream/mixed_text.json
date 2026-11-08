@@ -1,7 +1,7 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
-  "name": "Document",
+  "version": "1.11.0",
+  "name": "mixed_text",
   "origin": {
     "mimetype": "application/xml",
     "binary_hash": 4663803892575663566,
@@ -174,8 +174,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Before",
-      "text": "Before"
+      "orig": "Before ",
+      "text": "Before "
     },
     {
       "self_ref": "#/texts/2",
@@ -205,8 +205,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "after",
-      "text": "after"
+      "orig": " after",
+      "text": " after"
     },
     {
       "self_ref": "#/texts/4",
@@ -217,8 +217,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Plain",
-      "text": "Plain"
+      "orig": "Plain ",
+      "text": "Plain "
     },
     {
       "self_ref": "#/texts/5",
@@ -248,8 +248,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "run",
-      "text": "run"
+      "orig": " run",
+      "text": " run"
     },
     {
       "self_ref": "#/texts/7",
@@ -276,8 +276,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Note",
-      "text": "Note"
+      "orig": "Note ",
+      "text": "Note "
     },
     {
       "self_ref": "#/texts/9",
@@ -307,8 +307,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "here",
-      "text": "here"
+      "orig": " here",
+      "text": " here"
     },
     {
       "self_ref": "#/texts/11",
@@ -335,8 +335,8 @@
       "content_layer": "furniture",
       "label": "text",
       "prov": [],
-      "orig": "Head",
-      "text": "Head"
+      "orig": "Head ",
+      "text": "Head "
     },
     {
       "self_ref": "#/texts/13",
@@ -397,8 +397,8 @@
       "content_layer": "furniture",
       "label": "text",
       "prov": [],
-      "orig": "Page",
-      "text": "Page"
+      "orig": "Page ",
+      "text": "Page "
     },
     {
       "self_ref": "#/texts/16",

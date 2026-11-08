@@ -450,7 +450,11 @@ pub(super) fn build_tree(
     let root = parse(text);
     let mut w = Walker {
         images,
-        tree: ItemTree::default(),
+        tree: ItemTree {
+            // The runs keep their boundary whitespace (schema 1.11.0, #997).
+            inline_whitespace: true,
+            ..ItemTree::default()
+        },
         pending_hard_break: false,
         pending_soft_break: false,
         html_blocks: 0,
@@ -640,9 +644,12 @@ impl Walker<'_> {
     ) {
         match el {
             El::Text(raw) | El::Formula(raw) => {
+                // A text run keeps its raw fragment (docling#3891): marko
+                // trimmed the cell's edges, whitespace-only runs between
+                // formatted runs are significant.
                 let text = match el {
                     El::Formula(_) => format!("$${}$$", raw.trim()),
-                    _ => unescape_entities(raw.trim()),
+                    _ => unescape_entities(raw),
                 };
                 if !text.is_empty() {
                     let kind =
@@ -953,37 +960,47 @@ impl Walker<'_> {
                 hyperlink = Some(docling_href(dest));
             }
             El::Text(original) => {
-                let snippet = unescape_entities(original.trim());
-                if !snippet.is_empty() {
+                // The raw fragment: its edge whitespace is the boundary
+                // between runs (docling#3891, `Foo *emph* bar` -> `"Foo "`,
+                // `"emph"`, `" bar"`); a heading's or list item's own text is
+                // trimmed, and a whitespace-only run never becomes one.
+                let snippet = unescape_entities(original);
+                let stripped = unescape_entities(original.trim());
+                if !snippet.is_empty() && (!stripped.is_empty() || self.creation_stack.is_empty()) {
                     if !self.creation_stack.is_empty() {
                         parent = self.flush_creation_stack(
-                            &snippet,
+                            &stripped,
                             parent,
                             formatting,
                             hyperlink.as_deref(),
                         );
                     } else {
-                        let last = self.tree.last_text().filter(|&id| {
-                            let (f, h) = match &self.tree.items[id].kind {
-                                TreeKind::Text {
-                                    formatting,
-                                    hyperlink,
-                                    ..
-                                }
-                                | TreeKind::Code {
-                                    formatting,
-                                    hyperlink,
-                                    ..
-                                } => (formatting, hyperlink),
-                                _ => return false,
-                            };
-                            *f == formatting && *h == hyperlink
-                        });
+                        // A code span is its own item: text after a break
+                        // never joins it.
+                        let last =
+                            self.tree
+                                .last_text()
+                                .filter(|&id| match &self.tree.items[id].kind {
+                                    TreeKind::Text {
+                                        formatting: f,
+                                        hyperlink: h,
+                                        ..
+                                    } => *f == formatting && *h == hyperlink,
+                                    _ => false,
+                                });
                         match (self.pending_hard_break, self.pending_soft_break, last) {
                             (true, _, Some(id)) => self.append_text(id, "\n", &snippet),
                             (false, true, Some(id)) => self.append_text(id, " ", &snippet),
                             _ => {
-                                let prefix = if self.pending_hard_break { "\n" } else { "" };
+                                // The break still separates runs that
+                                // cannot merge.
+                                let prefix = if self.pending_hard_break {
+                                    "\n"
+                                } else if self.pending_soft_break {
+                                    " "
+                                } else {
+                                    ""
+                                };
                                 self.tree.add(
                                     parent,
                                     None,
@@ -1024,6 +1041,15 @@ impl Walker<'_> {
                     self.flush_creation_stack(&snippet, parent, formatting, hyperlink.as_deref());
                     return;
                 }
+                if self.pending_hard_break || self.pending_soft_break {
+                    // The break's separator never goes inside the code run:
+                    // a plain run of its own (docling#3891).
+                    let sep = if self.pending_hard_break { "\n" } else { " " };
+                    self.tree
+                        .add(parent, None, text_kind("text", sep, None, None, None, None));
+                }
+                self.pending_hard_break = false;
+                self.pending_soft_break = false;
                 self.tree.add(
                     parent,
                     None,
@@ -1268,20 +1294,27 @@ mod tests {
                 "text",
                 "text",
                 "text",
+                "text",
+                "text",
                 "code",
                 "text"
             ]
         );
         assert_eq!(t.body, vec![0, 1, 2]);
-        assert_eq!(t.items[2].children, vec![3, 4, 5, 6, 7, 8, 9]);
+        // The runs keep their boundary whitespace; the spaces between the
+        // formatted runs are runs of their own (docling 2.148, #997).
+        assert_eq!(t.items[2].children, vec![3, 4, 5, 6, 7, 8, 9, 10, 11]);
         let fmt = |i: usize| match &t.items[i].kind {
             TreeKind::Text { formatting, .. } => formatting.map(|f| (f.bold, f.italic)),
             _ => None,
         };
+        assert_eq!(text(&t.items[3]), "Foo ");
         assert_eq!((text(&t.items[4]), fmt(4)), ("em", Some((false, true))));
-        assert_eq!((text(&t.items[5]), fmt(5)), ("strong", Some((true, false))));
-        assert_eq!((text(&t.items[6]), fmt(6)), ("both", Some((true, true))));
-        assert_eq!(text(&t.items[9]), ".");
+        assert_eq!(text(&t.items[5]), " ");
+        assert_eq!((text(&t.items[6]), fmt(6)), ("strong", Some((true, false))));
+        assert_eq!((text(&t.items[8]), fmt(8)), ("both", Some((true, true))));
+        assert_eq!(text(&t.items[9]), " and ");
+        assert_eq!(text(&t.items[11]), ".");
         assert_eq!(fmt(3), None, "an unformatted run carries no `formatting`");
     }
 
@@ -1418,11 +1451,11 @@ mod tests {
         assert_eq!(
             runs,
             [
-                ("a".into(), false),
+                ("a ".into(), false),
                 ("b".into(), true),
-                ("c ~d~ e".into(), false),
-                ("f".into(), true),
-                ("g".into(), false),
+                (" c ~d~ e ".into(), false),
+                (" f ".into(), true),
+                (" g".into(), false),
             ]
         );
     }

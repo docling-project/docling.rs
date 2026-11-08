@@ -4,7 +4,8 @@
 
 - Item  
 line
-- **Bold** *italic*
+- **Bold**  
+*italic*
 
 - **Term  
 line**
@@ -27,6 +28,7 @@ Code
 line
 ```
 
-**`bold`** *`code`*
+**`bold`**  
+*`code`*
 
 - [x] Task line

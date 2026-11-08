@@ -706,8 +706,16 @@ impl<'a> Serializer<'a> {
     }
 
     /// Upstream's `post_process`: formatting wrappers in a fixed order, then
-    /// the hyperlink around it all.
+    /// the hyperlink around it all — with the run's edge whitespace hoisted
+    /// outside the whole stack (`hoist_decoration_whitespace`, #997), and a
+    /// whitespace-only run returned undecorated.
     fn post_process(text: String, fmt: Fmt, hyperlink: Option<&str>) -> String {
+        crate::inline::hoist(&text, |core| {
+            Self::decorate(core.to_string(), fmt, hyperlink)
+        })
+    }
+
+    fn decorate(text: String, fmt: Fmt, hyperlink: Option<&str>) -> String {
         let mut res = text;
         if fmt.bold {
             res = format!("<strong>{res}</strong>");
@@ -900,13 +908,14 @@ impl<'a> Serializer<'a> {
         format!("<{tag}>\n{}\n</{tag}>", parts.join("\n"))
     }
 
-    /// `HTMLInlineSerializer`: the parts joined by one space.
+    /// `HTMLInlineSerializer`: the parts concatenated as they are — the runs
+    /// carry their own whitespace (#997).
     fn inline_group(&mut self, item: &'a Value) -> String {
         let parts = self.parts(item, true);
         if parts.is_empty() {
             return String::new();
         }
-        format!("<span class='inline-group'>{}</span>", parts.join(" "))
+        format!("<span class='inline-group'>{}</span>", parts.concat())
     }
 
     /// Upstream's `serialize_captions`: each caption text item as

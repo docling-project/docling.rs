@@ -61,6 +61,44 @@ macro_rules! sel {
 const BR: char = '\u{e000}';
 
 /// upstream's `_BLOCK_TAGS`: tags that start a distinct item.
+/// upstream's `_PARA_BREAKERS`: a child that is a word boundary in a list
+/// item's text (docling#3891).
+const PARA_BREAKERS: &[&str] = &[
+    "address",
+    "article",
+    "aside",
+    "blockquote",
+    "div",
+    "dl",
+    "fieldset",
+    "figcaption",
+    "figure",
+    "footer",
+    "form",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "header",
+    "hr",
+    "main",
+    "nav",
+    "ol",
+    "ul",
+    "li",
+    "p",
+    "pre",
+    "section",
+    "table",
+    "thead",
+    "tbody",
+    "tfoot",
+    "tr",
+    "td",
+];
+
 const BLOCK_TAGS: &[&str] = &[
     "address",
     "details",
@@ -144,9 +182,23 @@ fn clean_unicode(text: &str) -> String {
     out
 }
 
-/// Python's `" ".join(s.split())`: collapse whitespace runs, trim the ends.
-fn collapse_ws(s: &str) -> String {
-    s.split_whitespace().collect::<Vec<_>>().join(" ")
+/// upstream's `_WHITESPACE_RUN.sub(" ", s)`: every whitespace run is one
+/// space, the edges kept.
+fn collapse_ws_keep_edges(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut in_ws = false;
+    for c in s.chars() {
+        if docling_core::inline::is_space(c) {
+            if !in_ws {
+                out.push(' ');
+            }
+            in_ws = true;
+        } else {
+            out.push(c);
+            in_ws = false;
+        }
+    }
+    out
 }
 
 /// Python's `re.sub(r"\s+|\n+", " ", s).strip()`.
@@ -401,7 +453,11 @@ pub(super) fn build_tree(
 ) -> ItemTree {
     let root = parsed.root_element();
     let mut w = Walker {
-        tree: ItemTree::default(),
+        tree: ItemTree {
+            // The runs keep their boundary whitespace (schema 1.11.0, #997).
+            inline_whitespace: true,
+            ..ItemTree::default()
+        },
         parents: vec![None; 64],
         level: 0,
         layer: None,
@@ -877,6 +933,8 @@ impl<'a> Walker<'a> {
                     return Vec::new();
                 }
                 let mut out = Vec::new();
+                // Where a block child starts or ends in `out`: a word boundary.
+                let mut block_edges: Vec<usize> = Vec::new();
                 if !ignore_list || !matches!(e.name(), "ul" | "ol" | "dl" | "table") {
                     for child in node.children() {
                         match child.value() {
@@ -892,7 +950,35 @@ impl<'a> Walker<'a> {
                                 out.extend(self.extract(child, ignore_list, false, keep_newlines));
                                 self.restore_hyperlink(saved);
                             }
-                            _ => out.extend(self.extract(child, ignore_list, false, keep_newlines)),
+                            _ => {
+                                let sub = self.extract(child, ignore_list, false, keep_newlines);
+                                if matches!(child.value(), HtmlNode::Element(ce) if PARA_BREAKERS.contains(&ce.name()))
+                                {
+                                    block_edges.push(out.len());
+                                    block_edges.push(out.len() + sub.len());
+                                }
+                                out.extend(sub);
+                            }
+                        }
+                    }
+                }
+                if !keep_newlines {
+                    // `<li>a<p>para</p>` reads "a para": keep the boundary
+                    // unless the source has whitespace there already
+                    // (`normalize_whitespace` moves it out of code runs).
+                    block_edges.sort_unstable();
+                    block_edges.dedup();
+                    let ws_end =
+                        |t: &str| t.chars().last().is_some_and(docling_core::inline::is_space);
+                    let ws_start =
+                        |t: &str| t.chars().next().is_some_and(docling_core::inline::is_space);
+                    for i in block_edges {
+                        if 0 < i
+                            && i < out.len()
+                            && !ws_end(&out[i - 1].text)
+                            && !ws_start(&out[i].text)
+                        {
+                            out[i - 1].text.push(' ');
                         }
                     }
                 }
@@ -905,10 +991,14 @@ impl<'a> Walker<'a> {
     /// One source text node as annotated parts (upstream's `NavigableString`
     /// branch).
     fn text_parts(&self, raw: &str, keep_newlines: bool) -> Vec<Part> {
+        // Preformatted content is taken verbatim; normal flow collapses each
+        // whitespace run to one space without trimming — a run's edge
+        // whitespace is its boundary, `H<sub>2</sub>O` vs `x<sup>2</sup> + y`
+        // (schema 1.11.0, docling#3891).
         let text = if keep_newlines {
-            raw.trim().to_string()
+            raw.to_string()
         } else {
-            collapse_ws(&raw.replace(['\n', '\r'], " "))
+            collapse_ws_keep_edges(raw)
         };
         let part = |text: String| Part {
             text,
@@ -1113,14 +1203,17 @@ impl<'a> Walker<'a> {
         let element_name = element.value().name();
         let first = self.tree.items.len();
         for list in split_by_newline(&parts) {
+            // One normalization per block: the boundaries across runs and the
+            // block's edges; a whitespace-only run that survives is a
+            // significant boundary (between two code spans).
+            let list = normalize_whitespace(list);
             let force = list.len() == 1 && list[0].code && !matches!(element_name, "p" | "pre");
             let group = self.open_inline_group(&list, force);
             for part in &list {
-                let seg = part.text.trim();
-                if seg.is_empty() {
+                if part.text.is_empty() {
                     continue;
                 }
-                let r = self.emit_part(part, seg, part.formatting);
+                let r = self.emit_part(part, &part.text, part.formatting);
                 if group.is_none() {
                     added.push(r);
                 }
@@ -1185,13 +1278,13 @@ impl<'a> Walker<'a> {
             "p" | "address" | "summary" => {
                 let parts = simplify(self.extract(*tag, false, true, false));
                 for list in split_by_newline(&parts) {
+                    let list = normalize_whitespace(list);
                     let group = self.open_inline_group(&list, false);
                     for part in &list {
-                        let seg = part.text.trim();
-                        if seg.is_empty() {
+                        if part.text.is_empty() {
                             continue;
                         }
-                        let r = self.emit_part(part, seg, part.formatting);
+                        let r = self.emit_part(part, &part.text, part.formatting);
                         if group.is_none() {
                             added.push(r);
                         }
@@ -1261,13 +1354,36 @@ impl<'a> Walker<'a> {
                 );
             }
             "pre" => {
-                let parts = simplify(self.extract(*tag, false, true, true));
+                let mut parts = simplify(self.extract(*tag, false, true, true));
+                // Preformatted: every interior space is significant, only the
+                // block's edges are trimmed (HTML drops the newline right
+                // after `<pre>`).
+                if let Some(head) = parts.first_mut() {
+                    head.text = head.text.trim_start_matches('\n').to_string();
+                }
+                if let Some(tail) = parts.last_mut() {
+                    tail.text = tail.text.trim_end().to_string();
+                }
                 let hint = code_language_hint(tag);
                 let group = self.open_inline_group(&parts, false);
-                for part in &parts {
+                let n = parts.len();
+                for (i, part) in parts.iter().enumerate() {
                     // In preformatted text each `<br>` is a newline (#769).
                     let text = pre_line_breaks(&part.text);
                     if text.is_empty() {
+                        continue;
+                    }
+                    if part.text.contains(BR) && text.trim().is_empty() {
+                        // A run of `<br>` alone: between two runs it is a line
+                        // break, as a plain run — never inside a code run.
+                        if 0 < i && i + 1 < n {
+                            let parent = self.parent();
+                            let r =
+                                self.add_annotated("text", "\n".into(), None, None, None, parent);
+                            if group.is_none() {
+                                added.push(r);
+                            }
+                        }
                         continue;
                     }
                     let clean = clean_unicode(&text);
@@ -1323,7 +1439,7 @@ impl<'a> Walker<'a> {
         self.layer = None;
         let mut level: usize = tag.value().name()[1..].parse().unwrap_or(1);
         let parts = self.extract(*tag, false, true, false);
-        let single = to_single(&parts);
+        let single = to_single(&normalize_whitespace(parts));
         let text = clean_unicode(&single.text);
         let orig = Some(single.text.clone()).filter(|o| *o != text);
         if level == 1 {
@@ -1707,10 +1823,10 @@ impl<'a> Walker<'a> {
         extra: Option<Formatting>,
     ) -> Option<usize> {
         let parts = self.extract(*tag, true, true, false);
-        let min_parts = simplify(parts);
+        let min_parts = normalize_whitespace(simplify(parts));
         let joined: String = min_parts.iter().map(|p| p.text.as_str()).collect();
-        let item_text = resolve_line_breaks(&squash_ws(&joined));
-        if item_text.is_empty() {
+        let item_text = resolve_line_breaks(&joined);
+        if item_text.trim().is_empty() {
             return None;
         }
         let with_extra = |f: Option<Formatting>| match extra {
@@ -1741,13 +1857,25 @@ impl<'a> Walker<'a> {
             self.set_parent(self.level + 1, Some(item));
             self.level += 1;
             let group = self.open_inline_group(&min_parts, false);
-            for part in &min_parts {
-                let text = resolve_line_breaks(&squash_ws(&part.text));
-                if clean_unicode(&text).is_empty() {
-                    // The part only held `<br>` tags.
+            // Normalized as one block above; a `<br>` is not whitespace
+            // there, so it can still sit at an edge of the item: trim it.
+            let mut texts: Vec<String> = min_parts
+                .iter()
+                .map(|p| resolve_line_breaks(&p.text))
+                .collect();
+            let non_blank: Vec<usize> = (0..texts.len())
+                .filter(|&i| !texts[i].trim().is_empty())
+                .collect();
+            let (first, last) = (non_blank[0], non_blank[non_blank.len() - 1]);
+            texts[first] = texts[first].trim_start().to_string();
+            texts[last] = texts[last].trim_end().to_string();
+            for (i, part) in min_parts.iter().enumerate() {
+                // A run that only held `<br>` stays a `"\n"` run between its
+                // neighbours, so they do not merge (`**Bold***italic*`).
+                if texts[i].is_empty() || i < first || i > last {
                     continue;
                 }
-                self.emit_part(part, &text, with_extra(part.formatting));
+                self.emit_part(part, &texts[i], with_extra(part.formatting));
             }
             self.close_inline_group(group);
             self.set_parent(self.level, None);
@@ -1755,7 +1883,9 @@ impl<'a> Walker<'a> {
             Some(item)
         } else {
             let part = &min_parts[0];
-            let text = resolve_line_breaks(&squash_ws(&part.text));
+            let text = resolve_line_breaks(&squash_ws(&part.text))
+                .trim()
+                .to_string();
             let clean = clean_unicode(&text);
             let orig = (text != clean).then_some(text);
             Some(self.tree.add(
@@ -2024,10 +2154,10 @@ impl<'a> Walker<'a> {
                 });
             }
         }
-        let single = to_single(&caption);
+        let single = to_single(&normalize_whitespace(caption));
         let mut captions = Vec::new();
         if !single.text.is_empty() {
-            let text = clean_unicode(single.text.trim());
+            let text = clean_unicode(&single.text);
             let orig = Some(single.text.clone()).filter(|o| *o != text);
             // `doc.add_text(label=CAPTION, …)` with no parent: the body.
             captions.push(self.add_annotated(
@@ -2067,11 +2197,11 @@ impl<'a> Walker<'a> {
     /// text item under the current parent; `None` when it holds no text.
     fn emit_caption(&mut self, cap: ElementRef<'a>) -> Option<usize> {
         let parts = self.extract(*cap, false, true, false);
-        let single = to_single(&parts);
+        let single = to_single(&normalize_whitespace(parts));
         if single.text.trim().is_empty() {
             return None;
         }
-        let text = clean_unicode(single.text.trim());
+        let text = clean_unicode(&single.text);
         let parent = self.parent();
         let first = self.tree.items.len();
         let r = self.add_annotated(
@@ -2182,27 +2312,63 @@ fn simplify(parts: Vec<Part>) -> Vec<Part> {
         return out;
     };
     let mut cur = first.clone();
-    let mut last_elm = first.text.clone();
     for p in &parts[1..] {
         if p.same_annotation(&cur) {
-            let sep = if p.text.trim().is_empty() || last_elm.trim().is_empty() {
-                ""
-            } else {
-                " "
-            };
-            cur.text.push_str(sep);
+            // Same-format neighbours merge faithfully: the whitespace between
+            // them is already in the run text (#997).
             cur.text.push_str(&p.text);
-            last_elm = p.text.clone();
         } else {
             out.push(cur);
             cur = p.clone();
-            last_elm = p.text.clone();
         }
     }
     if !cur.text.is_empty() {
         out.push(cur);
     }
     out
+}
+
+/// upstream's `AnnotatedTextList.normalize_whitespace` (docling#3891):
+/// whitespace at a run boundary — in either run or in a whitespace-only run
+/// between them — collapses to one space, carried by the left run so it sits
+/// outside the right run's formatting, and the block's outer edges are
+/// trimmed. A code run is wrapped in `` ` `` downstream, whose delimiters keep
+/// whitespace in, so the space goes on the plain neighbour, or becomes a
+/// plain `" "` run of its own between two code runs. Not for preformatted
+/// content.
+fn normalize_whitespace(parts: Vec<Part>) -> Vec<Part> {
+    let mut kept: Vec<Part> = Vec::with_capacity(parts.len());
+    let mut pending = false;
+    for at in parts {
+        if at.text.is_empty() {
+            continue;
+        }
+        let (lead, core, trail) = docling_core::inline::split_edges(&at.text);
+        if core.is_empty() {
+            pending = true;
+            continue;
+        }
+        let mut core = core.to_string();
+        let trailing = !trail.is_empty();
+        if (pending || !lead.is_empty()) && !kept.is_empty() {
+            let last = kept.last_mut().expect("non-empty");
+            if !last.code {
+                last.text.push(' ');
+            } else if !at.code {
+                core.insert(0, ' ');
+            } else {
+                kept.push(Part {
+                    text: " ".into(),
+                    hyperlink: None,
+                    formatting: None,
+                    code: false,
+                });
+            }
+        }
+        pending = trailing;
+        kept.push(Part { text: core, ..at });
+    }
+    kept
 }
 
 /// upstream's `AnnotatedTextList.split_by_newline`: two or more `<br>`
@@ -2273,12 +2439,12 @@ fn to_single(parts: &[Part]) -> Part {
         hyperlink = None;
     }
     for p in parts {
-        text.push_str(p.text.trim());
-        text.push(' ');
+        // The boundary whitespace is in the run text: concatenate as is.
+        text.push_str(&p.text);
         code = p.code || code;
     }
     Part {
-        text: resolve_line_breaks(&text),
+        text: resolve_line_breaks(&text).trim().to_string(),
         hyperlink,
         formatting,
         code,
@@ -2339,7 +2505,8 @@ mod tests {
             p("d", true),
         ]);
         let texts: Vec<&str> = out.iter().map(|p| p.text.as_str()).collect();
-        assert_eq!(texts, ["a b", "c\nd"]);
+        // Concatenated as they are: the runs carry their whitespace (#997).
+        assert_eq!(texts, ["ab", "c\nd"]);
     }
 
     /// One `<br>` is a newline inside the paragraph, two start a new one; the
@@ -2447,11 +2614,11 @@ mod tests {
         assert_eq!(
             parts,
             [
-                ("text", "Some"),
-                ("text", "bold"),
-                ("text", "and a"),
-                ("text", "link"),
-                ("text", "and"),
+                ("text", "Some "),
+                ("text", "bold "),
+                ("text", "and a "),
+                ("text", "link "),
+                ("text", "and "),
                 ("code", "x"),
                 ("text", "."),
             ]
@@ -2666,7 +2833,13 @@ mod tests {
         let [item] = t.blocks[1].items[..] else {
             panic!("one top-level item: {:?}", t.blocks[1].items);
         };
-        assert_eq!(text(&t.items[item]), t.blocks[1].text);
+        // The three plain spans merge into one run that keeps their
+        // whitespace verbatim, as docling 2.148 does (`79   Die …`, #997);
+        // the block's text is the normalized one.
+        assert_eq!(
+            text(&t.items[item]).split_whitespace().collect::<Vec<_>>(),
+            t.blocks[1].text.split_whitespace().collect::<Vec<_>>()
+        );
         assert_eq!(t.items[item].block, Some(1));
         assert!(t.items.iter().all(|it| it.block.is_some()));
     }

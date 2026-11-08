@@ -114,20 +114,20 @@ From Wikibooks, open books for an open world
 
 [Cookbook](https://en.wikibooks.org/wiki/Cookbook:Table_of_Contents) | [Recipes](https://en.wikibooks.org/wiki/Cookbook:Recipes) | [Ingredients](https://en.wikibooks.org/wiki/Cookbook:Ingredients) | [Equipment](https://en.wikibooks.org/wiki/Cookbook:Equipment) | [Techniques](https://en.wikibooks.org/wiki/Cookbook:Cooking_Techniques) | [Cookbook Disambiguation Pages](https://en.wikibooks.org/wiki/Category:Cookbook_disambiguation_pages) | [Recipes](https://en.wikibooks.org/wiki/Category:Recipes) | [Meat recipes](https://en.wikibooks.org/wiki/Cookbook:Meat_Recipes) | [Cuisine of India](https://en.wikibooks.org/wiki/Cookbook:Cuisine_of_India)
 
-**Chicken tikka** is a chicken dish originating in the Punjab region of the [Indian Subcontinent](https://en.wikibooks.org/wiki/Cookbook:Cuisine_of_India) made by baking [chicken](https://en.wikibooks.org/wiki/Cookbook:Chicken) which has been [marinated](https://en.wikibooks.org/wiki/Cookbook:Marinating) in [spices](https://en.wikibooks.org/wiki/Cookbook:Spices_and_herbs) and [yoghurt](https://en.wikibooks.org/wiki/Cookbook:Yogurt) . It should not be confused with [Chicken Tikka Masala](https://en.wikibooks.org/wiki/Cookbook:Chicken_Tikka_Masala) (of which it is an ingredient). It is traditionally cooked on [skewers](https://en.wikibooks.org/wiki/Cookbook:Skewer) in a [tandoor](https://en.wikibooks.org/wiki/Cookbook:Tandoor) and is usually boneless. It is tasty when served with yellow rice and a spicy salad.
+**Chicken tikka** is a chicken dish originating in the Punjab region of the [Indian Subcontinent](https://en.wikibooks.org/wiki/Cookbook:Cuisine_of_India) made by baking [chicken](https://en.wikibooks.org/wiki/Cookbook:Chicken) which has been [marinated](https://en.wikibooks.org/wiki/Cookbook:Marinating) in [spices](https://en.wikibooks.org/wiki/Cookbook:Spices_and_herbs) and [yoghurt](https://en.wikibooks.org/wiki/Cookbook:Yogurt). It should not be confused with [Chicken Tikka Masala](https://en.wikibooks.org/wiki/Cookbook:Chicken_Tikka_Masala) (of which it is an ingredient). It is traditionally cooked on [skewers](https://en.wikibooks.org/wiki/Cookbook:Skewer) in a [tandoor](https://en.wikibooks.org/wiki/Cookbook:Tandoor) and is usually boneless. It is tasty when served with yellow rice and a spicy salad.
 
 ## Ingredients
 
-[ [edit](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&veaction=edit&section=1) | [edit source](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&action=edit&section=1) ]
+[[edit](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&veaction=edit&section=1) | [edit source](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&action=edit&section=1)]
 
-- 675 [g](https://en.wikibooks.org/wiki/Cookbook:G) (1.5 [lb](https://en.wikibooks.org/wiki/Cookbook:Pound) ) skinless and boneless [chicken breast](https://en.wikibooks.org/wiki/Cookbook:Chicken#Breast) , [diced](https://en.wikibooks.org/wiki/Cookbook:Dice) into cubes
+- 675 [g](https://en.wikibooks.org/wiki/Cookbook:G) (1.5 [lb](https://en.wikibooks.org/wiki/Cookbook:Pound)) skinless and boneless [chicken breast](https://en.wikibooks.org/wiki/Cookbook:Chicken#Breast), [diced](https://en.wikibooks.org/wiki/Cookbook:Dice) into cubes
 - 1 [tbsp](https://en.wikibooks.org/wiki/Cookbook:Tablespoon) [mustard](https://en.wikibooks.org/wiki/Cookbook:Mustard) seed oil (see notes)
-- 50 [ml](https://en.wikibooks.org/wiki/Cookbook:ML) (2 [fl oz](https://en.wikibooks.org/wiki/Cookbook:Fluid_Ounce) ) [milk](https://en.wikibooks.org/wiki/Cookbook:Milk)
-- 150 [ml](https://en.wikibooks.org/wiki/Cookbook:ML) (5 [fl oz](https://en.wikibooks.org/wiki/Cookbook:Fluid_Ounce) ) natural [yoghurt](https://en.wikibooks.org/wiki/Cookbook:Yogurt)
+- 50 [ml](https://en.wikibooks.org/wiki/Cookbook:ML) (2 [fl oz](https://en.wikibooks.org/wiki/Cookbook:Fluid_Ounce)) [milk](https://en.wikibooks.org/wiki/Cookbook:Milk)
+- 150 [ml](https://en.wikibooks.org/wiki/Cookbook:ML) (5 [fl oz](https://en.wikibooks.org/wiki/Cookbook:Fluid_Ounce)) natural [yoghurt](https://en.wikibooks.org/wiki/Cookbook:Yogurt)
 - 2 [tbsp](https://en.wikibooks.org/wiki/Cookbook:Tablespoon) [lemon juice](https://en.wikibooks.org/wiki/Cookbook:Lemon_Juice)
 - 1 [tbsp](https://en.wikibooks.org/wiki/Cookbook:Tablespoon) [tomato paste](https://en.wikibooks.org/wiki/Cookbook:Tomato_Paste)
 - 2 [tbsp](https://en.wikibooks.org/wiki/Cookbook:Tablespoon) [chopped](https://en.wikibooks.org/wiki/Cookbook:Chopping) fresh [cilantro](https://en.wikibooks.org/wiki/Cookbook:Cilantro) (coriander leaves)
-- 4 large cloves of [garlic](https://en.wikibooks.org/wiki/Cookbook:Garlic) , finely [chopped](https://en.wikibooks.org/wiki/Cookbook:Chop)
+- 4 large cloves of [garlic](https://en.wikibooks.org/wiki/Cookbook:Garlic), finely [chopped](https://en.wikibooks.org/wiki/Cookbook:Chop)
 - 1-4 chopped fresh red [chillis](https://en.wikibooks.org/wiki/Cookbook:Chili_Pepper) (depending on strength of the chillis and the desired strength of the marinade)
 - 2 [tsp](https://en.wikibooks.org/wiki/Cookbook:Teaspoon) [paprika](https://en.wikibooks.org/wiki/Cookbook:Paprika)
 - 2 [tsp](https://en.wikibooks.org/wiki/Cookbook:Teaspoon) [garam masala](https://en.wikibooks.org/wiki/Cookbook:Garam_Masala)
@@ -137,34 +137,34 @@ From Wikibooks, open books for an open world
 
 ## Procedure
 
-[ [edit](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&veaction=edit&section=2) | [edit source](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&action=edit&section=2) ]
+[[edit](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&veaction=edit&section=2) | [edit source](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&action=edit&section=2)]
 
-1. Add all of the ingredients except the chicken to a non-metallic [mixing bowl](https://en.wikibooks.org/wiki/Cookbook:Mixing_Bowl) , and mix well.
+1. Add all of the ingredients except the chicken to a non-metallic [mixing bowl](https://en.wikibooks.org/wiki/Cookbook:Mixing_Bowl), and mix well.
 2. Add the chicken and mix until fully coated.
 3. Ideally, the chicken should now be left in a refrigerator to [marinate](https://en.wikibooks.org/wiki/Cookbook:Marinating) for at least 24 hours. It may not be safe to leave chicken which has previously been frozen for longer than 24 hours, but fresh chicken should be left to marinate for 48 hours for best results. If you do not wish to leave the chicken to marinate, simply continue to the next step.
 4. For best results, place on skewers and cook in a [tandoor](https://en.wikibooks.org/wiki/Cookbook:Tandoor) or ceramic pot oven. The chicken can also be cooked on skewers under a medium [grill](https://en.wikibooks.org/wiki/Cookbook:Grilling) for 5-8 minutes on each side or barbecued (cooking times depend on the temperature of the barbecue). Always ensure the chicken is cooked throughout before serving. It should come apart easily when pressed down with the side of a fork.
-5. Serve with [naan](https://en.wikibooks.org/wiki/Cookbook:Naan) , with [rice](https://en.wikibooks.org/wiki/Cookbook:Rice) or use in a [Chicken Tikka Masala](https://en.wikibooks.org/wiki/Cookbook:Chicken_Tikka_Masala) .
+5. Serve with [naan](https://en.wikibooks.org/wiki/Cookbook:Naan), with [rice](https://en.wikibooks.org/wiki/Cookbook:Rice) or use in a [Chicken Tikka Masala](https://en.wikibooks.org/wiki/Cookbook:Chicken_Tikka_Masala).
 
 ## Notes, tips, and variations
 
-[ [edit](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&veaction=edit&section=3) | [edit source](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&action=edit&section=3) ]
+[[edit](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&veaction=edit&section=3) | [edit source](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&action=edit&section=3)]
 
-- Mustard seed oil is considered unfit for human consumption in many parts of the world and is therefore not readily available. A poor alternative can be made by crackling 1 [tsp](https://en.wikibooks.org/wiki/Cookbook:Teaspoon) of [mustard](https://en.wikibooks.org/wiki/Cookbook:Mustard) seeds in approximately 2 [tbs](https://en.wikibooks.org/wiki/Cookbook:Tablespoon) of very hot [vegetable](https://en.wikibooks.org/wiki/Cookbook:Vegetable_Oil) or [olive oil](https://en.wikibooks.org/wiki/Cookbook:Olive_Oil) . Allow to cool then use in place of mustard seed oil.
-- It is possible to make a tikka with almost any meat, the most commonly used other than chicken being [lamb](https://en.wikibooks.org/wiki/Cookbook:Lamb) and [mutton](https://en.wikibooks.org/wiki/Cookbook:Mutton) .
+- Mustard seed oil is considered unfit for human consumption in many parts of the world and is therefore not readily available. A poor alternative can be made by crackling 1 [tsp](https://en.wikibooks.org/wiki/Cookbook:Teaspoon) of [mustard](https://en.wikibooks.org/wiki/Cookbook:Mustard) seeds in approximately 2 [tbs](https://en.wikibooks.org/wiki/Cookbook:Tablespoon) of very hot [vegetable](https://en.wikibooks.org/wiki/Cookbook:Vegetable_Oil) or [olive oil](https://en.wikibooks.org/wiki/Cookbook:Olive_Oil). Allow to cool then use in place of mustard seed oil.
+- It is possible to make a tikka with almost any meat, the most commonly used other than chicken being [lamb](https://en.wikibooks.org/wiki/Cookbook:Lamb) and [mutton](https://en.wikibooks.org/wiki/Cookbook:Mutton).
 - Tikka can be served either as main meal or as an appetiser.
 - Powdered or dried ingredients can be substituted for fresh, but at the expense of taste.
 - Some people prefer to make tikka with meat on-the-bone for improved flavour.
 
 ## Bibliography
 
-[ [edit](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&veaction=edit&section=4) | [edit source](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&action=edit&section=4) ]
+[[edit](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&veaction=edit&section=4) | [edit source](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&action=edit&section=4)]
 
-- *Curry Club Tandoori and Tikka Dishes* , Piatkus, London - [ISBN 0749912839](https://en.wikibooks.org/wiki/Special:BookSources/0749912839) (1993)
-- *India: Food &amp; Cooking* , New Holland, London - [ISBN 978-1845376192](https://en.wikibooks.org/wiki/Special:BookSources/978-1845376192) (2007)
+- *Curry Club Tandoori and Tikka Dishes*, Piatkus, London - [ISBN 0749912839](https://en.wikibooks.org/wiki/Special:BookSources/0749912839) (1993)
+- *India: Food &amp; Cooking*, New Holland, London - [ISBN 978-1845376192](https://en.wikibooks.org/wiki/Special:BookSources/978-1845376192) (2007)
 
-Retrieved from " [https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken\_Tikka&amp;oldid=4615207](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&oldid=4615207) "
+Retrieved from "[https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken\_Tikka&amp;oldid=4615207](https://en.wikibooks.org/w/index.php?title=Cookbook:Chicken_Tikka&oldid=4615207)"
 
-[Categories](https://en.wikibooks.org/wiki/Special:Categories) :
+[Categories](https://en.wikibooks.org/wiki/Special:Categories):
 
 - [Easy recipes](https://en.wikibooks.org/wiki/Category:Easy_recipes)
 - [Recipes](https://en.wikibooks.org/wiki/Category:Recipes)

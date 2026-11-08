@@ -93,6 +93,13 @@ pub struct PdfPage {
     /// `…`, `⁄`, `•` — instead of folding it to ASCII the way docling-parse's
     /// sanitizer does (`pdf_keep_typography`, #921). Read by assembly.
     pub keep_typography: bool,
+    /// The page's image placements (#1007, docling's
+    /// `use_embedded_picture_images`): a picture region matching exactly one
+    /// safe image gets that bitmap at native resolution instead of a render
+    /// crop. Empty unless the walk was asked for them
+    /// ([`TextOptions::embedded_pictures`]).
+    #[cfg(feature = "render")]
+    pub embedded_images: Vec<crate::embedded::EmbeddedImage>,
 }
 
 impl PdfPage {
@@ -120,6 +127,8 @@ impl PdfPage {
             links: Vec::new(),
             rotation: 0,
             keep_typography: false,
+            #[cfg(feature = "render")]
+            embedded_images: Vec::new(),
         }
     }
 
@@ -402,12 +411,17 @@ pub enum BitmapRender {
 
 /// The text layer's settings a page walk applies (#921): the word-gap rule
 /// of the line and word cells, and whether assembly keeps typographic
-/// punctuation as drawn ([`PdfPage::keep_typography`]).
+/// punctuation as drawn ([`PdfPage::keep_typography`]) — plus whether the
+/// walk lists each page's embedded images for the picture images (#1007).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct TextOptions {
     /// `None` = the process default (`DOCLING_RS_PDF_WORD_GAP`).
     pub word_gap: Option<crate::dp_lines::WordGap>,
     pub keep_typography: bool,
+    /// Collect [`PdfPage::embedded_images`] — docling's
+    /// `use_embedded_picture_images` (#1007). Off by default: the walk
+    /// then reads no image placements and decodes nothing.
+    pub embedded_pictures: bool,
 }
 
 impl TextOptions {
@@ -417,6 +431,7 @@ impl TextOptions {
         Self {
             word_gap: None,
             keep_typography: crate::assemble::keep_typography_from_env(),
+            embedded_pictures: false,
         }
     }
 }
@@ -545,6 +560,13 @@ where
                 render_image,
             )?;
             extracted.keep_typography = text.keep_typography;
+            if text.embedded_pictures && extracted.rotation == 0 {
+                if let Some(m) = meta.as_deref() {
+                    extracted.embedded_images = crate::timing::timed("embedded_images", || {
+                        crate::embedded::page_images(m, i)
+                    });
+                }
+            }
             f(i, total, extracted)?;
         }
         // The helper ends once this sender and every page's handle are gone.
@@ -1349,6 +1371,8 @@ fn extract_page(
         links,
         rotation: 0,
         keep_typography: false,
+        #[cfg(feature = "render")]
+        embedded_images: Vec::new(),
     };
     if rotation != 0 && scanned && render_image {
         page.unrotate(rotation);

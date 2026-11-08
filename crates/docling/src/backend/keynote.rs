@@ -136,7 +136,12 @@ pub(crate) fn titled(block: Block, title: bool) -> Block {
 /// break after every slide but the first, as the PPTX backend does); the
 /// tree carries the JSON's groups, layers and provenance.
 pub(crate) fn emit(presentation: Presentation, doc: &mut DoclingDocument) {
-    let mut tree = ItemTree::default();
+    let mut tree = ItemTree {
+        // A run's text is the source's, its whitespace included (schema
+        // 1.11.0, #997).
+        inline_whitespace: true,
+        ..ItemTree::default()
+    };
     let (width, height) = (presentation.width, presentation.height);
     for (ix, slide) in presentation.slides.into_iter().enumerate() {
         let page_no = ix + 1;

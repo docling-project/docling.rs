@@ -71,7 +71,7 @@ For more details on c-variadic functions, see the [Reference](https://doc.rust-l
 
 ### Layout information from raw pointers
 
-This release settles the safety requirements for retrieving the size and alignment on raw pointers to both `Sized` (trivially safe, already possible on stable) and non- `Sized` types.
+This release settles the safety requirements for retrieving the size and alignment on raw pointers to both `Sized` (trivially safe, already possible on stable) and non-`Sized` types.
 
 This is done by stabilizing three functions:
 
@@ -169,7 +169,7 @@ PR CI can be triggered by anyone who can open PRs on your repository. GitHub req
 
 GitHub sometimes hides overwritten commits in its UI, making this kind of attack harder to detect. CI run logs and overwritten commits are also deleted after a few months.
 
-When `cargo miri` is invoked, Miri needs to retain build-relevant environment variables between runs [[1]](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/#fn-1). The current code to do so achieves this by storing [all environment variables to target/](https://github.com/rust-lang/miri/blob/165a9c3c96f0f4e6232278e62cb64648215bbc37/cargo-miri/src/util.rs#L40-L42). This, of course, persists when `target/` is cached.
+When `cargo miri` is invoked, Miri needs to retain build-relevant environment variables between runs[[1]](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/#fn-1). The current code to do so achieves this by storing [all environment variables to target/](https://github.com/rust-lang/miri/blob/165a9c3c96f0f4e6232278e62cb64648215bbc37/cargo-miri/src/util.rs#L40-L42). This, of course, persists when `target/` is cached.
 
 If your environment contained secrets, these can now be accessed by PRs via the cache.
 
@@ -209,7 +209,7 @@ The Miri release in the upcoming nightly (2026-09-22) will no longer have this p
 
 We consider it bad practice to have a cache that can easily be tainted by secrets.
 
-If caching `target/`, it is worth making sure that the inputs to processes that create `target/` (anything invoking `cargo`) do not have secrets available. It is generally rare for standard `cargo` build/test subcommands to need any secrets or tokens [[2]](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/#fn-2), so this is mostly a matter of being careful about having secrets exposed as environment variables to the entire job.
+If caching `target/`, it is worth making sure that the inputs to processes that create `target/` (anything invoking `cargo`) do not have secrets available. It is generally rare for standard `cargo` build/test subcommands to need any secrets or tokens[[2]](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/#fn-2), so this is mostly a matter of being careful about having secrets exposed as environment variables to the entire job.
 
 Cargo/Miri/Rust does not guarantee that environment variables will be safe from being copied into `target/`. While we are treating this as a security issue and patching it out of an abundance of caution, this is not something you should rely on in general. Beyond official Rust tooling, it is possible for build scripts to be doing things that lead to the environment being stored in compilation artifacts.
 

@@ -33,7 +33,7 @@ older, pypdfium2-era docling's and the pipeline was scored with OCR on.
 
 ## Current state
 
-**7 / 18 strict** against upstream's current groundtruth — total **405
+**7 / 18 strict** against upstream's current groundtruth — total **401
 diff lines** (`scripts/conformance/pdf_groundtruth.sh`: `--skip-ocr
 --compact-tables`, docling-parse renderer). The groundtruth was refreshed
 for #921 from docling's `tests/data/pdf/groundtruth` at upstream `dc4693f`
@@ -59,7 +59,10 @@ glues those pairs (`KhurramAzeemHashmi`), and so does the groundtruth; on
 whose lines mostly draw space glyphs keeps docling-parse 7's 0.35 floor on
 its one-word lines too (`Offenlegungspf lichten`; no groundtruth file
 changes). That is the 407; #1001's cell normalization (docling#5069 —
-`’` → `'` inside TableFormer cells) took it to 405. (On the stale pre-refresh groundtruth the old tree
+`’` → `'` inside TableFormer cells) took it to 405. The mirror refresh at
+docling `bcb3678` (#996) moved one groundtruth file: `normal_4pages.md` now
+carries the two `※` footnote lines our output already printed — 12 → 8
+lines, **401**. (On the stale pre-refresh groundtruth the old tree
 read 10 / 18, 328 — a match to docling as it no longer is.) The two Korean
 image-only pages `skipped_1page` / `skipped_2pages` carry no text
 groundtruth and are not scored.
@@ -76,7 +79,7 @@ groundtruth and are not scored.
 | right_to_left_03 | 4 | a checkbox list item's marker order |
 | 2203.01017v2 | 15 | line-end hyphens docling fuses (`im-`/`balance`, `appear-`/`ances`; `column- and` is our #920 divergence), one picture placeholder's slot; author names docling-parse 7 glues and we split (`KhurramAzeemHashmi`, `Harold WKuhn` — the #921 clustering clip), `\|T \|` |
 | 2305.03393v1 | 8 | two `\_ \_` items and the spacing of underscores in figure file names (`PMC5406406 \_ 003 \_ 01.png`) |
-| normal_4pages | 12 | docling folds the page-number glyph into the heading cluster (`## 들어가며 1`) where we emit it as its own item, and the `※` footnotes order |
+| normal_4pages | 8 | docling folds the page-number glyph into the heading cluster (`## 들어가며 1`) where we emit it as its own item, and one paragraph docling breaks before its last line (`… 못하` / `고 있는 실정이다.`) |
 | 2206.01062 | 24 | `mAP@ 0.5-0.95` (docling-parse 7 splits after `@`, we before it), `tildelow10%` (its glyph-name mapping; we read `~10%`); words docling-parse 7 glues and we split (`RELATEDWORK`, `ANNOTATIONCAMPAIGN`, `LoganMarkewich`, `→Document` — the #921 clustering clip) |
 | multi_page | 32 | docling-parse 7 maps the list bullet glyph to `∞` and docling keeps it as text (`- ∞ IBM MT/ST …`); we read a bullet and drop it as the marker |
 | table_misidentified_as_form | 70 | the form container's nested table / picture (docling#4064): docling nests them inside the form region and keeps the heading, we flatten the region |
@@ -367,6 +370,17 @@ diff lines and recovers content docling drops):
 * **Runaway TableFormer rows**: a decode that emits `lcel` until `MAX_STEPS`
   without a row break is rejected once a row passes 256 tags and the region
   takes the geometric table path (docling ends at a 1 × 1 table there).
+* **Degenerate TableFormer sequences** (docling#4592, #1000): a predicted
+  OTSL with no row break at all, or one that stops within two tags of the
+  1024-step budget without a final `nl` (cut mid-row), is discarded with a
+  warning, as docling does. docling then emits an empty table whose
+  uncovered in-box words become one text child; the port keeps its
+  geometric table path for the region instead, which keeps every word and
+  still yields a grid. On the corpus one region trips it: DeepSeek-V3's
+  `relative_expert_load_multi_13-18` chart, over-detected as a table, whose
+  decode ran to 1024 tags without closing its last row — the grid that
+  scattered the axis labels across the wrong cells is now the geometric one
+  (one snapshot moved; groundtruth unchanged).
 * **Picture-in-table captions**: a picture inside a table that pairs with a
   caption stays a standalone figure (upstream nests it and loses the
   caption).
@@ -614,7 +628,9 @@ kept). `BboxBook` now stops once a row reaches `MAX_ROW_TAGS` (256; a 448-px
 input cannot resolve that many columns, and real tables stay far below it) and
 the structure is rejected, so the region takes the geometric table path: 12 ×
 17 with all 272 words, and 2.8 s of decoding instead of 14.3 s. A long table
-that fills `MAX_STEPS` with ordinary rows is unaffected. Snapshots 97/97
+that fills `MAX_STEPS` with ordinary rows keeps its structure when the budget
+ends on a row break; since docling#4592 (#1000) one cut mid-row is rejected
+like a sequence with no row break at all. Snapshots 97/97
 byte-identical; groundtruth unchanged.
 
 **Heading levels (#302, opt-in).** With `--heading-hierarchy` (off by default —

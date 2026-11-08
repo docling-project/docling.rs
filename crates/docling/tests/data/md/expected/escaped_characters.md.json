@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "escaped_characters",
   "origin": {
     "mimetype": "text/plain",
@@ -275,8 +275,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "The pipe symbol (| or",
-      "text": "The pipe symbol (| or"
+      "orig": "The pipe symbol (| or ",
+      "text": "The pipe symbol (| or "
     },
     {
       "self_ref": "#/texts/12",

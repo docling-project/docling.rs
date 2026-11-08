@@ -4,8 +4,9 @@
 //!
 //! * **legacy** (`strict = false`, the default) reproduces docling's
 //!   `MarkdownDocumentBackend` (marko) + docling-core serializer round-trip,
-//!   quirks and all: inline content split into "runs" rejoined with single
-//!   spaces (`***x***.` → `***x*** .`), `_`/`&<>` escaping, HTML entities
+//!   quirks and all: inline content split into "runs" that keep their own
+//!   boundary whitespace (docling#3891, `***x***.` stays `***x***.`),
+//!   `_`/`&<>` escaping, HTML entities
 //!   decoded then re-escaped, and a lone inline-code paragraph turned into a
 //!   code block.
 //! * **strict** (`strict = true`) emits cleaner, more conformant Markdown:
@@ -822,7 +823,7 @@ impl MarkdownBackend {
                     }
                     let runs = self.collect_inline(events, i, false);
                     consume_end(events, i);
-                    let text = self.join_runs(&runs, false);
+                    let text = self.block_text(&runs);
                     if !text.is_empty() {
                         out.push(Node::Paragraph { text });
                     }
@@ -832,7 +833,7 @@ impl MarkdownBackend {
                     *i += 1;
                     let runs = self.collect_inline(events, i, false);
                     consume_end(events, i);
-                    let text = self.join_runs(&runs, false);
+                    let text = self.block_text(&runs);
                     if !text.is_empty() {
                         out.push(Node::Heading { level: lvl, text });
                     }
@@ -955,7 +956,7 @@ impl MarkdownBackend {
             return None;
         }
         let mut j = start + 1;
-        let alt = self.join_runs(&self.collect_inline(events, &mut j, false), false);
+        let alt = self.block_text(&self.collect_inline(events, &mut j, false));
         let mut nodes = vec![Node::Picture {
             caption: Some(escape_text(title)).filter(|t| !t.is_empty()),
             caption_href: None,
@@ -1035,7 +1036,7 @@ impl MarkdownBackend {
                         ordered,
                         number,
                         first_in_list,
-                        self.join_runs(&runs, false),
+                        self.block_text(&runs),
                         level,
                     );
                 }
@@ -1047,7 +1048,7 @@ impl MarkdownBackend {
                         ordered,
                         number,
                         first_in_list,
-                        self.join_runs(&runs, false),
+                        self.block_text(&runs),
                         level,
                     );
                 }
@@ -1188,8 +1189,10 @@ impl MarkdownBackend {
                     let inner = self.join_runs(&self.collect_inline(events, i, table), table);
                     consume_end(events, i);
                     // A table cell keeps its links too (docling 2.140 prints
-                    // `[label](url)` in a cell).
-                    runs.push(docling_core::hyperlink::markdown_link(&inner, &url));
+                    // `[label](url)` in a cell); edge whitespace is hoisted.
+                    runs.push(docling_core::inline::hoist(&inner, |core| {
+                        docling_core::hyperlink::markdown_link(core, &url)
+                    }));
                 }
                 Event::Start(Tag::Image {
                     dest_url, title, ..
@@ -1252,10 +1255,12 @@ impl MarkdownBackend {
                 runs.push(format!("{m}{inner_prev}{sep}{inner_new}{m}"));
             }
             _ => {
+                // The break still separates runs that cannot merge: a
+                // newline, or a space for a soft break (docling#3891).
                 runs.push(prev);
                 runs.push(match brk {
                     Break::Hard => format!("\n{new}"),
-                    Break::Soft => new,
+                    Break::Soft => format!(" {new}"),
                 });
             }
         }
@@ -1265,8 +1270,10 @@ impl MarkdownBackend {
         *i += 1;
         let inner = self.join_runs(&self.collect_inline(events, i, table), table);
         consume_end(events, i);
-        // A table cell keeps its formatting too (docling#4488, 2.135).
-        format!("{marker}{inner}{marker}")
+        // A table cell keeps its formatting too (docling#4488, 2.135). The
+        // runs' edge whitespace goes outside the markers (docling-core's
+        // `hoist_decoration_whitespace`, #997): `**bold** tail`.
+        docling_core::inline::hoist(&inner, |core| format!("{marker}{core}{marker}"))
     }
 
     /// Push one text event as a run. Legacy (non-table) trims and escapes
@@ -1282,19 +1289,38 @@ impl MarkdownBackend {
             if !text.is_empty() {
                 runs.push(text.to_string());
             }
-        } else {
-            let trimmed = text.trim();
-            if !trimmed.is_empty() {
-                runs.push(escape_html(&escape_underscores(trimmed)));
-            }
+        } else if !text.is_empty() {
+            // The raw fragment, its edge whitespace kept: that is the run
+            // boundary docling's runs carry since docling#3891 (`Foo
+            // *emph* bar` → `"Foo "`, `"emph"`, `" bar"`), and a
+            // whitespace-only fragment between runs is significant. Block
+            // edges are trimmed by [`Self::block_text`].
+            let (lead, core, trail) = docling_core::inline::split_edges(text);
+            runs.push(format!(
+                "{lead}{}{trail}",
+                escape_html(&escape_underscores(core))
+            ));
         }
     }
 
-    /// Join runs. Legacy (and all table cells) drops empty runs and separates
-    /// with single spaces; strict (non-table) concatenates verbatim, preserving
-    /// the source spacing carried in the text runs.
+    /// A block's runs joined, its outer edges trimmed (the runs keep the
+    /// interior boundaries).
+    fn block_text(&self, runs: &[String]) -> String {
+        let text = self.join_runs(runs, false);
+        if self.strict {
+            text
+        } else {
+            text.trim().to_string()
+        }
+    }
+
+    /// Join runs. Table cells drop empty runs and separate with single
+    /// spaces; elsewhere the runs are concatenated verbatim, preserving the
+    /// source spacing carried in the text runs.
     fn join_runs(&self, runs: &[String], table: bool) -> String {
-        if self.strict && !table {
+        // Outside a table both modes concatenate: legacy runs carry their
+        // boundary whitespace too since docling#3891 (#997).
+        if !table {
             runs.concat()
         } else {
             runs.iter()
@@ -1535,11 +1561,13 @@ mod tests {
     }
 
     #[test]
-    fn inline_runs_get_spaced_in_legacy() {
+    fn inline_runs_keep_their_own_spacing_in_legacy() {
+        // docling#3891 (#997): the runs carry their whitespace, no invented
+        // space before the period.
         let doc = convert("Foo *emphasis* **strong** ***both***.\n");
         assert_eq!(
             doc.export_to_markdown(),
-            "Foo *emphasis* **strong** ***both*** .\n"
+            "Foo *emphasis* **strong** ***both***.\n"
         );
     }
 

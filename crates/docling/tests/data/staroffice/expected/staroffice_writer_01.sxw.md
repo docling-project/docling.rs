@@ -4,7 +4,7 @@
 
 ## Allgemeines
 
-Dieses Dokument stammt aus einer OpenOffice.org 1.x Registratur und wurde ohne Konvertierung übernommen. Es enthält  **fette**  und  *kursive*  Stellen,  ~~gestrichenen~~  sowie  unterstrichenen  Text und eine Fußnote 1 .
+Dieses Dokument stammt aus einer OpenOffice.org 1.x Registratur und wurde ohne Konvertierung übernommen. Es enthält **fette** und *kursive* Stellen, ~~gestrichenen~~ sowie unterstrichenen Text und eine Fußnote1.
 
 ### Ablage
 

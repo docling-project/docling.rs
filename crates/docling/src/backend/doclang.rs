@@ -50,7 +50,10 @@ impl DeclarativeBackend for DoclangBackend {
         // The JSON export reads docling's item tree (see `doclang_tree`);
         // the deserializer lays every document out on 512×512 pages, one
         // per `<page_break>`, which the export's page map is built from.
-        let (tree, pages) = super::doclang_tree::build(root, pkg.as_mut());
+        let (mut tree, pages) = super::doclang_tree::build(root, pkg.as_mut());
+        // DocLang's reading rules give every run its own whitespace — the
+        // runs schema 1.11.0 expects (#997).
+        tree.inline_whitespace = true;
         doc.tree = Some(tree);
         for page_no in 1..=pages {
             doc.push(Node::PageInfo {
@@ -300,17 +303,31 @@ fn collect_inline(el: XmlNode, parts: &mut Vec<String>, inline: &mut Inline) {
                         parts.push(raw.to_string());
                     }
                 } else {
-                    // Per-line indentation is pretty-printer layout; the line
-                    // breaks *inside* one text node are content (a multi-line
-                    // inline group keeps them through docling's round-trip).
+                    // DocLang 0.9's reading rule (docling-core#693): a
+                    // whitespace sequence reads as one space — a run's edge
+                    // whitespace is its boundary — and none at the block's
+                    // edges (`parse_inline` trims). Per-line indentation is
+                    // pretty-printer layout; the line breaks *inside* one
+                    // text node are content (a multi-line inline group keeps
+                    // them through docling's round-trip).
                     let kept = raw
                         .lines()
                         .map(str::trim)
                         .filter(|l| !l.is_empty())
                         .collect::<Vec<_>>()
                         .join("\n");
-                    if !kept.is_empty() {
-                        parts.push(kept);
+                    let lead = raw.starts_with(|c: char| c.is_ascii_whitespace());
+                    let trail = raw.ends_with(|c: char| c.is_ascii_whitespace());
+                    if kept.is_empty() {
+                        if !raw.is_empty() {
+                            parts.push(" ".to_string());
+                        }
+                    } else {
+                        parts.push(format!(
+                            "{}{kept}{}",
+                            if lead { " " } else { "" },
+                            if trail { " " } else { "" }
+                        ));
                     }
                 }
             }
@@ -329,10 +346,9 @@ fn collect_inline(el: XmlNode, parts: &mut Vec<String>, inline: &mut Inline) {
                 // No Markdown marker — the content flattens to plain text.
                 "underline" | "subscript" | "superscript" => parts.push(inline_md(child)),
                 "code" => parts.push(docling_core::code_span(&flatten_text(child))),
-                // docling's inline formula serializes space-padded (" $eq$ "),
-                // which stacks with a neighbour's own boundary space into the
-                // double-space the reference shows.
-                "formula" => parts.push(format!(" ${}$ ", raw_text(child))),
+                // An inline formula run: its neighbours carry the spaces
+                // (docling-core 2.106's faithful join, #997).
+                "formula" => parts.push(format!("${}$", raw_text(child))),
                 "href" => inline.href = attr(child, "uri").map(str::to_string),
                 "layer" => inline.layer = parse_layer(child),
                 "checkbox" => inline.checkbox = Some(attr(child, "class") == Some("selected")),
@@ -360,23 +376,27 @@ fn wrap_md(el: XmlNode, marker: &str) -> String {
     if inner.is_empty() {
         String::new()
     } else {
-        format!("{marker}{inner}{marker}")
+        // Edge whitespace goes outside the markers (#997).
+        docling_core::inline::hoist(&inner, |core| format!("{marker}{core}{marker}"))
     }
 }
 
-/// Join inline fragments with single spaces — the deserializer reads each
-/// pretty-printed line as one text node, and sibling nodes are separated by
-/// the layout newline the emitter wrote, which renders as a space.
+/// Join inline fragments as they are: each carries its own boundary
+/// whitespace (a pretty-printed layout newline reads as a space).
 fn join_inline(parts: Vec<String>) -> String {
     let mut s = String::new();
     for part in parts {
         if part.is_empty() {
             continue;
         }
-        if !s.is_empty() && !s.ends_with(' ') && !part.starts_with(' ') {
-            s.push(' ');
+        // The runs carry their own boundary whitespace (DocLang 0.9,
+        // schema 1.11.0, #997): concatenate, one space where both sides
+        // bring one.
+        if s.ends_with(' ') && part.starts_with(' ') {
+            s.push_str(&part[1..]);
+        } else {
+            s.push_str(&part);
         }
-        s.push_str(&part);
     }
     // No trim here: iterative assembly relies on boundary spaces surviving
     // between rounds (a `<content>` trailing space + a formula's leading space
@@ -411,13 +431,13 @@ fn flatten_text(el: XmlNode) -> String {
         if is_cdata(n) {
             parts.push(raw.to_string());
         } else {
-            let collapsed = collapse_ws(raw);
+            let collapsed = collapse_ws_edges(raw);
             if !collapsed.is_empty() {
                 parts.push(collapsed);
             }
         }
     }
-    join_inline(parts)
+    join_inline(parts).trim().to_string()
 }
 
 /// A code block's text: CDATA verbatim; plain text trimmed of the layout
@@ -445,6 +465,31 @@ fn is_cdata(n: XmlNode) -> bool {
 
 fn collapse_ws(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// [`collapse_ws`] keeping one space for edge whitespace — a text node's
+/// boundary with its neighbours (DocLang 0.9, #997); a whitespace-only node
+/// is that one space.
+fn collapse_ws_edges(s: &str) -> String {
+    let core = collapse_ws(s);
+    if core.is_empty() {
+        return if s.is_empty() {
+            String::new()
+        } else {
+            " ".into()
+        };
+    }
+    let lead = if s.starts_with(char::is_whitespace) {
+        " "
+    } else {
+        ""
+    };
+    let trail = if s.ends_with(char::is_whitespace) {
+        " "
+    } else {
+        ""
+    };
+    format!("{lead}{core}{trail}")
 }
 
 /// Drop the Markdown emphasis markers a `<text>`-wrapped list-item body picked
@@ -595,7 +640,7 @@ fn parse_list(el: XmlNode, level: u8, out: &mut Vec<Node>) {
                     let frag = if is_cdata(child) {
                         raw.to_string()
                     } else {
-                        collapse_ws(raw)
+                        collapse_ws_edges(raw)
                     };
                     if !frag.is_empty() {
                         let joined = join_inline(vec![std::mem::take(&mut inline.text), frag]);
@@ -617,8 +662,8 @@ fn collect_inline_single(el: XmlNode, parts: &mut Vec<String>, inline: &mut Inli
         "strikethrough" => parts.push(wrap_md(el, "~~")),
         "underline" | "subscript" | "superscript" => parts.push(inline_md(el)),
         "code" => parts.push(docling_core::code_span(&flatten_text(el))),
-        // Leading space per docling's inline formula serialization.
-        "formula" => parts.push(format!(" ${}$ ", raw_text(el))),
+        // An inline formula run: its neighbours carry the spaces (#997).
+        "formula" => parts.push(format!("${}$", raw_text(el))),
         "href" => inline.href = attr(el, "uri").map(str::to_string),
         "layer" => inline.layer = parse_layer(el),
         "location" => {}
@@ -703,11 +748,17 @@ fn parse_table(el: XmlNode) -> Option<Table> {
                     other => {
                         if let Some((_, inline)) = cell.as_mut() {
                             let block = |inline: &mut Inline, seg: String| {
+                                let seg = seg.trim();
                                 if !seg.is_empty() {
+                                    // The text before keeps its boundary
+                                    // space (#997); the block separator
+                                    // replaces it.
+                                    let kept = inline.text.trim_end().len();
+                                    inline.text.truncate(kept);
                                     if !inline.text.is_empty() {
                                         inline.text.push_str("  ");
                                     }
-                                    inline.text.push_str(&seg);
+                                    inline.text.push_str(seg);
                                 }
                             };
                             match other {
@@ -763,7 +814,7 @@ fn parse_table(el: XmlNode) -> Option<Table> {
                     let frag = if is_cdata(child) {
                         raw.to_string()
                     } else {
-                        collapse_ws(raw)
+                        collapse_ws_edges(raw)
                     };
                     if !frag.is_empty() {
                         let joined = join_inline(vec![std::mem::take(&mut inline.text), frag]);
@@ -922,7 +973,7 @@ fn flatten_cell_list(el: XmlNode) -> String {
                     let frag = if is_cdata(child) {
                         raw.to_string()
                     } else {
-                        collapse_ws(raw)
+                        collapse_ws_edges(raw)
                     };
                     if !frag.is_empty() {
                         *cur = join_inline(vec![std::mem::take(cur), frag]);

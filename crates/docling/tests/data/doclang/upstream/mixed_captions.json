@@ -1,7 +1,7 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
-  "name": "Document",
+  "version": "1.11.0",
+  "name": "mixed_captions",
   "origin": {
     "mimetype": "application/xml",
     "binary_hash": 10933577168423418725,
@@ -134,8 +134,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Table",
-      "text": "Table"
+      "orig": "Table ",
+      "text": "Table "
     },
     {
       "self_ref": "#/texts/2",
@@ -193,8 +193,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Figure",
-      "text": "Figure"
+      "orig": "Figure ",
+      "text": "Figure "
     },
     {
       "self_ref": "#/texts/6",
@@ -279,8 +279,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Located",
-      "text": "Located"
+      "orig": "Located ",
+      "text": "Located "
     },
     {
       "self_ref": "#/texts/11",
@@ -310,8 +310,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "caption",
-      "text": "caption"
+      "orig": " caption",
+      "text": " caption"
     }
   ],
   "pictures": [

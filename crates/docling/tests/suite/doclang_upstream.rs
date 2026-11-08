@@ -11,6 +11,12 @@
 //! `<name>.dclg` (`.convert()`, then `export_to_markdown()`,
 //! `export_to_dict()` and `export_to_html()`). Re-create a reference with
 //! upstream's backend, never from our own output.
+//!
+//! Recaptured with docling 2.148.0 / docling-core 2.106.0 for DocLang 0.9's
+//! reading rule and the faithful inline join (#997): a whitespace sequence
+//! reads as one space on its run, none at the block's edges. One field moved
+//! by hand: 2.148's deserializer names the document `Document`; the
+//! references keep the file stem, as the 2.140 capture did.
 use std::fs;
 use std::path::{Path, PathBuf};
 

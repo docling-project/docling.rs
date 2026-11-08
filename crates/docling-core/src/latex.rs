@@ -68,20 +68,24 @@ pub fn to_latex(doc: &DoclingDocument) -> String {
     let parts = render_nodes(&doc.nodes, 1, false);
     let mut body = parts.join("\n\n");
 
-    // Hoist the first `\title{…}` (no nested braces — upstream's regex) into
-    // the preamble, drop every such occurrence from the body, collapse the
-    // blank runs that leaves behind.
+    // Hoist the first `\title{…}` into the preamble, drop every such
+    // occurrence from the body, collapse the blank runs that leaves behind.
+    // The group is closed by brace depth, escaped braces skipped
+    // (docling-core#983), so a formatted title (`\title{\textbf{Bold}}`) or
+    // one with `\{` is hoisted too; an unclosed one stays in the body.
     let mut title_cmd: Option<String> = None;
-    if let Some(first) = find_title(&body, 0) {
-        title_cmd = Some(format!("\\title{{{}}}", &body[first.1..first.2]));
-        let mut out = String::with_capacity(body.len());
-        let mut pos = 0;
-        let mut cur = Some(first);
-        while let Some((start, _, end)) = cur {
-            out.push_str(&body[pos..start]);
-            pos = end + 1;
-            cur = find_title(&body, pos);
+    let mut out = String::with_capacity(body.len());
+    let mut pos = 0;
+    let mut search = 0;
+    while let Some((start, content_start, close)) = find_title(&body, search) {
+        if title_cmd.is_none() {
+            title_cmd = Some(format!("\\title{{{}}}", &body[content_start..close]));
         }
+        out.push_str(&body[pos..start]);
+        pos = close + 1;
+        search = pos;
+    }
+    if title_cmd.is_some() {
         out.push_str(&body[pos..]);
         body = collapse_blank_runs(&out).trim().to_string();
     }
@@ -109,24 +113,40 @@ pub fn to_latex(doc: &DoclingDocument) -> String {
     }
 }
 
-/// Upstream's `\\title\s*\{([^{}]*)\}`: returns (match start, content start,
-/// closing-brace index) of the first match at or after `from`.
+/// Upstream's `_post_process_title` scan (docling-core#983): a
+/// `\\title\s*\{` match, closed where the brace depth returns to zero over
+/// `\\.|[{}]` tokens (so `\{` / `\}` do not count). Returns (match start,
+/// content start, closing-brace index) of the first closed one at or after
+/// `from`; an unclosed match is skipped, as upstream leaves it in the body.
 fn find_title(text: &str, from: usize) -> Option<(usize, usize, usize)> {
+    let bytes = text.as_bytes();
     let mut search = from;
     while let Some(rel) = text[search..].find("\\title") {
         let start = search + rel;
         let mut i = start + "\\title".len();
-        let bytes = text.as_bytes();
         while i < bytes.len() && bytes[i].is_ascii_whitespace() {
             i += 1;
         }
         if bytes.get(i) == Some(&b'{') {
             let content_start = i + 1;
-            if let Some(rel_end) = text[content_start..].find(['{', '}']) {
-                let end = content_start + rel_end;
-                if bytes[end] == b'}' {
-                    return Some((start, content_start, end));
+            let mut depth = 1usize;
+            let mut j = content_start;
+            while j < bytes.len() {
+                match bytes[j] {
+                    // `\\.` with DOTALL: the escaped character, whatever it
+                    // is (a multi-byte one is never a brace, so skipping
+                    // one byte and resuming on a continuation byte is safe).
+                    b'\\' => j += 1,
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            return Some((start, content_start, j));
+                        }
+                    }
+                    _ => {}
                 }
+                j += 1;
             }
         }
         search = start + 1;
@@ -995,18 +1015,55 @@ mod tests {
         assert!(!tex.ends_with('\n'));
     }
 
+    /// docling-core#983's `test_latex_title_with_braces`: a title with
+    /// formatting or escaped braces is hoisted into the preamble, once.
     #[test]
-    fn title_with_braces_stays_in_the_body() {
-        // Upstream's hoisting regex refuses nested braces: an escaped `{`
-        // in the title keeps the `\title` inline and adds no `\maketitle`.
+    fn title_with_braces_is_hoisted() {
+        for (text, expected) in [
+            ("Plain", r"\title{Plain}"),
+            ("**Bold**", r"\title{\textbf{Bold}}"),
+            ("**Bold** title", r"\title{\textbf{Bold} title}"),
+            ("Set {a}", r"\title{Set \{a\}}"),
+            ("Unmatched {", r"\title{Unmatched \{}"),
+        ] {
+            let mut doc = DoclingDocument::new("t");
+            doc.push(Node::Heading {
+                level: 1,
+                text: text.into(),
+            });
+            doc.push(Node::Paragraph {
+                text: "Body remains.".into(),
+            });
+            let tex = to_latex(&doc);
+            let at = tex
+                .find(expected)
+                .unwrap_or_else(|| panic!("{text}: {tex}"));
+            assert!(at < tex.find(r"\begin{document}").unwrap(), "{tex}");
+            assert_eq!(tex.matches(r"\maketitle").count(), 1, "{tex}");
+            assert!(tex.find(r"\maketitle").unwrap() < tex.find("Body remains.").unwrap());
+        }
+    }
+
+    /// `test_latex_keeps_first_title_when_later_title_is_formatted`.
+    #[test]
+    fn first_title_wins_when_a_later_one_is_formatted() {
         let mut doc = DoclingDocument::new("t");
-        doc.push(Node::Heading {
-            level: 1,
-            text: "a {b}".into(),
-        });
+        for (title, body) in [
+            ("**First**", "Between titles."),
+            ("*Second*", "After titles."),
+        ] {
+            doc.push(Node::Heading {
+                level: 1,
+                text: title.into(),
+            });
+            doc.push(Node::Paragraph { text: body.into() });
+        }
         let tex = to_latex(&doc);
-        assert!(tex.contains("\\begin{document}\n\n\\title{a \\{b\\}}\n\n\\end{document}"));
-        assert!(!tex.contains("\\maketitle"));
+        assert_eq!(tex.matches(r"\title{").count(), 1, "{tex}");
+        assert!(tex.contains(r"\title{\textbf{First}}"), "{tex}");
+        assert!(!tex.contains("Second"), "{tex}");
+        assert_eq!(tex.matches(r"\maketitle").count(), 1);
+        assert!(tex.contains("Between titles.") && tex.contains("After titles."));
     }
 
     #[test]

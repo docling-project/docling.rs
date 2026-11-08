@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "pii_sample",
   "origin": {
     "mimetype": "text/plain",
@@ -109,8 +109,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "Contact",
-      "text": "Contact"
+      "orig": "Contact ",
+      "text": "Contact "
     },
     {
       "self_ref": "#/texts/3",
@@ -121,8 +121,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "john.doe@example.com",
-      "text": "john.doe@example.com",
+      "orig": "john.doe@example.com ",
+      "text": "john.doe@example.com ",
       "hyperlink": "mailto:john.doe@example.com"
     },
     {
@@ -134,8 +134,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "or",
-      "text": "or"
+      "orig": "or ",
+      "text": "or "
     },
     {
       "self_ref": "#/texts/5",
@@ -146,8 +146,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "+1 (555) 123-4567",
-      "text": "+1 (555) 123-4567",
+      "orig": "+1 (555) 123-4567 ",
+      "text": "+1 (555) 123-4567 ",
       "formatting": {
         "bold": true,
         "italic": false,

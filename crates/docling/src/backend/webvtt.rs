@@ -94,6 +94,9 @@ impl DeclarativeBackend for WebVttBackend {
             }
         }
         append_cues(&mut doc, &mut tree, body);
+        // A cue's runs keep their own whitespace, as docling-core's WebVTT
+        // reader gives them (schema 1.11.0, #997).
+        tree.inline_whitespace = true;
         doc.tree = Some(tree);
         Ok(doc)
     }
@@ -117,7 +120,10 @@ pub(crate) fn append_cues(doc: &mut DoclingDocument, tree: &mut ItemTree, body: 
             if para.is_empty() {
                 continue;
             }
-            let text = para.iter().map(serialize_run).collect::<Vec<_>>().join(" ");
+            // The runs carry their own whitespace (the tree's are schema
+            // 1.11.0's); concatenated as docling-core 2.106 does (#997).
+            let text = para.iter().map(serialize_run).collect::<String>();
+            let text = text.trim().to_string();
             if !text.is_empty() {
                 doc.push(Node::Paragraph { text });
             }
@@ -444,7 +450,13 @@ fn extract_components(comps: &[Comp], parents: &mut Vec<Meta>, paras: &mut Vec<V
 /// Wrap a run's (escaped) text in its Markdown markers — bold inner, italic
 /// outer, so bold+italic collapses to `***…***`. Underline carries none.
 fn serialize_run(run: &Run) -> String {
-    let mut s = escape_text(&run.text);
+    // Edge whitespace goes outside the markers; a whitespace-only run is
+    // returned as it is (docling-core's `hoist_decoration_whitespace`).
+    docling_core::inline::hoist(&run.text, |core| serialize_core(run, core))
+}
+
+fn serialize_core(run: &Run, text: &str) -> String {
+    let mut s = escape_text(text);
     let fmt = run.meta.formatting.unwrap_or_default();
     if fmt.bold {
         s = format!("**{s}**");
@@ -482,7 +494,7 @@ mod tests {
     fn text_after_multiline_span_stays_in_reading_order() {
         let out =
             md("WEBVTT\n\n00:00:01.000 --> 00:00:05.000\n<v Bob>Hello\nthere</v> and afterwards\n");
-        assert_eq!(out.trim(), "Hello\n\nthere  and afterwards");
+        assert_eq!(out.trim(), "Hello\n\nthere and afterwards");
     }
 
     /// docling-core#744: karaoke cue timestamps (`<00:00:00.389>`) are stripped
@@ -508,12 +520,12 @@ mod tests {
     }
 
     #[test]
-    fn nested_spans_serialize_with_inline_join() {
+    fn nested_spans_serialize_with_the_faithful_join() {
         // bold inside italic → ***x***; lang is transparent; components joined
         // with single spaces (so the un-stripped span spacing is preserved).
         let out = md("WEBVTT\n\n00:01.000 --> 00:02.000\n\
              a <i>b <lang es>c</lang></i> d\n");
-        assert_eq!(out.trim(), "a  *b * *c*  d");
+        assert_eq!(out.trim(), "a *b* *c* d");
     }
 
     /// The JSON tree: a `title`, a `text` per single-run line with the cue's
@@ -566,8 +578,8 @@ mod tests {
         let cue = |text: &str| md(&format!("WEBVTT\n\n00:01.000 --> 00:02.000\n{text}\n"));
         assert_eq!(cue("<i>I'm thinking about").trim(), "*I'm thinking about*");
         assert_eq!(cue("what she said</i>").trim(), "what she said");
-        assert_eq!(cue("He said <i>stop").trim(), "He said  *stop*");
-        assert_eq!(cue("<v Bob>Hi <b>there").trim(), "Hi  **there**");
+        assert_eq!(cue("He said <i>stop").trim(), "He said *stop*");
+        assert_eq!(cue("<v Bob>Hi <b>there").trim(), "Hi **there**");
         assert_eq!(cue("<i>a <b>b</i></b>").trim(), "");
         let v: serde_json::Value = serde_json::from_str(
             &convert("WEBVTT\n\n00:01.000 --> 00:02.000\n<v Bob>Hi <b>there\n").export_to_json(),
