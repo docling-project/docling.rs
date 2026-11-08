@@ -104,15 +104,26 @@ fn check_table_budget(root: &Value) -> Result<(), ConversionError> {
     Ok(())
 }
 
+/// The JSON pointer of a reference: `$ref`, or `cref` — docling-core's
+/// `RefItem` is `cref` with the `$ref` alias and `populate_by_name`, so a
+/// document written by field name (`{"cref": "#/texts/3"}`, upstream's
+/// `table_footnotes_496.json` and docling-core's own test files) is the
+/// same document (#1014).
+fn ref_str(reference: &Value) -> Option<&str> {
+    reference["$ref"]
+        .as_str()
+        .or_else(|| reference["cref"].as_str())
+}
+
 /// Resolve a `{"$ref": "#/texts/3"}` reference into its array element.
 fn resolve<'a>(reference: &Value, root: &'a Value) -> Option<&'a Value> {
-    let path = reference["$ref"].as_str()?.strip_prefix("#/")?;
+    let path = ref_str(reference)?.strip_prefix("#/")?;
     let (kind, idx) = path.rsplit_once('/')?;
     root.get(kind)?.get(idx.parse::<usize>().ok()?)
 }
 
 fn ref_kind(reference: &Value) -> &str {
-    reference["$ref"].as_str().unwrap_or("")
+    ref_str(reference).unwrap_or("")
 }
 
 fn text_of(reference: &Value, root: &Value) -> String {
@@ -310,7 +321,7 @@ fn grid_location(prov: &Prov, g: &WalkGuard) -> Option<[u16; 4]> {
 const MAX_DEPTH: usize = 256;
 
 fn walk(reference: &Value, root: &Value, level: u8, doc: &mut DoclingDocument, g: &mut WalkGuard) {
-    let key = reference["$ref"].as_str().unwrap_or("");
+    let key = ref_kind(reference);
     if g.depth >= MAX_DEPTH || !g.seen.insert(key.to_string()) {
         return;
     }
@@ -468,8 +479,29 @@ fn text_node(
                 doc.push(Node::Caption { text, href: None });
             }
         }
-        _ => doc.push(Node::Paragraph { text }), // text, paragraph, footnote, …
+        // text, paragraph, footnote, … A linked one keeps its link as the
+        // item's `hyperlink` (#1014), not as `[x](url)` baked into its text —
+        // which the HTML export then printed literally. The Markdown is the
+        // same `[x](url)` either way (`Node::labeled_as_paragraph`). A
+        // formatted link stays a paragraph: the node has no formatting.
+        _ => match item["hyperlink"].as_str() {
+            Some(url) if !has_formatting(item) => doc.push(Node::LabeledText {
+                label: label.to_string(),
+                text: escape_text(item["text"].as_str().unwrap_or("")),
+                href: Some(url.to_string()),
+            }),
+            _ => doc.push(Node::Paragraph { text }),
+        },
     }
+}
+
+/// Whether bold, italic or strikethrough — what [`formatted_text`] marks
+/// up — is set on the item.
+fn has_formatting(item: &Value) -> bool {
+    let fmt = &item["formatting"];
+    ["bold", "italic", "strikethrough"]
+        .iter()
+        .any(|k| fmt[*k].as_bool() == Some(true))
 }
 
 fn group_item(item: &Value, root: &Value, level: u8, doc: &mut DoclingDocument, g: &mut WalkGuard) {
@@ -619,6 +651,10 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
     // triplet serialization see docling's header/span structure, not just the
     // flattened text grid.
     let mut structure = docling_core::TableStructure::default();
+    // Whether the file states the header flags at all — docling's export
+    // writes `column_header` on every cell, so all-`false` means "no header"
+    // (#1042), not "unknown".
+    let mut declares_headers = false;
     if let Some(grid) = item["data"]["grid"].as_array() {
         for (r, row) in grid.iter().enumerate() {
             let Some(cells) = row.as_array() else {
@@ -635,6 +671,7 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
             let past = |cell: &Value, key: &str, idx: usize| {
                 cell[key].as_u64().is_some_and(|v| (v as usize) < idx)
             };
+            declares_headers |= cells.iter().any(|c| c["column_header"].is_boolean());
             structure
                 .col_header
                 .push(flags(cells, |c| c["column_header"].as_bool() == Some(true)));
@@ -662,7 +699,12 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
         doc.push(Node::Table(Table {
             rows,
             location: None,
-            structure: has_structure.then_some(structure),
+            // Stated flags are kept even when every one is `false`: `None`
+            // makes `Table::derive_cells` promote row 0 to the header the
+            // file says it is not, and the reloaded document chunks
+            // differently from the one exported (#1042). A JSON without the
+            // keys keeps `None` and the row-0 default.
+            structure: (has_structure || declares_headers).then_some(structure),
             cell_blocks: None,
             cells: None,
             caption: caption_of(item, root),
@@ -754,11 +796,11 @@ fn picture_classification(item: &Value) -> Option<Vec<docling_core::PictureClass
 /// order — or, anywhere else, docling's `add_text` default, the body.
 fn caption_parent_of(item: &Value, root: &Value) -> CaptionParent {
     let cap = &item["captions"][0];
-    let Some(cap_ref) = cap["$ref"].as_str() else {
+    let Some(cap_ref) = ref_str(cap) else {
         return CaptionParent::Body;
     };
     let cap_parent = resolve(cap, root)
-        .and_then(|c| c["parent"]["$ref"].as_str())
+        .and_then(|c| ref_str(&c["parent"]))
         .unwrap_or("#/body");
     let self_ref = item["self_ref"].as_str().unwrap_or("");
     let item_parent = &item["parent"];
@@ -770,7 +812,7 @@ fn caption_parent_of(item: &Value, root: &Value) -> CaptionParent {
                 .get("children")?
                 .as_array()?
                 .iter()
-                .position(|c| c["$ref"] == r)
+                .position(|c| ref_str(c) == Some(r))
         };
         match (pos(cap_ref), pos(self_ref)) {
             (Some(c), Some(i)) if c > i => CaptionParent::ContainerAfter,
@@ -900,7 +942,7 @@ fn caption_is_claimed(item: &Value, root: &Value) -> bool {
             items.iter().any(|it| {
                 it["captions"]
                     .as_array()
-                    .is_some_and(|caps| caps.iter().any(|c| c["$ref"].as_str() == Some(me)))
+                    .is_some_and(|caps| caps.iter().any(|c| ref_str(c) == Some(me)))
             })
         })
     })
@@ -1543,5 +1585,115 @@ mod tests {
             md.starts_with("# Doc\n\n## [Sec](http://x)\n\n- one\n- **two**"),
             "got:\n{md}"
         );
+    }
+
+    fn convert(json: &str) -> DoclingDocument {
+        DoclingJsonBackend
+            .convert(&SourceDocument::from_bytes(
+                "t.json",
+                InputFormat::JsonDocling,
+                json.as_bytes().to_vec(),
+            ))
+            .unwrap()
+    }
+
+    /// #1014: docling-core's `RefItem` is `cref` with the `$ref` alias, so a
+    /// file written by field name reads like a `$ref` one — it converted to
+    /// an empty document.
+    #[test]
+    fn cref_references_read_like_dollar_ref() {
+        let doc = |key: &str| {
+            format!(
+                r##"{{"schema_name":"DoclingDocument","name":"n",
+                "body":{{"children":[{{"{key}":"#/texts/0"}},{{"{key}":"#/tables/0"}},{{"{key}":"#/groups/0"}}]}},
+                "texts":[
+                  {{"self_ref":"#/texts/0","label":"section_header","level":1,"text":"Head","children":[{{"{key}":"#/texts/1"}}]}},
+                  {{"self_ref":"#/texts/1","label":"text","text":"Under the head","parent":{{"{key}":"#/texts/0"}}}},
+                  {{"self_ref":"#/texts/2","label":"caption","text":"Table 1","parent":{{"{key}":"#/tables/0"}}}},
+                  {{"self_ref":"#/texts/3","label":"list_item","text":"item","marker":"-"}}],
+                "groups":[{{"self_ref":"#/groups/0","label":"list","name":"list","children":[{{"{key}":"#/texts/3"}}]}}],
+                "tables":[{{"self_ref":"#/tables/0","label":"table","captions":[{{"{key}":"#/texts/2"}}],
+                  "data":{{"num_rows":1,"num_cols":1,"grid":[[{{"text":"c","column_header":false}}]]}}}}]}}"##
+            )
+        };
+        let with_dollar = md(&doc("$ref"));
+        assert!(with_dollar.contains("Under the head") && with_dollar.contains("Table 1"));
+        assert!(with_dollar.contains("- item"), "{with_dollar}");
+        assert_eq!(md(&doc("cref")), with_dollar);
+        assert_eq!(
+            convert(&doc("cref")).export_to_json(),
+            convert(&doc("$ref")).export_to_json()
+        );
+    }
+
+    /// #1014: a linked text item's HTML export is an `<a href>`, not the
+    /// Markdown link spelled out; the JSON keeps the `hyperlink` and the
+    /// Markdown is unchanged.
+    #[test]
+    fn hyperlinked_text_exports_an_anchor() {
+        let d = convert(
+            r##"{"schema_name":"DoclingDocument","name":"n",
+            "body":{"children":[{"$ref":"#/texts/0"},{"$ref":"#/texts/1"}]},
+            "texts":[{"self_ref":"#/texts/0","label":"text","text":"x","hyperlink":"https://x.org/plain"},
+                     {"self_ref":"#/texts/1","label":"text","text":"b","hyperlink":"https://x.org/b",
+                      "formatting":{"bold":true}}]}"##,
+        );
+        let html = d.export_to_html();
+        assert!(
+            html.contains("<p><a href=\"https://x.org/plain\">x</a></p>"),
+            "{html}"
+        );
+        assert!(!html.contains("[x](https://x.org/plain)"), "{html}");
+        let json: Value = serde_json::from_str(&d.export_to_json()).unwrap();
+        assert_eq!(json["texts"][0]["text"], "x");
+        assert_eq!(json["texts"][0]["hyperlink"], "https://x.org/plain");
+        assert_eq!(
+            d.export_to_markdown(),
+            "[x](https://x.org/plain)\n\n[**b**](https://x.org/b)\n"
+        );
+    }
+
+    /// #1042: a table whose cells all say `column_header: false` reloads
+    /// without a header — row 0 used to be promoted to one, changing the
+    /// triplet chunks and the re-export. Without the keys the row-0
+    /// default stays.
+    #[test]
+    fn all_false_header_flags_survive_a_round_trip() {
+        use crate::chunker::HierarchicalChunker;
+        let html = "<table><tr><td>Year</td><td>Revenue</td></tr><tr><td>2024</td><td>10</td></tr></table>";
+        let original = crate::DocumentConverter::new()
+            .convert(SourceDocument::from_bytes(
+                "t.html",
+                InputFormat::Html,
+                html.as_bytes().to_vec(),
+            ))
+            .unwrap()
+            .document;
+        let json = original.export_to_json();
+        let reloaded = convert(&json);
+        let row0 = |d: &DoclingDocument| -> Vec<bool> {
+            let v: Value = serde_json::from_str(&d.export_to_json()).unwrap();
+            v["tables"][0]["data"]["grid"][0]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| c["column_header"].as_bool().unwrap())
+                .collect()
+        };
+        assert_eq!(row0(&original), [false, false]);
+        assert_eq!(row0(&reloaded), [false, false]);
+        let chunk = |d: &DoclingDocument| HierarchicalChunker.chunk(d)[0].text.clone();
+        assert_eq!(chunk(&original), "Year, 1 = Revenue. 2024, 1 = 10");
+        assert_eq!(chunk(&reloaded), chunk(&original));
+
+        // The same JSON without any `column_header` key: row 0 is the header.
+        let mut v: Value = serde_json::from_str(&json).unwrap();
+        for row in v["tables"][0]["data"]["grid"].as_array_mut().unwrap() {
+            for cell in row.as_array_mut().unwrap() {
+                cell.as_object_mut().unwrap().remove("column_header");
+            }
+        }
+        let keyless = convert(&v.to_string());
+        assert_eq!(chunk(&keyless), "2024, Revenue = 10");
     }
 }
