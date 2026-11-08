@@ -2608,6 +2608,7 @@ fn parse_table_cells(
         .map(|row| row.into_iter().map(Option::unwrap_or_default).collect())
         .collect();
     (!rows.is_empty()).then_some(Table {
+        footnotes: Vec::new(),
         rows,
         location: None,
         structure: Some(docling_core::TableStructure {

@@ -311,6 +311,7 @@ impl SlideOut<'_> {
                     Some(self.group),
                     None,
                     TreeKind::Table {
+                        footnotes: Vec::new(),
                         table: table.clone(),
                         rich_cells: Vec::new(),
                         captions: Vec::new(),

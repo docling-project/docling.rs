@@ -3903,6 +3903,7 @@ pub fn assemble_page(
                 nodes.push(located(
                     loc,
                     Node::Table(Table {
+                        footnotes: Vec::new(),
                         rows,
                         location: None,
                         structure,

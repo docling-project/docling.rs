@@ -81,11 +81,13 @@ pub enum TreeKind {
     /// A `TableItem`. `rich_cells` marks the cells docling serialized as a
     /// `RichTableCell`: `(row, col)` grid anchor → the group item (a child of
     /// the table) that holds the cell's content. `captions` are caption text
-    /// items in the tree.
+    /// items in the tree; `footnotes` its `footnote` text items (children of
+    /// the table, docling's `TableItem.footnotes`, docling-core#675).
     Table {
         table: Table,
         rich_cells: Vec<(usize, usize, usize)>,
         captions: Vec<usize>,
+        footnotes: Vec<usize>,
     },
     /// A `PictureItem`, its caption text items and optional payload.
     /// `classification` is a `PictureClassificationLabel` value written as
@@ -707,12 +709,13 @@ impl ItemTree {
                 TreeKind::Table {
                     rich_cells,
                     captions,
+                    footnotes,
                     ..
                 } => {
                     for (_, _, g) in rich_cells.iter_mut() {
                         *g = shift(*g);
                     }
-                    for c in captions.iter_mut() {
+                    for c in captions.iter_mut().chain(footnotes.iter_mut()) {
                         *c = shift(*c);
                     }
                 }
@@ -801,8 +804,10 @@ impl ItemTree {
                 TreeKind::Table {
                     rich_cells,
                     captions,
+                    footnotes,
                     ..
                 } => {
+                    remap(footnotes);
                     rich_cells.retain_mut(|(_, _, g)| match new_of[*g] {
                         Some(n) => {
                             *g = n;
@@ -1119,6 +1124,7 @@ mod tests {
             Some(title),
             None,
             TreeKind::Table {
+                footnotes: Vec::new(),
                 table: Table::default(),
                 rich_cells: Vec::new(),
                 captions: Vec::new(),
@@ -1259,6 +1265,7 @@ mod tests {
             None,
             None,
             TreeKind::Table {
+                footnotes: Vec::new(),
                 table: Table::default(),
                 rich_cells: Vec::new(),
                 captions: Vec::new(),

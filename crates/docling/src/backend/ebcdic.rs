@@ -245,6 +245,7 @@ impl DeclarativeBackend for EbcdicBackend {
             let mut table_rows = vec![header];
             table_rows.extend(schema_rows);
             doc.push(Node::Table(Table {
+                footnotes: Vec::new(),
                 rows: table_rows,
                 location: None,
                 structure: None,

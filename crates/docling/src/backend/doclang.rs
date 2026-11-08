@@ -886,6 +886,7 @@ fn parse_table(el: XmlNode) -> Option<Table> {
         .map(|k| pad(k).iter().map(|c| *c == CellKind::RowHeader).collect())
         .collect();
     Some(Table {
+        footnotes: Vec::new(),
         rows,
         location: None,
         structure: Some(TableStructure {

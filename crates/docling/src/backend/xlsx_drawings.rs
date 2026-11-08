@@ -444,6 +444,7 @@ pub fn chart_table(
         r[0] = true;
     }
     Some(docling_core::Table {
+        footnotes: Vec::new(),
         rows,
         location: None,
         structure: Some(docling_core::TableStructure {

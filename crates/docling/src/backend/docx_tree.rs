@@ -1709,6 +1709,7 @@ impl Walker {
             self.parent_at(level - 1),
             self.layer,
             TreeKind::Table {
+                footnotes: Vec::new(),
                 table: Table::default(),
                 rich_cells: Vec::new(),
                 captions: Vec::new(),

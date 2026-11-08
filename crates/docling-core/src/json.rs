@@ -1897,6 +1897,7 @@ impl Builder {
                     table,
                     rich_cells,
                     captions,
+                    footnotes,
                 } => {
                     // docling's raw cell text: nothing to unescape or strip.
                     let r = self.add_table_with(table, parent, true);
@@ -1906,6 +1907,8 @@ impl Builder {
                     t.item["content_layer"] = json!(layer);
                     t.item["captions"] =
                         Value::Array(captions.iter().map(|&c| ref_of(c)).collect());
+                    t.item["footnotes"] =
+                        Value::Array(footnotes.iter().map(|&c| ref_of(c)).collect());
                     // A `RichTableCell` is the plain cell plus a `ref` to the
                     // group holding its content — on `table_cells` only; the
                     // derived `grid` shows plain cells.
@@ -2682,6 +2685,16 @@ impl Builder {
             ),
             None => (Vec::new(), Vec::new()),
         };
+        // docling-core#675 (#1009): each footnote is a `footnote` text item
+        // under the table, added after it (docling's backends attach notes
+        // once the table exists) and listed in its `footnotes`.
+        // The item-tree path (`raw`) writes its own footnote items.
+        let (mut children, mut footnotes) = (children, Vec::new());
+        for note in t.footnotes.iter().filter(|n| !raw && !n.is_empty()) {
+            let r = ref_value(self.add_text("footnote", note, &self_ref, json!({})));
+            children.push(r.clone());
+            footnotes.push(r);
+        }
         let data = table_data_with(t, raw);
         let item = json!({
             "self_ref": self_ref,
@@ -2692,7 +2705,7 @@ impl Builder {
             "prov": prov,
             "captions": captions,
             "references": [],
-            "footnotes": [],
+            "footnotes": footnotes,
             // The typed `data` takes this stand-in's place on output.
             "data": null,
             "annotations": [],
@@ -3220,6 +3233,7 @@ mod tests {
             vec!["a".to_string(), "b".into(), "c".into()],
         ];
         doc.push(Node::Table(crate::Table {
+            footnotes: Vec::new(),
             rows,
             location: None,
             structure: Some(crate::TableStructure {
@@ -3672,6 +3686,7 @@ mod tests {
             layer: None,
         });
         doc.push(Node::Table(Table {
+            footnotes: Vec::new(),
             rows: vec![vec!["A".into(), "B".into()]],
             location: None,
             structure: None,
@@ -4279,6 +4294,7 @@ mod tests {
             Some(sub),
             None,
             TreeKind::Table {
+                footnotes: Vec::new(),
                 table: Table {
                     rows: vec![vec!["a  \n&lt;".into(), "b".into()]],
                     cells: Some(vec![

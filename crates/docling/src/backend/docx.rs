@@ -2578,6 +2578,7 @@ fn parse_table_inner(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
         }
     });
     Some(Table {
+        footnotes: Vec::new(),
         rows: grid,
         location: None,
         structure,

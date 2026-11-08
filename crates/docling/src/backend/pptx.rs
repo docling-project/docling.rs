@@ -702,6 +702,7 @@ fn handle_shape_content(shape: XmlNode, ctx: &SlideCtx, out: &mut SlideOut) {
                             Some(out.slide),
                             None,
                             TreeKind::Table {
+                                footnotes: Vec::new(),
                                 table: Table {
                                     rows: table.rows.clone(),
                                     cells: Some(cells),
@@ -1624,6 +1625,7 @@ fn parse_table(tbl: XmlNode) -> Option<Table> {
         .map(|ri| first_row_header && ri == 0)
         .collect();
     Some(Table {
+        footnotes: Vec::new(),
         rows: grid,
         location: None,
         structure: Some(TableStructure {

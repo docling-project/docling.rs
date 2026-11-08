@@ -83,6 +83,7 @@ impl DeclarativeBackend for CsvBackend {
                 row.resize(num_cols, String::new());
             }
             doc.push(Node::Table(Table {
+                footnotes: Vec::new(),
                 rows,
                 location: None,
                 structure: None,
