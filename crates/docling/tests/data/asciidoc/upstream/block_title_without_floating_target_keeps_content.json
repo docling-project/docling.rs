@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "block_title_without_floating_target_keeps_content",
   "origin": {
     "mimetype": "text/asciidoc",
@@ -22,6 +22,9 @@
       },
       {
         "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
       }
     ],
     "content_layer": "body",
@@ -51,8 +54,8 @@
       "content_layer": "body",
       "label": "paragraph",
       "prov": [],
-      "orig": "Procedure Do the thing.",
-      "text": "Procedure Do the thing.",
+      "orig": "Procedure",
+      "text": "Procedure",
       "formatting": {
         "bold": true,
         "italic": false,
@@ -60,6 +63,18 @@
         "strikethrough": false,
         "script": "baseline"
       }
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "paragraph",
+      "prov": [],
+      "orig": "Do the thing.",
+      "text": "Do the thing."
     }
   ],
   "pictures": [],

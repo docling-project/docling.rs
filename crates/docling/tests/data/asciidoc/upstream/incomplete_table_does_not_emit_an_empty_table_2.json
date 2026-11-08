@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "incomplete_table_does_not_emit_an_empty_table_2",
   "origin": {
     "mimetype": "text/asciidoc",
@@ -71,11 +71,11 @@
           },
           {
             "row_span": 1,
-            "col_span": 1,
+            "col_span": 2,
             "start_row_offset_idx": 1,
             "end_row_offset_idx": 2,
             "start_col_offset_idx": 0,
-            "end_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
             "text": "wide",
             "column_header": false,
             "row_header": false,
@@ -118,11 +118,11 @@
           [
             {
               "row_span": 1,
-              "col_span": 1,
+              "col_span": 2,
               "start_row_offset_idx": 1,
               "end_row_offset_idx": 2,
               "start_col_offset_idx": 0,
-              "end_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
               "text": "wide",
               "column_header": false,
               "row_header": false,
@@ -131,12 +131,12 @@
             },
             {
               "row_span": 1,
-              "col_span": 1,
+              "col_span": 2,
               "start_row_offset_idx": 1,
               "end_row_offset_idx": 2,
-              "start_col_offset_idx": 1,
+              "start_col_offset_idx": 0,
               "end_col_offset_idx": 2,
-              "text": "",
+              "text": "wide",
               "column_header": false,
               "row_header": false,
               "row_section": false,
