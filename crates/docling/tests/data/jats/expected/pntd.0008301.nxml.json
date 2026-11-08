@@ -2886,8 +2886,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "CGIAR-CSI. CGIAR-CSI SRTM 90m DEM Digital Elevation Database. In:",
-      "text": "CGIAR-CSI. CGIAR-CSI SRTM 90m DEM Digital Elevation Database. In:"
+      "orig": "CGIAR-CSI. CGIAR-CSI SRTM 90m DEM Digital Elevation Database. In: ",
+      "text": "CGIAR-CSI. CGIAR-CSI SRTM 90m DEM Digital Elevation Database. In: "
     },
     {
       "self_ref": "#/texts/146",
@@ -2911,8 +2911,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "[Internet]. 2008 [cited 1 May 2018]. Available:",
-      "text": "[Internet]. 2008 [cited 1 May 2018]. Available:"
+      "orig": " [Internet]. 2008 [cited 1 May 2018]. Available: ",
+      "text": " [Internet]. 2008 [cited 1 May 2018]. Available: "
     },
     {
       "self_ref": "#/texts/148",
@@ -2954,8 +2954,8 @@
       "content_layer": "body",
       "label": "text",
       "prov": [],
-      "orig": "USGS NASA. Vegetation indices 16-DAy L3 global 500 MOD13A1 dataset [Internet]. [cited 1 May 2018]. Available:",
-      "text": "USGS NASA. Vegetation indices 16-DAy L3 global 500 MOD13A1 dataset [Internet]. [cited 1 May 2018]. Available:"
+      "orig": "USGS NASA. Vegetation indices 16-DAy L3 global 500 MOD13A1 dataset [Internet]. [cited 1 May 2018]. Available: ",
+      "text": "USGS NASA. Vegetation indices 16-DAy L3 global 500 MOD13A1 dataset [Internet]. [cited 1 May 2018]. Available: "
     },
     {
       "self_ref": "#/texts/151",

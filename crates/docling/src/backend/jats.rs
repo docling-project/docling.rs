@@ -829,7 +829,9 @@ fn header_text(child: XmlNode) -> Option<String> {
 /// empty list item holding an inline group of them, as footnotes do.
 /// Outside a list the runs are emitted as a paragraph.
 fn add_mixed_citation(out: &mut Out, parent: Option<usize>, segments: Vec<Seg>) {
-    let segs = strip_segments(segments);
+    // `_trim_segment_edges`: the runs keep their boundary whitespace, only
+    // the citation's outer edges go (#997) — `In: <link>` keeps its space.
+    let segs = trim_segment_edges(segments);
     if !out.is_list(parent) {
         emit_inline(out, parent, segs);
         return;
@@ -837,7 +839,7 @@ fn add_mixed_citation(out: &mut Out, parent: Option<usize>, segments: Vec<Seg>) 
     if segs.is_empty() {
         return;
     }
-    let md = segs.iter().map(seg_markdown).collect::<Vec<_>>().join(" ");
+    let md: String = segs.iter().map(seg_markdown).collect();
     out.doc.push(Node::ListItem {
         ordered: false,
         number: 0,
@@ -3250,8 +3252,8 @@ Sectioned.
     /// docling's `test_jats_mixed_citation_keeps_external_link_target` and
     /// `…_keeps_link_target_that_differs_from_its_text` (docling#4813): a
     /// `<mixed-citation>` is walked like a paragraph, so its `<ext-link>`
-    /// keeps its target (runs stripped: docling-core's whitespace contract
-    /// is #997's).
+    /// keeps its target; the runs keep their boundary whitespace, only the
+    /// citation's edges are trimmed (`_trim_segment_edges`, #997).
     #[test]
     fn mixed_citation_keeps_external_link_target() {
         let body = "<ref-list><ref id=\"r1\"><label>1</label><mixed-citation publication-type=\"other\">\
@@ -3261,7 +3263,7 @@ Sectioned.
         assert_eq!(
             citation_runs(&body_json(body)),
             [runs(&[
-                ("BRAVO-CITATION. A work. 2020.", None),
+                ("BRAVO-CITATION. A work. 2020. ", None),
                 (
                     "https://example.org/c2-citation",
                     Some("https://example.org/c2-citation")
@@ -3285,7 +3287,7 @@ Sectioned.
         assert_eq!(
             citation_runs(&json),
             [runs(&[
-                ("Doe J. Survey data.", None),
+                ("Doe J. Survey data. ", None),
                 ("doi:10.5555/survey", Some("https://doi.org/10.5555/survey")),
                 (". Accessed 2020.", None),
             ])]
@@ -3332,7 +3334,7 @@ Sectioned.
         assert_eq!(
             texts,
             [
-                "Doe J. Growth of",
+                "Doe J. Growth of ",
                 "Escherichia coli",
                 ". Microbiology. 2020;",
                 "12",
@@ -3366,7 +3368,7 @@ Sectioned.
              <italic>Escherichia coli</italic>. 2020;<bold>12</bold>.</mixed-citation></ref></ref-list>",
         );
         assert!(
-            md.contains("- Doe J. Growth of *Escherichia coli* . 2020; **12** ."),
+            md.contains("- Doe J. Growth of *Escherichia coli*. 2020;**12**."),
             "got:\n{md}"
         );
     }
