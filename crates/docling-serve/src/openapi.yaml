@@ -81,6 +81,7 @@ paths:
         - { $ref: "#/components/parameters/password" }
         - { $ref: "#/components/parameters/pdf_password" }
         - { $ref: "#/components/parameters/force_full_page_ocr" }
+        - { $ref: "#/components/parameters/replace_broken_text_layer" }
         - { $ref: "#/components/parameters/no_table_former" }
         - { $ref: "#/components/parameters/no_text_panels" }
         - { $ref: "#/components/parameters/heading_hierarchy" }
@@ -183,6 +184,7 @@ paths:
                 password: { type: string, format: password }
                 pdf_password: { type: string, format: password, description: "Alias of password." }
                 force_full_page_ocr: { type: boolean }
+                replace_broken_text_layer: { type: boolean }
                 no_table_former: { type: boolean }
                 no_text_panels: { type: boolean }
                 heading_hierarchy: { type: boolean }
@@ -926,6 +928,13 @@ components:
           type: boolean
           default: false
           description: PDF — OCR every page even when it carries a text layer.
+        replace_broken_text_layer:
+          type: boolean
+          default: false
+          description: >-
+            PDF — OCR only the pages whose text layer a broken font mapping
+            produced (docling's `replace_broken_text_layer`, #1006); every
+            other page keeps its text layer.
         no_table_former:
           type: boolean
           default: false
@@ -1654,6 +1663,8 @@ components:
       { name: pdf_password, in: query, schema: { type: string, format: password }, description: "Alias of password." }
     force_full_page_ocr:
       { name: force_full_page_ocr, in: query, schema: { type: boolean } }
+    replace_broken_text_layer:
+      { name: replace_broken_text_layer, in: query, schema: { type: boolean } }
     no_table_former:
       { name: no_table_former, in: query, schema: { type: boolean } }
     no_text_panels:

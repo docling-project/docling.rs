@@ -64,7 +64,7 @@ everywhere. The ones most conversions reach for:
 | Wire name | CLI | Meaning |
 |---|---|---|
 | `pages` | `--pages A-B` | PDF page window (#80) |
-| `no_ocr` · `text_layer_only` · `force_full_page_ocr` | `--no-ocr` · `--text-layer-only[=auto]` · `--force-full-page-ocr` | never OCR, layout and tables kept · the text layer alone, no ML (`auto`: per document — the text layer when it carries the document, the pipeline with OCR when it does not) · OCR every page even with a text layer |
+| `no_ocr` · `text_layer_only` · `force_full_page_ocr` · `replace_broken_text_layer` | `--no-ocr` · `--text-layer-only[=auto]` · `--force-full-page-ocr` · `--replace-broken-text-layer` | never OCR, layout and tables kept · the text layer alone, no ML (`auto`: per document — the text layer when it carries the document, the pipeline with OCR when it does not) · OCR every page even with a text layer · OCR only the pages whose text layer is broken (#1006) |
 | `no_table_former` | `--no-table-former` | geometric tables instead of TableFormer |
 | `ocr_lang` · `ocr_engine` | `--ocr-lang` · `--ocr-engine` | `en` / `ch` / BCP-47; `ppocr` or `tesseract` (#460) |
 | `heading_hierarchy` | `--heading-hierarchy` | infer PDF heading levels (#302) |

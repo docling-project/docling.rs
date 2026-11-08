@@ -133,6 +133,8 @@ class PdfPipelineOptions:
     Acted on by the Rust engine: ``do_ocr``, ``do_table_structure``,
     ``force_full_page_ocr`` (docling keeps it on ``ocr_options``; accepted here
     directly too — #187's escape hatch for undecodable text layers),
+    ``replace_broken_text_layer`` (#1006: OCR only the pages whose text layer
+    is broken; docling keeps it on ``ocr_options`` too),
     ``do_picture_classification`` / ``do_code_enrichment`` /
     ``do_formula_enrichment`` (the opt-in enrichment models),
     ``do_picture_ocr`` + ``picture_ocr_classes`` / ``picture_ocr_min_side`` /
@@ -157,6 +159,7 @@ class PdfPipelineOptions:
     do_ocr: bool = True
     do_table_structure: bool = True
     force_full_page_ocr: bool = False
+    replace_broken_text_layer: bool = False
     no_text_panels: bool = False
     heading_hierarchy_options: HeadingHierarchyOptions = field(
         default_factory=HeadingHierarchyOptions

@@ -1081,6 +1081,10 @@ struct Worker {
     /// Discard the embedded text layer and OCR every page. See
     /// [`Pipeline::force_full_page_ocr`].
     force_full_page_ocr: bool,
+    /// OCR a page whose text layer [`quality::is_broken_text_layer`] judges
+    /// broken, that page only (#1006). See
+    /// [`Pipeline::replace_broken_text_layer`].
+    replace_broken_text_layer: bool,
     /// Keep text-panel pictures as pictures instead of demoting them to
     /// paragraphs. See [`Pipeline::no_text_panels`].
     no_text_panels: bool,
@@ -1242,6 +1246,8 @@ impl Worker {
             no_ocr,
             skip_ocr,
             force_full_page_ocr,
+            // Set by the pipeline after loading (`sync_ocr_config`).
+            replace_broken_text_layer: false,
             no_text_panels,
             ocr_lang,
             ocr_engine,
@@ -1911,7 +1917,32 @@ impl Worker {
         // Parse quality is scored on the extracted text layer before force-OCR
         // discards it (docling's page-preprocessing stage runs before OCR too,
         // so its parse_score also reflects the original text layer).
-        let parse = quality::parse_score(&page.cells);
+        let mut parse = quality::parse_score(&page.cells);
+        // docling#4654 (#1006): a text layer a broken font mapping produced
+        // (`quality::is_broken_text_layer`) is replaced by full-page OCR on
+        // this page only, its `parse_score` zeroed — it keeps describing the
+        // PDF layer. Judged only with OCR available: a page whose layer is
+        // discarded with no recognizer to read it would lose its text, so a
+        // missing model keeps the (broken) layer, degradation over failure.
+        let replace_broken = !self.force_full_page_ocr
+            && self.replace_broken_text_layer
+            && parse.is_some()
+            && quality::is_broken_text_layer(
+                &page
+                    .cells
+                    .iter()
+                    .map(|c| c.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            )
+            && self.ocr_model()?.is_some();
+        if replace_broken {
+            debug_log!(
+                "docling-pdf: page {}: broken text layer — replaced by full-page OCR",
+                n + 1
+            );
+            parse = Some(0.0);
+        }
         // Recognition confidences of every OCR'd cell on this page → ocr_score.
         let mut ocr_confs: Vec<f32> = Vec::new();
         let mut ocr_cells: Vec<docling_core::OcrCellConfidence> = Vec::new();
@@ -1921,10 +1952,15 @@ impl Worker {
         // front — the OCR sites hold `self.ocr_model()`'s mutable borrow.
         let ocr_scale = page_ocr_scale(self.ocr_scale, page.width, page.height, page.scale);
         let mut ocr_view: Option<image::RgbImage> = None;
-        if self.force_full_page_ocr {
+        if self.force_full_page_ocr || replace_broken {
             page.cells.clear();
             page.code_cells.clear();
             page.word_cells.clear();
+        }
+        if replace_broken {
+            // The bitmap was judged on the text layer just discarded (a prose
+            // page declines it, #897); the OCR reads it now.
+            self.ensure_bitmap(page, &regions)?;
         }
         // Quant-robustness guard: the default int8 layout graph keeps its
         // confidences near the 0.5 label thresholds, and a different CPU's
@@ -2659,6 +2695,9 @@ pub struct Pipeline {
     /// OCR every page even when it carries a text layer. See
     /// [`Pipeline::force_full_page_ocr`].
     force_full_page_ocr: bool,
+    /// OCR only the pages whose text layer is broken (#1006). See
+    /// [`Pipeline::replace_broken_text_layer`].
+    replace_broken_text_layer: bool,
     /// Never demote text-panel pictures. See [`Pipeline::no_text_panels`].
     no_text_panels: bool,
     /// Opt-in enrichment passes. See [`Pipeline::enrichments`].
@@ -2721,6 +2760,7 @@ impl Pipeline {
             text_layer_auto: false,
             skip_ocr: false,
             force_full_page_ocr: false,
+            replace_broken_text_layer: false,
             no_text_panels: false,
             enrich: EnrichmentOptions::default(),
             page_range: None,
@@ -3075,6 +3115,30 @@ impl Pipeline {
         self.sync_ocr_config();
     }
 
+    /// Replace a broken PDF text layer with OCR, page by page — docling's
+    /// `replace_broken_text_layer` (docling#4654, #1006). A page whose text
+    /// layer [`quality::is_broken_text_layer`] judges broken — control,
+    /// U+FFFD or private-use characters on the page or in many of its
+    /// lines, Latin letters that stand for another script, too few vowels —
+    /// is read with full-page OCR, its `parse_score` set to 0; every other
+    /// page, and a page without a text layer, keeps the usual behavior. A
+    /// low `parse_score` alone never replaces a page. Off by default;
+    /// ignored under [`no_ocr`](Self::no_ocr) / [`skip_ocr`](Self::skip_ocr)
+    /// (a sub-option of docling's `do_ocr`) and moot under
+    /// [`force_full_page_ocr`](Self::force_full_page_ocr). Pure per-worker
+    /// configuration, like the forcing flag.
+    pub fn replace_broken_text_layer(mut self, replace: bool) -> Self {
+        self.set_replace_broken_text_layer(replace);
+        self
+    }
+
+    /// In-place variant of
+    /// [`replace_broken_text_layer`](Self::replace_broken_text_layer).
+    pub fn set_replace_broken_text_layer(&mut self, replace: bool) {
+        self.replace_broken_text_layer = replace;
+        self.sync_ocr_config();
+    }
+
     /// See [`set_force_full_page_ocr`](Self::set_force_full_page_ocr).
     pub fn set_ocr_mode(&mut self, mode: Option<ocr::OcrMode>) {
         self.ocr_mode = mode.unwrap_or_else(ocr::OcrMode::from_env);
@@ -3186,8 +3250,10 @@ impl Pipeline {
         let force = self.force_full_page_ocr || self.ocr_mode.forces_full_page();
         let scale = self.ocr_scale;
         let orient = self.textline_orientation;
+        let replace = self.replace_broken_text_layer;
         for worker in self.primary.iter_mut().chain(self.pool.iter_mut()) {
             worker.force_full_page_ocr = force;
+            worker.replace_broken_text_layer = replace;
             worker.ocr_scale = scale;
             worker.set_textline_orientation(orient);
         }
@@ -3384,6 +3450,9 @@ impl Pipeline {
                 self.textline_orientation,
                 self.images,
             )?);
+            if let Some(w) = self.primary.as_mut() {
+                w.replace_broken_text_layer = self.replace_broken_text_layer;
+            }
         }
         Ok(self.primary.as_mut().unwrap())
     }
@@ -4151,7 +4220,9 @@ impl Pipeline {
             handles.into_iter().map(|h| h.join().unwrap()).collect()
         });
         for w in loaded {
-            self.pool.push(w?);
+            let mut w = w?;
+            w.replace_broken_text_layer = self.replace_broken_text_layer;
+            self.pool.push(w);
         }
         Ok(())
     }

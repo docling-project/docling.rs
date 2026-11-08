@@ -89,6 +89,7 @@ pub(crate) struct StreamSettings {
     pub no_ocr: bool,
     pub password: Option<String>,
     pub force_full_page_ocr: bool,
+    pub replace_broken_text_layer: bool,
     pub enrich: docling_pdf::EnrichmentOptions,
     pub page_range: Option<(usize, usize)>,
     pub ocr_lang: Option<docling_pdf::OcrLang>,
@@ -285,6 +286,7 @@ fn run_pdf(
             .text_layer_auto(settings.text_layer_only == crate::TextLayerOnly::Auto)
             .skip_ocr(settings.no_ocr)
             .force_full_page_ocr(settings.force_full_page_ocr)
+            .replace_broken_text_layer(settings.replace_broken_text_layer)
             .ocr_lang(settings.ocr_lang)
             .ocr_engine(settings.ocr_engine)
             .tesseract_lang(settings.tesseract_lang.clone())
