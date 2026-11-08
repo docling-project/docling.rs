@@ -135,6 +135,9 @@ const MACRO_SPECS: &[(&str, &str)] = &[
     ("Cref", "{"),
     ("eqref", "{"),
     ("url", "{"),
+    // hyperref's `\href[options]{url}{text}` (docling#4600): parsed with its
+    // arguments so they do not stay in the body as glued text.
+    ("href", "[{{"),
     ("hypersetup", "{"),
     ("footnote", "[{"),
     ("keywords", "{"),
