@@ -1495,6 +1495,49 @@ impl PageTextParser {
             .collect()
     }
 
+    /// The characters of the 0-based page `index` as the script-position
+    /// stage measures them (#1005, docling's `read_page_chars`): every
+    /// visible, non-blank glyph with its font-metric box, baseline and drawn
+    /// size in the unrotated page frame (y up), and beside it the same box in
+    /// the display frame (`/Rotate` applied, top-left origin: the frame the
+    /// items' boxes live in). Invisible text (`Tr` 3 / 7, an OCR layer over a
+    /// scan) is left out, as docling leaves it: it follows the scanned lines,
+    /// not a typeset baseline.
+    pub(crate) fn script_chars(
+        &mut self,
+        index: usize,
+    ) -> Vec<(crate::script_position::ScriptChar, [f32; 4])> {
+        let Some(&pid) = self.pages.get(index) else {
+            return Vec::new();
+        };
+        let (w, h) = page_size(&self.doc, pid);
+        let rotation = page_rotation(&self.doc, pid);
+        page_glyphs_cached(&self.doc, pid, &mut self.caches)
+            .iter()
+            .filter(|g| !g.invisible && !g.ch.is_whitespace() && g.ll.is_finite())
+            .filter_map(|g| {
+                let [_, y, size] = g.pen?;
+                let c = crate::script_position::ScriptChar {
+                    text: g.ch,
+                    left: g.ll,
+                    bottom: g.lb,
+                    right: g.lr,
+                    top: g.lt,
+                    baseline: y,
+                    size,
+                    horizontal: g.quad.is_none(),
+                };
+                let (l, t, r, b) = crate::pdfium_backend::to_display_frame(
+                    (g.ll, h - g.lt, g.lr, h - g.lb),
+                    rotation,
+                    w,
+                    h,
+                );
+                Some((c, [l, t, r, b]))
+            })
+            .collect()
+    }
+
     /// Prose, word and code cells of the 0-based page `index` — empty for an
     /// index the parser's page tree doesn't have (a damaged file whose page
     /// tree disagrees with the object model's count).
@@ -1642,6 +1685,8 @@ struct TextState {
     tl: f64,
     trise: f64,
     fsize: f64,
+    /// The text rendering mode (`Tr`).
+    tr: i64,
 }
 
 impl TextState {
@@ -1652,7 +1697,28 @@ impl TextState {
         tl: 0.0,
         trise: 0.0,
         fsize: 0.0,
+        tr: 0,
     };
+}
+
+/// pdfium's `CPDF_Page::GetPageRotation` — the inherited `/Rotate`, in
+/// quarter turns, as degrees (`pdf_meta`'s rule).
+fn page_rotation(doc: &Document, pid: lopdf::ObjectId) -> u16 {
+    let mut id = pid;
+    for _ in 0..32 {
+        let Ok(dict) = doc.get_dictionary(id) else {
+            return 0;
+        };
+        if let Some(obj) = dict.get(b"Rotate").ok().and_then(|o| deref(doc, o)) {
+            let quarter = (num(obj).unwrap_or(0.0) as i64 / 90).rem_euclid(4);
+            return (quarter * 90) as u16;
+        }
+        match dict.get(b"Parent").ok().and_then(|o| o.as_reference().ok()) {
+            Some(parent) => id = parent,
+            None => return 0,
+        }
+    }
+    0
 }
 
 /// The effective `/Resources` dictionary for a page (inline or via reference,
@@ -1910,7 +1976,8 @@ fn run_content(
     // *not* the text matrix (that is reset by BT). Saving only the CTM let a Tc
     // set inside a `q…Q` block leak out and drift every later glyph.
     #[allow(clippy::type_complexity)]
-    let mut gstate_stack: Vec<(Mat, f64, f64, f64, f64, f64, f64, Option<&Arc<Font>>)> = Vec::new();
+    let mut gstate_stack: Vec<(Mat, f64, f64, f64, f64, f64, f64, i64, Option<&Arc<Font>>)> =
+        Vec::new();
     let mut ctm = base_ctm;
     let mut tm = Mat::ID;
     let mut tlm = Mat::ID;
@@ -1921,6 +1988,7 @@ fn run_content(
     let mut th = init.th; // horizontal scale (Tz/100)
     let mut tl = init.tl; // leading
     let mut trise = init.trise;
+    let mut tr = init.tr; // rendering mode
 
     let op_f = |operands: &[Object], i: usize| operands.get(i).and_then(num).unwrap_or(0.0);
     // The path under construction, already in page space (a path is built
@@ -1936,14 +2004,15 @@ fn run_content(
 
     for op in &content.operations {
         let operands = &op.operands;
+        let shown = out.len();
         match op.operator.as_str() {
             "q" => {
-                gstate_stack.push((ctm, tc, tw, th, tl, trise, fsize, font));
+                gstate_stack.push((ctm, tc, tw, th, tl, trise, fsize, tr, font));
                 fill_stack.push(fill_light);
             }
             "Q" => {
                 fill_light = fill_stack.pop().unwrap_or(false);
-                if let Some((c, a, b, h, l, r, fs, f)) = gstate_stack.pop() {
+                if let Some((c, a, b, h, l, r, fs, mode, f)) = gstate_stack.pop() {
                     ctm = c;
                     tc = a;
                     tw = b;
@@ -1951,6 +2020,7 @@ fn run_content(
                     tl = l;
                     trise = r;
                     fsize = fs;
+                    tr = mode;
                     font = f;
                 }
             }
@@ -2029,6 +2099,7 @@ fn run_content(
             "Tz" => th = op_f(operands, 0) / 100.0,
             "TL" => tl = op_f(operands, 0),
             "Ts" => trise = op_f(operands, 0),
+            "Tr" => tr = op_f(operands, 0) as i64,
             "Tj" | "'" | "\"" => {
                 if op.operator == "'" || op.operator == "\"" {
                     // move to next line first
@@ -2243,6 +2314,7 @@ fn run_content(
                     tl,
                     trise,
                     fsize,
+                    tr,
                 };
                 run_content(
                     doc,
@@ -2257,6 +2329,13 @@ fn run_content(
                 );
             }
             _ => {}
+        }
+        // Invisible text (`Tr` 3, or 7: clip only) — an OCR layer over a scan
+        // follows the scanned lines, not a typeset baseline (#1005).
+        if matches!(tr, 3 | 7) {
+            for g in &mut out[shown..] {
+                g.invisible = true;
+            }
         }
     }
 }
@@ -2454,6 +2533,7 @@ fn show_text(
                     quad,
                     pen,
                     math_font: font.math,
+                    invisible: false,
                 });
             }
         }

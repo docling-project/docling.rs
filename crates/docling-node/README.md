@@ -533,6 +533,9 @@ constructor; output options (`to`, `imageMode`, `artifactsDir`) are per call.
   (docling's `HeadingHierarchyModel`, #302): PDF bookmarks are authoritative,
   then legal/outline numbering, then font style. Off by default — headings
   then keep the flat detected level.
+- `scriptPositions`: mark PDF superscripts and subscripts (footnote markers,
+  `1st`, `mc²`, `H₂O`) as `formatting.script` runs — docling's
+  `script_position_options.enabled` (#1005). Off by default.
 - `doPictureClassification` / `doCodeEnrichment` / `doFormulaEnrichment`: the
   opt-in enrichment models (docling's `PdfPipelineOptions` flags of the same
   names, #423) — classify pictures with DocumentFigureClassifier (26 classes

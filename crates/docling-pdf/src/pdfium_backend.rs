@@ -1491,6 +1491,9 @@ pub(crate) struct Glyph {
     /// `has_math_positioning_semantics`): a sub- or superscript in it next to
     /// its base is attached, not a new word (#921).
     pub(crate) math_font: bool,
+    /// Drawn in an invisible text rendering mode (`Tr` 3 or 7) — an OCR
+    /// layer over a scan. Only the script-position stage reads it (#1005).
+    pub(crate) invisible: bool,
 }
 
 impl Glyph {

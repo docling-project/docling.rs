@@ -83,6 +83,7 @@ pub mod embedded;
 pub mod raster;
 #[cfg(feature = "render")]
 pub mod render;
+mod script_position;
 mod std14;
 #[cfg(feature = "ml")]
 mod table_tokens;
@@ -2811,6 +2812,9 @@ pub struct Pipeline {
     /// OCR only the pages whose text layer is broken (#1006). See
     /// [`Pipeline::replace_broken_text_layer`].
     replace_broken_text_layer: bool,
+    /// Mark superscripts and subscripts (#1005). See
+    /// [`Pipeline::script_positions`].
+    script_positions: bool,
     /// Never demote text-panel pictures. See [`Pipeline::no_text_panels`].
     no_text_panels: bool,
     /// Opt-in enrichment passes. See [`Pipeline::enrichments`].
@@ -2874,6 +2878,7 @@ impl Pipeline {
             skip_ocr: false,
             force_full_page_ocr: false,
             replace_broken_text_layer: false,
+            script_positions: false,
             no_text_panels: false,
             enrich: EnrichmentOptions::default(),
             page_range: None,
@@ -2974,6 +2979,35 @@ impl Pipeline {
             _ => Default::default(),
         };
         heading_hierarchy::apply(nodes, &outline, &styles, opts);
+    }
+
+    /// Run the opt-in script-position stage (#1005) on an assembled
+    /// document, after the heading hierarchy as docling runs it.
+    fn apply_script_positions(&self, nodes: &mut [Node], bytes: &[u8]) {
+        if self.script_positions {
+            timing::timed("script_position", || script_position::apply(nodes, bytes));
+        }
+    }
+
+    /// Mark superscript and subscript text — docling's
+    /// `script_position_options.enabled` (docling#4815, #1005). Characters
+    /// drawn smaller than their line and raised or lowered against it
+    /// (footnote markers, `1st`, `mc²`, `H₂O`) become runs with
+    /// `formatting.script`: a paragraph or footnote holding them keeps its
+    /// place, and its text moves into an inline group of the runs in the
+    /// JSON (HTML `<sup>`/`<sub>`, DocLang `<superscript>`/`<subscript>`);
+    /// Markdown joins the runs as docling does (`E = mc2 in 1905.`, where the
+    /// plain text layer reads `E = mc 2 in 1905.`). Headings, captions,
+    /// tables, code, formulas, list items, OCR'd and invisible text are left
+    /// alone. Off by default: the output is unchanged.
+    pub fn script_positions(mut self, enable: bool) -> Self {
+        self.set_script_positions(enable);
+        self
+    }
+
+    /// In-place variant of [`script_positions`](Self::script_positions).
+    pub fn set_script_positions(&mut self, enable: bool) {
+        self.script_positions = enable;
     }
 
     /// Install (or clear) the per-page progress hook: called with a
@@ -3688,6 +3722,7 @@ impl Pipeline {
         )?;
         assemble::merge_continuations(&mut doc.nodes);
         self.apply_heading_hierarchy(&mut doc.nodes, Some(bytes));
+        self.apply_script_positions(&mut doc.nodes, bytes);
         doc.confidence = Some(docling_core::ConfidenceReport::from_pages(confs));
         Ok((doc, done, timed_out))
     }
@@ -3746,6 +3781,7 @@ impl Pipeline {
         )?;
         assemble::merge_continuations(&mut doc.nodes);
         self.apply_heading_hierarchy(&mut doc.nodes, Some(bytes));
+        self.apply_script_positions(&mut doc.nodes, bytes);
         doc.confidence = Some(confidence_report(confs, ocr_cells_by_page));
         Ok((doc, done, timed_out))
     }
@@ -3961,6 +3997,7 @@ impl Pipeline {
         }
         assemble::merge_continuations(&mut doc.nodes);
         self.apply_heading_hierarchy(&mut doc.nodes, Some(bytes));
+        self.apply_script_positions(&mut doc.nodes, bytes);
         doc.confidence = Some(confidence_report(confs, ocr_cells_by_page));
         let timed_out = timed_out.load(std::sync::atomic::Ordering::Relaxed);
         Ok((doc, done, timed_out))

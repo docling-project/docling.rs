@@ -1335,6 +1335,7 @@ mod tests {
             quad: None,
             pen: None,
             math_font: false,
+            invisible: false,
         }
     }
 
@@ -1430,6 +1431,7 @@ mod tests {
             quad: None,
             pen: None,
             math_font: false,
+            invisible: false,
         };
         let mut g = Vec::new();
         let mut run = |text: &str, edges: &[f32], font: u64| {

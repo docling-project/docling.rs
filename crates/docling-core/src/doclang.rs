@@ -1115,6 +1115,13 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
                 emit_inline_group(out, depth, *unwrapped, runs);
                 *i += 1;
             }
+            // Unlocated (the stage only marks located PDF items): the runs
+            // as an inline group.
+            Node::ScriptText { runs, .. } => {
+                let runs: Vec<InlineRun> = runs.iter().map(script_inline_run).collect();
+                emit_inline_group(out, depth, false, &runs);
+                *i += 1;
+            }
             Node::Furniture { layer, inner } => {
                 emit_furniture(out, depth, *layer, inner);
                 *i += 1;
@@ -1179,6 +1186,16 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
 /// would otherwise read as spaces).
 fn emit_text_dump(out: &mut Out, depth: i32, text: &str) {
     out.push(depth, format!("<text>{}</text>", escape_text(text)));
+}
+
+/// A [`Node::ScriptText`] run as an inline run: its text at its script
+/// position, no other formatting.
+fn script_inline_run(run: &crate::ScriptRun) -> InlineRun {
+    InlineRun {
+        text: run.text.clone(),
+        script: run.script,
+        ..InlineRun::default()
+    }
 }
 
 /// Render a [`Node::InlineGroup`] — docling's `InlineGroup`. Reproduces the
@@ -1604,6 +1621,20 @@ fn emit_located(out: &mut Out, depth: i32, location: &[u16; 4], inner: &Node) {
         }
         Node::LabeledText { .. } => {
             emit_located(out, depth, location, &inner.labeled_as_paragraph())
+        }
+        // A marked PDF item (#1005): its element with the item's location,
+        // then the runs as docling-core's inline serializer writes them
+        // (`E = mc<superscript>2</superscript> here`).
+        Node::ScriptText { inner, runs } => {
+            let tag = match inner.as_ref() {
+                Node::LabeledText { label, .. } if label == "footnote" => "footnote",
+                _ => "text",
+            };
+            out.push(depth, format!("<{tag}>"));
+            push_location(out, depth + 1, location);
+            let runs: Vec<InlineRun> = runs.iter().map(script_inline_run).collect();
+            emit_inline_runs_body(out, depth + 1, &runs);
+            out.push(depth, format!("</{tag}>"));
         }
         Node::Picture {
             caption,

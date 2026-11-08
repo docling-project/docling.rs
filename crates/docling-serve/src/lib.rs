@@ -84,6 +84,9 @@
 //! - `replace_broken_text_layer` — OCR only the PDF pages whose text layer a
 //!   broken font mapping produced (docling's `replace_broken_text_layer`,
 //!   #1006); every other page keeps its text layer
+//! - `script_positions` — mark PDF superscripts and subscripts as
+//!   `formatting.script` runs (docling's `script_position_options.enabled`,
+//!   #1005); off by default
 //! - `ocr_scale` — OCR render scale in px per PDF point (docling's
 //!   `OcrOptions.scale`, #254); unset reads the pipeline's own 2.0 px/pt
 //!   render, docling's default is 3 (216 dpi)
@@ -3211,6 +3214,7 @@ fn convert_document_inner(
             pipeline.set_heading_hierarchy(docling::HeadingHierarchyOptions::enabled(
                 o.heading_hierarchy.unwrap_or(false),
             ));
+            pipeline.set_script_positions(o.script_positions.unwrap_or(false));
             pipeline.set_document_timeout(o.document_timeout().map_err(bad)?);
             // The document's progress events (#783) — an async job's status
             // reads them; the warm pipeline bypasses `convert`, so the

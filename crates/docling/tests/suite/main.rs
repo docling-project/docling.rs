@@ -62,6 +62,7 @@ mod pptx_shapes;
 mod progress;
 mod redact;
 mod scanned;
+mod script_position;
 mod security_doc;
 mod sideways_outlines;
 mod svg;

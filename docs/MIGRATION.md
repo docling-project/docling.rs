@@ -2639,6 +2639,29 @@ These are deliberate or unavoidable divergences, not bugs.
     (`<1d59> <1d5a> <d835dec2>`) steps its last code unit and maps `𝛂 𝛃`;
     the range used to be dropped. On the corpus: redp5110 155 → 119
     groundtruth diff lines (373 → 337 in all), four snapshots move.
+
+24. **Superscripts and subscripts, opt-in** (#1005, docling#4815's
+    `ScriptPositionModel`; `script_positions` / `--script-positions` on
+    every surface, docling's `pipeline_options.script_position_options.
+    enabled` read by the Python facade). The port of
+    `utils/script_position.py` is rule for rule — line splitting, baseline
+    groups, the body baseline, the touch / in-word / footnote-mark tests,
+    difflib's matching blocks over the NFKC- and punctuation-folded text —
+    and its unit tests are ported with it (`script_position.rs`), the
+    end-to-end ones on docling's fixture and its rotated, cropped and
+    invisible-text pages (`tests/suite/script_position.rs`). The characters
+    come from our text layer instead of pypdfium2: the loose box, the pen's
+    baseline and size, `Tr` 3 / 7 left out. A marked paragraph or footnote
+    is a `Node::ScriptText`; the JSON writes docling's shape (the item with
+    an empty text, an inline group of the runs added after every other
+    item, each run with `formatting.script` and its characters' box), so
+    the HTML reads `H<sub>2</sub>O` and Markdown `H2O`. Three differences:
+    list items are not rewritten (ours carry their own location and would
+    leave their list under a wrapper); an item's box is the 0–511 grid
+    location, so the character test's slack is one grid step wider than
+    docling's 0.5 pt; and the stage runs on the PDF pipeline only, not on
+    `text_layer_only` conversions. Off by default, so nothing changes
+    unless it is asked for.
 ---
 
 ## 5. Not migrated / out of scope

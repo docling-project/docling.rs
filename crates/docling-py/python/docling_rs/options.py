@@ -107,6 +107,16 @@ class TableStructureOptions:
 
 
 @dataclass
+class ScriptPositionOptions:
+    """docling's ``ScriptPositionOptions`` (#1005): mark PDF superscript and
+    subscript text — characters drawn smaller than their line and raised or
+    lowered against it become runs with ``formatting.script``, and the item
+    holding them moves its text into an inline group of the runs."""
+
+    enabled: bool = False
+
+
+@dataclass
 class HeadingHierarchyOptions:
     """docling's ``HeadingHierarchyOptions`` (#302): infer PDF/image
     section-header levels after assembly — PDF bookmarks are authoritative,
@@ -163,6 +173,9 @@ class PdfPipelineOptions:
     no_text_panels: bool = False
     heading_hierarchy_options: HeadingHierarchyOptions = field(
         default_factory=HeadingHierarchyOptions
+    )
+    script_position_options: ScriptPositionOptions = field(
+        default_factory=ScriptPositionOptions
     )
     do_picture_classification: bool = False
     do_code_enrichment: bool = False

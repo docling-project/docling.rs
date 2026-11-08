@@ -83,6 +83,8 @@ fn node_words(node: &Node, into: &mut Words) {
         | Node::PageFurniture { text, .. }
         | Node::FurnitureText { text, .. }
         | Node::TextDump(text) => words_of(text, into),
+        // A marked PDF item (#1005) carries its text in its item.
+        Node::ScriptText { inner, .. } => node_words(inner, into),
         // A list marker is metadata on both sides — the tree's `ListMeta`,
         // the flat node's `marker` — and the flat text of a multilevel or
         // lettered item carries it as a prefix (`iv. text`); the DocLang

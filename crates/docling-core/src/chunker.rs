@@ -1073,6 +1073,7 @@ impl Walker<'_> {
             Node::Located { inner, .. }
             | Node::Prov { inner, .. }
             | Node::Track { inner, .. }
+            | Node::ScriptText { inner, .. }
             | Node::Commented { inner, .. } => self.one(inner),
             // A PDF page header/footer is a furniture-layer JSON text item:
             // never chunked (docling's chunker reads the body layer), but it
@@ -1610,6 +1611,7 @@ fn block_chunk_text(node: &Node) -> String {
         Node::Located { inner, .. }
         | Node::Prov { inner, .. }
         | Node::Track { inner, .. }
+        | Node::ScriptText { inner, .. }
         | Node::Commented { inner, .. } => block_chunk_text(inner),
         Node::Group { layer: Some(_), .. } => String::new(),
         Node::Group { children, .. } => children
