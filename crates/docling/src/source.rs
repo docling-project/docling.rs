@@ -233,9 +233,18 @@ impl SourceDocument {
     }
 
     /// The directory containing the source file, for resolving relative asset
-    /// paths. `None` for in-memory sources.
+    /// paths. `None` for in-memory sources. A bare relative file name
+    /// (`page.html`, as `cd dir && docling-rs page.html` passes it) has the
+    /// empty path as its `Path::parent`, which `canonicalize` rejects, so no
+    /// local image resolved (#1030); it names the working directory, `.`.
     pub fn base_dir(&self) -> Option<&Path> {
-        self.path.as_deref().and_then(Path::parent)
+        self.path.as_deref().and_then(Path::parent).map(|p| {
+            if p.as_os_str().is_empty() {
+                Path::new(".")
+            } else {
+                p
+            }
+        })
     }
 
     /// The bytes as text, for text-based backends — docling's `decode_text`
