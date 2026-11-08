@@ -581,3 +581,70 @@ fn collapse_and_preprocess_helpers() {
         "\\begin{equation} x \\bea $$"
     );
 }
+
+/// docling's `test_latex_href_macro` (docling#4600): `\href{url}{text}` stays
+/// in its paragraph as `[text](url)` — it used to split the paragraph into
+/// `Visit` and the glued `https://example.comExample Site for more.`.
+#[test]
+fn href_macro_stays_inline() {
+    let tex = r"\documentclass{article}
+\begin{document}
+Visit \href{https://example.com}{Example Site} for more.
+\end{document}
+";
+    assert_eq!(
+        body_texts(&json(tex)),
+        [(
+            "text".to_string(),
+            "Visit [Example Site](https://example.com) for more.".to_string()
+        )]
+    );
+    assert_eq!(
+        md(tex),
+        "Visit [Example Site](https://example.com) for more."
+    );
+}
+
+/// docling's `test_latex_href_keeps_text_together`: in a heading, a
+/// paragraph and a list item alike the link stays in place and the item
+/// keeps its kind; the `[options]` argument is skipped and the URL kept as
+/// written (`_` and `#` are not markup there).
+#[test]
+fn href_keeps_text_together() {
+    let tex = r"\documentclass{article}
+\usepackage{hyperref}
+\begin{document}
+\section{About \href{https://example.com}{us}}
+Go \href[pdfnewwindow=true]{https://example.com/my_page#top}{there} now.
+\begin{itemize}
+\item See \href{https://example.com}{the site} here
+\end{itemize}
+\end{document}
+";
+    let want = [
+        ("section_header", "About [us](https://example.com)"),
+        ("text", "Go [there](https://example.com/my_page#top) now."),
+        ("list_item", "See [the site](https://example.com) here"),
+    ];
+    assert_eq!(
+        body_texts(&json(tex)),
+        want.map(|(l, t)| (l.to_string(), t.to_string()))
+    );
+}
+
+/// A one-sided `\href`: an empty text keeps the URL, an empty URL the text.
+#[test]
+fn href_with_one_part_keeps_it() {
+    let tex = r"\documentclass{article}
+\begin{document}
+A \href{https://example.com}{} b \href{}{only text} c.
+\end{document}
+";
+    assert_eq!(
+        body_texts(&json(tex)),
+        [(
+            "text".to_string(),
+            "A https://example.com b only text c.".to_string()
+        )]
+    );
+}
