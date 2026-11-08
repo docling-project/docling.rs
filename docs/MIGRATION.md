@@ -931,6 +931,7 @@ converted once more as that format with a warning.
   - a `<table>` is a placeholder recorded at `</table>` under the current parent and filled by index from a regex re-parse of the raw text (all tables stay empty when the counts differ, as upstream)
   - each spanning `<entry>` listed once per covered column with the whole span on every replica
   - rows padded to the widest tgroup
+- docling#5202 (#1028): ISO 8879's `&sgr;` is the small sigma σ and `&sfgr;` the final ς (`&sgr;` read as ς, and `&sfgr;`, unknown, dropped its letter); no corpus patent uses either
 - the legacy APS plain-text patent (`pftaps*.txt`) goes through a port of docling's `PatentUsptoGrantAps` (title, `ABSTRACT`, `PAC` caption headings, paragraphs, `CLAIMS`; Markdown, JSON item tree and `.dclx` all exact)
 - the last three XML differences were docling's table and claim mechanics, now ported:
   - CALS cells the unified tgroup span pushes past the widest tgroup's column count are clipped like docling-core's `TableData.grid` (`pa20010031492`'s 3 columns, `ipa20110039701`'s 4)
