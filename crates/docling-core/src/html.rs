@@ -863,6 +863,15 @@ impl<'a> Serializer<'a> {
                 };
             }
         }
+        // A code item is a floating item: its captions and footnotes put it
+        // in a `<figure>` (`<figcaption>` is only valid there).
+        if is_code {
+            let cap = self.captions(item, "figcaption");
+            let ftn = self.footnotes(item);
+            if !cap.is_empty() || !ftn.is_empty() {
+                text = format!("<figure>{text}{cap}{ftn}</figure>");
+            }
+        }
         text
     }
 
@@ -969,6 +978,41 @@ impl<'a> Serializer<'a> {
         }
     }
 
+    /// Upstream's `serialize_footnotes` (docling-core#675): each of a
+    /// floating item's footnotes as `<div class="footnote">` — its own text,
+    /// escaped, `dir="rtl"` when it reads right-to-left.
+    fn footnotes(&self, item: &'a Value) -> String {
+        let mut out = String::new();
+        for r in item
+            .get("footnotes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let Some(ftn) = r
+                .get("$ref")
+                .and_then(Value::as_str)
+                .and_then(|c| self.resolve(c))
+            else {
+                continue;
+            };
+            if !Self::self_ref(ftn).starts_with("#/texts/") || self.excluded(ftn) {
+                continue;
+            }
+            let text = Self::text(ftn);
+            let dir = if text_direction(text) == "rtl" {
+                " dir=\"rtl\""
+            } else {
+                ""
+            };
+            out.push_str(&format!(
+                "<div class=\"footnote\"{dir}>{}</div>",
+                escape(text, true)
+            ));
+        }
+        out
+    }
+
     /// docling's `TableData.grid`: every position holds the cell covering it,
     /// and a position no cell covers holds an empty one-by-one placeholder
     /// (upstream fills the grid with empty `TableCell`s first), which the
@@ -1013,11 +1057,12 @@ impl<'a> Serializer<'a> {
             }
         }
         let text = res_parts.concat();
-        if text.is_empty() {
+        let table = if text.is_empty() {
             String::new()
         } else {
             format!("<table>{text}</table>")
-        }
+        };
+        format!("{table}{}", self.footnotes(item))
     }
 
     /// The `<tr>` rows of a `TableData` (shared with the tabular-chart meta).
@@ -1118,6 +1163,7 @@ impl<'a> Serializer<'a> {
         if !meta.is_empty() {
             res_parts.push(meta);
         }
+        res_parts.push(self.footnotes(item));
         let text = res_parts.concat();
         if text.is_empty() {
             String::new()

@@ -133,12 +133,6 @@ fn unescape_xml(s: &str) -> String {
     out
 }
 
-/// minidom's `toxml()` of an element: its source markup (the serializer's
-/// output is canonical, so the slice is what minidom would re-emit).
-fn source_xml(n: XmlNode) -> String {
-    n.document().input_text()[n.range()].to_string()
-}
-
 fn is_ws_text(n: XmlNode) -> bool {
     n.is_text() && n.text().unwrap_or("").trim().is_empty()
 }
@@ -170,27 +164,60 @@ fn split_head_body<'a, 'i>(el: XmlNode<'a, 'i>) -> (Vec<XmlNode<'a, 'i>>, Vec<Xm
     (head, body)
 }
 
-/// `_get_text`: the element's character data, each text node stripped
-/// (verbatim inside `<content>`), `<br/>` a newline, `<location>` skipped.
+/// `_get_text` (`_trimmed_text`): the element's text, trimmed at the
+/// block's outer edges only — the reading rules already gave every text node
+/// its reading, so the inner boundaries stay (`Advanced <bold>Topics</bold>`
+/// is not `AdvancedTopics`); `<content>` text is protected from the trim.
 fn get_text(el: XmlNode) -> String {
-    let mut out = String::new();
-    let preserve = el.tag_name().name() == "content";
+    let mut frags = Vec::new();
+    fragments(el, &mut frags);
+    while let Some((text, false)) = frags.first() {
+        let t = text.trim_start_matches(XML_WS);
+        if t.is_empty() {
+            frags.remove(0);
+        } else {
+            frags[0].0 = t.to_string();
+            break;
+        }
+    }
+    while let Some((text, false)) = frags.last() {
+        let t = text.trim_end_matches(XML_WS);
+        if t.is_empty() {
+            frags.pop();
+        } else {
+            let last = frags.len() - 1;
+            frags[last].0 = t.to_string();
+            break;
+        }
+    }
+    frags.into_iter().map(|(t, _)| t).collect()
+}
+
+/// `_collect_text`: the element's text verbatim (a run's edges are its own).
+fn collect_text(el: XmlNode) -> String {
+    let mut frags = Vec::new();
+    fragments(el, &mut frags);
+    frags.into_iter().map(|(t, _)| t).collect()
+}
+
+/// `_XML_WHITESPACE`.
+const XML_WS: &[char] = &[' ', '\t', '\r', '\n'];
+
+/// `_collect_fragments`: `(text, protected)` — the text nodes in order,
+/// `<content>`'s protected, `<br/>` a newline, element heads skipped.
+fn fragments(el: XmlNode, out: &mut Vec<(String, bool)>) {
+    let protected = el.tag_name().name() == "content";
     for n in el.children() {
         if n.is_text() {
-            for data in pieces(n) {
-                if !data.trim().is_empty() {
-                    out.push_str(if preserve { &data } else { data.trim() });
-                }
-            }
+            out.push((n.text().unwrap_or("").to_string(), protected));
         } else if n.is_element() {
             match n.tag_name().name() {
-                "location" => {}
-                "br" => out.push('\n'),
-                _ => out.push_str(&get_text(n)),
+                t if is_head_tag(t) => {}
+                "br" => out.push(("\n".to_string(), false)),
+                _ => fragments(n, out),
             }
         }
     }
-    out
 }
 
 /// `_is_empty_text_block`: no text and no children but element-head tokens.
@@ -231,7 +258,6 @@ fn simple_text_block(el: XmlNode) -> Option<String> {
                     | "superscript"
                     | "rtl"
                     | "handwriting"
-                    | "checkbox"
                     | "content"
             ) {
                 return None;
@@ -266,27 +292,77 @@ fn simple_text_block(el: XmlNode) -> Option<String> {
     result
 }
 
-/// `_extract_text_with_formatting`: a single styled child (nested styles
-/// accumulate) gives the item its `Formatting`; anything else is plain.
-fn text_with_formatting(el: XmlNode) -> (String, Option<Formatting>) {
+/// `_extract_text_with_formatting`: a single styled child with no text
+/// beside it (nested styles accumulate) gives the item its `Formatting`;
+/// anything else is plain — trimmed at the block's edges for a block host
+/// (`trim`), verbatim for a run inside an inline group.
+fn text_with_formatting(el: XmlNode, trim: bool) -> (String, Option<Formatting>) {
     let children: Vec<XmlNode> = el
         .children()
-        .filter(|c| c.is_element() && c.tag_name().name() != "location")
+        .filter(|c| c.is_element() && !is_head_tag(c.tag_name().name()))
         .collect();
-    if children.len() == 1 {
-        let child = children[0];
+    if let [child] = children[..] {
         let tag = child.tag_name().name();
-        if matches!(
-            tag,
-            "bold" | "italic" | "strikethrough" | "underline" | "superscript" | "subscript" | "rtl"
-        ) {
-            let (text, fmt) = text_with_formatting(child);
+        let text_beside = el
+            .children()
+            .any(|n| n.is_text() && !n.text().unwrap_or("").is_empty());
+        if !text_beside
+            && matches!(
+                tag,
+                "bold"
+                    | "italic"
+                    | "strikethrough"
+                    | "underline"
+                    | "superscript"
+                    | "subscript"
+                    | "rtl"
+            )
+        {
+            let (text, fmt) = text_with_formatting(child, trim);
             let mut fmt = fmt.unwrap_or_default();
             apply_style(&mut fmt, tag);
             return (text, Some(fmt));
         }
     }
-    (get_text(el), None)
+    let text = if trim { get_text(el) } else { collect_text(el) };
+    (text, None)
+}
+
+/// `_plain_run_text`: a text node's or a `<content>`'s text, `None` for
+/// anything else.
+fn plain_run_text(n: XmlNode) -> Option<String> {
+    if n.is_text() {
+        Some(n.text().unwrap_or("").to_string())
+    } else if has_tag(n, "content") {
+        Some(collect_text(n))
+    } else {
+        None
+    }
+}
+
+/// `_checkbox_text_block`: the checkbox and its text when the body of `el`
+/// holds nothing else — the plain run right after the symbol, verbatim
+/// (docling-core#955: `<checkbox/> y` is `" y"`, `<checkbox/>y` is `"y"`).
+fn checkbox_text_block<'a, 'i>(el: XmlNode<'a, 'i>) -> Option<(XmlNode<'a, 'i>, String)> {
+    let (_, body) = split_head_body(el);
+    let nodes: Vec<XmlNode> = body
+        .into_iter()
+        .filter(|n| n.is_element() || (n.is_text() && !n.text().unwrap_or("").is_empty()))
+        .collect();
+    let first = *nodes.first().filter(|n| has_tag(**n, "checkbox"))?;
+    match nodes[..] {
+        [_] => Some((first, String::new())),
+        [_, run] => plain_run_text(run).map(|t| (first, t)),
+        _ => None,
+    }
+}
+
+fn checkbox_label(el: XmlNode) -> &'static str {
+    if el.attribute("class") == Some("selected") {
+        "checkbox_selected"
+    } else {
+        "checkbox_unselected"
+    }
 }
 
 fn apply_style(fmt: &mut Formatting, tag: &str) {
@@ -309,6 +385,7 @@ fn layer_from_nodes(nodes: &[XmlNode]) -> Option<ContentLayer> {
             Some("furniture") => Some(ContentLayer::Furniture),
             Some("notes") => Some(ContentLayer::Notes),
             Some("invisible") => Some(ContentLayer::Invisible),
+            Some("background") => Some(ContentLayer::Background),
             _ => None,
         })
 }
@@ -360,33 +437,28 @@ fn otsl_token<'a>(n: XmlNode<'a, '_>) -> Option<&'a str> {
 /// One fragment of an OTSL body after `_nodes_to_xml`'s reparse: stripped
 /// character data, or an element (a token, a `<location>`, or cell content).
 enum Part<'a, 'i> {
-    Text(String),
+    Text(XmlNode<'a, 'i>),
     El(XmlNode<'a, 'i>),
 }
 
-/// `_otsl_extract_tokens_and_text` on the body nodes: `<content>` wrappers
-/// are unwrapped (their text and elements become direct parts), text is
-/// stripped and dropped when blank.
+/// `_otsl_extract_tokens_and_text` on the body nodes: every non-empty text
+/// node (already read per the reading rules; an unwrapped `<content>` stays
+/// literal) and every element, a `<content>` included, as a part.
 fn otsl_parts<'a, 'i>(nodes: &[XmlNode<'a, 'i>], out: &mut Vec<Part<'a, 'i>>) {
     for n in nodes {
         if n.is_text() {
-            for data in pieces(*n) {
-                let t = data.trim();
-                if !t.is_empty() {
-                    out.push(Part::Text(t.to_string()));
-                }
+            if !n.text().unwrap_or("").is_empty() {
+                out.push(Part::Text(*n));
             }
-        } else if has_tag(*n, "content") {
-            let inner: Vec<XmlNode> = n.children().collect();
-            otsl_parts(&inner, out);
         } else if n.is_element() {
             out.push(Part::El(*n));
         }
     }
 }
 
-/// A parsed OTSL cell: the docling `TableCell` plus, for a rich cell, the
-/// element parts whose items go under the cell's group.
+/// A parsed OTSL cell: the docling `TableCell` plus, for a rich cell (one
+/// holding an element), its body nodes — an inline group's runs when they
+/// are virtual text, else blocks under an `unspecified` group.
 struct OtslCell<'a, 'i> {
     cell: TableCell,
     rich: Vec<XmlNode<'a, 'i>>,
@@ -492,6 +564,13 @@ impl Builder<'_> {
     /// `_dispatch_element`.
     fn dispatch(&mut self, el: XmlNode, parent: Option<usize>) {
         match el.tag_name().name() {
+            // docling-core#880: a media track is not supported yet — skipped
+            // with all its content (its captions would read as body text).
+            "track" => {
+                eprintln!(
+                    "warning: doclang: <track> is not supported yet; skipped with all its content"
+                )
+            }
             "text" | "caption" | "footnote" | "page_header" | "page_footer" | "code"
             | "formula" | "ldiv" | "bold" | "italic" | "underline" | "strikethrough"
             | "subscript" | "superscript" | "content" => self.text_like(el, parent),
@@ -502,13 +581,8 @@ impl Builder<'_> {
             "heading" => self.heading(el, parent),
             "field_region" => self.field_region(el, parent),
             "checkbox" => {
-                let label = if el.attribute("class") == Some("selected") {
-                    "checkbox_selected"
-                } else {
-                    "checkbox_unselected"
-                };
                 self.tree
-                    .add(parent, None, Self::text_kind(label, "", None));
+                    .add(parent, None, Self::text_kind(checkbox_label(el), "", None));
             }
             "list" => self.list(el, parent),
             "group" => {
@@ -516,10 +590,12 @@ impl Builder<'_> {
                 // wrapper parses as one unit; anything else is transparent.
                 if let Some(name) = el.attribute("name").filter(|n| !n.is_empty()) {
                     self.named_group(el, parent, name);
-                } else if first_child(el, "table").is_some() || first_child(el, "index").is_some() {
-                    self.table(el, parent);
-                } else if first_child(el, "picture").is_some() {
-                    self.picture(el, parent);
+                } else if let Some(host) = float_group_host(el) {
+                    match host.tag_name().name() {
+                        "picture" => self.picture(el, parent),
+                        "code" => self.code_group(el, host, parent),
+                        _ => self.table(el, parent),
+                    }
                 } else {
                     self.walk_children(el, parent);
                 }
@@ -594,7 +670,12 @@ impl Builder<'_> {
         // An element without any content is an empty item, not a childless
         // inline group (docling-core 2.102's `_is_empty_text_block`).
         let is_empty = simple.is_none() && is_empty_text_block(el);
-        if !is_empty && (element_children.len() > 1 || simple.is_none()) {
+        let checkbox = if name == "text" {
+            checkbox_text_block(el)
+        } else {
+            None
+        };
+        if checkbox.is_none() && !is_empty && (element_children.len() > 1 || simple.is_none()) {
             // `_parse_mixed_text_like` (docling-core#865): a mixed caption,
             // footnote or page header/footer — or a `<text>` with a location
             // — is a host item of its own label, provenance and layer over
@@ -614,8 +695,16 @@ impl Builder<'_> {
         }
         let provs = self.provenance(el);
         let layer = layer_of(el);
-        let (text, mut formatting) = text_with_formatting(el);
-        if text.is_empty() && !is_empty {
+        // A run inside an inline group owns its edge whitespace; a block
+        // host does not.
+        let in_group = parent.is_some_and(|p| {
+            matches!(&self.tree.items[p].kind, TreeKind::Group { label, .. } if label == "inline")
+        });
+        let (text, mut formatting) = match &checkbox {
+            Some((_, t)) => (t.clone(), None),
+            None => text_with_formatting(el, !in_group),
+        };
+        if text.is_empty() && !is_empty && checkbox.is_none() {
             return;
         }
         match name {
@@ -625,7 +714,7 @@ impl Builder<'_> {
                     return;
                 }
                 let len = code.chars().count();
-                self.add_text_item(
+                let item = self.add_text_item(
                     parent,
                     layer,
                     TreeKind::Code {
@@ -639,6 +728,11 @@ impl Builder<'_> {
                     provs,
                     Some(len),
                 );
+                // The head's captions, created after the code item.
+                let caps = self.extract_captions(el);
+                if let TreeKind::Code { captions, .. } = &mut self.tree.items[item].kind {
+                    *captions = caps;
+                }
             }
             "formula" => {
                 let len = text.chars().count();
@@ -667,22 +761,14 @@ impl Builder<'_> {
                     apply_style(&mut fmt, name);
                     formatting = Some(fmt);
                 }
-                if name == "text" {
-                    if element_children
+                if let Some((cb, _)) = checkbox {
+                    label = checkbox_label(cb);
+                } else if name == "text"
+                    && element_children
                         .iter()
                         .any(|c| c.tag_name().name() == "handwriting")
-                    {
-                        label = "handwritten_text";
-                    } else if let Some(cb) = element_children
-                        .iter()
-                        .find(|c| c.tag_name().name() == "checkbox")
-                    {
-                        match cb.attribute("class") {
-                            Some("selected") => label = "checkbox_selected",
-                            Some("unselected") => label = "checkbox_unselected",
-                            _ => {}
-                        }
-                    }
+                {
+                    label = "handwritten_text";
                 }
                 let len = text.chars().count();
                 self.add_text_item(
@@ -706,7 +792,7 @@ impl Builder<'_> {
             .unwrap_or(1);
         let provs = self.provenance(el);
         let layer = layer_of(el);
-        let text = get_text(el).trim().to_string();
+        let text = get_text(el);
         if text.is_empty() {
             return;
         }
@@ -737,7 +823,7 @@ impl Builder<'_> {
         for item in el.children().filter(|c| has_tag(*c, "field_item")) {
             let part = |name: &str| {
                 first_child(item, name).map(|kv| {
-                    let text = text_with_formatting(kv).0;
+                    let text = text_with_formatting(kv, true).0;
                     let kind = (name == "value").then(|| {
                         if kv.attribute("class") == Some("fillable") {
                             "fillable"
@@ -906,7 +992,8 @@ impl Builder<'_> {
                 break;
             }
         }
-        let leading = leading.trim().to_string();
+        // Already read per the reading rules: what edge whitespace is left
+        // came from a literal `<content>`.
         let rest: Vec<XmlNode> = body[rest_start..]
             .iter()
             .copied()
@@ -935,7 +1022,7 @@ impl Builder<'_> {
                     text.push_str(&get_text(*n));
                 }
             }
-            self.add_list_item(group, text.trim(), meta, provs);
+            self.add_list_item(group, &text, meta, provs);
         } else {
             let li = self.add_list_item(group, "", meta, provs);
             self.inline_group(list_el, Some(li), Some(body));
@@ -1015,8 +1102,27 @@ impl Builder<'_> {
         if let Some(Run::Text(t)) = runs.last_mut() {
             *t = t.trim_end().to_string();
         }
-        for run in runs {
+        // `_parse_inline_runs`: a checkbox takes the plain run right after
+        // it as its text (docling-core#955), verbatim.
+        let mut runs = runs.into_iter().peekable();
+        while let Some(run) = runs.next() {
             match run {
+                Run::El(n) if has_tag(n, "checkbox") => {
+                    let text = match runs.peek() {
+                        Some(Run::Text(t)) => Some(t.clone()),
+                        Some(Run::El(c)) if has_tag(*c, "content") => Some(collect_text(*c)),
+                        _ => None,
+                    };
+                    if text.is_some() {
+                        runs.next();
+                    }
+                    let label = checkbox_label(n);
+                    self.tree.add(
+                        Some(g),
+                        None,
+                        Self::text_kind(label, &text.unwrap_or_default(), None),
+                    );
+                }
                 Run::El(n) => self.dispatch(n, Some(g)),
                 Run::Text(t) => {
                     self.tree
@@ -1063,12 +1169,11 @@ impl Builder<'_> {
 
     // ------------- floating items -------------
 
-    /// `_extract_caption`: the first `<caption>` child becomes a body-level
-    /// `caption` item (docling's `add_text` without a parent), created
-    /// *before* the float that references it.
-    fn extract_caption(&mut self, el: XmlNode) -> Option<usize> {
-        let cap = first_child(el, "caption")?;
-        let text = get_text(cap).trim().to_string();
+    /// `_extract_caption`: a `<caption>` becomes a body-level `caption`
+    /// item (docling's `add_text` without a parent), created *before* the
+    /// float that references it.
+    fn extract_caption(&mut self, cap: XmlNode) -> Option<usize> {
+        let text = get_text(cap);
         if text.is_empty() {
             return None;
         }
@@ -1090,21 +1195,93 @@ impl Builder<'_> {
         ))
     }
 
-    /// `_extract_footnotes`: a float wrapper's `<footnote>` children, as
-    /// body-level `footnote` items.
-    fn extract_footnotes(&mut self, el: XmlNode) {
-        for n in el.children().filter(|c| has_tag(*c, "footnote")) {
-            let text = get_text(n).trim().to_string();
-            if !text.is_empty() {
+    /// `_extract_captions`: every `<caption>` of an element head (or of a
+    /// float group), each a body-level `caption` item — DocLang 0.8 allows
+    /// several (docling-core#880).
+    fn extract_captions(&mut self, el: XmlNode) -> Vec<usize> {
+        el.children()
+            .filter(|c| has_tag(*c, "caption"))
+            .filter_map(|c| self.extract_caption(c))
+            .collect()
+    }
+
+    /// `_extract_satellites`: a float group's `<text>` siblings as extra
+    /// captions (how they were written before DocLang 0.8), its
+    /// `<footnote>`s as the float's footnotes — body-level items, created
+    /// before the float. One holding block content is a host item over it.
+    fn extract_satellites(&mut self, el: XmlNode) -> (Vec<usize>, Vec<usize>) {
+        let mut captions = Vec::new();
+        let mut footnotes = Vec::new();
+        for n in el.children().filter(|c| c.is_element()) {
+            let label = match n.tag_name().name() {
+                "text" => "caption",
+                "footnote" => "footnote",
+                _ => continue,
+            };
+            let nested: Vec<XmlNode> = n
+                .children()
+                .filter(|c| {
+                    c.is_element()
+                        && !is_head_tag(c.tag_name().name())
+                        && !matches!(
+                            c.tag_name().name(),
+                            "bold"
+                                | "italic"
+                                | "underline"
+                                | "strikethrough"
+                                | "subscript"
+                                | "superscript"
+                                | "br"
+                                | "content"
+                        )
+                })
+                .collect();
+            let item = if !nested.is_empty() {
+                // `_parse_container_host`: an empty item of the label over
+                // the element's body, parsed like any container's.
                 let provs = self.provenance(n);
-                self.add_text_item(
+                let host = self.add_text_item(
                     None,
-                    None,
-                    Self::text_kind("footnote", &text, None),
+                    layer_of(n),
+                    Self::text_kind(label, "", None),
                     provs,
-                    None,
+                    Some(0),
                 );
+                for c in split_head_body(n).1.into_iter().filter(|c| c.is_element()) {
+                    self.dispatch(c, Some(host));
+                }
+                Some(host)
+            } else {
+                let text = get_text(n);
+                (!text.is_empty()).then(|| {
+                    let provs = self.provenance(n);
+                    self.add_text_item(None, None, Self::text_kind(label, &text, None), provs, None)
+                })
+            };
+            if let Some(id) = item {
+                if label == "caption" {
+                    captions.push(id);
+                } else {
+                    footnotes.push(id);
+                }
             }
+        }
+        (captions, footnotes)
+    }
+
+    /// `_parse_code_group`: a `<group>` wrapping a `<code>` with its
+    /// satellites — the code item parsed as usual, then given them.
+    fn code_group(&mut self, el: XmlNode, code_el: XmlNode, parent: Option<usize>) {
+        let (extra, footnotes) = self.extract_satellites(el);
+        let first = self.tree.items.len();
+        self.text_like(code_el, parent);
+        let code = (first..self.tree.items.len())
+            .find(|&i| matches!(self.tree.items[i].kind, TreeKind::Code { .. }));
+        if let Some(code) = code {
+            if let TreeKind::Code { captions, .. } = &mut self.tree.items[code].kind {
+                captions.extend(extra);
+            }
+            self.tree.items[code].footnotes.extend(footnotes);
         }
     }
 
@@ -1112,19 +1289,22 @@ impl Builder<'_> {
     /// its footnotes. The item is created before its rich cells' groups.
     fn table(&mut self, el: XmlNode, parent: Option<usize>) {
         let name = el.tag_name().name();
-        let (otsl, caption) = if matches!(name, "table" | "index") {
-            (Some(el), self.extract_caption(el))
+        let (otsl, captions, footnotes) = if matches!(name, "table" | "index") {
+            (Some(el), self.extract_captions(el), Vec::new())
         } else {
-            self.extract_footnotes(el);
+            let (extra, footnotes) = self.extract_satellites(el);
             let otsl = first_child(el, "table").or_else(|| first_child(el, "index"));
-            let caption = self
-                .extract_caption(el)
-                .or_else(|| otsl.and_then(|o| self.extract_caption(o)));
-            (otsl, caption)
+            let mut captions = self.extract_captions(el);
+            if captions.is_empty() {
+                if let Some(o) = otsl {
+                    captions = self.extract_captions(o);
+                }
+            }
+            captions.extend(extra);
+            (otsl, captions, footnotes)
         };
-        let captions: Vec<usize> = caption.into_iter().collect();
         let Some(otsl) = otsl else {
-            self.tree.add(
+            let t = self.tree.add(
                 parent,
                 None,
                 TreeKind::Table {
@@ -1133,6 +1313,7 @@ impl Builder<'_> {
                     captions,
                 },
             );
+            self.tree.items[t].footnotes = footnotes;
             return;
         };
         let (head, body) = split_head_body(otsl);
@@ -1154,19 +1335,25 @@ impl Builder<'_> {
         let mut table_cells = Vec::with_capacity(cells.len());
         for OtslCell { cell, rich } in cells {
             if !rich.is_empty() {
-                // `doc.add_group(parent=tbl, label=UNSPECIFIED)`: the cell's
-                // content items hang off a group under the table.
-                let g = self.tree.add(
-                    Some(tbl),
-                    None,
-                    TreeKind::Group {
-                        label: "unspecified".into(),
-                        name: "group".into(),
-                    },
-                );
-                for part in &rich {
-                    self.dispatch(*part, Some(g));
-                }
+                let g = if is_virtual_text(&rich) {
+                    // Virtual text: an inline group of the runs.
+                    self.inline_group(otsl, Some(tbl), Some(rich))
+                } else {
+                    // `doc.add_group(parent=tbl, label=UNSPECIFIED)`: the
+                    // cell's blocks hang off a group under the table.
+                    let g = self.tree.add(
+                        Some(tbl),
+                        None,
+                        TreeKind::Group {
+                            label: "unspecified".into(),
+                            name: "group".into(),
+                        },
+                    );
+                    for part in rich.iter().filter(|n| n.is_element()) {
+                        self.dispatch(*part, Some(g));
+                    }
+                    g
+                };
                 rich_cells.push((cell.start_row, cell.start_col, g));
             }
             table_cells.push(cell);
@@ -1177,6 +1364,7 @@ impl Builder<'_> {
             rich_cells,
             captions,
         };
+        self.tree.items[tbl].footnotes = footnotes;
     }
 
     /// `_otsl_parse_texts`: cells from the token stream — spans counted from
@@ -1240,10 +1428,8 @@ impl Builder<'_> {
                     while content_idx < parts.len() && token_of(&parts[content_idx]).is_none() {
                         let p = &parts[content_idx];
                         match p {
-                            Part::Text(s) => cell_text.push_str(s),
-                            // `toxml()` of the element — the cell's text when
-                            // its content has no character data (a picture).
-                            Part::El(n) => cell_text.push_str(&source_xml(*n)),
+                            Part::Text(n) => cell_text.push_str(n.text().unwrap_or("")),
+                            Part::El(n) => cell_text.push_str(&collect_text(*n)),
                         }
                         cell_parts.push(p);
                         content_idx += 1;
@@ -1274,24 +1460,20 @@ impl Builder<'_> {
                             })
                             .count();
                     }
-                    let rich: Vec<XmlNode> = cell_parts
-                        .iter()
-                        .filter_map(|p| match p {
-                            Part::El(n) => Some(*n),
-                            Part::Text(_) => None,
-                        })
-                        .collect();
-                    let text = if rich.is_empty() {
-                        cell_text.trim().to_string()
+                    // A rich cell holds an element; its text is the
+                    // concatenated reading of its parts (docling-core 2.106).
+                    let has_element = cell_parts.iter().any(|p| matches!(p, Part::El(_)));
+                    let rich: Vec<XmlNode> = if has_element {
+                        cell_parts
+                            .iter()
+                            .map(|p| match p {
+                                Part::El(n) | Part::Text(n) => *n,
+                            })
+                            .collect()
                     } else {
-                        let joined: String = rich.iter().map(|n| get_text(*n)).collect();
-                        let joined = joined.trim().to_string();
-                        if joined.is_empty() {
-                            cell_text.trim().to_string()
-                        } else {
-                            joined
-                        }
+                        Vec::new()
                     };
+                    let text = cell_text;
                     let plain = rich.is_empty();
                     cells.push(OtslCell {
                         cell: TableCell {
@@ -1323,17 +1505,20 @@ impl Builder<'_> {
     /// a `<tabular>` its chart data, `<src>` its image (archives only), and
     /// any further content its children.
     fn picture(&mut self, el: XmlNode, parent: Option<usize>) {
-        let (pic_el, caption) = if el.tag_name().name() == "picture" {
-            (Some(el), self.extract_caption(el))
+        let (pic_el, captions, footnotes) = if el.tag_name().name() == "picture" {
+            (Some(el), self.extract_captions(el), Vec::new())
         } else {
-            self.extract_footnotes(el);
+            let (extra, footnotes) = self.extract_satellites(el);
             let pic_el = first_child(el, "picture");
-            let caption = self
-                .extract_caption(el)
-                .or_else(|| pic_el.and_then(|p| self.extract_caption(p)));
-            (pic_el, caption)
+            let mut captions = self.extract_captions(el);
+            if captions.is_empty() {
+                if let Some(p) = pic_el {
+                    captions = self.extract_captions(p);
+                }
+            }
+            captions.extend(extra);
+            (pic_el, captions, footnotes)
         };
-        let captions: Vec<usize> = caption.into_iter().collect();
         let (provs, layer) = match pic_el {
             Some(p) => (self.provenance(p), layer_of(p)),
             None => (Vec::new(), None),
@@ -1396,6 +1581,7 @@ impl Builder<'_> {
             provs,
             None,
         );
+        self.tree.items[pic].footnotes = footnotes;
         for n in content {
             self.dispatch(n, Some(pic));
         }
@@ -1451,23 +1637,65 @@ fn code_content(el: XmlNode) -> (String, Option<String>) {
         .and_then(|l| l.attribute("value"))
         .filter(|v| !v.is_empty())
         .and_then(code_language);
+    // `_extract_code_content_and_language`: the text nodes verbatim (the
+    // reading rules have run), the element heads skipped.
     let mut out = String::new();
     for n in el.children() {
         if n.is_text() {
-            for data in pieces(n) {
-                if !data.trim().is_empty() {
-                    out.push_str(&data);
-                }
-            }
+            out.push_str(n.text().unwrap_or(""));
         } else if n.is_element() {
             match n.tag_name().name() {
-                "location" | "layer" | "label" => {}
+                t if is_head_tag(t) => {}
                 "br" => out.push('\n'),
-                _ => out.push_str(&get_text(n)),
+                _ => out.push_str(&collect_text(n)),
             }
         }
     }
     (out, lang)
+}
+
+/// `_is_virtual_text`: the nodes hold raw text or text-level elements of
+/// their own (a cell given as unwrapped text, its runs inline).
+fn is_virtual_text(nodes: &[XmlNode]) -> bool {
+    nodes.iter().any(|n| {
+        if n.is_text() {
+            !n.text().unwrap_or("").trim_matches(XML_WS).is_empty()
+        } else {
+            matches!(
+                n.tag_name().name(),
+                "bold"
+                    | "italic"
+                    | "underline"
+                    | "strikethrough"
+                    | "subscript"
+                    | "superscript"
+                    | "handwriting"
+                    | "rtl"
+                    | "content"
+                    | "br"
+                    | "checkbox"
+            )
+        }
+    })
+}
+
+/// `_float_group_host`: the one `<picture>`, `<table>`, `<index>` or
+/// `<code>` a nameless `<group>` wraps with nothing but satellites
+/// (`<text>`, `<footnote>`, `<caption>`) beside it — DocLang's convention for
+/// a float's footnotes — else `None`.
+fn float_group_host<'a, 'i>(el: XmlNode<'a, 'i>) -> Option<XmlNode<'a, 'i>> {
+    let mut hosts = Vec::new();
+    for n in el.children().filter(|c| c.is_element()) {
+        match n.tag_name().name() {
+            "picture" | "table" | "index" | "code" => hosts.push(n),
+            "text" | "footnote" | "caption" => {}
+            _ => return None,
+        }
+    }
+    match hosts[..] {
+        [host] => Some(host),
+        _ => None,
+    }
 }
 
 /// The list-parser's "complex `<text>` wrap" test: more than one element

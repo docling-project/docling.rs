@@ -2010,6 +2010,18 @@ impl Builder {
                 }
             };
             debug_assert_eq!(self_ref, refs[id], "tree item {id} numbered out of order");
+            // A float's own footnotes (`FloatingItem.footnotes`).
+            if !item.footnotes.is_empty() {
+                let notes: Vec<Value> = item
+                    .footnotes
+                    .iter()
+                    .filter(|&&f| !tree.items[f].deleted)
+                    .map(|&f| ref_of(f))
+                    .collect();
+                if let Some(v) = self.item_mut(&self_ref) {
+                    v["footnotes"] = Value::Array(notes);
+                }
+            }
         }
         tree.body
             .iter()

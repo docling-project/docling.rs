@@ -184,6 +184,11 @@ pub struct TreeItem {
     /// stays so every other index keeps its meaning, but the item is not
     /// numbered or written.
     pub deleted: bool,
+    /// docling's `FloatingItem.footnotes`: the `footnote` items a table,
+    /// picture or code item carries as its own (a DocLang float group's
+    /// `<footnote>`s), as item indices — written as the item's `footnotes`
+    /// refs. Unrelated to [`Self::notes`], which are note calls in a text.
+    pub footnotes: Vec<usize>,
     /// Footnotes / endnotes referenced from inside this text item (#538): the
     /// note call's position (chars into the item's text) and the note's text.
     /// docling keeps notes as unlinked furniture `footnote` items, so the
@@ -588,6 +593,7 @@ impl ItemTree {
             comments: Vec::new(),
             source: None,
             deleted: false,
+            footnotes: Vec::new(),
             notes: Vec::new(),
             note_body: false,
             anchors: Vec::new(),
@@ -698,7 +704,12 @@ impl ItemTree {
         let shift = |i: usize| i + off;
         for mut item in other.items {
             item.parent = item.parent.map(shift);
-            for c in item.children.iter_mut().chain(item.comments.iter_mut()) {
+            for c in item
+                .children
+                .iter_mut()
+                .chain(item.comments.iter_mut())
+                .chain(item.footnotes.iter_mut())
+            {
                 *c = shift(*c);
             }
             match &mut item.kind {
@@ -795,6 +806,7 @@ impl ItemTree {
             item.parent = item.parent.and_then(|p| new_of[p]);
             remap(&mut item.children);
             remap(&mut item.comments);
+            remap(&mut item.footnotes);
             match &mut item.kind {
                 TreeKind::Table {
                     rich_cells,

@@ -17,6 +17,12 @@
 //! reads as one space on its run, none at the block's edges. One field moved
 //! by hand: 2.148's deserializer names the document `Document`; the
 //! references keep the file stem, as the 2.140 capture did.
+//!
+//! `multi_captions_footnotes[_top_level]` are docling-core's own fixtures
+//! (`tests/data/doc/*.gt.dclg.xml`, DocLang 0.8's several head captions and a
+//! float group's footnotes, docling-core#880) and `reading_0_9` ours (a
+//! skipped `<track>`, the checkbox run, the background layer), all captured
+//! with docling 2.148.0 the same way.
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -67,7 +73,7 @@ fn mixed_text_and_captions_follow_docling() {
         .filter(|p| p.extension().is_some_and(|e| e == "dclg"))
         .collect();
     docs.sort();
-    assert_eq!(docs.len(), 3);
+    assert_eq!(docs.len(), 6);
     let mut failures = Vec::new();
     for path in &docs {
         let name = path.file_stem().unwrap().to_str().unwrap();

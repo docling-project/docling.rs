@@ -239,6 +239,25 @@ impl Dom {
                 // Declarations and comments are disregarded.
                 let close = if rest.starts_with("<?") { "?>" } else { "-->" };
                 *pos += rest.find(close).map_or(rest.len(), |e| e + close.len());
+            } else if rest.starts_with("<!") {
+                // A document type declaration, its internal subset included.
+                let mut depth = 0usize;
+                let end = rest
+                    .char_indices()
+                    .find(|&(_, c)| match c {
+                        '[' => {
+                            depth += 1;
+                            false
+                        }
+                        ']' => {
+                            depth = depth.saturating_sub(1);
+                            false
+                        }
+                        '>' => depth == 0,
+                        _ => false,
+                    })
+                    .map_or(rest.len(), |(i, _)| i + 1);
+                *pos += end;
             } else if rest.starts_with('<') {
                 let end = tag_end(rest);
                 let tag = &rest[1..end];
@@ -588,7 +607,6 @@ impl Dom {
 
     /// `_apply_whitespace_rules`: rewrite the text nodes as DocLang 0.9
     /// reads them.
-    #[allow(dead_code)]
     pub(crate) fn apply_whitespace_rules(&mut self) {
         let root = self.root;
         self.for_each_text_block(root, Mode::Read);
@@ -777,7 +795,7 @@ fn collapse_ws_runs(s: &str) -> String {
 pub(crate) fn layer_value(layer: crate::ContentLayer) -> &'static str {
     match layer {
         crate::ContentLayer::Furniture | crate::ContentLayer::Notes => "furniture",
-        crate::ContentLayer::Invisible => "background",
+        crate::ContentLayer::Invisible | crate::ContentLayer::Background => "background",
     }
 }
 
@@ -822,6 +840,21 @@ pub(crate) fn finish(xml: &str) -> String {
     expand_non_selfclosing(&text)
 }
 
+/// DocLang 0.9's reading of a document's markup — what docling-core's
+/// deserializer runs before anything else (`_apply_whitespace_rules`): every
+/// text node rewritten to exactly its reading — a whitespace sequence one
+/// space, none outside text blocks or at their edges, `<content>` (and
+/// `<custom>`, `<track>`) as written. The markup comes back as the root
+/// element alone (the declaration, a doctype and comments dropped), CDATA
+/// sections kept; `None` when it holds no element.
+pub fn doclang_apply_reading_rules(xml: &str) -> Option<String> {
+    let mut dom = Dom::parse(xml)?;
+    dom.apply_whitespace_rules();
+    let mut out = String::with_capacity(xml.len());
+    dom.toxml(dom.root, &mut out);
+    Some(out)
+}
+
 /// `<x/>` → `<x></x>` for the tokens that may not be self-closing.
 pub(crate) fn expand_non_selfclosing(text: &str) -> String {
     static EXPAND: OnceLock<regex::Regex> = OnceLock::new();
@@ -838,11 +871,12 @@ pub(crate) fn expand_non_selfclosing(text: &str) -> String {
 /// The index of the `>` closing the tag that starts `s`, skipping quoted
 /// attribute values.
 fn tag_end(s: &str) -> usize {
-    let mut quoted = false;
+    let mut quote: Option<char> = None;
     for (i, c) in s.char_indices() {
-        match c {
-            '"' => quoted = !quoted,
-            '>' if !quoted => return i,
+        match (c, quote) {
+            ('"' | '\'', None) => quote = Some(c),
+            (c, Some(q)) if c == q => quote = None,
+            ('>', None) => return i,
             _ => {}
         }
     }
@@ -856,9 +890,12 @@ fn parse_tag(tag: &str) -> (String, Vec<(String, String)>) {
     while let Some(eq) = rest.find('=') {
         let key = rest[..eq].trim().to_string();
         let after = &rest[eq + 1..];
-        let Some(open) = after.find('"') else { break };
+        let Some(open) = after.find(['"', '\'']) else {
+            break;
+        };
+        let q = after[open..].chars().next().unwrap_or('"');
         let value_and_rest = &after[open + 1..];
-        let close = value_and_rest.find('"').unwrap_or(value_and_rest.len());
+        let close = value_and_rest.find(q).unwrap_or(value_and_rest.len());
         // XML attribute-value normalization: a literal tab or line break is
         // read as a space.
         let value = decode_entities(&value_and_rest[..close]).replace(['\t', '\n', '\r'], " ");

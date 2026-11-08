@@ -63,19 +63,19 @@
         "$ref": "#/groups/5"
       },
       {
+        "$ref": "#/texts/38"
+      },
+      {
         "$ref": "#/texts/39"
       },
       {
         "$ref": "#/texts/40"
       },
       {
-        "$ref": "#/texts/41"
-      },
-      {
         "$ref": "#/pictures/0"
       },
       {
-        "$ref": "#/texts/42"
+        "$ref": "#/texts/41"
       }
     ],
     "content_layer": "body",
@@ -221,9 +221,6 @@
         },
         {
           "$ref": "#/texts/37"
-        },
-        {
-          "$ref": "#/texts/38"
         }
       ],
       "content_layer": "furniture",
@@ -311,7 +308,14 @@
       "label": "text",
       "prov": [],
       "orig": "italic and bold hyperlink",
-      "text": "italic and bold hyperlink"
+      "text": "italic and bold hyperlink",
+      "formatting": {
+        "bold": true,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "script": "baseline"
+      }
     },
     {
       "self_ref": "#/texts/5",
@@ -759,18 +763,6 @@
       "content_layer": "furniture",
       "label": "text",
       "prov": [],
-      "orig": " ",
-      "text": " "
-    },
-    {
-      "self_ref": "#/texts/36",
-      "parent": {
-        "$ref": "#/groups/5"
-      },
-      "children": [],
-      "content_layer": "furniture",
-      "label": "text",
-      "prov": [],
       "orig": "header",
       "text": "header",
       "formatting": {
@@ -782,7 +774,7 @@
       }
     },
     {
-      "self_ref": "#/texts/37",
+      "self_ref": "#/texts/36",
       "parent": {
         "$ref": "#/groups/5"
       },
@@ -794,7 +786,7 @@
       "text": " "
     },
     {
-      "self_ref": "#/texts/38",
+      "self_ref": "#/texts/37",
       "parent": {
         "$ref": "#/groups/5"
       },
@@ -802,11 +794,11 @@
       "content_layer": "furniture",
       "label": "text",
       "prov": [],
-      "orig": " in bold",
-      "text": " in bold"
+      "orig": "in bold",
+      "text": "in bold"
     },
     {
-      "self_ref": "#/texts/39",
+      "self_ref": "#/texts/38",
       "parent": {
         "$ref": "#/body"
       },
@@ -818,7 +810,7 @@
       "text": "With 2 paragraphs"
     },
     {
-      "self_ref": "#/texts/40",
+      "self_ref": "#/texts/39",
       "parent": {
         "$ref": "#/body"
       },
@@ -830,7 +822,7 @@
       "text": "Another footer"
     },
     {
-      "self_ref": "#/texts/41",
+      "self_ref": "#/texts/40",
       "parent": {
         "$ref": "#/body"
       },
@@ -842,7 +834,7 @@
       "text": "With"
     },
     {
-      "self_ref": "#/texts/42",
+      "self_ref": "#/texts/41",
       "parent": {
         "$ref": "#/body"
       },

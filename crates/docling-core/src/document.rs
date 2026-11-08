@@ -516,6 +516,10 @@ pub enum ContentLayer {
     Notes,
     /// Invisible content (hidden spreadsheet sheets).
     Invisible,
+    /// Background content (watermarks): docling-core 2.99's `background`
+    /// layer, which DocLang has and an `invisible` item is written to
+    /// (docling-core#800) — read back from a DocLang document.
+    Background,
 }
 
 impl ContentLayer {
@@ -525,6 +529,7 @@ impl ContentLayer {
             ContentLayer::Furniture => "furniture",
             ContentLayer::Notes => "notes",
             ContentLayer::Invisible => "invisible",
+            ContentLayer::Background => "background",
         }
     }
 }
@@ -545,6 +550,8 @@ pub struct ContentLayers {
     pub notes: bool,
     /// [`ContentLayer::Invisible`]: hidden content (hidden sheets, …).
     pub invisible: bool,
+    /// [`ContentLayer::Background`]: background content (watermarks).
+    pub background: bool,
 }
 
 impl Default for ContentLayers {
@@ -560,6 +567,7 @@ impl ContentLayers {
         furniture: false,
         notes: false,
         invisible: false,
+        background: false,
     };
     /// Every layer — Python's `set(ContentLayer)`.
     pub const ALL: Self = Self {
@@ -567,6 +575,7 @@ impl ContentLayers {
         furniture: true,
         notes: true,
         invisible: true,
+        background: true,
     };
     /// No layer at all (nothing renders); build a set from it with
     /// [`with`](Self::with) / [`with_body`](Self::with_body).
@@ -575,6 +584,7 @@ impl ContentLayers {
         furniture: false,
         notes: false,
         invisible: false,
+        background: false,
     };
 
     /// The set plus `layer`.
@@ -583,6 +593,7 @@ impl ContentLayers {
             ContentLayer::Furniture => self.furniture = true,
             ContentLayer::Notes => self.notes = true,
             ContentLayer::Invisible => self.invisible = true,
+            ContentLayer::Background => self.background = true,
         }
         self
     }
@@ -600,27 +611,27 @@ impl ContentLayers {
             Some(ContentLayer::Furniture) => self.furniture,
             Some(ContentLayer::Notes) => self.notes,
             Some(ContentLayer::Invisible) => self.invisible,
+            Some(ContentLayer::Background) => self.background,
         }
     }
 
     /// Whether the layer spelled `name` (`body`, `furniture`, `notes`,
-    /// `invisible` — the JSON `content_layer` values) is in the set; an
-    /// unknown name is not.
+    /// `invisible`, `background` — the JSON `content_layer` values) is in
+    /// the set; an unknown name is not.
     pub fn contains_name(&self, name: &str) -> bool {
         match name {
             "body" => self.body,
             "furniture" => self.furniture,
             "notes" => self.notes,
             "invisible" => self.invisible,
+            "background" => self.background,
             _ => false,
         }
     }
 
     /// Parse a comma-separated list of layer names (`body,furniture`;
     /// whitespace around a name is ignored, `all` is every layer). An
-    /// unknown name is the error. docling-core 2.99's `background` layer
-    /// (watermarks) has no items in this model, so the name is accepted and
-    /// adds nothing — a set written for Python keeps parsing.
+    /// unknown name is the error.
     pub fn parse_list(list: &str) -> Result<Self, String> {
         let mut set = Self::NONE;
         for name in list.split(',').map(str::trim).filter(|n| !n.is_empty()) {
@@ -629,11 +640,11 @@ impl ContentLayers {
                 "furniture" => set.furniture = true,
                 "notes" => set.notes = true,
                 "invisible" => set.invisible = true,
-                "background" => {}
+                "background" => set.background = true,
                 "all" => set = Self::ALL,
                 other => {
                     return Err(format!(
-                        "unknown content layer `{other}` (expected body, furniture, notes, invisible or all)"
+                        "unknown content layer `{other}` (expected body, furniture, notes, invisible, background or all)"
                     ))
                 }
             }

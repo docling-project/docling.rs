@@ -1185,8 +1185,11 @@ fn render_item(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
             });
         }
         Node::CheckboxItem { checked, text } => {
-            let mark = if *checked { "- [x] " } else { "- [ ] " };
-            blocks.push(ctx.breaks(&ctx.text(&format!("{mark}{text}"))));
+            // docling-core#955: the box needs a space after it, unless the
+            // text brings its own (a DocLang `<checkbox/> y` reads `" y"`).
+            let mark = if *checked { "- [x]" } else { "- [ ]" };
+            let sep = if text.starts_with(' ') { "" } else { " " };
+            blocks.push(ctx.breaks(&ctx.text(&format!("{mark}{sep}{text}"))));
         }
         Node::Code {
             language,
