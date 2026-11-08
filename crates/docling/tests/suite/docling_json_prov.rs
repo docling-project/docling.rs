@@ -1,7 +1,7 @@
 //! #899: a docling-JSON input keeps its provenance. docling's own
 //! `multi_page.json` (five pages, 53 items with a `prov`) read back and
 //! exported again carries every page and every box, and its DocLang export
-//! is the one docling-core 2.104 derives from the same file (the
+//! is the one docling-core 2.106 derives from the same file (the
 //! `<location>` tokens and `<page_break/>`s). Needs no model.
 
 use std::path::{Path, PathBuf};
@@ -88,11 +88,9 @@ fn pages_and_prov_survive_the_json_round_trip() {
 
 /// The DocLang export carries the location tokens and page breaks
 /// docling-core derives from the same provenance: byte-for-byte its own
-/// render of the file, but for the schema version line, the list markers —
-/// docling writes the item's `marker` (`·`, `1.`) into the `<ldiv>`, which
-/// this backend does not carry to DocLang (not part of #899) — and the
-/// whitespace after a CDATA list item, which only the item-tree serializer
-/// reproduces (#884).
+/// render of the file (docling-core 2.106, DocLang 0.9), but for the list
+/// markers — docling writes the item's `marker` (`·`, `1.`) into the
+/// `<ldiv>`, which this backend does not carry to DocLang (not part of #899).
 #[test]
 fn doclang_export_matches_docling_core() {
     let want = std::fs::read_to_string(
@@ -107,10 +105,6 @@ fn doclang_export_matches_docling_core() {
         let mut i = 0;
         while i < lines.len() {
             let l = lines[i];
-            if l.starts_with("<doclang version=") {
-                i += 1;
-                continue;
-            }
             if l.trim() == "<ldiv>"
                 && lines
                     .get(i + 1)
@@ -124,11 +118,7 @@ fn doclang_export_matches_docling_core() {
             out.push(l.to_string());
             i += 1;
         }
-        let mut s = out.join("\n");
-        while s.contains("]]> ") || s.contains("]]>\n") {
-            s = s.replace("]]> ", "]]>").replace("]]>\n", "]]>");
-        }
-        s
+        out.join("\n")
     };
     assert_eq!(norm(&got), norm(&want));
 }

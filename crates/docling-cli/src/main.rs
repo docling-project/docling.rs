@@ -190,7 +190,7 @@
 //!   --layers body|all|LIST, --traverse-pictures
 //!                      docling's `export_to_markdown(included_content_layers=…,
 //!                      traverse_pictures=…)`: layers for md/text/html (default
-//!                      body; LIST from body,furniture,notes,invisible), picture
+//!                      body; LIST from body,furniture,notes,invisible,background), picture
 //!                      text for md/text.
 //!   --no-stream        build the whole document before printing Markdown instead
 //!                      of streaming it page by page. Streaming is the default for
@@ -545,7 +545,7 @@ OUTPUT
   --strict                cleaner, more conformant Markdown (Markdown only)
   --page-break-placeholder TEXT   insert TEXT between pages (Markdown only, e.g. <!-- page break -->)
   --layers body|all|LIST  content layers md/text/html render (default body; LIST from
-                          body,furniture,notes,invisible)
+                          body,furniture,notes,invisible,background)
   --traverse-pictures     render text nested in pictures (md/text)
   --images MODE           picture handling: placeholder (default; embedded for --to pandoc)
                           | embedded | referenced (docling's --image-export-mode)
@@ -937,7 +937,7 @@ fn main() -> ExitCode {
             "--layers" => match args.next().map(|v| ContentLayers::parse_list(&v)) {
                 Some(Ok(l)) if l != ContentLayers::NONE => export.layers = l,
                 _ => {
-                    eprintln!("error: --layers needs body, all or a list of body,furniture,notes,invisible");
+                    eprintln!("error: --layers needs body, all or a list of body,furniture,notes,invisible,background");
                     return ExitCode::from(2);
                 }
             },

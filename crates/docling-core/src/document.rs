@@ -472,12 +472,10 @@ pub enum Node {
     /// and charts, which appear in the `.dclx` body but not in its `.md`/`.json`.
     /// DocLang renders the wrapped node in place; Markdown and JSON skip it.
     DoclangOnly(Box<Node>),
-    /// A verbatim plain-text dump — docling's plain-text backend emits the whole
-    /// file as a single text item (used for legacy USPTO APS `.txt` grants, which
-    /// docling routes to plain text rather than its APS parser). The stored string
-    /// is the file body, one record per line. Markdown/JSON render it as one text
-    /// block; the DocLang serializer reproduces minidom's per-line layout, CDATA-
-    /// escaping only the lines that need it (see `emit_text_dump`).
+    /// A verbatim plain-text dump: one text item holding text whose line
+    /// breaks are content (a nested table flattened to its cells' text, an
+    /// ODF text box's raw text). Markdown/JSON render it as one text block,
+    /// DocLang as one `<text>` whose `<content>` keeps the breaks.
     TextDump(String),
 }
 
@@ -518,6 +516,10 @@ pub enum ContentLayer {
     Notes,
     /// Invisible content (hidden spreadsheet sheets).
     Invisible,
+    /// Background content (watermarks): docling-core 2.99's `background`
+    /// layer, which DocLang has and an `invisible` item is written to
+    /// (docling-core#800) — read back from a DocLang document.
+    Background,
 }
 
 impl ContentLayer {
@@ -527,6 +529,7 @@ impl ContentLayer {
             ContentLayer::Furniture => "furniture",
             ContentLayer::Notes => "notes",
             ContentLayer::Invisible => "invisible",
+            ContentLayer::Background => "background",
         }
     }
 }
@@ -547,6 +550,8 @@ pub struct ContentLayers {
     pub notes: bool,
     /// [`ContentLayer::Invisible`]: hidden content (hidden sheets, …).
     pub invisible: bool,
+    /// [`ContentLayer::Background`]: background content (watermarks).
+    pub background: bool,
 }
 
 impl Default for ContentLayers {
@@ -562,6 +567,7 @@ impl ContentLayers {
         furniture: false,
         notes: false,
         invisible: false,
+        background: false,
     };
     /// Every layer — Python's `set(ContentLayer)`.
     pub const ALL: Self = Self {
@@ -569,6 +575,7 @@ impl ContentLayers {
         furniture: true,
         notes: true,
         invisible: true,
+        background: true,
     };
     /// No layer at all (nothing renders); build a set from it with
     /// [`with`](Self::with) / [`with_body`](Self::with_body).
@@ -577,6 +584,7 @@ impl ContentLayers {
         furniture: false,
         notes: false,
         invisible: false,
+        background: false,
     };
 
     /// The set plus `layer`.
@@ -585,6 +593,7 @@ impl ContentLayers {
             ContentLayer::Furniture => self.furniture = true,
             ContentLayer::Notes => self.notes = true,
             ContentLayer::Invisible => self.invisible = true,
+            ContentLayer::Background => self.background = true,
         }
         self
     }
@@ -602,27 +611,27 @@ impl ContentLayers {
             Some(ContentLayer::Furniture) => self.furniture,
             Some(ContentLayer::Notes) => self.notes,
             Some(ContentLayer::Invisible) => self.invisible,
+            Some(ContentLayer::Background) => self.background,
         }
     }
 
     /// Whether the layer spelled `name` (`body`, `furniture`, `notes`,
-    /// `invisible` — the JSON `content_layer` values) is in the set; an
-    /// unknown name is not.
+    /// `invisible`, `background` — the JSON `content_layer` values) is in
+    /// the set; an unknown name is not.
     pub fn contains_name(&self, name: &str) -> bool {
         match name {
             "body" => self.body,
             "furniture" => self.furniture,
             "notes" => self.notes,
             "invisible" => self.invisible,
+            "background" => self.background,
             _ => false,
         }
     }
 
     /// Parse a comma-separated list of layer names (`body,furniture`;
     /// whitespace around a name is ignored, `all` is every layer). An
-    /// unknown name is the error. docling-core 2.99's `background` layer
-    /// (watermarks) has no items in this model, so the name is accepted and
-    /// adds nothing — a set written for Python keeps parsing.
+    /// unknown name is the error.
     pub fn parse_list(list: &str) -> Result<Self, String> {
         let mut set = Self::NONE;
         for name in list.split(',').map(str::trim).filter(|n| !n.is_empty()) {
@@ -631,11 +640,11 @@ impl ContentLayers {
                 "furniture" => set.furniture = true,
                 "notes" => set.notes = true,
                 "invisible" => set.invisible = true,
-                "background" => {}
+                "background" => set.background = true,
                 "all" => set = Self::ALL,
                 other => {
                     return Err(format!(
-                        "unknown content layer `{other}` (expected body, furniture, notes, invisible or all)"
+                        "unknown content layer `{other}` (expected body, furniture, notes, invisible, background or all)"
                     ))
                 }
             }
@@ -1705,15 +1714,20 @@ impl DoclingDocument {
         })
     }
 
-    /// An opted-in item tree's DocLang ([`crate::tree::ItemTree::doclang`]),
-    /// else — no such tree, or one the port does not cover — the nodes'.
+    /// The item tree's DocLang — docling-core's `DocLangDocSerializer`
+    /// ported over the tree (`doclang_tree.rs`, #884), the structure the
+    /// JSON export writes — else (no tree, or one the port does not cover:
+    /// provenance, picture meta, form fields) the nodes'. The flat nodes
+    /// cannot carry a footnote's label, a caption's or a cell's inline
+    /// formulas, text docling never wrote as Markdown, or the whitespace of
+    /// an inline group's runs, which DocLang 0.9 reads as written.
     fn export_doclang(
         &self,
         pictures: crate::doclang::Pictures,
     ) -> (String, Vec<(String, Vec<u8>)>) {
         self.tree
             .as_ref()
-            .filter(|t| t.doclang)
+            .filter(|t| !t.doclang_nodes)
             .and_then(|t| crate::doclang_tree::export(t, pictures))
             .unwrap_or_else(|| crate::doclang::render(&self.nodes, pictures))
     }

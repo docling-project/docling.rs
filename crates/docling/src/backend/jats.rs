@@ -512,7 +512,7 @@ fn walk_generic(node: XmlNode, doc: &mut DoclingDocument) {
             continue;
         }
         if tag == "table" {
-            if let Some(t) = parse_jats_table(child) {
+            if let Some((t, _)) = parse_jats_table(child) {
                 doc.push(Node::Table(t));
             }
             continue;
@@ -1732,6 +1732,81 @@ fn caption_text(caption: XmlNode) -> String {
     out.trim().to_string()
 }
 
+/// docling#4809's rich JATS cells: each cell with styled, script, linked or
+/// formula runs gets a `rich_cell_group_{T}_{col}_{row}` group under the
+/// table (`T` = the table count including this one, docling's
+/// `len(doc.tables)` at that point) holding its runs — one item, or an
+/// inline group of several — and the JSON cell references it while keeping
+/// its plain text. The flat grid carries the runs' Markdown (emphasis,
+/// `$…$`, links; escaped like body text) and DocLang gets the runs as the
+/// cell's block content.
+fn add_rich_cells(out: &mut Out, table_id: usize, table: &mut Table, rich: Vec<RichCell>) {
+    if rich.is_empty() {
+        return;
+    }
+    let table_no = out
+        .tree
+        .items
+        .iter()
+        .filter(|i| matches!(i.kind, TreeKind::Table { .. }))
+        .count();
+    let (nrows, ncols) = (table.rows.len(), table.rows.first().map_or(0, Vec::len));
+    let mut blocks: Vec<Vec<Vec<Node>>> = vec![vec![Vec::new(); ncols]; nrows];
+    let mut refs: Vec<(usize, usize, usize)> = Vec::new();
+    for cell in rich {
+        let group = out.group(
+            Some(table_id),
+            "unspecified",
+            &format!("rich_cell_group_{table_no}_{}_{}", cell.col, cell.row),
+        );
+        let container = if cell.segs.len() > 1 {
+            Some(out.group(Some(group), "inline", "group"))
+        } else {
+            Some(group)
+        };
+        for seg in &cell.segs {
+            let label = if seg.formula { "formula" } else { "text" };
+            out.text(
+                container,
+                label,
+                &seg.text,
+                tree_formatting(seg.fmt),
+                seg.hyperlink.clone(),
+                None,
+                None,
+            );
+        }
+        refs.push((cell.row, cell.col, group));
+        // Markdown concatenates the runs, each keeping its boundary
+        // whitespace (the inline contract, #997); DocLang takes them stripped.
+        let md: String = cell.segs.iter().map(seg_markdown).collect();
+        let runs: Vec<InlineRun> = strip_segments(cell.segs.clone())
+            .iter()
+            .map(|s| {
+                if s.formula {
+                    InlineRun {
+                        text: s.text.clone(),
+                        formula: true,
+                        ..InlineRun::default()
+                    }
+                } else {
+                    s.fmt.to_inline_run(&s.text)
+                }
+            })
+            .collect();
+        blocks[cell.row][cell.col] = vec![inline_paragraph_node(md.clone(), runs, false)];
+        for r in cell.row..cell.row + cell.row_span {
+            for c in cell.col..cell.col + cell.col_span {
+                table.rows[r][c] = md.clone();
+            }
+        }
+    }
+    if let TreeKind::Table { rich_cells, .. } = &mut out.tree.items[table_id].kind {
+        *rich_cells = refs;
+    }
+    table.cell_blocks = Some(blocks);
+}
+
 /// docling's `_add_tables`: a `<table-wrap>` holding a `<table>` (direct or in
 /// `<alternatives>`) is a table ([`add_table_grid`]); one holding only a
 /// `<graphic>` — a table published as an image, as PMC often ships them —
@@ -1793,10 +1868,10 @@ fn add_table_grid(out: &mut Out, parent: Option<usize>, node: XmlNode) -> bool {
     } else {
         vec![out.text(None, "caption", &cap_text, None, None, None, None)]
     };
-    let Some(mut table) = parse_jats_table(table_node) else {
+    let Some((mut table, rich)) = parse_jats_table(table_node) else {
         return true;
     };
-    out.tree.add(
+    let table_id = out.tree.add(
         parent,
         None,
         TreeKind::Table {
@@ -1806,6 +1881,7 @@ fn add_table_grid(out: &mut Out, parent: Option<usize>, node: XmlNode) -> bool {
             captions,
         },
     );
+    add_rich_cells(out, table_id, &mut table, rich);
     // The label+caption becomes the table's own caption (docling attaches it to
     // the `TableItem` rather than emitting a standalone paragraph before it).
     // Stored escaped, matching the backend's text-node convention.
@@ -1817,7 +1893,17 @@ fn add_table_grid(out: &mut Out, parent: Option<usize>, node: XmlNode) -> bool {
 /// Parse a JATS/XHTML `<table>` into a row-major grid, expanding `colspan`
 /// (duplicated across columns) and `rowspan` (filled down). Header rows (`<th>`
 /// or `<thead>`) come first, matching docling's `parse_table_data` layout.
-fn parse_jats_table(table: XmlNode) -> Option<Table> {
+/// A table cell whose runs make it rich (docling#4809): its grid anchor,
+/// span, and its runs with the outer edges trimmed.
+struct RichCell {
+    row: usize,
+    col: usize,
+    row_span: usize,
+    col_span: usize,
+    segs: Vec<Seg>,
+}
+
+fn parse_jats_table(table: XmlNode) -> Option<(Table, Vec<RichCell>)> {
     // A nested table is unsupported (docling bails on `element.find("table")`).
     let rows_nodes: Vec<XmlNode> = table
         .descendants()
@@ -1856,6 +1942,7 @@ fn parse_jats_table(table: XmlNode) -> Option<Table> {
     let mut col_header: Vec<Vec<bool>> = vec![vec![false; num_cols]; nrows];
     let mut col_continuation: Vec<Vec<bool>> = vec![vec![false; num_cols]; nrows];
     let mut row_continuation: Vec<Vec<bool>> = vec![vec![false; num_cols]; nrows];
+    let mut rich: Vec<RichCell> = Vec::new();
     for (ri, row) in rows_nodes.iter().enumerate() {
         let mut ci = 0usize;
         for cell in row
@@ -1890,6 +1977,21 @@ fn parse_jats_table(table: XmlNode) -> Option<Table> {
                 }
             }
             col_header[ri][ci] = header;
+            // docling#4809: a cell whose runs are more than plain text — a
+            // styled, script, linked or formula run — is a rich cell.
+            let segs = trim_segment_edges(walk_table_cell(cell, Fmt::default(), None));
+            if segs
+                .iter()
+                .any(|s| s.formula || s.fmt != Fmt::default() || s.hyperlink.is_some())
+            {
+                rich.push(RichCell {
+                    row: ri,
+                    col: ci,
+                    row_span: rs.min(nrows - ri),
+                    col_span: cs.min(num_cols - ci),
+                    segs,
+                });
+            }
             ci += cs;
         }
     }
@@ -1906,17 +2008,71 @@ fn parse_jats_table(table: XmlNode) -> Option<Table> {
         row_header: Vec::new(),
         col_header,
     });
-    Some(Table {
-        footnotes: Vec::new(),
-        rows: grid,
-        location: None,
-        structure,
-        cell_blocks: None,
-        cells: None,
-        caption: None,
-        caption_parent: Default::default(),
-        caption_location: None,
-    })
+    Some((
+        Table {
+            footnotes: Vec::new(),
+            rows: grid,
+            location: None,
+            structure,
+            cell_blocks: None,
+            cells: None,
+            caption: None,
+            caption_parent: Default::default(),
+            caption_location: None,
+        },
+        rich,
+    ))
+}
+
+/// docling's `_walk_table_cell` (docling#4809): a table cell's inline
+/// content as runs — JATS emphasis and scripts as formatting, an
+/// `<ext-link>` as a hyperlink, a `<tex-math>` as a formula run (its MathML
+/// sibling skipped), and a `<p>` / `<list-item>` kept apart from what
+/// precedes it by a space, as the plain cell text reads.
+fn walk_table_cell(node: XmlNode, fmt: Fmt, hyperlink: Option<&str>) -> Vec<Seg> {
+    let mut segments: Vec<Seg> = Vec::new();
+    if let Some(t) = node.text() {
+        append_run(&mut segments, t, fmt, hyperlink);
+    }
+    for child in node.children().filter(XmlNode::is_element) {
+        let tag = child.tag_name().name();
+        if tag == "tex-math" {
+            if let Some(formula) = extract_tex_math(child) {
+                segments.push(Seg {
+                    formula: true,
+                    text: formula,
+                    fmt: Fmt::default(),
+                    hyperlink: hyperlink.map(str::to_string),
+                });
+            }
+        } else if tag.ends_with("math") && node.children().any(|c| c.has_tag_name("tex-math")) {
+            // The MathML alternative of a formula already kept as tex-math.
+        } else {
+            let own = (tag == "ext-link").then(|| ext_link_href(child)).flatten();
+            let link = if tag == "ext-link" {
+                own.as_deref()
+            } else {
+                hyperlink
+            };
+            let child_segments = walk_table_cell(child, fmt.with_tag(tag), link);
+            let block = matches!(tag, "p" | "list-item");
+            if block
+                && segments
+                    .last()
+                    .is_some_and(|s| !s.text.ends_with(char::is_whitespace))
+                && child_segments
+                    .first()
+                    .is_some_and(|s| !s.text.starts_with(char::is_whitespace))
+            {
+                append_run(&mut segments, " ", fmt, hyperlink);
+            }
+            extend_segments(&mut segments, child_segments);
+        }
+        if let Some(tail) = child.tail() {
+            append_run(&mut segments, tail, fmt, hyperlink);
+        }
+    }
+    segments
 }
 
 fn col_span(cell: XmlNode) -> usize {
@@ -3387,5 +3543,218 @@ Sectioned.
         );
         assert_eq!(lowercase_http_host("mailto:A@B.C"), "mailto:A@B.C");
         assert_eq!(lowercase_http_host("doi:10.1/X"), "doi:10.1/X");
+    }
+
+    /// `body` in a minimal article, as docling-JSON.
+    fn table_json(body: &str) -> serde_json::Value {
+        json_of(&format!(
+            r#"<article xmlns:xlink="http://www.w3.org/1999/xlink"><front><article-meta>
+            <title-group><article-title>T</article-title></title-group>
+            </article-meta></front><body>{body}</body></article>"#
+        ))
+    }
+
+    fn table_md(body: &str) -> String {
+        md_of(&format!(
+            r#"<article xmlns:xlink="http://www.w3.org/1999/xlink"><front><article-meta>
+            <title-group><article-title>T</article-title></title-group>
+            </article-meta></front><body>{body}</body></article>"#
+        ))
+    }
+
+    fn deref<'a>(json: &'a serde_json::Value, r: &serde_json::Value) -> &'a serde_json::Value {
+        let path = r["$ref"].as_str().unwrap().trim_start_matches("#/");
+        let (kind, idx) = path.split_once('/').unwrap();
+        &json[kind][idx.parse::<usize>().unwrap()]
+    }
+
+    /// The runs of table 0's cells, in order: `None` for a plain cell, else
+    /// `(label, text, formatting, hyperlink)` of each run of its group.
+    #[allow(clippy::type_complexity)]
+    fn cell_runs(
+        json: &serde_json::Value,
+    ) -> Vec<Option<Vec<(String, String, serde_json::Value, serde_json::Value)>>> {
+        json["tables"][0]["data"]["table_cells"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                let group = deref(json, c.get("ref")?);
+                assert!(group["name"]
+                    .as_str()
+                    .unwrap()
+                    .starts_with("rich_cell_group_1_"));
+                let kids = group["children"].as_array().unwrap();
+                assert_eq!(kids.len(), 1);
+                let first = deref(json, &kids[0]);
+                let items: Vec<&serde_json::Value> = if first["label"] == "inline" {
+                    first["children"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|k| deref(json, k))
+                        .collect()
+                } else {
+                    vec![first]
+                };
+                Some(
+                    items
+                        .into_iter()
+                        .map(|t| {
+                            (
+                                t["label"].as_str().unwrap().to_string(),
+                                t["text"].as_str().unwrap().to_string(),
+                                t["formatting"].clone(),
+                                t["hyperlink"].clone(),
+                            )
+                        })
+                        .collect(),
+                )
+            })
+            .collect()
+    }
+
+    /// docling's `test_jats_table_cell_keeps_scripts_and_their_whitespace`
+    /// (docling#4809): a cell with scripts is a rich cell over its runs; a
+    /// plain cell stays plain and keeps its text; Markdown concatenates the
+    /// runs as upstream prints them.
+    #[test]
+    fn table_cell_keeps_scripts() {
+        let body = r#"<table-wrap id="t1"><table><tbody>
+            <tr><td> H<sub>2</sub>O in km<sup>2</sup> <!-- note --></td><td>plain</td></tr>
+            </tbody></table></table-wrap>"#;
+        let json = table_json(body);
+        let cells = cell_runs(&json);
+        assert!(cells[1].is_none());
+        let runs = cells[0].as_ref().expect("rich");
+        let texts: Vec<&str> = runs.iter().map(|r| r.1.as_str()).collect();
+        assert_eq!(texts, ["H", "2", "O in km", "2"]);
+        let scripts: Vec<Option<&str>> = runs.iter().map(|r| r.2["script"].as_str()).collect();
+        assert_eq!(scripts, [None, Some("sub"), None, Some("super")]);
+        // The JSON cell keeps its plain text.
+        assert_eq!(
+            json["tables"][0]["data"]["table_cells"][0]["text"],
+            "H2O in km2"
+        );
+        let md = table_md(body);
+        assert!(md.contains("| H2O in km2 "), "got:\n{md}");
+    }
+
+    /// docling's `test_jats_table_cell_is_rich_only_when_more_than_plain_text`:
+    /// bold, a link and an inline formula make a cell rich (the formula's
+    /// MathML alternative skipped); an unmapped tag does not.
+    #[test]
+    fn table_cell_is_rich_only_when_more_than_plain_text() {
+        let body = r#"<table-wrap id="t1"><table><tbody><tr>
+            <td>a <bold>b</bold></td>
+            <td><ext-link xlink:href="https://example.com/">site</ext-link></td>
+            <td>a <inline-formula><alternatives><tex-math>$$x^2$$</tex-math>
+              <mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:mi>x</mml:mi></mml:math>
+              </alternatives></inline-formula> b</td>
+            <td>a <named-content>b</named-content></td>
+            </tr></tbody></table></table-wrap>"#;
+        let json = table_json(body);
+        let cells = cell_runs(&json);
+        assert!(cells[3].is_none(), "named-content stays plain");
+        let bold = cells[0].as_ref().unwrap();
+        assert_eq!(bold[1].1, "b");
+        assert_eq!(bold[1].2["bold"], true);
+        let link = cells[1].as_ref().unwrap();
+        assert_eq!(
+            (link[0].1.as_str(), link[0].3.as_str()),
+            ("site", Some("https://example.com/"))
+        );
+        let formula = cells[2].as_ref().unwrap();
+        let labels: Vec<&str> = formula.iter().map(|r| r.0.as_str()).collect();
+        assert_eq!(labels, ["text", "formula", "text"]);
+        assert_eq!(formula[1].1, "x^2");
+        let md = table_md(body);
+        let row: Vec<&str> = md
+            .lines()
+            .find(|l| l.contains("**b**"))
+            .unwrap_or_else(|| panic!("got:\n{md}"))
+            .split('|')
+            .map(str::trim)
+            .collect();
+        assert_eq!(
+            row,
+            [
+                "",
+                "a **b**",
+                "[site](https://example.com/)",
+                // The whitespace around the skipped MathML stays a run.
+                "a $x^2$   b",
+                "a b",
+                ""
+            ]
+        );
+    }
+
+    /// docling's `test_jats_rich_table_cell_keeps_the_boundary_between_blocks`:
+    /// `<p>`s and `<list-item>`s in a rich cell stay apart.
+    #[test]
+    fn rich_table_cell_keeps_the_boundary_between_blocks() {
+        let body = r#"<table-wrap id="t1"><table><tbody>
+            <tr><td><p>x<sup>1</sup></p><p>Next</p></td>
+            <td><list><list-item><p>a<sup>2</sup></p></list-item>
+            <list-item><p>b</p></list-item></list></td></tr>
+            </tbody></table></table-wrap>"#;
+        let cells = cell_runs(&table_json(body));
+        let texts = |i: usize| -> Vec<String> {
+            cells[i]
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|r| r.1.clone())
+                .collect()
+        };
+        assert_eq!(texts(0), ["x", "1", " Next"]);
+        assert_eq!(texts(1), ["a", "2", " b"]);
+        let md = table_md(body);
+        assert!(md.contains("x1 Next") && md.contains("a2 b"), "got:\n{md}");
+    }
+
+    /// docling's `test_jats_table_cell_with_only_a_blank_script_stays_plain`
+    /// and `test_jats_nested_table_is_skipped_and_keeps_no_table_item`.
+    #[test]
+    fn blank_scripts_stay_plain_and_nested_tables_are_skipped() {
+        let json = table_json(
+            r#"<table-wrap id="t1"><table><tbody>
+            <tr><td><sub> </sub></td><td> <sup> </sup>x</td></tr>
+            </tbody></table></table-wrap>"#,
+        );
+        assert_eq!(cell_runs(&json), [None, None]);
+        assert!(json["groups"].as_array().unwrap().is_empty());
+
+        let json = table_json(
+            r#"<sec><p>Text.</p><table-wrap id="t1"><table><tbody><tr><td>
+            <table><tbody><tr><td>x<sub>1</sub></td></tr></tbody></table>
+            </td></tr></tbody></table></table-wrap></sec>"#,
+        );
+        assert!(json["tables"].as_array().unwrap().is_empty());
+        assert!(json["groups"].as_array().unwrap().is_empty());
+    }
+
+    /// A rich cell's DocLang content is its runs, not the Markdown markers.
+    #[test]
+    fn rich_table_cell_blocks_carry_runs() {
+        let doc = body_doc(
+            r#"<table-wrap id="t1"><table><tbody><tr><td>a <italic>b</italic></td><td>c</td></tr>
+            </tbody></table></table-wrap>"#,
+        );
+        let table = doc
+            .nodes
+            .iter()
+            .find_map(|n| match n {
+                Node::Table(t) => Some(t),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(table.rows[0], ["a *b*", "c"]);
+        let blocks = table.cell_blocks.as_ref().unwrap();
+        assert!(
+            matches!(blocks[0][0].as_slice(), [Node::InlineGroup { runs, .. }] if runs.len() == 2 && runs[1].italic)
+        );
+        assert!(blocks[0][1].is_empty());
     }
 }

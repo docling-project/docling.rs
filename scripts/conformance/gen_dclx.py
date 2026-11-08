@@ -13,7 +13,7 @@ default pipeline keeps them off), so archives stay small and the comparison
 focuses on document structure.
 
 Usage:
-    .venv-compare/bin/python scripts/conformance/gen_dclx.py [fmt ...]   # default: all
+    .venv-compare/bin/python scripts/conformance/gen_dclx.py [--force] [fmt ...]   # default: all
 """
 
 from __future__ import annotations
@@ -112,7 +112,11 @@ def build_document(path: Path):
 
 
 def main() -> int:
-    wanted = set(sys.argv[1:])
+    args = sys.argv[1:]
+    # --force regenerates the archives already present (a docling upgrade
+    # that moves DocLang, e.g. 0.7 → 0.9).
+    force = "--force" in args
+    wanted = {a for a in args if a != "--force"}
     failures = 0
     total = 0
     for fmt_dir in sorted((REPO / "tests/data").iterdir()):
@@ -127,7 +131,7 @@ def main() -> int:
                 continue
             total += 1
             out = out_dir / f"{src.name}.dclx"
-            if out.exists():
+            if out.exists() and not force:
                 print(f"  = {out.relative_to(REPO)} (present)")
                 continue
             try:

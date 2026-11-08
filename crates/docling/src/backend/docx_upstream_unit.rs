@@ -789,3 +789,118 @@ fn hidden_footnote_paragraph_is_left_out() {
     assert_eq!(notes, ["Shown note."]);
     assert!(!format!("{:?}", doc.nodes).contains("Hidden"));
 }
+
+// ---------------------------------------------------------------------------
+// docling#5123 (#1017): a `w:num`'s `w:lvlOverride` — its `w:lvl` replaces
+// the abstract level, its `w:startOverride` (0..=32767) sets the start.
+// `tests/test_backend_msword_list_overrides.py`.
+
+const LETTERED_LEVEL: &str = r#"<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="lowerLetter"/><w:lvlText w:val="%1)"/></w:lvl>"#;
+
+/// `_numbering_instances_docx`: instances sharing one decimal `%1.` abstract
+/// level, `overrides` = (numId, the `w:lvlOverride` content for level 0);
+/// `paragraphs` = (text, numId), `None` = no numbering.
+fn numbering_instances_docx(
+    overrides: &[(u32, Option<&str>)],
+    paragraphs: &[(&str, Option<u32>)],
+) -> DoclingDocument {
+    let mut numbering = format!(
+        r#"<w:numbering xmlns:w="{W}"><w:abstractNum w:abstractNumId="90"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum>"#
+    );
+    for (id, ov) in overrides {
+        let ov = ov
+            .map(|o| format!(r#"<w:lvlOverride w:ilvl="0">{o}</w:lvlOverride>"#))
+            .unwrap_or_default();
+        numbering.push_str(&format!(
+            r#"<w:num w:numId="{id}"><w:abstractNumId w:val="90"/>{ov}</w:num>"#
+        ));
+    }
+    numbering.push_str("</w:numbering>");
+    let body: String = paragraphs
+        .iter()
+        .map(|(t, id)| {
+            let ppr = id
+                .map(|id| {
+                    format!(
+                        r#"<w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="{id}"/></w:numPr></w:pPr>"#
+                    )
+                })
+                .unwrap_or_default();
+            format!("<w:p>{ppr}<w:r><w:t>{t}</w:t></w:r></w:p>")
+        })
+        .collect();
+    list_docx(&body, list_styles(""), numbering)
+}
+
+fn markers(doc: &DoclingDocument, texts: &[&str]) -> Vec<String> {
+    texts.iter().map(|t| marker(tree(doc), t)).collect()
+}
+
+/// `test_start_override_sets_the_start_of_a_numbering_instance`.
+#[test]
+fn start_override_sets_the_start_of_a_numbering_instance() {
+    let doc = numbering_instances_docx(
+        &[(91, None), (92, Some(r#"<w:startOverride w:val="5"/>"#))],
+        &[
+            ("alpha", Some(91)),
+            ("beta", Some(91)),
+            ("The list starts again at 5:", None),
+            ("epsilon", Some(92)),
+            ("zeta", Some(92)),
+            ("A note between two items.", None),
+            ("eta", Some(92)),
+        ],
+    );
+    assert_eq!(
+        markers(&doc, &["alpha", "beta", "epsilon", "zeta", "eta"]),
+        ["1.", "2.", "5.", "6.", "7."]
+    );
+    assert_eq!(
+        md(&doc),
+        "1. alpha\n2. beta\n\nThe list starts again at 5:\n\n5. epsilon\n6. zeta\n\nA note between two items.\n\n7. eta"
+    );
+}
+
+/// `test_level_override_replaces_the_abstract_level`.
+#[test]
+fn level_override_replaces_the_abstract_level() {
+    let with_start = format!(r#"<w:startOverride w:val="3"/>{LETTERED_LEVEL}"#);
+    let doc = numbering_instances_docx(
+        &[(93, Some(LETTERED_LEVEL)), (94, Some(&with_start))],
+        &[
+            ("apple", Some(93)),
+            ("banana", Some(93)),
+            ("More fruit:", None),
+            ("cherry", Some(94)),
+            ("date", Some(94)),
+        ],
+    );
+    assert_eq!(
+        markers(&doc, &["apple", "banana", "cherry", "date"]),
+        ["a)", "b)", "c)", "d)"]
+    );
+    assert_eq!(
+        md(&doc),
+        "- a) apple\n- b) banana\n\nMore fruit:\n\n- c) cherry\n- d) date"
+    );
+}
+
+/// `test_invalid_start_override_keeps_the_start_of_the_level`.
+#[test]
+fn invalid_start_override_keeps_the_start_of_the_level() {
+    for so in [
+        r#"<w:startOverride w:val=""/>"#,
+        r#"<w:startOverride w:val="five"/>"#,
+        r#"<w:startOverride w:val="-1"/>"#,
+        r#"<w:startOverride w:val="32768"/>"#,
+        r#"<w:startOverride w:val="1000000000000000000000000000000"/>"#,
+        "<w:startOverride/>",
+    ] {
+        let ov = format!("{so}{LETTERED_LEVEL}");
+        let doc = numbering_instances_docx(
+            &[(95, Some(&ov))],
+            &[("apple", Some(95)), ("banana", Some(95))],
+        );
+        assert_eq!(markers(&doc, &["apple", "banana"]), ["a)", "b)"], "{so}");
+    }
+}

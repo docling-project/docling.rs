@@ -33,6 +33,7 @@ use docling_core::{DoclingDocument, Node, Table};
 
 use crate::backend::cfb::CompoundFile;
 use crate::backend::officeart::Records;
+use crate::backend::pptx::{auto_number_marker, AutoScheme, MAX_AUTO_NUMBER_START};
 use crate::backend::DeclarativeBackend;
 use crate::error::ConversionError;
 use crate::source::SourceDocument;
@@ -550,7 +551,15 @@ fn parse_para_styles9(body: &[u8]) -> Vec<Option<(u16, u16)>> {
             }
             let scheme = u16::from_le_bytes([body[pos], body[pos + 1]]);
             let start = u16::from_le_bytes([body[pos + 2], body[pos + 3]]);
-            scheme_start = Some((scheme, start.max(1)));
+            // docling#5122 (#1018): a start outside `ST_TextBulletStartAtNum`'s
+            // 1..=32767 is ignored — the `startAt` LibreOffice writes for
+            // docling's `.ppt` → `.pptx` route is capped there.
+            let start = if (1..=MAX_AUTO_NUMBER_START).contains(&u64::from(start)) {
+                start
+            } else {
+                1
+            };
+            scheme_start = Some((scheme, start));
             pos += 4;
         }
         if masks & !0x0380_0000 != 0 {
@@ -1117,6 +1126,29 @@ struct Paragraphs<'a, F: Fn(u8) -> bool> {
 /// the frame's lists are its own, an indent level only nests relative to the
 /// list already open (a level-2 paragraph after plain text starts a flat
 /// list), and a bullet inside a numbered group takes the group's numbering.
+/// The PPTX scheme a PP9 `TextAutoNumberScheme` ([MS-PPT] 2.13.31) is — what
+/// LibreOffice writes as `a:buAutoNum/@type` when docling reads a `.ppt` —
+/// for the letter and Roman ones; the Arabic and East Asian schemes count in
+/// decimals (`None`).
+fn ppt_auto_scheme(scheme: u16) -> Option<AutoScheme> {
+    let ty = match scheme {
+        0x00 => "alphaLcPeriod",
+        0x01 => "alphaUcPeriod",
+        0x04 => "romanLcParenBoth",
+        0x05 => "romanLcParenR",
+        0x06 => "romanLcPeriod",
+        0x07 => "romanUcPeriod",
+        0x08 => "alphaLcParenBoth",
+        0x09 => "alphaLcParenR",
+        0x0A => "alphaUcParenBoth",
+        0x0B => "alphaUcParenR",
+        0x0E => "romanUcParenBoth",
+        0x0F => "romanUcParenR",
+        _ => return None,
+    };
+    AutoScheme::parse(ty)
+}
+
 fn push_text<F: Fn(u8) -> bool>(nodes: &mut Vec<Node>, para: Paragraphs<F>) {
     let Paragraphs {
         is_title,
@@ -1195,13 +1227,19 @@ fn push_text<F: Fn(u8) -> bool>(nodes: &mut Vec<Node>, para: Paragraphs<F>) {
             (false, true) => (true, current.items),
             _ => (numbered, n),
         };
+        // docling#5122: a letter or Roman scheme prints its own marker
+        // (`a.`, `(iv)`); the decimal ones keep the plain `N.` numbering.
+        let marker = autonum
+            .filter(|_| numbered)
+            .and_then(|(scheme, _)| ppt_auto_scheme(scheme))
+            .map(|s| auto_number_marker(n, Some(s)));
         nodes.push(Node::ListItem {
             ordered,
             number,
             first_in_list,
             text: line.to_string(),
             level: depth as u8,
-            marker: None,
+            marker,
             location: None,
             dclx: None,
             href: None,
@@ -1503,6 +1541,64 @@ mod tests {
         assert_eq!(
             numbers,
             vec![(true, 4, 0), (true, 5, 0), (true, 3, 0), (false, 0, 1)]
+        );
+    }
+
+    /// docling#5122 (#1018) on the `.ppt` route: a PP9 letter / Roman scheme
+    /// prints its marker, an Arabic one keeps the plain numbering, and a
+    /// `startAt` above 32767 starts at 1.
+    #[test]
+    fn auto_number_schemes_pick_the_marker() {
+        let para = |count: usize, autonum| ParaStyle {
+            count,
+            indent: 0,
+            bullet: Some(true),
+            autonum,
+        };
+        let markers = |styles: &[ParaStyle], text: &str| -> Vec<(Option<String>, u64)> {
+            let mut nodes = Vec::new();
+            push_text(
+                &mut nodes,
+                Paragraphs {
+                    is_title: false,
+                    text,
+                    styles,
+                    autonums: &[],
+                    inherited: |_| false,
+                },
+            );
+            nodes
+                .iter()
+                .map(|n| match n {
+                    Node::ListItem { marker, number, .. } => (marker.clone(), *number),
+                    other => panic!("unexpected {other:?}"),
+                })
+                .collect()
+        };
+        // alphaLcPeriod, then romanUcParenBoth from 3 in a frame of its own.
+        let lettered = [para(5, Some((0x00, 1))), para(6, Some((0x00, 1)))];
+        assert_eq!(
+            markers(&lettered, "Plan\rBuild"),
+            [(Some("a.".into()), 1), (Some("b.".into()), 2)]
+        );
+        let roman = [para(6, Some((0x0E, 3))), para(6, Some((0x0E, 3)))];
+        assert_eq!(
+            markers(&roman, "Annex\rIndex"),
+            [(Some("(III)".into()), 3), (Some("(IV)".into()), 4)]
+        );
+        // arabicParenRight keeps the decimal numbering, no marker.
+        let arabic = [para(6, Some((0x02, 1))), para(7, Some((0x02, 1)))];
+        assert_eq!(markers(&arabic, "Draft\rReview"), [(None, 1), (None, 2)]);
+        // An out-of-range start read from the PP9 atom: 1 instead.
+        let mut atom = Vec::new();
+        atom.extend_from_slice(&0x0300_0000u32.to_le_bytes()); // autonum + scheme masks
+        atom.extend_from_slice(&1u16.to_le_bytes()); // fBulletHasAutoNumber
+        atom.extend_from_slice(&0u16.to_le_bytes()); // alphaLcPeriod
+        atom.extend_from_slice(&40000u16.to_le_bytes()); // startAt
+        atom.extend_from_slice(&[0; 8]); // empty CF9 + SI exceptions
+        assert_eq!(
+            parse_para_styles9(&atom).first().copied().flatten(),
+            Some((0, 1))
         );
     }
 

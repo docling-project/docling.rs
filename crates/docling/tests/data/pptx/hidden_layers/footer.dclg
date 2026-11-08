@@ -1,4 +1,4 @@
-<doclang version="0.7">
+<doclang version="0.9">
   <text>
     <location value="51"/>
     <location value="68"/>
@@ -31,7 +31,7 @@
     1
   </text>
   <text>
-    <layer value="invisible"/>
+    <layer value="background"/>
     <location value="51"/>
     <location value="68"/>
     <location value="256"/>
@@ -39,7 +39,7 @@
     Backup text
   </text>
   <text>
-    <layer value="invisible"/>
+    <layer value="background"/>
     <location value="26"/>
     <location value="475"/>
     <location value="145"/>
@@ -47,7 +47,7 @@
     10 October 2026
   </text>
   <text>
-    <layer value="invisible"/>
+    <layer value="background"/>
     <location value="175"/>
     <location value="475"/>
     <location value="337"/>
@@ -55,7 +55,7 @@
     Confidential
   </text>
   <text>
-    <layer value="invisible"/>
+    <layer value="background"/>
     <location value="367"/>
     <location value="475"/>
     <location value="486"/>

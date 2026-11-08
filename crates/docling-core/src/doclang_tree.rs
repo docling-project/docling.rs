@@ -1,7 +1,9 @@
 //! DocLang straight from docling's item tree (#884) — docling-core's
-//! `DocLangDocSerializer` ported call-for-call over an [`ItemTree`], for a
-//! backend whose tree is upstream's exact structure and that opts in
-//! ([`ItemTree::doclang`]; the LaTeX backend does).
+//! `DocLangDocSerializer` ported call-for-call over an [`ItemTree`], the
+//! structure the JSON export writes. Every backend that builds a tree gets
+//! its DocLang from here (the LaTeX and RIS ones first, the rest with
+//! DocLang 0.9, whose inline runs carry their own whitespace — which only
+//! the tree's runs do).
 //!
 //! The flat serializer (`doclang.rs`) reads the Markdown-flavoured node
 //! stream and reproduces `minidom.toprettyxml`'s layout fragment by fragment.
@@ -9,19 +11,20 @@
 //! caption's or a table cell's inline formulas, a list item's raw text (a
 //! LaTeX `*` re-parsed as italics), a paragraph docling never wrote as
 //! Markdown. Here the item tree is serialized the way docling-core does it —
-//! the *minified* markup first (every part joined by the pretty-printing
-//! delimiter `"\n"`), then the same post-processing `serialize_doc` runs:
-//! parse, `toprettyxml(indent="  ")` (emulated in [`pretty`]), drop the empty
-//! lines outside `<content>`, expand the self-closed tokens that may not be
-//! self-closing. The layout then falls out of minidom's own rules instead of
-//! being rebuilt case by case — the newline a CDATA list item gets from the
-//! list's record delimiter, a caption's runs, a rich cell's `<text>`.
+//! the *minified* markup first (every part joined by the record delimiter
+//! `"\n"`, an inline group's runs concatenated as they are), then the same
+//! post-processing `serialize_doc` runs ([`crate::doclang_xml::finish`]):
+//! parse, unwrap each `<content>` that reads the same bare, pretty-print with
+//! every text block body on one line (DocLang 0.9 reads a line break inside
+//! a body as a space), expand the self-closed tokens that may not be
+//! self-closing. The layout then falls out of upstream's own rules instead of
+//! being rebuilt case by case.
 //!
 //! Scope: what docling-core's serializer does for documents without
-//! provenance, meta or form structure. An item the port does not cover — a
-//! located item, picture meta (classification, description, chart data), a
-//! field region — makes [`export`] return `None`, and the caller falls back
-//! to the flat serializer, so opting in never loses content.
+//! provenance or form structure. An item the port does not cover — a
+//! located item, a field region — makes
+//! [`export`] return `None`, and the caller falls back to the flat
+//! serializer, so no content is lost.
 //!
 //! One deliberate divergence: a TikZ picture's `meta.code` is left out.
 //! docling-core writes it as `<custom><code>` holding the field's Python
@@ -30,59 +33,16 @@
 //! (docs/MIGRATION.md § LaTeX); the JSON keeps the code.
 
 use std::collections::HashMap;
-use std::sync::OnceLock;
 
-use crate::doclang::{code_lang_label, is_rtl, sanitize_xml_illegal, Pictures};
+use crate::doclang::{code_lang_label, is_rtl, Pictures};
 use crate::tree::{ItemTree, TreeKind};
 use crate::ContentLayer;
 
-/// docling-core 2.103's `_DOCLANG_VERSION` — what docling 2.142.1 writes.
-const VERSION: &str = "0.7";
+/// docling-core 2.106's `_DOCLANG_VERSION` — what docling 2.148 writes.
+const VERSION: &str = "0.9";
 
 /// The pretty-printing delimiter (`_get_delim` with an indentation set).
 const DELIM: &str = "\n";
-
-/// docling-core's tokens that may not be self-closing (`DocLangToken` minus
-/// `DocLangVocabulary.IS_SELFCLOSING`): `serialize_doc` expands `<x/>` to
-/// `<x></x>` for these.
-const NON_SELFCLOSING: &[&str] = &[
-    "bold",
-    "caption",
-    "code",
-    "content",
-    "custom",
-    "description",
-    "doclang",
-    "field_heading",
-    "field_item",
-    "field_region",
-    "footnote",
-    "formula",
-    "group",
-    "handwriting",
-    "head",
-    "heading",
-    "hint",
-    "index",
-    "italic",
-    "key",
-    "list",
-    "marker",
-    "page_footer",
-    "page_header",
-    "picture",
-    "rtl",
-    "strikethrough",
-    "subscript",
-    "summary",
-    "superscript",
-    "table",
-    "tabular",
-    "text",
-    "underline",
-    "value",
-    "xref",
-];
 
 /// The serialized document and, when asked for, the picture assets its
 /// `<src>` references name.
@@ -93,32 +53,44 @@ pub(crate) type Export = (String, Vec<(String, Vec<u8>)>);
 /// picture with an image gets `<src uri="assets/image_….png"/>`). `None`
 /// when the tree holds something the port does not cover (module docs).
 pub(crate) fn export(tree: &ItemTree, pictures: Pictures) -> Option<Export> {
-    if tree
-        .items
-        .iter()
-        .any(|it| !it.deleted && (it.prov.is_some() || unsupported(&it.kind)))
-    {
+    let outside = tree.items.iter().filter(|it| !it.deleted).find_map(|it| {
+        if it.prov.is_some() {
+            Some("provenance".to_string())
+        } else {
+            unsupported(&it.kind)
+        }
+    });
+    if let Some(why) = outside {
+        crate::debug_log!("doclang: item tree outside the port ({why}), serializing the nodes");
         return None;
     }
+    // The document docling-core serializes: its `validate_misplaced_list_items`
+    // has run on it, and a tree of trimmed runs reads with the pre-1.11 join
+    // re-injected (#997) — what the JSON export writes too.
+    let mut tree = tree.clone();
+    if !tree.inline_whitespace {
+        tree.separate_legacy_inline_runs();
+    }
+    tree.wrap_misplaced_list_items();
+    let tree = &tree;
     let mut ser = Ser::new(tree, pictures);
     let parts = ser.get_parts(None, false);
     let body = parts.join(DELIM);
     let xml = format!("<doclang version=\"{VERSION}\">{body}</doclang>");
-    Some((pretty(&xml), ser.assets.unwrap_or_default()))
+    Some((
+        crate::doclang_xml::finish(&xml),
+        ser.assets.unwrap_or_default(),
+    ))
 }
 
 /// Kinds and payloads outside the port (module docs).
-fn unsupported(kind: &TreeKind) -> bool {
+fn unsupported(kind: &TreeKind) -> Option<String> {
     match kind {
-        TreeKind::Picture {
-            classification,
-            description,
-            chart,
-            ..
-        } => classification.is_some() || description.is_some() || chart.is_some(),
-        TreeKind::FieldRegion { .. } => true,
-        TreeKind::Text { label, .. } => text_token(label).is_none(),
-        _ => false,
+        TreeKind::FieldRegion { .. } => Some("field region".into()),
+        TreeKind::Text { label, .. } if text_token(label).is_none() => {
+            Some(format!("text label {label}"))
+        }
+        _ => None,
     }
 }
 
@@ -142,23 +114,9 @@ fn text_token(label: &str) -> Option<&'static str> {
     })
 }
 
-/// docling-core's `_escape_text` (AUTO escape and wrap modes): XML-illegal
-/// characters as `[U+XXXX]`, a CDATA section for text holding `"' &<>` (a
-/// literal `]]>` split across two), a `<content>` wrapper for text whose
-/// edges are whitespace or that spans lines.
+/// docling-core's `_escape_text` (AUTO escape and wrap modes).
 fn escape(text: &str) -> String {
-    let text = sanitize_xml_illegal(text);
-    let text = text.as_ref();
-    let wrap = text != text.trim() || text.contains('\n');
-    let mut t = if text.contains(['"', '\'', '&', '<', '>']) {
-        format!("<![CDATA[{}]]>", text.replace("]]>", "]]]]><![CDATA[>"))
-    } else {
-        text.to_string()
-    };
-    if wrap {
-        t = format!("<content>{t}</content>");
-    }
-    t
+    crate::doclang_xml::escape_text(text, true)
 }
 
 /// docling-core's `_escape_xml_attr`.
@@ -194,8 +152,10 @@ impl<'t> Ser<'t> {
     fn new(tree: &'t ItemTree, pictures: Pictures) -> Self {
         let n = tree.items.len();
         let mut caption = vec![false; n];
+        // `_satellites_of_some_item`: captions and footnotes alike — a
+        // float serializes them itself.
         for it in &tree.items {
-            for &c in captions_of(&it.kind) {
+            for &c in captions_of(&it.kind).iter().chain(&footnotes_of(it)) {
                 caption[c] = true;
             }
         }
@@ -290,12 +250,21 @@ impl<'t> Ser<'t> {
             TreeKind::Text { .. } | TreeKind::Code { .. } => {
                 if self.caption[id] {
                     String::new()
+                } else if matches!(item.kind, TreeKind::Code { .. }) && !inline {
+                    let host = self.text(id, inline);
+                    self.with_footnotes(id, host)
                 } else {
                     self.text(id, inline)
                 }
             }
-            TreeKind::Table { .. } => self.table(id),
-            TreeKind::Picture { .. } => self.picture(id),
+            TreeKind::Table { .. } => {
+                let host = self.table(id);
+                self.with_footnotes(id, host)
+            }
+            TreeKind::Picture { .. } => {
+                let host = self.picture(id);
+                self.with_footnotes(id, host)
+            }
             // `DocLangKeyValueSerializer` writes nothing; a field region never
             // gets here (`export` declines the tree).
             TreeKind::KeyValueGraph { .. } | TreeKind::FieldRegion { .. } => String::new(),
@@ -390,13 +359,17 @@ impl<'t> Ser<'t> {
         format!("{open}{}{DELIM}</list>", segments.join(DELIM))
     }
 
-    /// `DocLangInlineSerializer`: the runs, delimiter-joined with a trailing
-    /// delimiter; wrapped in `<text>` unless the group's parent is a text item
-    /// (a list item's only when its segment holds more than the text).
+    /// `DocLangInlineSerializer`: the runs concatenated as they are — no
+    /// delimiter, each run carries its own significant whitespace (DocLang
+    /// 0.9: a line break would read as a space; `<content>` is the
+    /// whitespace channel, the pretty-printer lays the element out) — after
+    /// the group's head (its layer); wrapped in `<text>` unless the group's
+    /// parent is a text item (a list item's only when its segment holds more
+    /// than the text), and a group nested in a group only when it has a head.
     fn inline_group(&mut self, id: usize) -> String {
         let tree = self.tree;
         let item = &tree.items[id];
-        let should_wrap = match item.parent {
+        let mut should_wrap = match item.parent {
             None => true,
             Some(p) if self.is_list_item(p) => self.has_segment_siblings(p),
             Some(p) => !matches!(
@@ -404,21 +377,22 @@ impl<'t> Ser<'t> {
                 TreeKind::Text { .. } | TreeKind::Code { .. }
             ),
         };
-        let mut parts = Vec::new();
+        let mut head = String::new();
         if should_wrap {
             if let Some(layer) = item.layer {
-                parts.push(layer_token(layer));
+                head.push_str(&layer_token(layer));
             }
         }
-        parts.extend(self.get_parts(Some(id), true));
-        let mut text = parts.join(DELIM);
-        if !text.is_empty() {
-            text.push_str(DELIM);
+        if item.parent.is_some_and(|p| self.is_inline_group(p)) {
+            should_wrap = !head.is_empty();
         }
+        let runs: String = self.get_parts(Some(id), true).concat();
+        let text = head + &runs;
         if should_wrap {
-            text = wrap(&text, "text");
+            wrap(&text, "text")
+        } else {
+            text
         }
-        text
     }
 
     /// `_element_head_prefix` without provenance or meta: label, href, layer,
@@ -452,9 +426,17 @@ impl<'t> Ser<'t> {
     /// `serialize_captions`: each caption as a `<caption>` satellite — its
     /// head, its own text, then its children (an inline group of runs).
     fn captions(&mut self, id: usize) -> String {
+        let caps = captions_of(&self.tree.items[id].kind).to_vec();
+        self.satellites(&caps, "caption")
+    }
+
+    /// `_serialize_satellite` for each of `ids`: a `<caption>` or
+    /// `<footnote>` holding the item's head, its own text, then its
+    /// children.
+    fn satellites(&mut self, ids: &[usize], tag: &str) -> String {
         let tree = self.tree;
         let mut out = String::new();
-        for &c in captions_of(&tree.items[id].kind) {
+        for &c in ids {
             let TreeKind::Text { text, .. } = &tree.items[c].kind else {
                 continue;
             };
@@ -466,10 +448,27 @@ impl<'t> Ser<'t> {
                 s.push_str(&self.serialize(child, false));
             }
             if !s.is_empty() {
-                out.push_str(&wrap(&s, "caption"));
+                out.push_str(&wrap(&s, tag));
             }
         }
         out
+    }
+
+    /// `_serialize_floating_satellites`: a float with footnotes is wrapped
+    /// with them in a `<group>` so they re-attach on reading. Without
+    /// provenance a footnote's place is undetermined, which upstream puts
+    /// after the host.
+    fn with_footnotes(&mut self, id: usize, host: String) -> String {
+        let notes = footnotes_of(&self.tree.items[id]);
+        if notes.is_empty() {
+            return host;
+        }
+        let notes = self.satellites(&notes, "footnote");
+        if notes.is_empty() {
+            host
+        } else {
+            wrap(&format!("{host}{notes}"), "group")
+        }
     }
 
     /// `DocLangTextSerializer._serialize_single_item`.
@@ -572,7 +571,7 @@ impl<'t> Ser<'t> {
                     }
                     subs.push(self.serialize(c, false));
                 }
-                subs.join(DELIM)
+                subs.join(if inline { "" } else { DELIM })
             }
             _ => own(self),
         };
@@ -636,8 +635,16 @@ impl<'t> Ser<'t> {
         };
         let rich: HashMap<(usize, usize), usize> =
             rich_cells.iter().map(|&(r, c, g)| ((r, c), g)).collect();
-        let data = crate::json::raw_table_data(table);
         let caption = self.captions(id);
+        let otsl = self.otsl(table, &rich);
+        let head = self.head(id, None, &caption, false);
+        wrap(&format!("{head}{otsl}"), "table")
+    }
+
+    /// `_emit_otsl` without cell locations: the grid's OTSL tokens, a rich
+    /// cell's content serialized in place.
+    fn otsl(&mut self, table: &crate::Table, rich: &HashMap<(usize, usize), usize>) -> String {
+        let data = crate::json::raw_table_data(table);
         let mut otsl = String::new();
         if data.has_cells() {
             let (rows, cols) = data.dims();
@@ -678,12 +685,12 @@ impl<'t> Ser<'t> {
                 otsl.push_str("<nl/>");
             }
         }
-        let head = self.head(id, None, &caption, false);
-        wrap(&format!("{head}{otsl}"), "table")
+        otsl
     }
 
-    /// `DocLangPictureSerializer` without meta: the caption head, then the
-    /// body — the `<src>` in referenced mode and the picture's own children.
+    /// `DocLangPictureSerializer`: the head (the classification's label,
+    /// the captions, the description), then the body — the `<src>`, a
+    /// chart's `<tabular>`, the picture's own children.
     fn picture(&mut self, id: usize) -> String {
         let tree = self.tree;
         let caption = self.captions(id);
@@ -692,11 +699,14 @@ impl<'t> Ser<'t> {
             image: Some(img), ..
         } = &tree.items[id].kind
         {
-            // `REFERENCED` names the asset `_with_pictures_refs` saved (body
-            // pictures only — any other keeps no `uri`); `EMBEDDED` inlines it.
+            // `REFERENCED` names the asset `_with_pictures_refs` saved — body
+            // pictures only: any other keeps the data URI `ImageRef.from_pil`
+            // gave it, which both modes write as is; `EMBEDDED` inlines it.
+            let embedded = || Some(crate::pixel_digest::docling_data_uri(img).1);
             let uri = match self.pictures {
                 Pictures::Placeholder => None,
-                Pictures::Embedded => Some(crate::pixel_digest::docling_data_uri(img).1),
+                Pictures::Embedded => embedded(),
+                Pictures::Referenced { .. } if !self.pic_index.contains_key(&id) => embedded(),
                 Pictures::Referenced { .. } => self.pic_index.get(&id).copied().map(|idx| {
                     let path = format!(
                         "assets/image_{idx:06}_{}.png",
@@ -715,6 +725,24 @@ impl<'t> Ser<'t> {
                 body.push_str(&format!("<src uri=\"{}\"/>", escape_attr(&uri)));
             }
         }
+        // A chart's data grid follows the `<src>` as its `<tabular>` (the
+        // picture then `class="chart"`) — for a picture classified as a
+        // chart only; any other keeps it out (`tabular_chart` is never a
+        // `<custom>` field).
+        let chart = match &tree.items[id].kind {
+            TreeKind::Picture {
+                chart: Some(t),
+                classification: Some(c),
+                ..
+            } if is_chart_class(c) => Some(t),
+            _ => None,
+        };
+        if let Some(t) = chart {
+            let otsl = self.otsl(t, &HashMap::new());
+            if !otsl.is_empty() {
+                body.push_str(&wrap(&otsl, "tabular"));
+            }
+        }
         let caps = captions_of(&tree.items[id].kind);
         for &c in &tree.items[id].children {
             if caps.contains(&c) {
@@ -722,13 +750,65 @@ impl<'t> Ser<'t> {
             }
             body.push_str(&self.serialize(c, false));
         }
-        let head = self.head(id, None, &caption, false);
-        wrap(&format!("{head}{body}"), "picture")
+        // The classification is the head's `<label>` (AUTO label mode: not
+        // when `undefined`); a description follows the captions.
+        let (label, mut caption) = (picture_label(&tree.items[id].kind), caption);
+        if let TreeKind::Picture {
+            description: Some(d),
+            ..
+        } = &tree.items[id].kind
+        {
+            caption.push_str(&wrap(&escape(&d.text), "description"));
+        }
+        let head = self.head(id, label, &caption, false);
+        let open = if body.contains("<tabular>") && chart.is_some() {
+            "<picture class=\"chart\">"
+        } else {
+            "<picture>"
+        };
+        format!("{open}{head}{body}</picture>")
+    }
+}
+
+/// `_picture_is_chart`: the main prediction is one of docling's chart classes.
+fn is_chart_class(class: &str) -> bool {
+    matches!(
+        class,
+        "pie_chart"
+            | "bar_chart"
+            | "stacked_bar_chart"
+            | "line_chart"
+            | "flow_chart"
+            | "scatter_chart"
+            | "heatmap"
+    )
+}
+
+/// `_picture_classification_label_value` under the AUTO label mode: the
+/// main prediction's class (`_picture_classification_label_to_doclang` maps
+/// `other` to DocLang's `other`, i.e. keeps it), none for `undefined`.
+fn picture_label(kind: &TreeKind) -> Option<&str> {
+    match kind {
+        TreeKind::Picture {
+            classification: Some(c),
+            ..
+        } => Some(c.as_str()).filter(|c| *c != "undefined"),
+        _ => None,
     }
 }
 
 fn is_list_label(label: &str) -> bool {
     matches!(label, "list" | "ordered_list")
+}
+
+/// A float's footnotes: a table's own list, a picture's or code item's
+/// [`crate::tree::TreeItem::footnotes`].
+fn footnotes_of(item: &crate::tree::TreeItem) -> Vec<usize> {
+    match &item.kind {
+        TreeKind::Table { footnotes, .. } => footnotes.clone(),
+        TreeKind::Picture { .. } | TreeKind::Code { .. } => item.footnotes.clone(),
+        _ => Vec::new(),
+    }
 }
 
 fn captions_of(kind: &TreeKind) -> &[usize] {
@@ -741,7 +821,10 @@ fn captions_of(kind: &TreeKind) -> &[usize] {
 }
 
 fn layer_token(layer: ContentLayer) -> String {
-    format!("<layer value=\"{}\"/>", layer.value())
+    format!(
+        "<layer value=\"{}\"/>",
+        crate::doclang_xml::layer_value(layer)
+    )
 }
 
 /// docling's `iterate_items` walk from `id` (itself first), a picture's
@@ -764,273 +847,9 @@ fn pre_order(tree: &ItemTree, id: usize, out: &mut Vec<usize>) {
     }
 }
 
-/// One node of the parsed minified markup (`xml.dom.minidom`'s view of it).
-enum XNode {
-    Elem {
-        name: String,
-        attrs: Vec<(String, String)>,
-        children: Vec<XNode>,
-    },
-    Text(String),
-    Cdata(String),
-}
-
-/// `serialize_doc`'s post-processing of the minified markup: minidom's
-/// `parseString(…).documentElement.toprettyxml(indent="  ")`, the empty
-/// lines outside `<content>` dropped, the non-self-closing tokens expanded.
-fn pretty(xml: &str) -> String {
-    let mut pos = 0;
-    let root = parse_children(xml, &mut pos).into_iter().next();
-    let mut out = String::new();
-    if let Some(root) = root {
-        write_node(&root, "", &mut out);
-    }
-    let mut lines = Vec::new();
-    let mut inside_content = false;
-    for line in out.split('\n') {
-        if line.contains("<content>") || line.contains("<content ") {
-            inside_content = true;
-        }
-        if line.contains("</content>") {
-            lines.push(line);
-            inside_content = false;
-            continue;
-        }
-        if inside_content || !line.trim().is_empty() {
-            lines.push(line);
-        }
-    }
-    let text = lines.join("\n");
-    static EXPAND: OnceLock<regex::Regex> = OnceLock::new();
-    let re = EXPAND.get_or_init(|| {
-        regex::Regex::new(&format!(
-            r"<\s*({})(\s[^>]*)?/\s*>",
-            NON_SELFCLOSING.join("|")
-        ))
-        .expect("static pattern")
-    });
-    re.replace_all(&text, "<${1}${2}></${1}>").into_owned()
-}
-
-/// Parse sibling nodes until a closing tag (consumed) or the end. The input
-/// is our own minified markup: well-formed, attributes double-quoted.
-fn parse_children(s: &str, pos: &mut usize) -> Vec<XNode> {
-    let mut nodes: Vec<XNode> = Vec::new();
-    while *pos < s.len() {
-        let rest = &s[*pos..];
-        if let Some(body) = rest.strip_prefix("<![CDATA[") {
-            let end = body.find("]]>").unwrap_or(body.len());
-            nodes.push(XNode::Cdata(body[..end].to_string()));
-            *pos += "<![CDATA[".len() + end + "]]>".len();
-        } else if rest.starts_with("</") {
-            *pos += rest.find('>').map_or(rest.len(), |e| e + 1);
-            return nodes;
-        } else if rest.starts_with('<') {
-            let end = tag_end(rest);
-            let tag = &rest[1..end];
-            *pos += end + 1;
-            let (tag, self_closed) = match tag.strip_suffix('/') {
-                Some(t) => (t, true),
-                None => (tag, false),
-            };
-            let (name, attrs) = parse_tag(tag);
-            let children = if self_closed {
-                Vec::new()
-            } else {
-                parse_children(s, pos)
-            };
-            nodes.push(XNode::Elem {
-                name,
-                attrs,
-                children,
-            });
-        } else {
-            let end = rest.find('<').unwrap_or(rest.len());
-            let text = decode_entities(&rest[..end]);
-            *pos += end;
-            // expat hands character data over in pieces; minidom appends a
-            // piece to a text node it follows, so one run is one node.
-            if let Some(XNode::Text(prev)) = nodes.last_mut() {
-                prev.push_str(&text);
-            } else {
-                nodes.push(XNode::Text(text));
-            }
-        }
-    }
-    nodes
-}
-
-/// The index of the `>` closing the tag that starts `s`, skipping quoted
-/// attribute values.
-fn tag_end(s: &str) -> usize {
-    let mut quoted = false;
-    for (i, c) in s.char_indices() {
-        match c {
-            '"' => quoted = !quoted,
-            '>' if !quoted => return i,
-            _ => {}
-        }
-    }
-    s.len()
-}
-
-fn parse_tag(tag: &str) -> (String, Vec<(String, String)>) {
-    let tag = tag.trim();
-    let (name, mut rest) = tag.split_once(char::is_whitespace).unwrap_or((tag, ""));
-    let mut attrs = Vec::new();
-    while let Some(eq) = rest.find('=') {
-        let key = rest[..eq].trim().to_string();
-        let after = &rest[eq + 1..];
-        let Some(open) = after.find('"') else { break };
-        let value_and_rest = &after[open + 1..];
-        let close = value_and_rest.find('"').unwrap_or(value_and_rest.len());
-        // XML attribute-value normalization: a literal tab or line break is
-        // read as a space.
-        let value = decode_entities(&value_and_rest[..close]).replace(['\t', '\n', '\r'], " ");
-        attrs.push((key, value));
-        rest = value_and_rest.get(close + 1..).unwrap_or("");
-    }
-    (name.to_string(), attrs)
-}
-
-fn decode_entities(s: &str) -> String {
-    if !s.contains('&') {
-        return s.to_string();
-    }
-    let mut out = String::with_capacity(s.len());
-    let mut rest = s;
-    while let Some(amp) = rest.find('&') {
-        out.push_str(&rest[..amp]);
-        let tail = &rest[amp..];
-        let Some(semi) = tail.find(';') else {
-            out.push_str(tail);
-            return out;
-        };
-        let entity = &tail[1..semi];
-        let decoded = match entity {
-            "amp" => Some('&'),
-            "lt" => Some('<'),
-            "gt" => Some('>'),
-            "quot" => Some('"'),
-            "apos" => Some('\''),
-            _ => entity
-                .strip_prefix("#x")
-                .and_then(|h| u32::from_str_radix(h, 16).ok())
-                .or_else(|| entity.strip_prefix('#').and_then(|d| d.parse().ok()))
-                .and_then(char::from_u32),
-        };
-        match decoded {
-            Some(c) => out.push(c),
-            None => out.push_str(&tail[..=semi]),
-        }
-        rest = &tail[semi + 1..];
-    }
-    out.push_str(rest);
-    out
-}
-
-/// minidom's `_write_data`.
-fn write_data(out: &mut String, text: &str, attr: bool) {
-    for c in text.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' if attr => out.push_str("&quot;"),
-            '\r' if attr => out.push_str("&#13;"),
-            '\n' if attr => out.push_str("&#10;"),
-            '\t' if attr => out.push_str("&#9;"),
-            c => out.push(c),
-        }
-    }
-}
-
-/// minidom's `writexml(writer, indent, addindent="  ", newl="\n")`: an
-/// element writes its indent; a lone text or CDATA child stays inline;
-/// otherwise every child is written at the next indent — a text node as
-/// `indent + data + newl`, a CDATA section bare (no indent, no newline).
-fn write_node(node: &XNode, indent: &str, out: &mut String) {
-    match node {
-        XNode::Elem {
-            name,
-            attrs,
-            children,
-        } => {
-            out.push_str(indent);
-            out.push('<');
-            out.push_str(name);
-            for (k, v) in attrs {
-                out.push(' ');
-                out.push_str(k);
-                out.push_str("=\"");
-                write_data(out, v, true);
-                out.push('"');
-            }
-            if children.is_empty() {
-                out.push_str("/>\n");
-                return;
-            }
-            out.push('>');
-            match children.as_slice() {
-                [XNode::Text(t)] => write_data(out, t, false),
-                [XNode::Cdata(t)] => {
-                    out.push_str("<![CDATA[");
-                    out.push_str(t);
-                    out.push_str("]]>");
-                }
-                _ => {
-                    out.push('\n');
-                    let inner = format!("{indent}  ");
-                    for c in children {
-                        write_node(c, &inner, out);
-                    }
-                    out.push_str(indent);
-                }
-            }
-            out.push_str("</");
-            out.push_str(name);
-            out.push_str(">\n");
-        }
-        XNode::Text(t) => {
-            write_data(out, indent, false);
-            write_data(out, t, false);
-            out.push('\n');
-        }
-        XNode::Cdata(t) => {
-            out.push_str("<![CDATA[");
-            out.push_str(t);
-            out.push_str("]]>");
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// minidom's layout, checked against Python 3.13's `toprettyxml` on the
-    /// same markup: a CDATA item followed by the list's record delimiter
-    /// ends its line with the list's indentation; a lone text child inlines.
-    #[test]
-    fn pretty_follows_minidom() {
-        let xml = "<doclang><list><ldiv/><![CDATA[a < b]]>\n<ldiv/>plain\n</list>\
-                   <text><formula>x</formula>\n</text><picture></picture></doclang>";
-        assert_eq!(
-            pretty(xml),
-            "<doclang>\n  <list>\n    <ldiv/>\n<![CDATA[a < b]]>    \n    <ldiv/>\n    plain\n  </list>\n  \
-             <text>\n    <formula>x</formula>\n  </text>\n  <picture></picture>\n</doclang>"
-        );
-    }
-
-    /// `<content>` keeps its blank lines; the filter drops them elsewhere.
-    #[test]
-    fn content_keeps_blank_lines() {
-        let xml = "<doclang><text><content>a\n\nb</content></text></doclang>";
-        assert_eq!(
-            pretty(xml),
-            "<doclang>\n  <text>\n    <content>a\n\nb</content>\n  </text>\n</doclang>"
-        );
-    }
 
     fn text(label: &str, text: &str) -> TreeKind {
         TreeKind::Text {
@@ -1054,11 +873,14 @@ mod tests {
     /// The item tree's shapes the flat nodes lose (#884): a CDATA list item
     /// ends its line at the list's indent, a caption's inline formula is an
     /// element, a footnote keeps its label, a LaTeX `*` stays text — the
-    /// string docling-core 2.104's `export_to_doclang()` writes for the same
-    /// document (its version stamp aside).
+    /// string docling-core 2.106's `export_to_doclang()` writes for the same
+    /// document.
     #[test]
     fn tree_shapes_follow_docling_core() {
-        let mut t = ItemTree::default();
+        let mut t = ItemTree {
+            inline_whitespace: true,
+            ..Default::default()
+        };
         let list = t.add(None, None, group("list"));
         t.add(Some(list), None, text("list_item", "\"C\" cell"));
         t.add(Some(list), None, text("list_item", "plain"));
@@ -1088,10 +910,9 @@ mod tests {
         let (xml, _) = export(&t, Pictures::Placeholder).expect("covered tree");
         assert_eq!(
             xml,
-            "<doclang version=\"0.7\">\n  <list>\n    <ldiv/>\n<![CDATA[\"C\" cell]]>    \n    \
-             <ldiv/>\n    plain\n  </list>\n  <picture>\n    <caption>\n      <content>size </content>\n      \
-             <formula>k</formula>\n    </caption>\n  </picture>\n  <footnote>A note.</footnote>\n  \
-             <text>Zhang* and Liu*</text>\n</doclang>"
+            "<doclang version=\"0.9\">\n  <list>\n    <ldiv/>\n    <![CDATA[\"C\" cell]]>\n    \
+             <ldiv/>\n    plain\n  </list>\n  <picture>\n    <caption>size <formula>k</formula></caption>\n  \
+             </picture>\n  <footnote>A note.</footnote>\n  <text>Zhang* and Liu*</text>\n</doclang>"
         );
     }
 

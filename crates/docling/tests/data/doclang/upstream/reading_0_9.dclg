@@ -1,0 +1,13 @@
+<doclang version="0.9">
+  <text>Before</text>
+  <track><caption>Talk</caption><text>Intro</text></track>
+  <text>After</text>
+  <text><checkbox class="selected"/> y</text>
+  <list>
+    <ldiv/>
+    <checkbox class="unselected"/> n
+  </list>
+  <text>H<subscript>2</subscript>O and a   b</text>
+  <text><layer value="background"/>hidden</text>
+  <text><layer value="furniture"/>furniture text</text>
+</doclang>
