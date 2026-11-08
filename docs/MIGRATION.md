@@ -462,7 +462,7 @@ converted once more as that format with a warning.
 #### XLSX
 
 **Backend:** `xlsx.rs` (calamine)\
-**Status:** vs docling 2.142.1 (the mirrored corpus is 2.142.1's): **13/14 exact** Markdown, **JSON structurally identical for 13/14** — `xlsx_02_sample_sales_data` is the 20 date cells PR #4628's number formats print (below), still unmerged upstream
+**Status:** vs docling 2.142.1 (the mirrored corpus is 2.142.1's): **13/14 exact** Markdown, **JSON structurally identical for 13/14** — `xlsx_02_sample_sales_data` was the 20 date cells PR #4628's number formats print (below); that PR has since merged upstream (`25cdd57`) and the mirrored groundtruth's cells are now the ones our port prints (#1020; the count was measured against 2.142.1 and is not re-run here)
 
 - docling#4812 (2.142): a chart's data table holds the series of **every plot** of a combination chart (a column + line chart kept only its columns), the top-left cell is the title of its category axis (`col-1`, `Year` in `xlsx_01`/`_03`/`_04`), a date is ISO 8601 (`2012-01-01`, with a time `2012-01-01T12:30:00`) and every cell its value, not its displayed text; a cell-linked chart or axis title reads its cached text, a whole-column range (`$B:$B`) reads the used rows (it lost the chart), each range stops at its sheet's last used row and the table is trimmed and capped at 100,000 cells as the PPTX one is (one `build_chart_table` for both). The cached points of a DOCX/PPTX chart land at their index with the gaps empty, `ptCount` long — they were packed, shifting every value after a gap into the wrong row — and inline `numLit`/`strLit` data is read too. **Limit:** a combination chart's `classification` is its back-most plot's label alone, where docling lists one prediction per plot type (no fixture has one)
 - a threaded comment's `comment_section` group is one child of the body however many messages it holds (it was listed once per message, `xlsx_comments`)
@@ -498,7 +498,9 @@ converted once more as that format with a warning.
   - the built-in `mm-dd-yy` (14) / `m/d/yy h:mm` (22) as ISO
   - everything the PR does not interpret — `"EUR"` and other currency words, plain `#,##0`, `00000`, `[h]:mm:ss`, conditions, other locale markers, `#` optional decimals, scientific — stays `str(value)` as before, so no cell reads worse.
 - The codes come from `xl/styles.xml` + each sheet's `c/@s` (calamine exposes none of this); `.xls` reads the BIFF `FORMAT`/`XF` records and the cells' `ixfe`; `.xlsb` keeps printing raw.
-- Released docling (2.135) still writes `str(value)`, so the 20 date cells of `xlsx_02_sample_sales_data` differ from its groundtruth (`0:00:00`) until #4628 merges; the mirrored groundtruth is left as upstream has it.
+- docling#4628 merged upstream (`25cdd57`): the 20 date cells of `xlsx_02_sample_sales_data` in its refreshed groundtruth (`2024-01-01 0:00:00`, …) are what our port prints, cell for cell (#1020).
+- #1020: an error cell reads as Excel shows it — `#N/A`, `#VALUE!`, `#DIV/0!` (calamine's `Display`, openpyxl's text) — not as calamine's enum variant (`NA`, `Value`, `Div0`).
+- #1020 (docling#5030): the 100,000-cell chart-table cap counts the header row — `MAX / cols - 1` data rows; 1 series × 50,000 points emitted 100,002 cells (shared with PPTX/DOCX charts through `build_chart_table`; the iWork charts already counted it).
 - Fixtures: the issue's `xlsx_number_formats_min.xlsx`/`.xls`, docling#4619's "Order" sheet and the PR's review table (`xlsx_number_formats.xlsx`), a 1904-epoch workbook.
 - No opt-out, as the PR has none
 - Picture alt text (#676): the `descr`/`title` of a picture's non-visual properties is kept as the picture's description with `created_by: alt_text` — in the JSON always, in Markdown/HTML under `picture_alt_text` or strict Markdown (`![alt](…)`, a text line above a placeholder, the `<img alt>`), so the default Markdown is unchanged; MarkItDown prints it, docling drops it.
