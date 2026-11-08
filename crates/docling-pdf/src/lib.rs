@@ -76,6 +76,9 @@ pub mod pdf_meta;
 // demand; pure Rust like `pdf_meta`.
 pub mod repairs;
 pub use repairs::{pdf_repairs, try_pdf_repairs, PdfRepair, RepairInspectError};
+// Embedded images as picture images (#1007, `use_embedded_picture_images`).
+#[cfg(feature = "render")]
+pub mod embedded;
 #[cfg(feature = "render")]
 pub mod raster;
 #[cfg(feature = "render")]
@@ -709,6 +712,11 @@ pub struct ImageOutput {
     /// Keep every page's render as the document's page image — docling's
     /// `generate_page_images`.
     pub page_images: bool,
+    /// A picture region holding exactly one safe embedded image gets that
+    /// bitmap at native resolution (`dpi` 72) instead of a render crop —
+    /// docling's `use_embedded_picture_images` (#1007, docling#5143; see
+    /// [`embedded`]). Anything uncertain keeps the crop.
+    pub embedded_pictures: bool,
 }
 
 #[cfg(feature = "ml")]
@@ -3217,6 +3225,22 @@ impl Pipeline {
         self
     }
 
+    /// Use a picture's embedded image instead of the render crop when its
+    /// region holds exactly one image XObject with nothing painted over it —
+    /// docling's `use_embedded_picture_images` (#1007, docling#5143). The
+    /// bitmap keeps its native pixel size and the picture's `dpi` is 72; a
+    /// masked, transparent, clipped, rotated or overlapped image, a second
+    /// image or text in the box, a `/Rotate`d page or an image that does not
+    /// decode keep the crop. Off by default; layout, OCR and page images are
+    /// unaffected.
+    pub fn use_embedded_picture_images(mut self, enabled: bool) -> Self {
+        self.set_images(ImageOutput {
+            embedded_pictures: enabled,
+            ..self.images
+        });
+        self
+    }
+
     /// Both image outputs at once, also on already-loaded workers — the
     /// per-request form a warm pipeline (serve, the Node `Pipeline`) uses,
     /// like [`set_ocr_scale`](Self::set_ocr_scale). A non-finite or
@@ -3273,6 +3297,7 @@ impl Pipeline {
             keep_typography: self
                 .keep_typography
                 .unwrap_or_else(assemble::keep_typography_from_env),
+            embedded_pictures: self.images.embedded_pictures,
         }
     }
 
@@ -4153,6 +4178,8 @@ impl Pipeline {
             links: Vec::new(),
             rotation: 0,
             keep_typography: false,
+            #[cfg(feature = "render")]
+            embedded_images: Vec::new(),
             pending_image: None,
         };
         self.process_pages(vec![page], name)

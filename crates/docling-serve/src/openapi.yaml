@@ -136,6 +136,7 @@ paths:
         - { $ref: "#/components/parameters/ocr_engine" }
         - { $ref: "#/components/parameters/images_scale" }
         - { $ref: "#/components/parameters/page_images" }
+        - { $ref: "#/components/parameters/use_embedded_picture_images" }
         - { $ref: "#/components/parameters/document_timeout" }
         - { $ref: "#/components/parameters/use_web_browser" }
         - { $ref: "#/components/parameters/asr_model" }
@@ -236,6 +237,7 @@ paths:
                 ocr_engine: { $ref: "#/components/schemas/OcrEngine" }
                 images_scale: { $ref: "#/components/schemas/ImagesScale" }
                 page_images: { type: boolean }
+                use_embedded_picture_images: { type: boolean }
                 document_timeout: { type: number, exclusiveMinimum: 0, examples: [90] }
                 use_web_browser: { type: boolean }
                 asr_model: { type: string }
@@ -1253,6 +1255,15 @@ components:
           description: >-
             Keep each page's render as the JSON `pages[n].image` (docling's
             `generate_page_images`, #520).
+        use_embedded_picture_images:
+          type: boolean
+          default: false
+          description: >-
+            A PDF picture whose region holds exactly one embedded image with
+            nothing drawn over it gets that bitmap at native resolution (dpi
+            72) instead of the render crop (docling's
+            `use_embedded_picture_images`, #1007). Anything uncertain keeps
+            the crop.
         document_timeout:
           type: number
           exclusiveMinimum: 0
@@ -1753,6 +1764,8 @@ components:
       { name: images_scale, in: query, schema: { $ref: "#/components/schemas/ImagesScale" } }
     page_images:
       { name: page_images, in: query, schema: { type: boolean } }
+    use_embedded_picture_images:
+      { name: use_embedded_picture_images, in: query, schema: { type: boolean } }
     document_timeout:
       { name: document_timeout, in: query, schema: { type: number, exclusiveMinimum: 0 } }
     use_web_browser:

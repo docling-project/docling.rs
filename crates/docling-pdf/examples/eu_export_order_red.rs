@@ -11,6 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         docling_pdf::TextOptions {
             word_gap: None,
             keep_typography: true,
+            ..Default::default()
         },
     )?;
     let text = document

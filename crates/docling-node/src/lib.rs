@@ -148,6 +148,11 @@ pub struct ConverterOptions {
     /// Keep each page's render as the JSON `pages[n].image` — docling's
     /// `generate_page_images` (#520). Default `false`.
     pub page_images: Option<bool>,
+    /// A PDF picture whose region holds exactly one embedded image with
+    /// nothing drawn over it gets that bitmap at native resolution (`dpi` 72)
+    /// instead of the render crop — docling's `use_embedded_picture_images`
+    /// (#1007). Default `false`.
+    pub use_embedded_picture_images: Option<bool>,
     /// Which OCR engine reads scanned pages (#460): `"ppocr"` (default, the
     /// built-in PP-OCRv3 recognizer) | `"tesseract"` (the system `tesseract`
     /// binary). Under Tesseract `ocrLang` is its language list — tessdata
@@ -502,6 +507,11 @@ pub struct ConvertOptions {
     /// Keep each page's render as the JSON `pages[n].image` — docling's
     /// `generate_page_images` (#520). Default `false`.
     pub page_images: Option<bool>,
+    /// A PDF picture whose region holds exactly one embedded image with
+    /// nothing drawn over it gets that bitmap at native resolution (`dpi` 72)
+    /// instead of the render crop — docling's `use_embedded_picture_images`
+    /// (#1007). Default `false`.
+    pub use_embedded_picture_images: Option<bool>,
     /// Which OCR engine reads scanned pages (#460): `"ppocr"` (default) |
     /// `"tesseract"`.
     pub ocr_engine: Option<String>,
@@ -1825,6 +1835,7 @@ impl Pipeline {
             .keep_typography(warm.keep_typography)
             .images_scale(warm.images.scale)
             .generate_page_images(warm.images.page_images)
+            .use_embedded_picture_images(warm.images.embedded_pictures)
             .pages(warm.page_range)
             .document_timeout(warm.document_timeout)
             .enrichments(warm.enrich);
@@ -3110,6 +3121,7 @@ mod tests {
             ocr_scale: Some(3.0),
             images_scale: Some(1.5),
             page_images: Some(true),
+            use_embedded_picture_images: Some(true),
             skip_ocr: Some(true),
             force_full_page_ocr: Some(true),
             no_text_panels: Some(true),
@@ -3128,7 +3140,8 @@ mod tests {
             got.images,
             docling::ImageOutput {
                 scale: Some(1.5),
-                page_images: true
+                page_images: true,
+                embedded_pictures: true,
             }
         );
         // `skipOcr` is read as `noOcr` (its pre-2.0 name, #611).
