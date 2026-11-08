@@ -2026,6 +2026,14 @@ fn is_plain_number_marker(marker: &str) -> bool {
 // ---------------------------------------------------------------- tables
 
 fn parse_table(table: XmlNode, styles: &Styles) -> Option<Table> {
+    parse_table_as(table, styles, true)
+}
+
+/// [`parse_table`], with `styled_rich` choosing whether a styled run alone
+/// makes a cell rich (docling#4809). A table nested in a rich cell is
+/// flattened to its cells' plain text, as upstream prints it, so it is
+/// parsed without that rule.
+fn parse_table_as(table: XmlNode, styles: &Styles, styled_rich: bool) -> Option<Table> {
     // Only rows of *this* table — `descendants()` would also pull in the rows of
     // any nested table (which a rich cell renders on its own).
     let tr_rows: Vec<XmlNode> = table
@@ -2091,8 +2099,8 @@ fn parse_table(table: XmlNode, styles: &Styles) -> Option<Table> {
                 ci = (ci + reps).min(num_cols);
                 continue;
             }
-            let text = cell_text(tc, styles);
-            let cell_nodes = cell_blocks_of(tc, styles);
+            let text = cell_text(tc, styles, styled_rich);
+            let cell_nodes = cell_blocks_of(tc, styles, styled_rich);
             any_rich |= !cell_nodes.is_empty();
             let cspan = repeat(tc, "number-columns-spanned");
             let rspan = repeat(tc, "number-rows-spanned");
@@ -2183,8 +2191,8 @@ fn data_bounds(grid: &[Vec<String>]) -> Option<(usize, usize, usize, usize)> {
 /// tables or images) renders its full block content — formatting kept — flattened
 /// to a single line; a *plain* cell renders its unformatted text. Mirrors
 /// docling's `_odf_cell_is_rich` / `_odf_cell_text` split.
-fn cell_text(tc: XmlNode, styles: &Styles) -> String {
-    if is_rich_cell(tc, styles) {
+fn cell_text(tc: XmlNode, styles: &Styles, styled_rich: bool) -> String {
+    if is_rich_cell_as(tc, styles, styled_rich) {
         rich_cell_markdown(tc, styles)
     } else {
         plain_cell_text(tc)
@@ -2196,8 +2204,8 @@ fn cell_text(tc: XmlNode, styles: &Styles) -> String {
 /// document body (so lists, headings, paragraphs with inline runs and nested
 /// tables all render through the same code). Empty for a plain cell, whose flat
 /// [`cell_text`] the serializer uses instead. Markdown/JSON never consult this.
-fn cell_blocks_of(tc: XmlNode, styles: &Styles) -> Vec<Node> {
-    if !is_rich_cell(tc, styles) {
+fn cell_blocks_of(tc: XmlNode, styles: &Styles, styled_rich: bool) -> Vec<Node> {
+    if !is_rich_cell_as(tc, styles, styled_rich) {
         return Vec::new();
     }
     let mut sub = DoclingDocument::new("");
@@ -2212,6 +2220,10 @@ fn cell_blocks_of(tc: XmlNode, styles: &Styles) -> Vec<Node> {
 /// value (`office:value-type`) — presentation tables never type their cells, so
 /// their text cells are all rich (docling's `cell.value is None` clause).
 pub(super) fn is_rich_cell(tc: XmlNode, styles: &Styles) -> bool {
+    is_rich_cell_as(tc, styles, true)
+}
+
+fn is_rich_cell_as(tc: XmlNode, styles: &Styles, styled_rich: bool) -> bool {
     if cell_has_image(tc) {
         return true;
     }
@@ -2232,7 +2244,23 @@ pub(super) fn is_rich_cell(tc: XmlNode, styles: &Styles) -> bool {
             _ => {}
         }
     }
-    non_empty_paragraphs > 1 || (attr(tc, "value-type").is_none() && non_empty_paragraphs > 0)
+    non_empty_paragraphs > 1
+        || (attr(tc, "value-type").is_none() && non_empty_paragraphs > 0)
+        || (styled_rich && has_styled_run(tc, styles))
+}
+
+/// docling's `_odf_cell_has_styled_run` (docling#4809): a paragraph of the
+/// cell holds a run with formatting (bold, italic, strike, underline, a
+/// script) or a hyperlink — so a one-paragraph typed cell such as
+/// `H<sub>2</sub>O` keeps its runs as a rich cell instead of flattening to
+/// plain text. A span whose style sets no formatting stays plain.
+fn has_styled_run(tc: XmlNode, styles: &Styles) -> bool {
+    tc.children().filter(|c| c.has_tag_name("p")).any(|p| {
+        let mut runs = Vec::new();
+        collect_runs(p, styles, Fmt::default(), &mut runs);
+        runs.iter()
+            .any(|r| r.fmt != Fmt::default() || r.href.is_some())
+    })
 }
 
 /// A cell/paragraph holding a bitmap image (`<draw:image>`).
@@ -2313,7 +2341,7 @@ fn rich_cell_markdown(tc: XmlNode, styles: &Styles) -> String {
             }
             "table" => {
                 prev_state = None;
-                if let Some(table) = parse_table(child, styles) {
+                if let Some(table) = parse_table_as(child, styles, false) {
                     let text = table
                         .rows
                         .iter()
@@ -2410,8 +2438,9 @@ fn add_ods_sheet(table: XmlNode, styles: &Styles, doc: &mut DoclingDocument) {
             let crep = repeat(cell, "number-columns-repeated");
             let covered = cell.has_tag_name("covered-table-cell");
             // A cell holding a picture is a rich cell: its blocks, picture
-            // included, as in the JSON tree (#758).
-            let text = if cell_has_image(cell) {
+            // included, as in the JSON tree (#758); so is one with a styled
+            // or linked run (docling#4809), which keeps its Markdown markers.
+            let text = if cell_has_image(cell) || has_styled_run(cell, styles) {
                 rich_cell_markdown(cell, styles)
             } else {
                 ods_cell_text(cell)
