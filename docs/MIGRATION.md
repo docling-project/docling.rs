@@ -1752,6 +1752,7 @@ pointed at the wrong item).
   - the figure carries `% annotation[classification]: …` / `% annotation[description]: …` comments after its caption
   - a chart's data grid follows the figure as a `table`
   - an alt-text description (#676, docling.rs-only) is never printed
+- Title hoisting follows docling-core#983 (main, after 2.106.0; #1013): the first `\title{…}` is closed by brace depth (escaped `\{` `\}` skipped), so a formatted or brace-carrying title reaches the preamble with one `\maketitle` and every later `\title` leaves the body; released docling-core's `[^{}]*` regex still leaves such titles inline (`inline_and_formatting`, `2310.06825`)
 
 ### HTML (`.html`)
 
