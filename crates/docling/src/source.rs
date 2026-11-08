@@ -296,7 +296,7 @@ pub(crate) fn decode_text_as<'a>(
 /// Resolve an encoding label: the WHATWG label as given, then with Python's
 /// `_` spelling folded to `-` (`shift_jis` is a WHATWG label, `euc_jp` is
 /// not), then the Python codec names WHATWG spells differently.
-fn lookup_encoding(label: &str) -> Option<&'static encoding_rs::Encoding> {
+pub(crate) fn lookup_encoding(label: &str) -> Option<&'static encoding_rs::Encoding> {
     let label = label.trim();
     let dashed = label.replace('_', "-").to_ascii_lowercase();
     encoding_rs::Encoding::for_label(label.as_bytes())
