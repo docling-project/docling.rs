@@ -54,8 +54,8 @@ Building on previous work, we delineated five domains of variables that could in
 Domain & Factor & Covariate & Description & Reference Group & Summary statistic & Temporal Resolution & Source \\ \hline
 Prevalence & Baseline prevalence & 5\% cut off & Maximum reported mapping or baseline sentinel site prevalence & <5\% & Maximum & Varies & Programmatic data \\ \hline
 Prevalence & Baseline prevalence & 10\% cut off & Maximum reported mapping or baseline sentinel site prevalence & <10\% & Maximum & Varies & Programmatic data \\ \hline
-Agent & Parasite & Parasite & Predominate parasite in district & W. bancrofti \& mixed & Binary value & 2018 & Programmatic data \\ \hline
-Environment & Vector & Vector & Predominate vector in district & Anopheles \& Mansonia & Binary value & 2018 & Country expert \\ \hline
+Agent & Parasite & Parasite & Predominate parasite in district & \textit{W}. \textit{bancrofti} \& mixed & Binary value & 2018 & Programmatic data \\ \hline
+Environment & Vector & Vector & Predominate vector in district & \textit{Anopheles} \& \textit{Mansonia} & Binary value & 2018 & Country expert \\ \hline
 Environment & Geography & Elevation & Elevation measured in meters & >350 & Mean & 2000 & CGIAR-CSI SRTM [9] \\ \hline
 Environment & Geography & District area & Area measured in km2 & >2,500 & Maximum sum & Static & Programmatic data \\ \hline
 Environment & Climate & EVI & Enhanced vegetation index & > 0.3 & Mean & 2015 & MODIS [10] \\ \hline
@@ -155,16 +155,16 @@ Sensitivity analyses were conducted using the same model with different subsets 
 \begin{tabular}{|l|l|l|l|l|l|}
 \hline
  &  & (1) & (2) & (3) & (4) \\ \hline
- & Full Model & Without Cameroon districts & Only districts in Africa & Only W. bancrofti parasite districts & Only Anopheles vector districts \\ \hline
+ & Full Model & Without Cameroon districts & Only districts in Africa & Only \textit{W}. \textit{bancrofti} parasite districts & Only Anopheles vector districts \\ \hline
 Number of Failures & 74 & 74 & 44 & 72 & 46 \\ \hline
 Number of total districts & (N = 554) & (N = 420) & (N = 407) & (N = 518) & (N = 414) \\ \hline
 Covariate & RR (95\% CI) & RR (95\% CI) & RR (95\% CI) & RR (95\% CI) & RR (95\% CI) \\ \hline
-Baseline prevalence > = 10\% \& used FTS test & 2.38 (0.96–5.90) & 1.23 (0.52–2.92) & 14.52 (1.79–117.82) & 2.61 (1.03–6.61) & 15.80 (1.95–127.67) \\ \hline
+Baseline prevalence > = 10\% \& used FTS test & 2.38 (0.96–5.90) & 1.23 (0.52–2.92) & \textbf{14.52 (1.79–117.82)} & \textbf{2.61 (1.03–6.61)} & \textbf{15.80 (1.95–127.67)} \\ \hline
 Baseline prevalence > = 10\% \& used ICT test & 0.80 (0.20–3.24) & 0.42 (0.11–1.68) & 1.00 (0.00–0.00) & 0.88 (0.21–3.60) & 1.00 (0.00–0.00) \\ \hline
-+Used FTS test & 1.16 (0.52–2.59) & 2.40 (1.12–5.11) & 0.15 (0.02–1.11) & 1.03 (0.45–2.36) & 0.13 (0.02–0.96) \\ \hline
-+Used ICT test & 0.92 (0.32–2.67) & 1.47 (0.51–4.21) & 0.33 (0.04–2.54) & 0.82 (0.28–2.43) & 0.27 (0.03–2.04) \\ \hline
-+Baseline prevalence > = 10\% & 2.52 (1.37–4.64) & 2.42 (1.31–4.47) & 2.03 (1.06–3.90) & 2.30 (1.21–4.36) & 2.01 (1.07–3.77) \\ \hline
-Elevation < 350m & 3.07 (1.95–4.83) & 2.21 (1.42–3.43) & 4.68 (2.22–9.87) & 3.04 (1.93–4.79) & 3.76 (1.92–7.37) \\ \hline
+\textit{+Used FTS test} & \textit{1}.\textit{16 (0}.\textit{52–2}.\textit{59)} & \textbf{2.40 (1.12–5.11)} & 0.15 (0.02–1.11) & 1.03 (0.45–2.36) & 0.13 (0.02–0.96) \\ \hline
+\textit{+Used ICT test} & \textit{0}.\textit{92 (0}.\textit{32–2}.\textit{67)} & 1.47 (0.51–4.21) & 0.33 (0.04–2.54) & 0.82 (0.28–2.43) & 0.27 (0.03–2.04) \\ \hline
+\textit{+Baseline prevalence > = 10\%} & \textit{\textbf{2}}\textbf{.}\textit{\textbf{52 (1}}\textbf{.}\textit{\textbf{37–4}}\textbf{.}\textit{\textbf{64)}} & \textbf{2.42 (1.31–4.47)} & \textbf{2.03 (1.06–3.90)} & \textbf{2.30 (1.21–4.36)} & \textbf{2.01 (1.07–3.77)} \\ \hline
+Elevation < 350m & \textbf{3.07 (1.95–4.83)} & \textbf{2.21 (1.42–3.43)} & \textbf{4.68 (2.22–9.87)} & \textbf{3.04 (1.93–4.79)} & \textbf{3.76 (1.92–7.37)} \\ \hline
 \end{tabular}
 \end{table}
 
