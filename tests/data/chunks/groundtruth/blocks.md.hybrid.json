@@ -35,7 +35,7 @@
   "contextualize": "my setext heading level 1\nSetext heading level 2:"
  },
  {
-  "text": "Indented code block:\n```\nprint(\"Hi!\")\n```\nEmpty indented code block:\nFenced code block:\n```\nprint(\"Hello world!\")\n```\nEmpty fenced code block:",
+  "text": "Indented code block:\n```\nprint(\"Hi!\")\n```\nEmpty indented code block:\nFenced code block:\n```\nprint(\"Hello world!\")\n```\nEmpty fenced code block:\nOrdered list starting at a non-1 number:\n5. Fifth step\n6. Sixth step\n7. Seventh step\nOrdered list split by a prose paragraph (numbers must continue, not restart):\n1. Install the package.\n2. Set the API key.\nRestart the shell before continuing.\n3. Run the import.\n4. Check the output.",
   "headings": [
    "my setext heading level 1",
    "my setext heading level 2"
@@ -46,8 +46,18 @@
    "#/texts/15",
    "#/texts/16",
    "#/texts/17",
-   "#/texts/18"
+   "#/texts/18",
+   "#/texts/19",
+   "#/texts/20",
+   "#/texts/21",
+   "#/texts/22",
+   "#/texts/23",
+   "#/texts/24",
+   "#/texts/25",
+   "#/texts/26",
+   "#/texts/27",
+   "#/texts/28"
   ],
-  "contextualize": "my setext heading level 1\nmy setext heading level 2\nIndented code block:\n```\nprint(\"Hi!\")\n```\nEmpty indented code block:\nFenced code block:\n```\nprint(\"Hello world!\")\n```\nEmpty fenced code block:"
+  "contextualize": "my setext heading level 1\nmy setext heading level 2\nIndented code block:\n```\nprint(\"Hi!\")\n```\nEmpty indented code block:\nFenced code block:\n```\nprint(\"Hello world!\")\n```\nEmpty fenced code block:\nOrdered list starting at a non-1 number:\n5. Fifth step\n6. Sixth step\n7. Seventh step\nOrdered list split by a prose paragraph (numbers must continue, not restart):\n1. Install the package.\n2. Set the API key.\nRestart the shell before continuing.\n3. Run the import.\n4. Check the output."
  }
 ]

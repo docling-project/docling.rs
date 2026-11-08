@@ -102,5 +102,18 @@
    "#/texts/60"
   ],
   "contextualize": "Test Document\n2 Section 2\n2.2 Section 2.1\nParagraph 2.1.1\nParagraph 2.1.2\n1. Appendix A: Glossary\n- 1.1. Section A.1\n- 1.1.1. Detail A.1.1\n- 2.3.1. Hardware Constraints – Egde Case\n- 2.3.2. Software Constraints\n- 2.3.3. Network Constraints\n- 2.3.4. Environmental Constraints\n- 2.3.5. Regulatory Constraints\n- 2.3.6. Budget Constraints\n- 2.3.7. Timeline Constraints\n- 2.3.8. Resource Constraints\n- 2.3.8.1. First sub-item at this level\n- 2.3.8.2. Second sub-item at this level\n- 2.3.8.3. Third sub-item at this level"
+ },
+ {
+  "text": "This is the first reference.\nThis is the second reference.",
+  "headings": [
+   "Test Document",
+   "2 Section 2",
+   "REFERENCES"
+  ],
+  "doc_items": [
+   "#/texts/64",
+   "#/texts/65"
+  ],
+  "contextualize": "Test Document\n2 Section 2\nREFERENCES\nThis is the first reference.\nThis is the second reference."
  }
 ]

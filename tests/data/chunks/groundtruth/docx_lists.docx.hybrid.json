@@ -115,7 +115,7 @@
   "text": "*Docling should extract the list format when the formatting comes from the styles:*\n- *First item*\n- *Second item*\n- *Third item*\n- *Sub-item A*\n- *Sub-item B*\n- *Fourth item*",
   "headings": [
    "Test Document",
-   "Style-based lists:"
+   "Test 8: Style-based lists:"
   ],
   "doc_items": [
    "#/texts/56",
@@ -126,6 +126,73 @@
    "#/texts/61",
    "#/texts/62"
   ],
-  "contextualize": "Test Document\nStyle-based lists:\n*Docling should extract the list format when the formatting comes from the styles:*\n- *First item*\n- *Second item*\n- *Third item*\n- *Sub-item A*\n- *Sub-item B*\n- *Fourth item*"
+  "contextualize": "Test Document\nTest 8: Style-based lists:\n*Docling should extract the list format when the formatting comes from the styles:*\n- *First item*\n- *Second item*\n- *Third item*\n- *Sub-item A*\n- *Sub-item B*\n- *Fourth item*"
+ },
+ {
+  "text": "1. ORCHARD MAP AND GARDEN NOTES\n- 1.1. Morning Walk\nThe gravel path bent around a quiet pond where ducks drifted in slow circles.\nA wooden bench near the willow still held last week's newspaper under a stone.\n- 1.2. Greenhouse Shelves\nTomato seedlings leaned toward the glass as afternoon light warmed the trays.\n2. WEEKEND ERRAND LIST\n- 2.1. Market Stops\n- Buy fresh bread from the corner bakery\n- Pick up citrus and green onions\n- Return the borrowed library novels\n- 2.2. Kitchen Tasks\n3. WORKSHOP AND TOOL SHED\n- 3.1. Bench Setup\nThe spare clamps were sorted into labeled tins along the lower shelf.",
+  "headings": [
+   "Test Document",
+   "Test 9: List continuity with non-empty text"
+  ],
+  "doc_items": [
+   "#/texts/66",
+   "#/texts/67",
+   "#/texts/68",
+   "#/texts/69",
+   "#/texts/70",
+   "#/texts/71",
+   "#/texts/72",
+   "#/texts/73",
+   "#/texts/74",
+   "#/texts/75",
+   "#/texts/76",
+   "#/texts/77",
+   "#/texts/78",
+   "#/texts/79",
+   "#/texts/80"
+  ],
+  "contextualize": "Test Document\nTest 9: List continuity with non-empty text\n1. ORCHARD MAP AND GARDEN NOTES\n- 1.1. Morning Walk\nThe gravel path bent around a quiet pond where ducks drifted in slow circles.\nA wooden bench near the willow still held last week's newspaper under a stone.\n- 1.2. Greenhouse Shelves\nTomato seedlings leaned toward the glass as afternoon light warmed the trays.\n2. WEEKEND ERRAND LIST\n- 2.1. Market Stops\n- Buy fresh bread from the corner bakery\n- Pick up citrus and green onions\n- Return the borrowed library novels\n- 2.2. Kitchen Tasks\n3. WORKSHOP AND TOOL SHED\n- 3.1. Bench Setup\nThe spare clamps were sorted into labeled tins along the lower shelf."
+ },
+ {
+  "text": "1. Parent decimal item\n- a) Child lettered first\n- b) Child lettered second\n2. Parent decimal two",
+  "headings": [
+   "Test Document",
+   "Test 9: List continuity with non-empty text",
+   "Test 10: Non-decimal lvlText suffix"
+  ],
+  "doc_items": [
+   "#/texts/83",
+   "#/texts/84",
+   "#/texts/85",
+   "#/texts/86"
+  ],
+  "contextualize": "Test Document\nTest 9: List continuity with non-empty text\nTest 10: Non-decimal lvlText suffix\n1. Parent decimal item\n- a) Child lettered first\n- b) Child lettered second\n2. Parent decimal two"
+ },
+ {
+  "text": "- 1.1. Item A\n- 1.1.1. Item B\n- 1.2. Item C",
+  "headings": [
+   "Test Document",
+   "Test 11: List starting above indent level 0"
+  ],
+  "doc_items": [
+   "#/texts/89",
+   "#/texts/90",
+   "#/texts/91"
+  ],
+  "contextualize": "Test Document\nTest 11: List starting above indent level 0\n- 1.1. Item A\n- 1.1.1. Item B\n- 1.2. Item C"
+ },
+ {
+  "text": "1. Item A\n- 1.1. Item B\n- 1.1.1. Item C\n- 1.2. Item D",
+  "headings": [
+   "Test Document",
+   "Test 12: List starting at indent level 0"
+  ],
+  "doc_items": [
+   "#/texts/94",
+   "#/texts/95",
+   "#/texts/96",
+   "#/texts/97"
+  ],
+  "contextualize": "Test Document\nTest 12: List starting at indent level 0\n1. Item A\n- 1.1. Item B\n- 1.1.1. Item C\n- 1.2. Item D"
  }
 ]

@@ -18,6 +18,7 @@
 
 mod asciidoc_upstream;
 mod charset;
+mod chunk_refs;
 mod dclx_roundtrip;
 mod detect;
 mod djvu_prov;

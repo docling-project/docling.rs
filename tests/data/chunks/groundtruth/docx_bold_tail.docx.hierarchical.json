@@ -1,0 +1,43 @@
+[
+ {
+  "text": "**Case 1: bold text then a plain text run.** Plain tail.",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/texts/1"
+  ],
+  "contextualize": "**Case 1: bold text then a plain text run.** Plain tail."
+ },
+ {
+  "text": "**Case 2: bold text then a plain whitespace-only run.**",
+  "headings": null,
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "**Case 2: bold text then a plain whitespace-only run.**"
+ },
+ {
+  "text": "*Case 3: italic text then a plain whitespace-only run.*",
+  "headings": null,
+  "doc_items": [
+   "#/texts/3"
+  ],
+  "contextualize": "*Case 3: italic text then a plain whitespace-only run.*"
+ },
+ {
+  "text": "**Case 4: the whole paragraph is a single bold run.**",
+  "headings": null,
+  "doc_items": [
+   "#/texts/4"
+  ],
+  "contextualize": "**Case 4: the whole paragraph is a single bold run.**"
+ },
+ {
+  "text": "- **Case 5: bold list item then a plain whitespace-only run.**",
+  "headings": null,
+  "doc_items": [
+   "#/texts/5"
+  ],
+  "contextualize": "- **Case 5: bold list item then a plain whitespace-only run.**"
+ }
+]

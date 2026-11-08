@@ -1,6 +1,6 @@
 [
  {
-  "text": "This is a **bold (b)** example and right next to it we have a **strong emphasis (strong)** . Notice that **strong + bold mixed** looks similar but carries additional semantic meaning.",
+  "text": "This is a **bold (b)** example and right next to it we have a **strong emphasis (strong)**. Notice that **strong + bold mixed** looks similar but carries additional semantic meaning.",
   "headings": [
    "HTML Text Formatting Examples"
   ],
@@ -13,10 +13,10 @@
    "#/texts/7",
    "#/texts/8"
   ],
-  "contextualize": "HTML Text Formatting Examples\nThis is a **bold (b)** example and right next to it we have a **strong emphasis (strong)** . Notice that **strong + bold mixed** looks similar but carries additional semantic meaning."
+  "contextualize": "HTML Text Formatting Examples\nThis is a **bold (b)** example and right next to it we have a **strong emphasis (strong)**. Notice that **strong + bold mixed** looks similar but carries additional semantic meaning."
  },
  {
-  "text": "Here is an *italic (i)* word and an *emphasis (em)* example. Sometimes we combine them like *italic + emphasis together* .",
+  "text": "Here is an *italic (i)* word and an *emphasis (em)* example. Sometimes we combine them like *italic + emphasis together*.",
   "headings": [
    "HTML Text Formatting Examples"
   ],
@@ -29,10 +29,10 @@
    "#/texts/14",
    "#/texts/15"
   ],
-  "contextualize": "HTML Text Formatting Examples\nHere is an *italic (i)* word and an *emphasis (em)* example. Sometimes we combine them like *italic + emphasis together* ."
+  "contextualize": "HTML Text Formatting Examples\nHere is an *italic (i)* word and an *emphasis (em)* example. Sometimes we combine them like *italic + emphasis together*."
  },
  {
-  "text": "Now let's look at text that appears crossed out: ~~strikethrough with s~~ and ~~deleted with del~~ . You can also mix them: ~~double strikethrough (s + del)~~ .",
+  "text": "Now let's look at text that appears crossed out: ~~strikethrough with s~~ and ~~deleted with del~~. You can also mix them: ~~double strikethrough (s + del)~~.",
   "headings": [
    "HTML Text Formatting Examples"
   ],
@@ -45,10 +45,10 @@
    "#/texts/21",
    "#/texts/22"
   ],
-  "contextualize": "HTML Text Formatting Examples\nNow let's look at text that appears crossed out: ~~strikethrough with s~~ and ~~deleted with del~~ . You can also mix them: ~~double strikethrough (s + del)~~ ."
+  "contextualize": "HTML Text Formatting Examples\nNow let's look at text that appears crossed out: ~~strikethrough with s~~ and ~~deleted with del~~. You can also mix them: ~~double strikethrough (s + del)~~."
  },
  {
-  "text": "To highlight insertions or underlines: underlined with u , inserted with ins . A combination could be: underline + insertion together .",
+  "text": "To highlight insertions or underlines: underlined with u, inserted with ins. A combination could be: underline + insertion together.",
   "headings": [
    "HTML Text Formatting Examples"
   ],
@@ -61,10 +61,10 @@
    "#/texts/28",
    "#/texts/29"
   ],
-  "contextualize": "HTML Text Formatting Examples\nTo highlight insertions or underlines: underlined with u , inserted with ins . A combination could be: underline + insertion together ."
+  "contextualize": "HTML Text Formatting Examples\nTo highlight insertions or underlines: underlined with u, inserted with ins. A combination could be: underline + insertion together."
  },
  {
-  "text": "Subscript and superscript examples: Water is written as H 2 O using sub. The mathematical expression x 2 + y 3 uses sup. They can also be combined: CO 2 * .",
+  "text": "Subscript and superscript examples: Water is written as H2O using sub. The mathematical expression x2 + y3 uses sup. They can also be combined: CO2*.",
   "headings": [
    "HTML Text Formatting Examples"
   ],
@@ -80,10 +80,10 @@
    "#/texts/38",
    "#/texts/39"
   ],
-  "contextualize": "HTML Text Formatting Examples\nSubscript and superscript examples: Water is written as H 2 O using sub. The mathematical expression x 2 + y 3 uses sup. They can also be combined: CO 2 * ."
+  "contextualize": "HTML Text Formatting Examples\nSubscript and superscript examples: Water is written as H2O using sub. The mathematical expression x2 + y3 uses sup. They can also be combined: CO2*."
  },
  {
-  "text": "Mixing several: This sentence has ***strong + emphasis*** , some **bold + underline** , and a formula like a 2 + b 3 .",
+  "text": "Mixing several: This sentence has ***strong + emphasis***, some **bold + underline**, and a formula like a2 + b3.",
   "headings": [
    "HTML Text Formatting Examples"
   ],
@@ -98,6 +98,6 @@
    "#/texts/47",
    "#/texts/48"
   ],
-  "contextualize": "HTML Text Formatting Examples\nMixing several: This sentence has ***strong + emphasis*** , some **bold + underline** , and a formula like a 2 + b 3 ."
+  "contextualize": "HTML Text Formatting Examples\nMixing several: This sentence has ***strong + emphasis***, some **bold + underline**, and a formula like a2 + b3."
  }
 ]

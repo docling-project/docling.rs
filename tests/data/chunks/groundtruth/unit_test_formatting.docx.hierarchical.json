@@ -61,15 +61,37 @@
    "#/texts/14",
    "#/texts/15",
    "#/texts/16",
+   "#/texts/17",
+   "#/texts/18",
+   "#/texts/19",
+   "#/texts/20",
    "#/texts/21"
   ],
   "contextualize": "- *Italic bullet 1*\n- **Bold bullet 2**\n- Underline bullet 3\n- Some *italic* **bold** underline\n    - Nested *italic* **bold**"
  },
  {
+  "text": "**Indexation**",
+  "headings": null,
+  "doc_items": [
+   "#/texts/28"
+  ],
+  "contextualize": "**Indexation**"
+ },
+ {
+  "text": "This text carries a *complex-script bold* property in OOXML but it should not be bold.",
+  "headings": null,
+  "doc_items": [
+   "#/texts/29",
+   "#/texts/30",
+   "#/texts/31"
+  ],
+  "contextualize": "This text carries a *complex-script bold* property in OOXML but it should not be bold."
+ },
+ {
   "text": "The second page of the document with same header and footer",
   "headings": null,
   "doc_items": [
-   "#/texts/26"
+   "#/texts/33"
   ],
   "contextualize": "The second page of the document with same header and footer"
  },
@@ -77,7 +99,7 @@
   "text": "The third page of the document with different header and footer",
   "headings": null,
   "doc_items": [
-   "#/texts/28"
+   "#/texts/35"
   ],
   "contextualize": "The third page of the document with different header and footer"
  }

@@ -16,6 +16,14 @@
   "contextualize": "Text 1"
  },
  {
+  "text": "Line chart\n\n|            |   Series 1 |   Series 2 |   Series 3 |\n|------------|------------|------------|------------|\n| Category 1 |        4.3 |        2.4 |          2 |\n| Category 2 |        2.5 |        4.4 |          2 |\n| Category 3 |        3.5 |        1.8 |          3 |\n| Category 4 |        4.5 |        2.8 |          5 |",
+  "headings": null,
+  "doc_items": [
+   "#/pictures/1"
+  ],
+  "contextualize": "Line chart\n\n|            |   Series 1 |   Series 2 |   Series 3 |\n|------------|------------|------------|------------|\n| Category 1 |        4.3 |        2.4 |          2 |\n| Category 2 |        2.5 |        4.4 |          2 |\n| Category 3 |        3.5 |        1.8 |          3 |\n| Category 4 |        4.5 |        2.8 |          5 |"
+ },
+ {
   "text": "Fig – Torque v/s Speed characteristics",
   "headings": null,
   "doc_items": [

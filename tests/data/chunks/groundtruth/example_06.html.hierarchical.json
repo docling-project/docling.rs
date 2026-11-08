@@ -24,12 +24,12 @@
   "contextualize": "This is a regular paragraph."
  },
  {
-  "text": "This is a third div\nwith a new line.",
+  "text": "This is a third div  \nwith a new line.",
   "headings": null,
   "doc_items": [
    "#/texts/4"
   ],
-  "contextualize": "This is a third div\nwith a new line."
+  "contextualize": "This is a third div  \nwith a new line."
  },
  {
   "text": "Heading for the details element",

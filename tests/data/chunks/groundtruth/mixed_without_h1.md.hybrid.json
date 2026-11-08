@@ -8,7 +8,7 @@
   "contextualize": "Content before first heading"
  },
  {
-  "text": "- A. first\n- subitem\n- B. second\n- 2 . strange\nThe end!",
+  "text": "- A. first\n- subitem\n- B. second\n- 2. strange\nThe end!",
   "headings": [
    "Some heading"
   ],
@@ -19,6 +19,6 @@
    "#/texts/5",
    "#/texts/6"
   ],
-  "contextualize": "Some heading\n- A. first\n- subitem\n- B. second\n- 2 . strange\nThe end!"
+  "contextualize": "Some heading\n- A. first\n- subitem\n- B. second\n- 2. strange\nThe end!"
  }
 ]

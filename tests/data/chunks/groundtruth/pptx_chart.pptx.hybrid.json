@@ -1,0 +1,23 @@
+[
+ {
+  "text": "Wild Duck Observations by Year\n\nBar chart\n\n|      |   Freshwater Ducks |   Saltwater Ducks |\n|------|--------------------|-------------------|\n| 2019 |                120 |                80 |\n| 2020 |                130 |                95 |\n| 2021 |                150 |               110 |\n| 2022 |                175 |               130 |",
+  "headings": [
+   "Quarterly Duck Survey"
+  ],
+  "doc_items": [
+   "#/texts/1",
+   "#/pictures/0"
+  ],
+  "contextualize": "Quarterly Duck Survey\nWild Duck Observations by Year\n\nBar chart\n\n|      |   Freshwater Ducks |   Saltwater Ducks |\n|------|--------------------|-------------------|\n| 2019 |                120 |                80 |\n| 2020 |                130 |                95 |\n| 2021 |                150 |               110 |\n| 2022 |                175 |               130 |"
+ },
+ {
+  "text": "Bar chart\n\n|    |   2026 |\n|----|--------|\n| Q1 |     10 |\n| Q2 |     20 |\n| Q3 |     30 |",
+  "headings": [
+   "Quarterly revenue"
+  ],
+  "doc_items": [
+   "#/pictures/1"
+  ],
+  "contextualize": "Quarterly revenue\nBar chart\n\n|    |   2026 |\n|----|--------|\n| Q1 |     10 |\n| Q2 |     20 |\n| Q3 |     30 |"
+ }
+]

@@ -1,15 +1,5 @@
 [
  {
-  "text": "With footnote",
-  "headings": [
-   "Test Table Slide"
-  ],
-  "doc_items": [
-   "#/texts/1"
-  ],
-  "contextualize": "Test Table Slide\nWith footnote"
- },
- {
   "text": ", Class1 = A merged with B. , Class1 = A merged with B. , Class1 = C. , Class2 = A. , Class2 = B. , Class2 = C. R1, Class1 = True. R1, Class1 = False. R1, Class1 = . R1, Class2 = False. R1, Class2 = True. R1, Class2 = True. R2, Class1 = . R2, Class1 = . R2, Class1 = True. R2, Class2 = False. R2, Class2 = . R2, Class2 = . R3, Class1 = False. R3, Class1 = . R3, Class1 = . R3, Class2 = . R3, Class2 = False. R3, Class2 = . R3, Class1 = . R3, Class1 = True. R3, Class1 = . R3, Class2 = True. R3, Class2 = . R3, Class2 = . R4, Class1 = . R4, Class1 = . R4, Class1 = False. R4, Class2 = . R4, Class2 = False. R4, Class2 = . R4, Class1 = . R4, Class1 = True. R4, Class1 = . R4, Class2 = True. R4, Class2 = False. R4, Class2 = False. R4, Class1 = True. R4, Class1 = False. R4, Class1 = True. R4, Class2 = False. R4, Class2 = True. R4, Class2 = False",
   "headings": [
    "Test Table Slide"
@@ -20,12 +10,32 @@
   "contextualize": "Test Table Slide\n, Class1 = A merged with B. , Class1 = A merged with B. , Class1 = C. , Class2 = A. , Class2 = B. , Class2 = C. R1, Class1 = True. R1, Class1 = False. R1, Class1 = . R1, Class2 = False. R1, Class2 = True. R1, Class2 = True. R2, Class1 = . R2, Class1 = . R2, Class1 = True. R2, Class2 = False. R2, Class2 = . R2, Class2 = . R3, Class1 = False. R3, Class1 = . R3, Class1 = . R3, Class2 = . R3, Class2 = False. R3, Class2 = . R3, Class1 = . R3, Class1 = True. R3, Class1 = . R3, Class2 = True. R3, Class2 = . R3, Class2 = . R4, Class1 = . R4, Class1 = . R4, Class1 = False. R4, Class2 = . R4, Class2 = False. R4, Class2 = . R4, Class1 = . R4, Class1 = True. R4, Class1 = . R4, Class2 = True. R4, Class2 = False. R4, Class2 = False. R4, Class1 = True. R4, Class1 = False. R4, Class1 = True. R4, Class2 = False. R4, Class2 = True. R4, Class2 = False"
  },
  {
-  "text": "Let’s introduce a list",
+  "text": "With footnote",
+  "headings": [
+   "Test Table Slide"
+  ],
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Test Table Slide\nWith footnote"
+ },
+ {
+  "text": "A rectangle shape with this text inside.",
   "headings": [
    "Second slide title"
   ],
   "doc_items": [
    "#/texts/3"
+  ],
+  "contextualize": "Second slide title\nA rectangle shape with this text inside."
+ },
+ {
+  "text": "Let’s introduce a list",
+  "headings": [
+   "Second slide title"
+  ],
+  "doc_items": [
+   "#/texts/4"
   ],
   "contextualize": "Second slide title\nLet’s introduce a list"
  },
@@ -35,21 +45,11 @@
    "Second slide title"
   ],
   "doc_items": [
-   "#/texts/4",
    "#/texts/5",
-   "#/texts/6"
-  ],
-  "contextualize": "Second slide title\n- With foo\n- Bar\n- And baz things"
- },
- {
-  "text": "A rectangle shape with this text inside.",
-  "headings": [
-   "Second slide title"
-  ],
-  "doc_items": [
+   "#/texts/6",
    "#/texts/7"
   ],
-  "contextualize": "Second slide title\nA rectangle shape with this text inside."
+  "contextualize": "Second slide title\n- With foo\n- Bar\n- And baz things"
  },
  {
   "text": "1. List item4\n2. List item5\n3. List item6",

@@ -1,0 +1,14 @@
+[
+ {
+  "text": "before\nCover value\nbetween\nStatus, A. Reviewer = Draft. Status, 2026-09-04 = 2026-09-11\nafter",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/texts/1",
+   "#/texts/2",
+   "#/tables/0",
+   "#/texts/3"
+  ],
+  "contextualize": "before\nCover value\nbetween\nStatus, A. Reviewer = Draft. Status, 2026-09-04 = 2026-09-11\nafter"
+ }
+]

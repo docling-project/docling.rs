@@ -1,6 +1,6 @@
 [
  {
-  "text": "*italic*\n**bold**\nunderline\n[hyperlink](https://github.com/DS4SD/docling)\n[***italic and bold hyperlink***](https://github.com/DS4SD/docling)\nNormal\n*italic*\n**bold**\nunderline\nand\n[hyperlink](https://github.com/DS4SD/docling)\non the same line\n- *Italic bullet 1*\n- **Bold bullet 2**\n- Underline bullet 3\n- Some *italic* **bold** underline\n- Nested *italic* **bold**\nThe second page of the document with same header and footer\nThe third page of the document with different header and footer",
+  "text": "*italic*\n**bold**\nunderline\n[hyperlink](https://github.com/DS4SD/docling)\n[***italic and bold hyperlink***](https://github.com/DS4SD/docling)\nNormal \n*italic* \n**bold** \nunderline \nand \n[hyperlink](https://github.com/DS4SD/docling)\n on the same line\n- *Italic bullet 1*\n- **Bold bullet 2**\n- Underline bullet 3\n- \nSome \n*italic* \n**bold** \nunderline\n- Nested *italic* **bold**\n**Indexation**\nThis text carries a \n*complex-script bold*\n property in OOXML but it should not be bold.\nThe second page of the document with same header and footer\nThe third page of the document with different header and footer",
   "headings": null,
   "doc_items": [
    "#/texts/0",
@@ -19,10 +19,18 @@
    "#/texts/14",
    "#/texts/15",
    "#/texts/16",
+   "#/texts/17",
+   "#/texts/18",
+   "#/texts/19",
+   "#/texts/20",
    "#/texts/21",
-   "#/texts/26",
-   "#/texts/28"
+   "#/texts/28",
+   "#/texts/29",
+   "#/texts/30",
+   "#/texts/31",
+   "#/texts/33",
+   "#/texts/35"
   ],
-  "contextualize": "*italic*\n**bold**\nunderline\n[hyperlink](https://github.com/DS4SD/docling)\n[***italic and bold hyperlink***](https://github.com/DS4SD/docling)\nNormal\n*italic*\n**bold**\nunderline\nand\n[hyperlink](https://github.com/DS4SD/docling)\non the same line\n- *Italic bullet 1*\n- **Bold bullet 2**\n- Underline bullet 3\n- Some *italic* **bold** underline\n- Nested *italic* **bold**\nThe second page of the document with same header and footer\nThe third page of the document with different header and footer"
+  "contextualize": "*italic*\n**bold**\nunderline\n[hyperlink](https://github.com/DS4SD/docling)\n[***italic and bold hyperlink***](https://github.com/DS4SD/docling)\nNormal \n*italic* \n**bold** \nunderline \nand \n[hyperlink](https://github.com/DS4SD/docling)\n on the same line\n- *Italic bullet 1*\n- **Bold bullet 2**\n- Underline bullet 3\n- \nSome \n*italic* \n**bold** \nunderline\n- Nested *italic* **bold**\n**Indexation**\nThis text carries a \n*complex-script bold*\n property in OOXML but it should not be bold.\nThe second page of the document with same header and footer\nThe third page of the document with different header and footer"
  }
 ]

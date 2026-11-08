@@ -1,0 +1,11 @@
+[
+ {
+  "text": "Reading List\n1, Genre = Fiction. 1, Sub-Genre = Mystery. 1, Title = The Hound of the Baskervilles. 1, Author = Arthur Conan Doyle. 1, Publisher = George Newnes. 1, Added = 1902. 2, Genre = Non-fiction. 2, Sub-Genre = Science. 2, Title = A Brief History of Time. 2, Author = Stephen Hawking. 2, Publisher = Bantam Books. 2, Added = 1988",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/tables/0"
+  ],
+  "contextualize": "Reading List\n1, Genre = Fiction. 1, Sub-Genre = Mystery. 1, Title = The Hound of the Baskervilles. 1, Author = Arthur Conan Doyle. 1, Publisher = George Newnes. 1, Added = 1902. 2, Genre = Non-fiction. 2, Sub-Genre = Science. 2, Title = A Brief History of Time. 2, Author = Stephen Hawking. 2, Publisher = Bantam Books. 2, Added = 1988"
+ }
+]

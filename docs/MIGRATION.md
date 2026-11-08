@@ -1646,21 +1646,22 @@ a caption by its item, whatever its parent.
 
 docling-core's **HierarchicalChunker** and **HybridChunker** (the RAG chunk
 generators) are ported as `docling::chunker` and scored against live docling
-running the same chunkers on the same 83-document corpus
+running the same chunkers on the same 103-document corpus
 (`scripts/conformance/gen_chunks.py` generates the groundtruth,
 `scripts/conformance/chunks_conformance.sh` compares the records' text +
 headings + contextualization — the payload an embedding model sees):
 
 | Chunker | Identical chunk records | Fully-exact documents |
 |---|---|---|
-| Hierarchical | **475 / 563 (84.4%)** | 57 / 83 |
-| Hybrid (MiniLM tokenizer, 256 tokens) | **224 / 312 (71.8%)** | 54 / 83 |
+| Hierarchical | **624 / 676 (92.3%)** | 77 / 103 |
+| Hybrid (MiniLM tokenizer, 256 tokens) | **254 / 365 (69.6%)** | 65 / 103 |
 
-Re-measured 2026-11-08 (#1012). The earlier 98.8% / 96.2% were scored before
-later backend changes the chunk groundtruth predates — link URLs now
-percent-encode `(`/`)` (`wiki_duck`), inline runs follow docling's newer
-whitespace — so most of the gap is a stale groundtruth, not the chunker;
-master scored 471 / 563 hierarchical on the same tree. A rich heading (an
+Re-measured 2026-11-08 (#1041) against groundtruth regenerated with docling
+2.148.0 / docling-core 2.106.0 (`gen_chunks.py`; the earlier 475 / 563 and
+224 / 312 were scored on a groundtruth older than the inline whitespace
+contract, #997, and the link-URL encoding). A table's captions open its
+chunk and are among its items, as docling's `TripletTableSerializer` writes
+them (`Table 1: Revenue\n\n2024, Revenue = 10`, #1041). A rich heading (an
 empty heading whose only child is an inline group, formula or code — what
 docling makes of a partially formatted `## *a* b`) is its body's heading
 context, docling-core 2.106's `test_rich_heading_chunk_metadata`
@@ -1680,8 +1681,8 @@ padding disabled).
 
 On the large-document benchmark (`wiki_duck.html`, 89 hierarchical / 115 hybrid
 groundtruth chunks) **100% / 100% of docling's chunk records were reproduced
-identically** (order-aligned; 46 / 89 and 68 / 115 against today's stale
-groundtruth, the link-URL encoding above) — the former HTML-backend model gaps (rich table
+identically** (order-aligned; 89 / 90 and 79 / 116 against the docling
+2.148 groundtruth) — the former HTML-backend model gaps (rich table
 cells with inline markup and span de-duplication, figure-caption run spacing,
 indicator images, `<br>` annotation-boundary handling) are closed. The chunker-era
 work (checkbox inputs, fragmented-anchor folding, `<button>` blocks) plus the
@@ -1689,8 +1690,23 @@ work (checkbox inputs, fragmented-anchor folding, `<button>` blocks) plus the
 
 **Item refs (`DocMeta.doc_items`).** The scripts above compare text, headings
 and contextualization; the items a chunk lists — what LangChain's `dl_meta`
-carries, with each item's page/bbox provenance — are checked separately on
-the Python side. The engine chunks a re-imported copy of the document whose
+carries, with each item's page/bbox provenance — are checked separately.
+Natively (#1041) every chunker maps its refs onto the document's own JSON
+export: the walk numbers the flat nodes, which is the export's numbering only
+without an item tree — with one (HTML, DOCX, Markdown, ODF, JATS, LaTeX, …)
+half of the text refs pointed at another item (2,662 of 5,324 on the corpus;
+a captioned table also shifted every later ref by one, its caption taking no
+ref). `chunker::RefMapper` ports the Python side's mapping below — kind,
+reading order and text, an inline paragraph's runs, a paragraph the walk
+split, a list item's marker — and leaves out an item it cannot place: on the
+corpus 0 of 5,308 text refs resolve to an item whose text their chunk lacks
+(2 entity-encoded code blocks aside; 2 chunks list no item, `signature_stamp_01`'s
+captions, whose flat text and tree text differ), and of the 624 chunk records
+whose text matches docling's, 592 list exactly docling's `doc_items` (345 /
+622 before). The mapping builds the JSON export once per chunking (+90 ms
+on `wiki_duck`).
+
+On the Python side, the engine chunks a re-imported copy of the document whose
 item numbering drifts from the caller's (empty items dropped, HTML/DOCX item
 trees, inline runs sharing their paragraph's number), so `docling_rs.chunking`
 maps every chunk item back to the caller's document by kind, reading order

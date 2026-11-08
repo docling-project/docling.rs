@@ -12,7 +12,7 @@
   "contextualize": "Chính sách bảo hành\n1 ĐỐI TƯỢNG ÁP DỤNG\n- Chính sách bảo hành và các điều k\n- Pin điện áp cao (sau đây gọi tắt là “"
  },
  {
-  "text": "- **Term 1** : Definition 1\n- **Term 2** : Definition 2\n- **Term 3** : Definition 3\n- **Term 4** : Definition 4\n- **Term 5** : Definition 5",
+  "text": "- **Term 1**: Definition 1\n- **Term 2**: Definition 2\n- **Term 3**: Definition 3\n- **Term 4**: Definition 4\n- **Term 5**: Definition 5",
   "headings": [
    "1 Glosario"
   ],
@@ -23,6 +23,40 @@
    "#/texts/16",
    "#/texts/19"
   ],
-  "contextualize": "1 Glosario\n- **Term 1** : Definition 1\n- **Term 2** : Definition 2\n- **Term 3** : Definition 3\n- **Term 4** : Definition 4\n- **Term 5** : Definition 5"
+  "contextualize": "1 Glosario\n- **Term 1**: Definition 1\n- **Term 2**: Definition 2\n- **Term 3**: Definition 3\n- **Term 4**: Definition 4\n- **Term 5**: Definition 5"
+ },
+ {
+  "text": "- a. First item of the open list\n- b. Second item of the open list",
+  "headings": [
+   "1 Glosario",
+   "Subsection with an open list"
+  ],
+  "doc_items": [
+   "#/texts/24",
+   "#/texts/25"
+  ],
+  "contextualize": "1 Glosario\nSubsection with an open list\n- a. First item of the open list\n- b. Second item of the open list"
+ },
+ {
+  "text": "- c. Item under the numbered heading\n- d. Second item under the numbered heading",
+  "headings": [
+   "1 Numbered outline heading"
+  ],
+  "doc_items": [
+   "#/texts/27",
+   "#/texts/28"
+  ],
+  "contextualize": "1 Numbered outline heading\n- c. Item under the numbered heading\n- d. Second item under the numbered heading"
+ },
+ {
+  "text": "Paragraph that closes the document.",
+  "headings": [
+   "1 Numbered outline heading",
+   "Closing section"
+  ],
+  "doc_items": [
+   "#/texts/30"
+  ],
+  "contextualize": "1 Numbered outline heading\nClosing section\nParagraph that closes the document."
  }
 ]

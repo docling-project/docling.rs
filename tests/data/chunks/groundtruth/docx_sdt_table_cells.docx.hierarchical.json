@@ -1,0 +1,42 @@
+[
+ {
+  "text": "before",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0"
+  ],
+  "contextualize": "before"
+ },
+ {
+  "text": "Cover value",
+  "headings": null,
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Cover value"
+ },
+ {
+  "text": "between",
+  "headings": null,
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "between"
+ },
+ {
+  "text": "Status, A. Reviewer = Draft. Status, 2026-09-04 = 2026-09-11",
+  "headings": null,
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "Status, A. Reviewer = Draft. Status, 2026-09-04 = 2026-09-11"
+ },
+ {
+  "text": "after",
+  "headings": null,
+  "doc_items": [
+   "#/texts/3"
+  ],
+  "contextualize": "after"
+ }
+]

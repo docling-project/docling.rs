@@ -1,0 +1,15 @@
+[
+ {
+  "text": "**Case 1: bold text then a plain text run.**\n Plain tail.\n**Case 2: bold text then a plain whitespace-only run.**\n*Case 3: italic text then a plain whitespace-only run.*\n**Case 4: the whole paragraph is a single bold run.**\n- **Case 5: bold list item then a plain whitespace-only run.**",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/texts/1",
+   "#/texts/2",
+   "#/texts/3",
+   "#/texts/4",
+   "#/texts/5"
+  ],
+  "contextualize": "**Case 1: bold text then a plain text run.**\n Plain tail.\n**Case 2: bold text then a plain whitespace-only run.**\n*Case 3: italic text then a plain whitespace-only run.*\n**Case 4: the whole paragraph is a single bold run.**\n- **Case 5: bold list item then a plain whitespace-only run.**"
+ }
+]

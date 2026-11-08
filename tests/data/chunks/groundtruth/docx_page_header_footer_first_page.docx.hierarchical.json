@@ -1,0 +1,33 @@
+[
+ {
+  "text": "This document has different_first_page_header_footer enabled. Page 1 should show a distinct first-page header/footer; every page after that should show the regular header/footer instead.",
+  "headings": [
+   "Page header/footer regression fixture"
+  ],
+  "doc_items": [
+   "#/texts/1"
+  ],
+  "contextualize": "Page header/footer regression fixture\nThis document has different_first_page_header_footer enabled. Page 1 should show a distinct first-page header/footer; every page after that should show the regular header/footer instead."
+ },
+ {
+  "text": "This is body text on page 1.",
+  "headings": [
+   "Page header/footer regression fixture"
+  ],
+  "doc_items": [
+   "#/texts/2"
+  ],
+  "contextualize": "Page header/footer regression fixture\nThis is body text on page 1."
+ },
+ {
+  "text": "This is body text on page 2.",
+  "headings": [
+   "Page header/footer regression fixture",
+   "Page 2"
+  ],
+  "doc_items": [
+   "#/texts/5"
+  ],
+  "contextualize": "Page header/footer regression fixture\nPage 2\nThis is body text on page 2."
+ }
+]

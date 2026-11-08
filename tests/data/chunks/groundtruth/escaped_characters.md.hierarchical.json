@@ -31,24 +31,24 @@
   "contextualize": "Lists\n- & < > \" '"
  },
  {
-  "text": "```\n& < > \" '\n```",
+  "text": "```\n&amp; &lt; &gt; &quot; &#39;\n```",
   "headings": [
    "Inline code"
   ],
   "doc_items": [
    "#/texts/7"
   ],
-  "contextualize": "Inline code\n```\n& < > \" '\n```"
+  "contextualize": "Inline code\n```\n&amp; &lt; &gt; &quot; &#39;\n```"
  },
  {
-  "text": "```\n& < > \" '\n```",
+  "text": "```\n&amp; &lt; &gt; &quot; &#39;\n```",
   "headings": [
    "Code block"
   ],
   "doc_items": [
    "#/texts/9"
   ],
-  "contextualize": "Code block\n```\n& < > \" '\n```"
+  "contextualize": "Code block\n```\n&amp; &lt; &gt; &quot; &#39;\n```"
  },
  {
   "text": "Ampersand, Example = &. Less-than, Example = <. Greater-than, Example = >. Quotes, Example = \". Apostrophes, Example = '. Pipe, Example = | | |",
@@ -61,7 +61,7 @@
   "contextualize": "Table\nAmpersand, Example = &. Less-than, Example = <. Greater-than, Example = >. Quotes, Example = \". Apostrophes, Example = '. Pipe, Example = | | |"
  },
  {
-  "text": "The pipe symbol (| or `|` ) only needs to be escaped in tables.",
+  "text": "The pipe symbol (| or `|`) only needs to be escaped in tables.",
   "headings": [
    "Table"
   ],
@@ -70,7 +70,7 @@
    "#/texts/12",
    "#/texts/13"
   ],
-  "contextualize": "Table\nThe pipe symbol (| or `|` ) only needs to be escaped in tables."
+  "contextualize": "Table\nThe pipe symbol (| or `|`) only needs to be escaped in tables."
  },
  {
   "text": "& < > \" '/div>",

@@ -1,0 +1,10 @@
+[
+ {
+  "text": "apple, photo = A red square. apple, price = 100. apple, stock = #N/A. pear, photo = A green square. pear, price = 200. pear, stock = 7",
+  "headings": null,
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "apple, photo = A red square. apple, price = 100. apple, stock = #N/A. pear, photo = A green square. pear, price = 200. pear, stock = 7"
+ }
+]

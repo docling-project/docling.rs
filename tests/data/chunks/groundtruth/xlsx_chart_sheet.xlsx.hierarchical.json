@@ -1,0 +1,28 @@
+[
+ {
+  "text": "North, Q1 = 10. North, Q2 = 20. South, Q1 = 15. South, Q2 = 25. West, Q1 = 7. West, Q2 = 12",
+  "headings": null,
+  "doc_items": [
+   "#/tables/0"
+  ],
+  "contextualize": "North, Q1 = 10. North, Q2 = 20. South, Q1 = 15. South, Q2 = 25. West, Q1 = 7. West, Q2 = 12"
+ },
+ {
+  "text": "Sales by region\n\nBar chart\n\n|       |   Q1 |   Q2 |\n|-------|------|------|\n| North |   10 |   20 |\n| South |   15 |   25 |\n| West  |    7 |   12 |",
+  "headings": null,
+  "doc_items": [
+   "#/texts/0",
+   "#/pictures/0"
+  ],
+  "contextualize": "Sales by region\n\nBar chart\n\n|       |   Q1 |   Q2 |\n|-------|------|------|\n| North |   10 |   20 |\n| South |   15 |   25 |\n| West  |    7 |   12 |"
+ },
+ {
+  "text": "Sales by region\n\nBar chart\n\n|       |   Q1 |   Q2 |\n|-------|------|------|\n| North |   10 |   20 |\n| South |   15 |   25 |\n| West  |    7 |   12 |",
+  "headings": null,
+  "doc_items": [
+   "#/texts/1",
+   "#/pictures/1"
+  ],
+  "contextualize": "Sales by region\n\nBar chart\n\n|       |   Q1 |   Q2 |\n|-------|------|------|\n| North |   10 |   20 |\n| South |   15 |   25 |\n| West  |    7 |   12 |"
+ }
+]

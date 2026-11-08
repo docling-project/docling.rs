@@ -1,6 +1,6 @@
 [
  {
-  "text": "The paragraph below contains three separate <m:oMath> elements.\nExpected: three separate $$ blocks ($$a = b$$, $$c = d$$, $$e = f$$)\nDocling produces: one $$ block with all equations concatenated.\n\nAll three <m:oMath> elements are siblings inside a single <w:p>.\n$$a=b$$\n$$c=d$$\n$$e=f$$",
+  "text": "The paragraph below contains three separate <m:oMath> elements.  \nExpected: three separate $$ blocks ($$a = b$$, $$c = d$$, $$e = f$$)  \nDocling produces: one $$ block with all equations concatenated.\n\nAll three <m:oMath> elements are siblings inside a single <w:p>.\n$$a=b$$\n$$c=d$$\n$$e=f$$",
   "headings": [
    "Issue 3: Concatenated equation blocks"
   ],
@@ -10,6 +10,6 @@
    "#/texts/3",
    "#/texts/4"
   ],
-  "contextualize": "Issue 3: Concatenated equation blocks\nThe paragraph below contains three separate <m:oMath> elements.\nExpected: three separate $$ blocks ($$a = b$$, $$c = d$$, $$e = f$$)\nDocling produces: one $$ block with all equations concatenated.\n\nAll three <m:oMath> elements are siblings inside a single <w:p>.\n$$a=b$$\n$$c=d$$\n$$e=f$$"
+  "contextualize": "Issue 3: Concatenated equation blocks\nThe paragraph below contains three separate <m:oMath> elements.  \nExpected: three separate $$ blocks ($$a = b$$, $$c = d$$, $$e = f$$)  \nDocling produces: one $$ block with all equations concatenated.\n\nAll three <m:oMath> elements are siblings inside a single <w:p>.\n$$a=b$$\n$$c=d$$\n$$e=f$$"
  }
 ]
