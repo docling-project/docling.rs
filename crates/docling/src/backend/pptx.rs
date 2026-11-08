@@ -34,6 +34,7 @@ use docling_core::{
 use rayon::prelude::*;
 use roxmltree::{Document, Node as XmlNode};
 
+use crate::backend::docx::format_enum_counter;
 use crate::backend::ooxml::{
     content_type, image_dpi, is_metafile, picture_image, resolve, Package,
 };
@@ -771,49 +772,82 @@ fn handle_shape_content(shape: XmlNode, ctx: &SlideCtx, out: &mut SlideOut) {
                     .map(|a| a.value().to_string())
             });
             if let Some(rid) = embedded.filter(|rid| ctx.valid_imgs.contains(rid)) {
-                let image = ctx.images.get(&rid);
-                // The author's alt text (#676): `p:nvPicPr/p:cNvPr/@descr`.
-                let alt = descendant(shape, "cNvPr")
-                    .and_then(crate::backend::ooxml::alt_text_of)
-                    .map(PictureDescription::alt_text);
-                // docling: PIL decodes it → a picture with the image (at the
-                // file's dpi); a metafile PIL cannot → a payload-less picture;
-                // anything else undecodable → no picture at all.
-                if image.is_some() || ctx.metafiles.contains(&rid) {
-                    out.tree.add_with_prov(
-                        Some(out.slide),
-                        None,
-                        TreeKind::Picture {
-                            captions: Vec::new(),
-                            image: image.cloned(),
-                            extra_classes: Vec::new(),
-                            classification: None,
-                            description: alt.clone(),
-                            confidence: None,
-                            chart: None,
-                            dpi: image.map(|img| pptx_dpi(&img.data)),
-                        },
-                        shape_prov(shape, ctx, 0),
-                    );
-                }
-                push_located(
-                    &mut out.doc,
-                    location,
-                    Node::Picture {
-                        caption: None,
-                        caption_href: None,
-                        image: image.cloned(),
-                        classification: None,
-                        description: alt,
-                        caption_parent: Default::default(),
-                        caption_location: None,
-                    },
-                );
+                push_picture(shape, &rid, location, ctx, out);
             }
         }
-        "sp" => handle_text_shape(shape, location, ctx, out),
+        "sp" => {
+            // docling#4989 (#1018): a shape filled with a picture (Format
+            // Shape > Fill > Picture — `p:spPr/a:blipFill/a:blip`) is a
+            // picture, then whatever text the shape carries. A fill that only
+            // links an external file (`r:link`, no `r:embed`) or points at a
+            // missing part adds no picture, as upstream's `_picture_fill_rid`
+            // / `_handle_pictures` skip it; the text stays either way.
+            if let Some(rid) = picture_fill_rid(shape).filter(|rid| ctx.valid_imgs.contains(*rid)) {
+                push_picture(shape, rid, location, ctx, out);
+            }
+            handle_text_shape(shape, location, ctx, out)
+        }
         _ => {}
     }
+}
+
+/// The relationship id of a `p:sp`'s embedded picture fill:
+/// `p:spPr/a:blipFill/a:blip/@r:embed`, `None` for any other fill or a
+/// fill without an embedded image — docling's `_picture_fill_rid`.
+fn picture_fill_rid<'a>(sp: XmlNode<'a, '_>) -> Option<&'a str> {
+    sp.children()
+        .find(|n| n.has_tag_name("spPr"))?
+        .children()
+        .find(|n| n.has_tag_name("blipFill"))?
+        .children()
+        .find(|n| n.has_tag_name("blip"))?
+        .attributes()
+        .find(|a| a.name() == "embed")
+        .map(|a| a.value())
+        .filter(|v| !v.is_empty())
+}
+
+/// Emit the picture whose image part `rid` names for `shape` (a `p:pic`, or a
+/// picture-filled `p:sp`) — docling's `_handle_pictures`.
+fn push_picture(shape: XmlNode, rid: &str, location: [u16; 4], ctx: &SlideCtx, out: &mut SlideOut) {
+    let image = ctx.images.get(rid);
+    // The author's alt text (#676): the shape's `p:cNvPr/@descr`.
+    let alt = descendant(shape, "cNvPr")
+        .and_then(crate::backend::ooxml::alt_text_of)
+        .map(PictureDescription::alt_text);
+    // docling: PIL decodes it → a picture with the image (at the
+    // file's dpi); a metafile PIL cannot → a payload-less picture;
+    // anything else undecodable → no picture at all.
+    if image.is_some() || ctx.metafiles.contains(rid) {
+        out.tree.add_with_prov(
+            Some(out.slide),
+            None,
+            TreeKind::Picture {
+                captions: Vec::new(),
+                image: image.cloned(),
+                extra_classes: Vec::new(),
+                classification: None,
+                description: alt.clone(),
+                confidence: None,
+                chart: None,
+                dpi: image.map(|img| pptx_dpi(&img.data)),
+            },
+            shape_prov(shape, ctx, 0),
+        );
+    }
+    push_located(
+        &mut out.doc,
+        location,
+        Node::Picture {
+            caption: None,
+            caption_href: None,
+            image: image.cloned(),
+            classification: None,
+            description: alt,
+            caption_parent: Default::default(),
+            caption_location: None,
+        },
+    );
 }
 
 /// docling's `_generate_prov`: the shape's box in EMU — `shape.left/top/
@@ -1036,7 +1070,73 @@ struct PhMap {
 
 /// The marker [`declared_marker`] reads from each of the nine `a:lvl{N}pPr`
 /// of a list style, indexed by paragraph level.
-type LevelMarkers = [Option<Option<bool>>; 9];
+type LevelMarkers = [Option<Option<ListKind>>; 9];
+
+/// What a list paragraph's effective marker declares: a bullet (`buChar`,
+/// `buBlip`, or no marker on an indented paragraph) or an `a:buAutoNum`
+/// with its counting scheme.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ListKind {
+    Bulleted,
+    Numbered(Option<AutoScheme>),
+}
+
+impl ListKind {
+    fn numbered(self) -> bool {
+        matches!(self, ListKind::Numbered(_))
+    }
+}
+
+/// An `a:buAutoNum/@type` that counts with Latin letters or Roman numerals
+/// (docling#5122, #1018 — docling's `_AUTO_NUMBER_SCHEME`): the counter as
+/// the OOXML `numFmt` [`format_enum_counter`] renders, and the text around
+/// it. Every other scheme (`arabicPeriod`, `arabicParenR`,
+/// `circleNumDbPlain`, the East Asian ones, …) keeps the decimal `N.`, as
+/// numbered DOCX lists do upstream.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct AutoScheme {
+    num_fmt: &'static str,
+    prefix: &'static str,
+    suffix: &'static str,
+}
+
+impl AutoScheme {
+    pub(super) fn parse(ty: &str) -> Option<Self> {
+        let (num_fmt, rest) = [
+            ("alphaLc", "lowerLetter"),
+            ("alphaUc", "upperLetter"),
+            ("romanLc", "lowerRoman"),
+            ("romanUc", "upperRoman"),
+        ]
+        .into_iter()
+        .find_map(|(head, fmt)| ty.strip_prefix(head).map(|rest| (fmt, rest)))?;
+        let (prefix, suffix) = match rest {
+            "ParenBoth" => ("(", ")"),
+            "ParenR" => ("", ")"),
+            "Period" => ("", "."),
+            _ => return None,
+        };
+        Some(Self {
+            num_fmt,
+            prefix,
+            suffix,
+        })
+    }
+}
+
+/// The marker PowerPoint shows for the `n`th auto-numbered paragraph —
+/// docling's `_auto_number_marker`.
+pub(super) fn auto_number_marker(n: u64, scheme: Option<AutoScheme>) -> String {
+    match scheme {
+        Some(s) => format!(
+            "{}{}{}",
+            s.prefix,
+            format_enum_counter(n as i64, Some(s.num_fmt)),
+            s.suffix
+        ),
+        None => format!("{n}."),
+    }
+}
 
 /// Which `p:txStyles` bucket a placeholder takes its master marker from —
 /// docling's `_get_master_text_style_node`: BODY/OBJECT (`body`, `obj`, or no
@@ -1234,8 +1334,9 @@ fn handle_text_shape(sp: XmlNode, location: [u16; 4], ctx: &SlideCtx, out: &mut 
         // docling's `charspan` is over the paragraph's own text, `len()` in
         // code points.
         let prov = shape_prov(sp, ctx, text.chars().count());
-        match list_kind(para, Some(tx_body), ph, ctx.phmap) {
-            Some(numbered) => {
+        match list_marker(para, Some(tx_body), ph, ctx.phmap) {
+            Some(kind) => {
+                let numbered = kind.numbered();
                 let level = paragraph_level(para);
                 while open_lists.len() > 1 && open_lists.last().is_some_and(|l| l.level > level) {
                     open_lists.pop();
@@ -1269,9 +1370,13 @@ fn handle_text_shape(sp: XmlNode, location: [u16; 4], ctx: &SlideCtx, out: &mut 
                 };
                 current.items += 1;
                 let first_enumerated = *current.first_enumerated.get_or_insert(numbered);
-                // docling passes numbered items an `"N."` enumeration marker
-                // and bulleted ones an empty one.
-                let marker = numbered.then(|| format!("{n}."));
+                // docling passes numbered items the marker of their
+                // effective `a:buAutoNum/@type` (`a.`, `IV.`, `(C)`, else
+                // `N.`, docling#5122) and bulleted ones an empty one.
+                let marker = match kind {
+                    ListKind::Numbered(scheme) => Some(auto_number_marker(n, scheme)),
+                    ListKind::Bulleted => None,
+                };
                 let item = out.tree.add_with_prov(
                     Some(current.group),
                     None,
@@ -1400,34 +1505,41 @@ fn list_group_kind() -> TreeKind {
 /// Checked in docling's order — `buNone`, `buChar`, `buAutoNum`, `buBlip` —
 /// so a malformed properties element carrying both a character and a
 /// numbering bullet reads as the bullet, as upstream's does.
-fn declared_marker(p_pr: XmlNode) -> Option<Option<bool>> {
-    let has = |tag: &str| p_pr.children().any(|n| n.has_tag_name(tag));
-    if has("buNone") {
+fn declared_marker(p_pr: XmlNode) -> Option<Option<ListKind>> {
+    let child = |tag: &str| p_pr.children().find(|n| n.has_tag_name(tag));
+    if child("buNone").is_some() {
         Some(None)
-    } else if has("buChar") {
-        Some(Some(false))
-    } else if has("buAutoNum") {
-        Some(Some(true))
-    } else if has("buBlip") {
-        Some(Some(false))
+    } else if child("buChar").is_some() {
+        Some(Some(ListKind::Bulleted))
+    } else if let Some(auto) = child("buAutoNum") {
+        // The scheme comes from the same properties element that decided
+        // the paragraph is numbered — docling's effective `buAutoNum/@type`.
+        let scheme = auto.attribute("type").and_then(AutoScheme::parse);
+        Some(Some(ListKind::Numbered(scheme)))
+    } else if child("buBlip").is_some() {
+        Some(Some(ListKind::Bulleted))
     } else {
         None
     }
 }
 
 /// The number a numbered paragraph's list starts from: its own
-/// `a:pPr/a:buAutoNum/@startAt`, 1 when absent or invalid. The schema bounds
-/// it to 1..=32767; docling would print an out-of-schema `0` or negative start
-/// as is, which a `u64` counter cannot hold, so those read as 1 here.
+/// `a:pPr/a:buAutoNum/@startAt`, 1 when absent or invalid. The schema
+/// (`ST_TextBulletStartAtNum`) bounds it to 1..=32767, and docling#5122
+/// (#1018) ignores anything outside: a start of 2000000000 would otherwise
+/// build letter markers of ~77 million characters.
 fn auto_number_start(para: XmlNode) -> u64 {
     para.children()
         .find(|n| n.has_tag_name("pPr"))
         .and_then(|pr| pr.children().find(|n| n.has_tag_name("buAutoNum")))
         .and_then(|bu| bu.attribute("startAt"))
-        .and_then(|v| v.parse::<u64>().ok())
-        .filter(|v| *v >= 1)
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|v| (1..=MAX_AUTO_NUMBER_START).contains(v))
         .unwrap_or(1)
 }
+
+/// docling's `_MAX_AUTO_NUMBER_START`.
+pub(super) const MAX_AUTO_NUMBER_START: u64 = 32767;
 
 /// A paragraph's outline level (`a:pPr/@lvl`, 0 when absent), which selects the
 /// `a:lvl{lvl+1}pPr` that supplies an inherited marker.
@@ -1452,12 +1564,12 @@ fn paragraph_level(para: XmlNode) -> usize {
 /// (docling#4581): the "Section Header" or "Title Slide" text of the default
 /// template is plain text, not a list. The level only picks which level
 /// properties supply the marker; nesting is the caller's.
-fn list_kind(
+fn list_marker(
     para: XmlNode,
     tx_body: Option<XmlNode>,
     ph: Option<XmlNode>,
     phmap: &PhMap,
-) -> Option<bool> {
+) -> Option<ListKind> {
     let lvl = paragraph_level(para);
     if let Some(p_pr) = para.children().find(|n| n.has_tag_name("pPr")) {
         if let Some(kind) = declared_marker(p_pr) {
@@ -1491,7 +1603,19 @@ fn list_kind(
     }
     // No marker anywhere: an indented paragraph is a list item even without
     // one — docling's `paragraph.level > 0` fallback.
-    (lvl > 0).then_some(false)
+    (lvl > 0).then_some(ListKind::Bulleted)
+}
+
+/// [`list_marker`] as `Some(true)` numbered, `Some(false)` bulleted, `None`
+/// not a list.
+#[cfg(test)]
+fn list_kind(
+    para: XmlNode,
+    tx_body: Option<XmlNode>,
+    ph: Option<XmlNode>,
+    phmap: &PhMap,
+) -> Option<bool> {
+    list_marker(para, tx_body, ph, phmap).map(ListKind::numbered)
 }
 
 /// Concatenate a paragraph's run text; line breaks (`<a:br>`) become spaces
