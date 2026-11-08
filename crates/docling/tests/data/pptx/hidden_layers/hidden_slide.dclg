@@ -1,4 +1,4 @@
-<doclang version="0.7">
+<doclang version="0.9">
   <heading>
     <location value="26"/>
     <location value="21"/>
@@ -14,7 +14,7 @@
     Presented text
   </text>
   <text>
-    <layer value="notes"/>
+    <layer value="furniture"/>
     <location value="0"/>
     <location value="0"/>
     <location value="0"/>
@@ -22,7 +22,7 @@
     Notes for Visible slide
   </text>
   <heading>
-    <layer value="invisible"/>
+    <layer value="background"/>
     <location value="26"/>
     <location value="21"/>
     <location value="486"/>
@@ -30,7 +30,7 @@
     Hidden slide
   </heading>
   <text>
-    <layer value="invisible"/>
+    <layer value="background"/>
     <location value="51"/>
     <location value="137"/>
     <location value="256"/>
@@ -38,7 +38,7 @@
     Backup text
   </text>
   <text>
-    <layer value="notes"/>
+    <layer value="furniture"/>
     <location value="0"/>
     <location value="0"/>
     <location value="0"/>

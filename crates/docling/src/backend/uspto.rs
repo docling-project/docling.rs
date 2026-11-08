@@ -395,7 +395,12 @@ impl DeclarativeBackend for UsptoBackend {
             }
             _ => parse_ice(&dom, &mut doc, &mut tree), // modern us-patent-application / -grant
         }
-        doc.tree = Some(tree.tree);
+        // docling's emptied tables are a loss its JSON carries (and ours,
+        // the tree); the DocLang export keeps the nodes' parsed tables, as the
+        // Markdown does.
+        let mut item_tree = tree.tree;
+        item_tree.doclang_nodes = tree.tables_broken;
+        doc.tree = Some(item_tree);
         Ok(doc)
     }
 }

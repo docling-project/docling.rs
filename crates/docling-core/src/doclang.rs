@@ -1,15 +1,17 @@
-//! DocLang XML serialization (`export_to_doclang`) — the markup inside a
-//! `.dclx` archive, mirroring docling-core's `DocLangDocSerializer` with
-//! `DocLangParams()` defaults (version 0.7, 2-space pretty indent, AUTO
-//! CDATA/content wrapping, placeholder image mode → no `<src>` data).
+//! DocLang XML serialization of the flat nodes (`export_to_doclang`) — the
+//! markup inside a `.dclx` archive, mirroring docling-core's
+//! `DocLangDocSerializer` with `DocLangParams()` defaults (version 0.9,
+//! 2-space pretty indent, AUTO CDATA/content wrapping, placeholder image
+//! mode → no `<src>` data). A document with an item tree the tree port
+//! covers is serialized from the tree instead (`doclang_tree.rs`); this is
+//! the path of the located documents (PDF, the spreadsheet and slide
+//! backends) and the ones without a tree.
 //!
-//! The Python reference builds a minified string, round-trips it through
-//! `xml.dom.minidom.toprettyxml`, filters empty lines and re-expands
-//! self-closing forms of non-self-closing tags. For the subset our `Node`
-//! model produces, that pipeline's output is reproduced *directly*: an
-//! element whose content is a single text/CDATA run renders inline
-//! (`<text>abc</text>`), anything with element children renders as an
-//! indented block. See docs in the .dclx conformance PR for the full spec.
+//! The elements are laid out as fragments, every text block body one
+//! fragment — its runs concatenated as they are, as docling-core's inline
+//! serializer does; DocLang 0.9 reads a line break inside a body as a space
+//! — and docling-core's post-processing (`doclang_xml.rs`) then unwraps the
+//! redundant `<content>` and pretty-prints the tree as upstream does.
 //!
 //! Inline formatting: our model bakes bold/italic/code/links into the text as
 //! docling-legacy Markdown markers; [`inline_runs`] re-parses those into the
@@ -20,12 +22,10 @@ use std::borrow::Cow;
 
 const INDENT: &str = "  ";
 
-/// Rendered fragments: (indent depth, content, newline-after). minidom writes
-/// a CDATA child with no indent and no trailing newline, so the next fragment
-/// (usually the parent's closing tag, at its own indent) lands on the same
-/// line — `newline` false reproduces that glue.
+/// Rendered fragments, one per line: (indent depth, content). A text block
+/// body is always one fragment; the layout is redone by the post-processing.
 struct Out {
-    lines: Vec<(i32, String, bool)>,
+    lines: Vec<(i32, String)>,
     /// Running index for exported image assets (`assets/image_{NNNNNN}_…`),
     /// incremented per body picture in document order.
     pic_index: usize,
@@ -53,37 +53,23 @@ pub(crate) enum Pictures {
 
 impl Out {
     fn push(&mut self, depth: i32, s: impl Into<String>) {
-        self.lines.push((depth, s.into(), true));
-    }
-
-    /// A fragment with no indent and no trailing newline (CDATA glue).
-    fn push_glue(&mut self, s: impl Into<String>) {
-        self.lines.push((0, s.into(), false));
+        self.lines.push((depth, s.into()));
     }
 
     fn finish(self) -> String {
         let mut s = String::new();
-        for (d, line, nl) in self.lines {
-            // minidom writes every node's indentation prefix; only a glued
-            // fragment (CDATA/plain text child) suppresses the *newline*, so
-            // the following node's indent lands on the same line. Emitting the
-            // indent unconditionally reproduces that (glue fragments carry
-            // depth 0, contributing none).
+        for (d, line) in self.lines {
             for _ in 0..d {
                 s.push_str(INDENT);
             }
             s.push_str(&line);
-            if nl {
-                s.push('\n');
-            }
+            s.push('\n');
         }
-        // The reference's empty-line filter drops the trailing blank, so the
-        // serialized text carries no final newline; the archive writer adds
-        // exactly one back.
-        if s.ends_with('\n') {
-            s.pop();
-        }
-        s
+        // The fragments are laid out by element; every text block body is one
+        // fragment, so the whitespace between them is only ever whitespace
+        // between blocks (or at a block's edge), which DocLang 0.9 ignores.
+        // docling-core's own post-processing then lays the tree out.
+        crate::doclang_xml::finish(&s)
     }
 }
 
@@ -133,19 +119,7 @@ fn unescape_stored(text: &str) -> Cow<'_, str> {
 /// closing delimiter).
 fn escape_text(text: &str) -> String {
     let raw = unescape_stored(text);
-    let text = sanitize_xml_illegal(raw.as_ref());
-    let text = text.as_ref();
-    let needs_cdata = text.contains(['"', '\'', '&', '<', '>']);
-    let needs_content = text != text.trim() || text.contains('\n');
-    let mut t = if needs_cdata {
-        format!("<![CDATA[{}]]>", text.replace("]]>", "]]]]><![CDATA[>"))
-    } else {
-        text.to_string()
-    };
-    if needs_content {
-        t = format!("<content>{t}</content>");
-    }
-    t
+    crate::doclang_xml::escape_text(raw.as_ref(), true)
 }
 
 /// An inline run of a text node after re-parsing our Markdown markers.
@@ -510,46 +484,61 @@ fn has_styled_runs(text: &str) -> bool {
 }
 
 fn emit_runs(out: &mut Out, depth: i32, runs: Vec<Run>) {
+    let body = runs_markup(runs);
+    if !body.is_empty() {
+        out.push(depth, body);
+    }
+}
+
+/// The markup of a text block body from its runs, concatenated as they are:
+/// each run carries its own boundary whitespace (DocLang 0.9 — a line break
+/// between runs would read as a space), escaped per run as docling-core
+/// escapes each run's text item; the redundant `<content>` wrappers go in
+/// the post-processing.
+fn runs_markup(runs: Vec<Run>) -> String {
+    let mut s = String::new();
     for run in runs {
         match run {
             Run::Plain(t) => {
                 let t = t.trim_matches('\n');
                 if !t.is_empty() {
-                    emit_text_node(out, depth, t);
+                    s.push_str(&plain_markup(t));
                 }
             }
-            Run::Bold(t) => out.push(depth, format!("<bold>{}</bold>", escape_text(&t))),
-            Run::Italic(t) => out.push(depth, format!("<italic>{}</italic>", escape_text(&t))),
-            Run::BoldItalic(t) => {
-                out.push(depth, "<italic>".to_string());
-                out.push(depth + 1, format!("<bold>{}</bold>", escape_text(&t)));
-                out.push(depth, "</italic>".to_string());
-            }
-            Run::Code(t) => out.push(depth, format!("<code>{}</code>", escape_text(&t))),
+            Run::Bold(t) => s.push_str(&format!("<bold>{}</bold>", escape_text(&t))),
+            Run::Italic(t) => s.push_str(&format!("<italic>{}</italic>", escape_text(&t))),
+            Run::BoldItalic(t) => s.push_str(&format!(
+                "<italic><bold>{}</bold></italic>",
+                escape_text(&t)
+            )),
+            Run::Code(t) => s.push_str(&format!("<code>{}</code>", escape_text(&t))),
             Run::Link { anchor, .. } => {
                 // Inline scope: DocLang drops the target, keeps the anchor.
                 if !anchor.is_empty() {
-                    emit_text_node(out, depth, &anchor);
+                    s.push_str(&plain_markup(&anchor));
                 }
             }
         }
     }
+    s
 }
 
 /// A text node in block (element-children) context: plain data indents like
 /// any child; a `<content>` wrapper is a normal element; bare CDATA glues to
 /// the next fragment with no indent/newline (minidom's CDATA rule).
 fn emit_text_node(out: &mut Out, depth: i32, text: &str) {
+    out.push(depth, plain_markup(text));
+}
+
+/// A plain run's markup: escaped, and — docling's DocLang post-processing,
+/// docling-core's `serialize_rtl` — wrapped in `<rtl>` when right-to-left, so
+/// a reader knows the run's direction without re-running the bidi algorithm.
+fn plain_markup(text: &str) -> String {
     let e = escape_text(text);
-    if e.starts_with("<![CDATA[") {
-        out.push_glue(e);
-    } else if is_rtl(text) {
-        // docling's DocLang post-processing wraps a right-to-left text in
-        // `<rtl>` (docling-core's `serialize_rtl`), so a reader knows the run's
-        // direction without re-running the bidi algorithm.
-        out.push(depth, format!("<rtl>{e}</rtl>"));
+    if is_rtl(text) {
+        format!("<rtl>{e}</rtl>")
     } else {
-        out.push(depth, e);
+        e
     }
 }
 
@@ -685,10 +674,8 @@ static IDENTITY_LABELS: &[&str] = &[
     "YAML",
 ];
 
-/// Emit a `<code>` element. With a resolved language, a `<label value=…/>` head
-/// forces the block form (matching docling); the code text follows as a text
-/// child (CDATA/plain glued to the closing tag, `<content>`-wrapped text on its
-/// own line). Without a language, single-fragment text renders inline.
+/// A `<code>`: the head (`_element_head_prefix`'s order: the Linguist label
+/// of a known language, then the location), then the escaped body.
 fn emit_code(
     out: &mut Out,
     depth: i32,
@@ -698,44 +685,19 @@ fn emit_code(
 ) {
     let label = language.and_then(code_lang_label);
     let escaped = escape_text(text);
-    let is_content_element = escaped.starts_with("<content>");
-    // Layout provenance forces the block form: `<location>` tokens follow the
-    // opening `<code>`, before the (optional) label and the code body.
-    if let Some(loc) = location {
-        out.push(depth, "<code>".to_string());
-        push_location(out, depth + 1, loc);
-        if let Some(l) = label {
-            out.push(depth + 1, format!("<label value=\"{}\"/>", attr_escape(l)));
-        }
-        if is_content_element {
-            out.push(depth + 1, escaped);
-        } else {
-            out.push_glue(escaped);
-        }
-        out.push(depth, "</code>".to_string());
+    if location.is_none() && label.is_none() {
+        out.push(depth, format!("<code>{escaped}</code>"));
         return;
     }
-    match (label, is_content_element) {
-        (None, false) => out.push(depth, format!("<code>{escaped}</code>")),
-        (None, true) => {
-            out.push(depth, "<code>".to_string());
-            out.push(depth + 1, escaped);
-            out.push(depth, "</code>".to_string());
-        }
-        (Some(l), false) => {
-            out.push(depth, "<code>".to_string());
-            out.push(depth + 1, format!("<label value=\"{}\"/>", attr_escape(l)));
-            // Text child glues at column 0; the closing tag keeps its indent.
-            out.push_glue(escaped);
-            out.push(depth, "</code>".to_string());
-        }
-        (Some(l), true) => {
-            out.push(depth, "<code>".to_string());
-            out.push(depth + 1, format!("<label value=\"{}\"/>", attr_escape(l)));
-            out.push(depth + 1, escaped);
-            out.push(depth, "</code>".to_string());
-        }
+    out.push(depth, "<code>".to_string());
+    if let Some(l) = label {
+        out.push(depth + 1, format!("<label value=\"{}\"/>", attr_escape(l)));
     }
+    if let Some(loc) = location {
+        push_location(out, depth + 1, loc);
+    }
+    out.push(depth + 1, escaped);
+    out.push(depth, "</code>".to_string());
 }
 
 /// Emit the four `<location>` provenance tokens (`x0,y0,x1,y1`) as element
@@ -747,7 +709,7 @@ fn push_location(out: &mut Out, depth: i32, loc: &[u16; 4]) {
 }
 
 /// A `<table>`: the element head — the location block, then the caption —
-/// and the cells after it, the DocLang 0.7 schema's `element_head` order
+/// and the cells after it, the DocLang schema's `element_head` order
 /// (docling-core writes it so too). The caption used to come first, ahead
 /// of the location, which the schema rejects (#797).
 fn emit_table(out: &mut Out, depth: i32, table: &Table) {
@@ -931,7 +893,7 @@ pub(crate) fn render(nodes: &[Node], pictures: Pictures) -> (String, Vec<(String
         pictures,
         digests,
     };
-    out.push(0, "<doclang version=\"0.7\">".to_string());
+    out.push(0, "<doclang version=\"0.9\">".to_string());
     let mut i = 0usize;
     emit_nodes(&mut out, 1, nodes, &mut i, 0);
     out.push(0, "</doclang>".to_string());
@@ -986,15 +948,16 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
                 *i += 1;
             }
             Node::CheckboxItem { checked, text } => {
-                // A `<text>` with a `<checkbox class="selected|unselected"/>` head
-                // element and the label text child (block form).
+                // A `<text>` opening with `<checkbox class="selected|unselected"/>`,
+                // the label right after it — one body, so no space between.
                 let class = if *checked { "selected" } else { "unselected" };
-                out.push(depth, "<text>".to_string());
-                out.push(depth + 1, format!("<checkbox class=\"{class}\"/>"));
-                if !text.is_empty() {
-                    out.push(depth + 1, escape_text(text));
-                }
-                out.push(depth, "</text>".to_string());
+                out.push(
+                    depth,
+                    format!(
+                        "<text><checkbox class=\"{class}\"/>{}</text>",
+                        escape_text(text)
+                    ),
+                );
                 *i += 1;
             }
             Node::Code { language, text, .. } => {
@@ -1194,232 +1157,12 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
     }
 }
 
-/// One minidom child of the dump's `<text>`: a plain text node, a `<![CDATA[…]]>`
-/// section, or a formatted element (`<italic>…</italic>`).
-enum DumpNode {
-    Text(String),
-    Cdata(String),
-    Elem(String),
-}
-
-/// Render docling's plain-text backend dump: the whole file as one `<text>` item,
-/// serialized the way `xml.dom.minidom.toprettyxml` renders a `<text>` element.
-///
-/// docling applies inline Markdown to the text item, then builds a minified
-/// `<text>…</text>` string — each source line a record, `*`-emphasis converted to
-/// `<italic>`, XML-significant lines (`" ' & < >`) wrapped in `<![CDATA[…]]>` — and
-/// pretty-prints it, dropping blank lines. This reproduces that pipeline: parse the
-/// emphasis ([`dump_records`]), assemble the minidom child nodes, then simulate
-/// `toprettyxml`, which writes a text node as `indent + data`, a CDATA section as a
-/// bare `<![CDATA[…]]>` (no indent, no newline — so the next child's indent glues
-/// onto its line), and an element as `indent + <tag>…</tag>`.
+/// A plain-text dump: one text item holding the whole text — docling-core's
+/// `_escape_text` of it (a CDATA section when it holds XML-significant
+/// characters, a `<content>` wrapper for its line breaks, which DocLang 0.9
+/// would otherwise read as spaces).
 fn emit_text_dump(out: &mut Out, depth: i32, text: &str) {
-    let records = dump_records(text);
-    if records.is_empty() {
-        out.push(depth, "<text></text>".to_string());
-        return;
-    }
-    // Assemble the `<text>` element's minidom children. Consecutive plain records
-    // (and the `\n` record separators around them) collapse into one text node; a
-    // CDATA or formatted record breaks the run into its own node.
-    let mut nodes: Vec<DumpNode> = Vec::new();
-    let mut buf = String::new();
-    for (r, (line, italic)) in records.iter().enumerate() {
-        if r > 0 {
-            buf.push('\n'); // the record separator
-        }
-        let raw = unescape_stored(line);
-        let s = raw.as_ref();
-        let is_cdata = s.contains(['"', '\'', '&', '<', '>']);
-        if *italic || is_cdata {
-            if !buf.is_empty() {
-                nodes.push(DumpNode::Text(std::mem::take(&mut buf)));
-            }
-            let inner = if is_cdata {
-                format!("<![CDATA[{s}]]>")
-            } else {
-                s.to_string()
-            };
-            if *italic {
-                nodes.push(DumpNode::Elem(format!("<italic>{inner}</italic>")));
-            } else {
-                nodes.push(DumpNode::Cdata(inner));
-            }
-        } else {
-            buf.push_str(s);
-        }
-    }
-    if !buf.is_empty() {
-        nodes.push(DumpNode::Text(buf));
-    }
-
-    // A lone text node is a single text child — minidom renders it inline.
-    if let [DumpNode::Text(d)] = nodes.as_slice() {
-        out.push(depth, format!("<text>{d}\n</text>"));
-        return;
-    }
-
-    // Simulate `toprettyxml`: element/text children indent at depth+1, CDATA sits
-    // bare; then drop the blank lines docling's empty-line filter removes.
-    let ind_child = INDENT.repeat((depth + 1).max(0) as usize);
-    let ind_self = INDENT.repeat(depth.max(0) as usize);
-    let mut raw = String::new();
-    for node in &nodes {
-        match node {
-            DumpNode::Text(d) => {
-                raw.push_str(&ind_child);
-                raw.push_str(d);
-                raw.push('\n');
-            }
-            DumpNode::Cdata(b) => raw.push_str(b),
-            DumpNode::Elem(b) => {
-                raw.push_str(&ind_child);
-                raw.push_str(b);
-                raw.push('\n');
-            }
-        }
-    }
-    let full = format!("{ind_self}<text>\n{raw}{ind_self}</text>");
-    for line in full.split('\n') {
-        if !line.trim().is_empty() {
-            out.push(0, line.to_string());
-        }
-    }
-}
-
-/// Parse a plain-text dump into one record per line, applying docling's inline
-/// Markdown: CommonMark `*`/`**` emphasis (flanking rules + the delimiter-stack
-/// match) is stripped and its span flagged `italic`; a Markdown thematic break (a
-/// line of only underscores) collapses to ten underscores; blank lines drop out.
-fn dump_records(text: &str) -> Vec<(String, bool)> {
-    let chars: Vec<char> = text.chars().collect();
-    let n = chars.len();
-
-    struct Delim {
-        pos: usize,
-        length: usize,
-        rem: usize,
-        can_open: bool,
-        can_close: bool,
-    }
-    let is_ws = |c: Option<char>| c.is_none_or(|c| c.is_whitespace());
-    let is_punct =
-        |c: Option<char>| c.is_some_and(|c| "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~".contains(c));
-
-    // Delimiter runs of `*`, each tagged left-/right-flanking (CommonMark 6.2).
-    let mut delims: Vec<Delim> = Vec::new();
-    let mut i = 0;
-    while i < n {
-        if chars[i] == '*' {
-            let mut j = i;
-            while j < n && chars[j] == '*' {
-                j += 1;
-            }
-            let prev = (i > 0).then(|| chars[i - 1]);
-            let next = (j < n).then(|| chars[j]);
-            let left = !is_ws(next) && (!is_punct(next) || is_ws(prev) || is_punct(prev));
-            let right = !is_ws(prev) && (!is_punct(prev) || is_ws(next) || is_punct(next));
-            delims.push(Delim {
-                pos: i,
-                length: j - i,
-                rem: j - i,
-                can_open: left,
-                can_close: right,
-            });
-            i = j;
-        } else {
-            i += 1;
-        }
-    }
-
-    // Match closers to the nearest eligible opener (CommonMark "process emphasis"),
-    // marking the delimiter characters consumed and the spanned text emphasized.
-    let mut emph = vec![false; n];
-    let mut consumed = vec![false; n];
-    let mut ci = 0;
-    while ci < delims.len() {
-        if !(delims[ci].can_close && delims[ci].rem > 0) {
-            ci += 1;
-            continue;
-        }
-        let mut found: Option<usize> = None;
-        let mut oi = ci as i64 - 1;
-        while oi >= 0 {
-            let o = &delims[oi as usize];
-            let c = &delims[ci];
-            if o.can_open && o.rem > 0 {
-                // "Rule of three": a run may not close its own kind when the
-                // combined length is a multiple of three (unless both are).
-                let odd = (o.can_close || c.can_open)
-                    && (o.length + c.length) % 3 == 0
-                    && !(o.length % 3 == 0 && c.length % 3 == 0);
-                if !odd {
-                    found = Some(oi as usize);
-                    break;
-                }
-            }
-            oi -= 1;
-        }
-        let Some(fi) = found else {
-            ci += 1;
-            continue;
-        };
-        let use_ = if delims[fi].rem >= 2 && delims[ci].rem >= 2 {
-            2
-        } else {
-            1
-        };
-        let oend = delims[fi].pos + delims[fi].rem;
-        for c in consumed.iter_mut().take(oend).skip(oend - use_) {
-            *c = true;
-        }
-        let cstart = delims[ci].pos + (delims[ci].length - delims[ci].rem);
-        for c in consumed.iter_mut().take(cstart + use_).skip(cstart) {
-            *c = true;
-        }
-        for e in emph.iter_mut().take(cstart).skip(oend) {
-            *e = true;
-        }
-        delims[fi].rem -= use_;
-        delims[ci].rem -= use_;
-        delims.drain((fi + 1)..ci);
-        ci = if delims[fi].rem == 0 { fi + 1 } else { fi };
-    }
-
-    // Drop the consumed markers, then split into lines carrying their emphasis.
-    let mut records: Vec<(String, bool)> = Vec::new();
-    let mut line = String::new();
-    let mut line_italic = false;
-    let push_line = |line: &mut String, italic: &mut bool, out: &mut Vec<(String, bool)>| {
-        let text = std::mem::take(line);
-        let ital = std::mem::replace(italic, false);
-        let trimmed = text.trim();
-        if trimmed.is_empty() {
-            return;
-        }
-        // A Markdown thematic break (underscores only) normalizes to ten.
-        let norm = if trimmed.len() >= 3 && trimmed.chars().all(|c| c == '_') {
-            "_".repeat(10)
-        } else {
-            text
-        };
-        out.push((norm, ital));
-    };
-    for k in 0..n {
-        if consumed[k] {
-            continue;
-        }
-        if chars[k] == '\n' {
-            push_line(&mut line, &mut line_italic, &mut records);
-        } else {
-            line.push(chars[k]);
-            if emph[k] {
-                line_italic = true;
-            }
-        }
-    }
-    push_line(&mut line, &mut line_italic, &mut records);
-    records
+    out.push(depth, format!("<text>{}</text>", escape_text(text)));
 }
 
 /// Render a [`Node::InlineGroup`] — docling's `InlineGroup`. Reproduces the
@@ -1436,39 +1179,14 @@ fn dump_records(text: &str) -> Vec<(String, bool)> {
 ///   an all-plain wrapped group collapses to a single inline text node with a
 ///   trailing newline before `</text>`.
 fn emit_inline_group(out: &mut Out, depth: i32, unwrapped: bool, runs: &[InlineRun]) {
-    let has_styled = runs.iter().any(|r| !r.is_plain());
-
+    let body = inline_runs_markup(runs);
     if unwrapped {
-        for run in runs {
-            if run.is_plain() {
-                out.push(0, escape_text(&run.text));
-            } else if run.formula {
-                out.push(
-                    depth,
-                    format!("<formula>{}</formula>", escape_text(&run.text)),
-                );
-            } else {
-                emit_styled(out, depth, &style_tags(run), &escape_text(&run.text));
-            }
+        if !body.is_empty() {
+            out.push(depth, body);
         }
-        return;
+    } else {
+        out.push(depth, format!("<text>{body}</text>"));
     }
-
-    // Wrapped: an all-plain group is a single text node — inline form, runs
-    // joined by "\n" with the serializer's trailing "\n" before `</text>`.
-    if !has_styled {
-        let joined = runs
-            .iter()
-            .map(|r| escape_text(&r.text))
-            .collect::<Vec<_>>()
-            .join("\n");
-        out.push(depth, format!("<text>{joined}\n</text>"));
-        return;
-    }
-
-    out.push(depth, "<text>".to_string());
-    emit_inline_runs_body(out, depth + 1, runs);
-    out.push(depth, "</text>".to_string());
 }
 
 /// Emit the child runs of an inline group at `depth` (the body shared by a
@@ -1477,32 +1195,27 @@ fn emit_inline_group(out: &mut Out, depth: i32, unwrapped: bool, runs: &[InlineR
 /// (its record delimiter's leading newline), except the first child, which has
 /// no leading newline and stays indented. Styled/formula runs are elements.
 fn emit_inline_runs_body(out: &mut Out, depth: i32, runs: &[InlineRun]) {
-    for (i, run) in runs.iter().enumerate() {
-        if run.is_plain() {
-            let e = escape_text(&run.text);
-            let d = if e.starts_with("<content>") || i == 0 {
-                depth
-            } else {
-                0
-            };
-            if e.starts_with("<![CDATA[") && i + 1 == runs.len() && d == 0 {
-                // minidom writes a trailing CDATA bare (no newline); the "\n"
-                // record delimiter that follows still writes its indentation
-                // before its newline, leaving trailing spaces on the CDATA line
-                // (the blank line it opens is dropped by the empty-line filter).
-                out.push_glue(e);
-                out.push(depth, "");
-            } else {
-                out.push(d, e);
-            }
-        } else if run.formula {
-            out.push(
-                depth,
-                format!("<formula>{}</formula>", escape_text(&run.text)),
-            );
-        } else {
-            emit_styled(out, depth, &style_tags(run), &escape_text(&run.text));
-        }
+    let body = inline_runs_markup(runs);
+    if !body.is_empty() {
+        out.push(depth, body);
+    }
+}
+
+/// An inline group's runs concatenated (`DocLangInlineSerializer`: no
+/// delimiter — each run carries its own whitespace).
+fn inline_runs_markup(runs: &[InlineRun]) -> String {
+    runs.iter().map(inline_run_markup).collect()
+}
+
+/// One run of an inline group: a plain text node, a `<formula>`, or the
+/// run's formatting tags around its escaped text.
+fn inline_run_markup(run: &InlineRun) -> String {
+    if run.is_plain() {
+        escape_text(&run.text)
+    } else if run.formula {
+        format!("<formula>{}</formula>", escape_text(&run.text))
+    } else {
+        styled(&style_tags(run), &escape_text(&run.text))
     }
 }
 
@@ -1538,16 +1251,12 @@ fn style_tags(run: &InlineRun) -> Vec<&'static str> {
 /// single tag renders inline (`<bold>x</bold>`); nested tags render block-form,
 /// the innermost (a text child) inline — matching minidom's single-text-child
 /// rule at each level.
-fn emit_styled(out: &mut Out, depth: i32, tags: &[&str], inner: &str) {
-    match tags {
-        [] => emit_text_node(out, depth, inner),
-        [tag] => out.push(depth, format!("<{tag}>{inner}</{tag}>")),
-        [tag, rest @ ..] => {
-            out.push(depth, format!("<{tag}>"));
-            emit_styled(out, depth + 1, rest, inner);
-            out.push(depth, format!("</{tag}>"));
-        }
+fn styled(tags: &[&str], inner: &str) -> String {
+    let mut s = inner.to_string();
+    for tag in tags.iter().rev() {
+        s = format!("<{tag}>{s}</{tag}>");
     }
+    s
 }
 
 /// The `(anchor, uri)` of a text that is nothing but one `[anchor](uri)` link —
@@ -1569,7 +1278,10 @@ fn lone_link(text: &str) -> Option<(String, String)> {
 /// HTML `<title>`, section chrome) and body text (docx comments, nav items) are
 /// emitted with the layer token; other nodes fall back to their body rendering.
 fn emit_furniture(out: &mut Out, depth: i32, layer: ContentLayer, inner: &Node) {
-    let token = format!("<layer value=\"{}\"/>", layer.value());
+    let token = format!(
+        "<layer value=\"{}\"/>",
+        crate::doclang_xml::layer_value(layer)
+    );
     match inner {
         Node::Heading { level, text } => {
             let open = if *level <= 1 {
@@ -1616,13 +1328,13 @@ fn emit_furniture(out: &mut Out, depth: i32, layer: ContentLayer, inner: &Node) 
         // precedes the `<checkbox>` head, like every other furniture element.
         Node::CheckboxItem { checked, text } => {
             let class = if *checked { "selected" } else { "unselected" };
-            out.push(depth, "<text>".to_string());
-            out.push(depth + 1, token);
-            out.push(depth + 1, format!("<checkbox class=\"{class}\"/>"));
-            if !text.is_empty() {
-                out.push(depth + 1, escape_text(text));
-            }
-            out.push(depth, "</text>".to_string());
+            out.push(
+                depth,
+                format!(
+                    "<text>{token}<checkbox class=\"{class}\"/>{}</text>",
+                    escape_text(text)
+                ),
+            );
         }
         // A located notes text (PPTX speaker notes: docling gives them a zero
         // bbox provenance): layer token first, then the location tokens.
@@ -1642,13 +1354,11 @@ fn emit_furniture(out: &mut Out, depth: i32, layer: ContentLayer, inner: &Node) 
                 emit_furniture(out, depth, layer, inner);
                 let at = out.lines[start..]
                     .iter()
-                    .position(|(d, line, _)| *d == depth + 1 && *line == token)
+                    .position(|(d, line)| *d == depth + 1 && *line == token)
                     .map_or(start + 1, |p| start + p + 1);
                 for (k, v) in location.iter().enumerate() {
-                    out.lines.insert(
-                        at + k,
-                        (depth + 1, format!("<location value=\"{v}\"/>"), true),
-                    );
+                    out.lines
+                        .insert(at + k, (depth + 1, format!("<location value=\"{v}\"/>")));
                 }
             } else {
                 // A located heading or table (a hidden PPTX slide's title, a
@@ -1661,9 +1371,9 @@ fn emit_furniture(out: &mut Out, depth: i32, layer: ContentLayer, inner: &Node) 
                 if out.lines.len() > start {
                     let at = out.lines[start..]
                         .iter()
-                        .position(|(d, line, _)| *d == depth + 1 && line.starts_with("<location "))
+                        .position(|(d, line)| *d == depth + 1 && line.starts_with("<location "))
                         .map_or(start + 1, |p| start + p);
-                    out.lines.insert(at, (depth + 1, token, true));
+                    out.lines.insert(at, (depth + 1, token));
                 }
             }
         }
@@ -1671,21 +1381,13 @@ fn emit_furniture(out: &mut Out, depth: i32, layer: ContentLayer, inner: &Node) 
         // wrapped in `<text>`, with each child run carrying its own layer token
         // (docling stamps the layer on every text item of the group).
         Node::InlineGroup { runs, .. } => {
-            out.push(depth, "<text>".to_string());
-            for run in runs {
-                out.push(depth + 1, token.clone());
-                if run.is_plain() {
-                    out.push(depth + 1, escape_text(&run.text));
-                } else if run.formula {
-                    out.push(
-                        depth + 1,
-                        format!("<formula>{}</formula>", escape_text(&run.text)),
-                    );
-                } else {
-                    emit_styled(out, depth + 1, &style_tags(run), &escape_text(&run.text));
-                }
-            }
-            out.push(depth, "</text>".to_string());
+            // docling-core 2.106: the runs carry no layer of their own (an
+            // inline run inherits its host's), the `<text>` wrapper carries
+            // the group's.
+            out.push(
+                depth,
+                format!("<text>{token}{}</text>", inline_runs_markup(runs)),
+            );
         }
         // A furniture picture (site-chrome logo/banner, header/footer image):
         // the layer token, a caption that carries its own `<href>`/`<layer>`
@@ -1747,6 +1449,11 @@ fn emit_furniture(out: &mut Out, depth: i32, layer: ContentLayer, inner: &Node) 
             emit_table_rows(out, depth, table);
             out.push(depth, "</table>".to_string());
         }
+        // JSON-only wrappers: the layer reaches the node inside (a hidden
+        // sheet's located table sits in its page provenance).
+        Node::Prov { inner, .. } | Node::Track { inner, .. } | Node::Commented { inner, .. } => {
+            emit_furniture(out, depth, layer, inner);
+        }
         other => {
             let mut i = 0usize;
             emit_nodes(out, depth, std::slice::from_ref(other), &mut i, 0);
@@ -1798,7 +1505,7 @@ fn emit_picture(
         return;
     }
     // The element head (location, caption), then the body's `<src>` — the
-    // DocLang 0.7 schema's order, and docling-core's; the caption used to
+    // DocLang schema's order, and docling-core's; the caption used to
     // follow the `<src>` (#797).
     out.push(depth, "<picture>".to_string());
     if let Some(loc) = location {
@@ -2099,7 +1806,10 @@ fn emit_list_item_with_head(
             out.push(d, format!("<href uri=\"{}\"/>", attr_escape(uri)));
         }
         if let Some(l) = layer {
-            out.push(d, format!("<layer value=\"{}\"/>", l.value()));
+            out.push(
+                d,
+                format!("<layer value=\"{}\"/>", crate::doclang_xml::layer_value(l)),
+            );
         }
         if let Some(loc) = location {
             push_location(out, d, loc);
@@ -2235,7 +1945,7 @@ mod tests {
             .collect()
     }
 
-    /// #797: the DocLang 0.7 schema's `element_head` is the location block,
+    /// #797: the DocLang schema's `element_head` is the location block,
     /// then `caption`; the element's content (a table's cells, a picture's
     /// `<src>`) follows the head. docling-core writes it in that order too.
     #[test]
@@ -2330,12 +2040,12 @@ mod tests {
 
     #[test]
     fn code_with_language_emits_linguist_label_block_form() {
-        // Fence language folds through the docling value onto the Linguist key,
-        // forcing the block form; CDATA text glues the closing tag.
+        // Fence language folds through the docling value onto the Linguist
+        // key: a head element, so the body goes on a line of its own.
         assert_eq!(
             code(Some("python"), "print(\"Hello world!\")"),
-            "<doclang version=\"0.7\">\n  <code>\n    <label value=\"Python\"/>\n\
-             <![CDATA[print(\"Hello world!\")]]>  </code>\n</doclang>"
+            "<doclang version=\"0.9\">\n  <code>\n    <label value=\"Python\"/>\n    \
+             <![CDATA[print(\"Hello world!\")]]>\n  </code>\n</doclang>"
         );
         // Aliased label: bash -> Shell.
         assert!(code(Some("bash"), "ls -la").contains("<label value=\"Shell\"/>"));
@@ -2361,45 +2071,49 @@ mod tests {
             md_text: String::new(),
         }]);
         // strip the <doclang> envelope for readable assertions
-        body.trim_start_matches("<doclang version=\"0.7\">\n")
+        body.trim_start_matches("<doclang version=\"0.9\">\n")
             .trim_end_matches("\n</doclang>")
             .to_string()
     }
 
+    /// docling-core 2.106's `DocLangInlineSerializer`: the runs concatenated
+    /// as they are (each carries its own whitespace), the body on one line.
     #[test]
     fn inline_group_matches_reference_layout() {
-        // wrapped, mixed: first text indented, post-element text at col 0.
         assert_eq!(
             ig(
                 false,
-                vec![plain("This is a"), bold("bold"), plain("example")]
+                vec![plain("This is a "), bold("bold"), plain(" example")]
             ),
-            "  <text>\n    This is a\n    <bold>bold</bold>\nexample\n  </text>"
+            "  <text>This is a <bold>bold</bold> example</text>"
         );
-        // unwrapped, mixed: text at col 0, elements at depth 1.
+        // Unwrapped (its parent is a text item): the runs alone.
         assert_eq!(
             ig(
                 true,
                 vec![
-                    plain("aa"),
+                    plain("aa "),
                     bold("bb"),
-                    plain("cc"),
+                    plain(" cc "),
                     bold("dd"),
-                    plain("ee")
+                    plain(" ee")
                 ]
             ),
-            "aa\n  <bold>bb</bold>\ncc\n  <bold>dd</bold>\nee"
+            "  aa <bold>bb</bold> cc <bold>dd</bold> ee"
         );
-        // wrapped, all-plain: single text node with trailing newline.
         assert_eq!(
             ig(false, vec![plain("aa"), plain("bb")]),
-            "  <text>aa\nbb\n</text>"
+            "  <text>aabb</text>"
         );
-        assert_eq!(ig(false, vec![plain("aa")]), "  <text>aa\n</text>");
-        // wrapped, single element.
+        assert_eq!(ig(false, vec![plain("aa")]), "  <text>aa</text>");
         assert_eq!(
             ig(false, vec![bold("bb")]),
-            "  <text>\n    <bold>bb</bold>\n  </text>"
+            "  <text><bold>bb</bold></text>"
+        );
+        // A run's edge space beside the block edge needs its `<content>`.
+        assert_eq!(
+            ig(false, vec![bold("bb"), plain(" tail ")]),
+            "  <text><bold>bb</bold><content> tail </content></text>"
         );
     }
 
@@ -2411,11 +2125,8 @@ mod tests {
             italic: true,
             ..Default::default()
         };
-        // italic (applied after bold) is outermost; block form.
-        assert_eq!(
-            ig(true, vec![bi]),
-            "  <italic>\n    <bold>bi</bold>\n  </italic>"
-        );
+        // italic (applied after bold) is outermost.
+        assert_eq!(ig(true, vec![bi]), "  <italic><bold>bi</bold></italic>");
         let sub = InlineRun {
             text: "2".into(),
             script: Script::Sub,
@@ -2435,7 +2146,7 @@ mod tests {
         }]);
         assert_eq!(
             out,
-            "<doclang version=\"0.7\">\n  <heading>\n    <layer value=\"furniture\"/>\n    Anchor Links Test\n  </heading>\n</doclang>"
+            "<doclang version=\"0.9\">\n  <heading>\n    <layer value=\"furniture\"/>\n    Anchor Links Test\n  </heading>\n</doclang>"
         );
     }
 
@@ -2469,11 +2180,12 @@ mod tests {
                 caption_location: None,
             }),
         ]);
-        let head = "    <layer value=\"invisible\"/>\n    <location value=\"1\"/>\n    <location value=\"2\"/>\n    <location value=\"3\"/>\n    <location value=\"4\"/>\n";
+        // DocLang has no invisible layer: docling-core maps it to background.
+        let head = "    <layer value=\"background\"/>\n    <location value=\"1\"/>\n    <location value=\"2\"/>\n    <location value=\"3\"/>\n    <location value=\"4\"/>\n";
         assert_eq!(
             out,
             format!(
-                "<doclang version=\"0.7\">\n  <heading>\n{head}    Hidden slide\n  </heading>\n  <table>\n{head}    <ched/>\n    a\n    <nl/>\n  </table>\n  <picture>\n{head}  </picture>\n</doclang>"
+                "<doclang version=\"0.9\">\n  <heading>\n{head}    Hidden slide\n  </heading>\n  <table>\n{head}    <ched/>\n    a\n    <nl/>\n  </table>\n  <picture>\n{head}  </picture>\n</doclang>"
             )
         );
     }
@@ -2490,7 +2202,7 @@ mod tests {
         }]);
         assert_eq!(
             out,
-            "<doclang version=\"0.7\">\n  <text>\n    <layer value=\"furniture\"/>\n    <checkbox class=\"unselected\"/>\n    Main menu\n  </text>\n</doclang>"
+            "<doclang version=\"0.9\">\n  <text>\n    <layer value=\"furniture\"/>\n    <checkbox class=\"unselected\"/>Main menu\n  </text>\n</doclang>"
         );
     }
 
@@ -2506,7 +2218,7 @@ mod tests {
         }]);
         assert_eq!(
             out,
-            "<doclang version=\"0.7\">\n  <text>\n    <href uri=\"#bodyContent\"/>\n    <layer value=\"furniture\"/>\n    Jump to content\n  </text>\n</doclang>"
+            "<doclang version=\"0.9\">\n  <text>\n    <href uri=\"#bodyContent\"/>\n    <layer value=\"furniture\"/>\n    Jump to content\n  </text>\n</doclang>"
         );
         // Text around the link is not the lone-link shape: layer token first.
         let mixed = export_to_doclang(&[Node::Furniture {
@@ -2531,7 +2243,7 @@ mod tests {
         }]);
         assert_eq!(
             out,
-            "<doclang version=\"0.7\">\n  <text>\n    <href uri=\"https://br.wikipedia.org/wiki/Houad_(evn)\"/>\n    Brezhoneg\n  </text>\n</doclang>"
+            "<doclang version=\"0.9\">\n  <text>\n    <href uri=\"https://br.wikipedia.org/wiki/Houad_(evn)\"/>\n    Brezhoneg\n  </text>\n</doclang>"
         );
     }
 
@@ -2549,7 +2261,7 @@ mod tests {
         ]);
         assert_eq!(
             out,
-            "<doclang version=\"0.7\">\n  <text>\n    <rtl>العربية</rtl>\n  </text>\n  <text>Aragonés</text>\n</doclang>"
+            "<doclang version=\"0.9\">\n  <text><rtl>العربية</rtl></text>\n  <text>Aragonés</text>\n</doclang>"
         );
         // The rule is docling's: a strong-RTL first character, or an RTL
         // majority. A Latin lead with a minority of Hebrew stays left-to-right.
@@ -2561,31 +2273,19 @@ mod tests {
     }
 
     #[test]
-    fn text_dump_reproduces_minidom_per_line_layout() {
-        // A plain-text dump: the first record indents, later plain records sit at
-        // column 0, a line with `"`/`&` becomes CDATA (with the next child's indent
-        // glued on as trailing whitespace), a `*`…`*` span becomes per-line
-        // `<italic>`, and an underscore rule collapses to ten underscores.
-        let text = "PATN\nWKU 1\nPAL K. \"Determination\"\nfollow-up\n*Note A\n_______________\nNote B*\nEND";
-        let out = export_to_doclang(&[Node::TextDump(text.into())]);
-        let expected = "<doclang version=\"0.7\">\n  \
-             <text>\n    \
-             PATN\nWKU 1\n\
-             <![CDATA[PAL K. \"Determination\"]]>    \n\
-             follow-up\n    \
-             <italic>Note A</italic>\n    \
-             <italic>__________</italic>\n    \
-             <italic>Note B</italic>\n\
-             END\n  \
-             </text>\n</doclang>";
-        assert_eq!(out, expected, "got:\n{out}");
+    fn text_dump_is_one_literal_text() {
+        let out = export_to_doclang(&[Node::TextDump("a \"b\"\n*c*".into())]);
+        assert_eq!(
+            out,
+            "<doclang version=\"0.9\">\n  <text><content><![CDATA[a \"b\"\n*c*]]></content></text>\n</doclang>"
+        );
     }
 
     #[test]
     fn code_without_language_stays_inline_and_unlabeled() {
         assert_eq!(
             code(None, "print(\"Hi!\")"),
-            "<doclang version=\"0.7\">\n  <code><![CDATA[print(\"Hi!\")]]></code>\n</doclang>"
+            "<doclang version=\"0.9\">\n  <code><![CDATA[print(\"Hi!\")]]></code>\n</doclang>"
         );
         // Unknown fence language: no label, still inline.
         assert!(!code(Some("brainfuck"), "+++.").contains("<label"));

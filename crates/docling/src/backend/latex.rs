@@ -77,10 +77,6 @@ impl DeclarativeBackend for LatexBackend {
         conv.run(&text);
         let mut doc = DoclingDocument::new(&source.name);
         let (nodes, mut tree) = conv.doc.finish();
-        // The tree is docling's own, so DocLang serializes it as docling-core
-        // does (#884); the flat nodes lose footnote labels, inline formulas
-        // in captions and cells, and raw text.
-        tree.doclang = true;
         // The walker keeps each run's own whitespace (docling's LaTeX
         // backend always did): the runs are schema 1.11.0's (#997).
         tree.inline_whitespace = true;

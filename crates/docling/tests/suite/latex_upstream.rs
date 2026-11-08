@@ -1,8 +1,8 @@
 //! DocLang of the LaTeX corpus against docling's own (#884): the backend's
 //! item tree serialized as docling-core's `DocLangDocSerializer` does it.
 //!
-//! `tests/data/latex/groundtruth/<name>.dclg` is docling 2.142.1's
-//! `export_to_doclang()` of the source (docling-core's default placeholder
+//! `tests/data/latex/groundtruth/<name>.dclg` is docling's (bcb3678,
+//! docling-core 2.106: DocLang 0.9) `export_to_doclang()` of the source (docling-core's default placeholder
 //! image mode, hence `export_to_doclang_with_images(Placeholder)` here) —
 //! upstream's fixture, mirrored, never our output.
 use std::fs;

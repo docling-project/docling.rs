@@ -16,6 +16,7 @@ pub mod chunker;
 pub mod confidence;
 mod doclang;
 mod doclang_tree;
+mod doclang_xml;
 pub mod doctags;
 mod document;
 mod encryption;

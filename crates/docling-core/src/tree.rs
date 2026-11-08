@@ -546,14 +546,6 @@ pub struct ItemTree {
     pub items: Vec<TreeItem>,
     /// The body's `children`, as item indices.
     pub body: Vec<usize>,
-    /// The DocLang export serializes this tree too (#884) — docling-core's
-    /// `DocLangDocSerializer` ported over the tree (`doclang_tree.rs`) —
-    /// instead of the flat nodes, which cannot carry a footnote's label, a
-    /// caption's or a cell's inline formulas, or text docling never wrote
-    /// as Markdown. Set by a backend whose tree is upstream's exact
-    /// structure (LaTeX); a tree the port does not cover falls back to the
-    /// nodes.
-    pub doclang: bool,
     /// The source's blocks (#903), in document order, when the backend
     /// enumerates them (HTML); each item's [`TreeItem::block`] points into
     /// this. Empty otherwise.
@@ -569,6 +561,12 @@ pub struct ItemTree {
     /// that join into them ([`Self::separate_legacy_inline_runs`]) so the
     /// output reads as it did.
     pub inline_whitespace: bool,
+    /// The DocLang export serializes the flat nodes rather than this tree,
+    /// which every other tree gets its DocLang from: the tree reproduces a
+    /// loss of docling's the nodes avoid (USPTO's tables, emptied when
+    /// docling's table regex misses them), and the DocLang follows the
+    /// Markdown there.
+    pub doclang_nodes: bool,
 }
 
 impl ItemTree {

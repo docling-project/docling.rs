@@ -472,12 +472,10 @@ pub enum Node {
     /// and charts, which appear in the `.dclx` body but not in its `.md`/`.json`.
     /// DocLang renders the wrapped node in place; Markdown and JSON skip it.
     DoclangOnly(Box<Node>),
-    /// A verbatim plain-text dump — docling's plain-text backend emits the whole
-    /// file as a single text item (used for legacy USPTO APS `.txt` grants, which
-    /// docling routes to plain text rather than its APS parser). The stored string
-    /// is the file body, one record per line. Markdown/JSON render it as one text
-    /// block; the DocLang serializer reproduces minidom's per-line layout, CDATA-
-    /// escaping only the lines that need it (see `emit_text_dump`).
+    /// A verbatim plain-text dump: one text item holding text whose line
+    /// breaks are content (a nested table flattened to its cells' text, an
+    /// ODF text box's raw text). Markdown/JSON render it as one text block,
+    /// DocLang as one `<text>` whose `<content>` keeps the breaks.
     TextDump(String),
 }
 
@@ -1680,15 +1678,20 @@ impl DoclingDocument {
         })
     }
 
-    /// An opted-in item tree's DocLang ([`crate::tree::ItemTree::doclang`]),
-    /// else — no such tree, or one the port does not cover — the nodes'.
+    /// The item tree's DocLang — docling-core's `DocLangDocSerializer`
+    /// ported over the tree (`doclang_tree.rs`, #884), the structure the
+    /// JSON export writes — else (no tree, or one the port does not cover:
+    /// provenance, picture meta, form fields) the nodes'. The flat nodes
+    /// cannot carry a footnote's label, a caption's or a cell's inline
+    /// formulas, text docling never wrote as Markdown, or the whitespace of
+    /// an inline group's runs, which DocLang 0.9 reads as written.
     fn export_doclang(
         &self,
         pictures: crate::doclang::Pictures,
     ) -> (String, Vec<(String, Vec<u8>)>) {
         self.tree
             .as_ref()
-            .filter(|t| t.doclang)
+            .filter(|t| !t.doclang_nodes)
             .and_then(|t| crate::doclang_tree::export(t, pictures))
             .unwrap_or_else(|| crate::doclang::render(&self.nodes, pictures))
     }
