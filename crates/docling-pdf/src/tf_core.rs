@@ -198,6 +198,37 @@ impl BboxBook {
     pub fn runaway(&self) -> bool {
         self.row_len >= MAX_ROW_TAGS
     }
+
+    /// Why the decoded structure cannot describe a table, or `None` — the
+    /// [`runaway`](Self::runaway) early stop plus docling's
+    /// `degenerate_structure_reason` (docling#4592) over [`otsl`](Self::otsl).
+    pub fn degenerate_reason(&self) -> Option<String> {
+        if self.runaway() {
+            return Some(format!("no row break in {MAX_ROW_TAGS} tags"));
+        }
+        degenerate_structure_reason(&self.otsl, MAX_STEPS)
+    }
+}
+
+/// docling's `degenerate_structure_reason` (docling#4592): a complete table
+/// always ends with a row break, so a sequence with no `nl` at all (30 `fcel`
+/// would lay out as a 1 × 30 grid the matcher drops most words from), or one
+/// that stops within two tokens of the step budget without a final `nl` (cut
+/// mid-row), is rejected. An empty sequence is not degenerate — it is the
+/// no-structure case callers already handle.
+pub fn degenerate_structure_reason(otsl: &[i64], max_steps: usize) -> Option<String> {
+    if otsl.is_empty() {
+        return None;
+    }
+    if !otsl.contains(&NL) {
+        return Some("the predicted structure has no row break".into());
+    }
+    if otsl.len() + 2 >= max_steps && otsl.last() != Some(&NL) {
+        return Some(format!(
+            "the predicted structure hit the {max_steps}-step decode limit"
+        ));
+    }
+    None
 }
 
 /// docling's `mergebboxes` (cxcywh): the union box of a horizontal span's first
@@ -748,15 +779,66 @@ mod tests {
         let mut b = BboxBook::new();
         let h = [0.0f32; EMBED_DIM];
         for i in 0..MAX_STEPS {
-            assert!(b.step(if i % 22 == 21 { NL } else { FCEL }, &h));
+            assert!(b.step(if i % 32 == 31 { NL } else { FCEL }, &h));
         }
         assert!(!b.runaway());
+        assert_eq!(b.degenerate_reason(), None);
         let mut b = BboxBook::new();
         for t in [FCEL, LCEL, NL, FCEL, FCEL, NL] {
             assert!(b.step(t, &h));
         }
         assert!(!b.step(END, &h));
         assert!(!b.runaway());
+        assert_eq!(b.degenerate_reason(), None);
+    }
+
+    #[test]
+    fn book_cut_mid_row_at_the_step_budget_is_degenerate() {
+        // docling#4592: the same tall table cut mid-row by MAX_STEPS lost its
+        // last row's tail — rejected, where the runaway check alone kept it.
+        let mut b = BboxBook::new();
+        let h = [0.0f32; EMBED_DIM];
+        for i in 0..MAX_STEPS {
+            assert!(b.step(if i % 22 == 21 { NL } else { FCEL }, &h));
+        }
+        assert!(!b.runaway());
+        assert!(b.degenerate_reason().unwrap().contains("1024-step"));
+        // A short sequence without any row break: a 1 × 30 grid.
+        let mut b = BboxBook::new();
+        for _ in 0..30 {
+            assert!(b.step(FCEL, &h));
+        }
+        assert!(!b.step(END, &h));
+        assert!(b.degenerate_reason().unwrap().contains("no row break"));
+        // The runaway early stop reports as such.
+        let mut b = BboxBook::new();
+        while b.step(LCEL, &h) {}
+        assert!(b.degenerate_reason().unwrap().contains("256 tags"));
+    }
+
+    /// docling#4592 `test_degenerate_structure_reason`'s six cases.
+    #[test]
+    fn degenerate_structure_reason_cases() {
+        use super::degenerate_structure_reason as reason;
+        let rows = |n: usize, tail: &[i64]| {
+            let mut v = Vec::new();
+            for _ in 0..n {
+                v.extend(std::iter::repeat_n(FCEL, 33));
+                v.push(NL);
+            }
+            v.extend_from_slice(tail);
+            v
+        };
+        assert_eq!(reason(&[], 1024), None);
+        assert_eq!(reason(&[FCEL, FCEL, NL, FCEL, ECEL, NL], 1024), None);
+        // Cut two tags short of the budget mid-row …
+        assert!(reason(&rows(30, &[FCEL, FCEL]), 1024)
+            .unwrap()
+            .contains("limit"));
+        // … but long and complete: ends with a row break.
+        assert_eq!(reason(&rows(30, &[FCEL, NL]), 1024), None);
+        assert!(reason(&[ECEL; 1023], 1024).unwrap().contains("row break"));
+        assert!(reason(&[LCEL; 1023], 1024).unwrap().contains("row break"));
     }
 
     #[test]

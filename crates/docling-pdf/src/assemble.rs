@@ -1424,7 +1424,20 @@ pub fn cluster_cids(regions: &[Region], cells: &[TextCell]) -> Vec<usize> {
 /// `None` when the text doesn't start with `digits.`.
 /// docling's `ListItemMarkerProcessor` bullet patterns
 /// (`docling/models/postprocessing/list_marker_processor.py`), one glyph each.
-const LIST_BULLET_MARKERS: &str = "\u{2022}\u{2023}\u{25E6}\u{2043}\u{204C}\u{204D}\u{2219}\u{25AA}\u{25AB}\u{25CF}\u{25CB}-*+•·‣⁃►▶▸➤➢✓✔✗✘";
+/// The last eight are docling#5043's Symbol/Wingdings bullets as the fonts'
+/// private-use code points ([`PUA_FONT_BULLETS`]).
+const LIST_BULLET_MARKERS: &str = "\u{2022}\u{2023}\u{25E6}\u{2043}\u{204C}\u{204D}\u{2219}\u{25AA}\u{25AB}\u{25CF}\u{25CB}-*+•·‣⁃►▶▸➤➢✓✔✗✘\u{F0B7}\u{F0A7}\u{F06E}\u{F076}\u{F0D8}\u{F0E0}\u{F0FC}\u{F0A8}";
+
+/// Symbol and Wingdings bullets as the fonts' private-use code points
+/// (docling#5043) — what the text layer of a Word-exported PDF holds when its
+/// ToUnicode CMap maps the symbol-font byte to `U+F000 + byte` (`U+F0B7` is
+/// Symbol's `•`; `U+F0A7`/`U+F06E`/`U+F0A8` Wingdings' squares, `U+F076`
+/// its `❖`, `U+F0D8`/`U+F0E0` its arrows, `U+F0FC` its tick). A bullet
+/// class of their own, so the glued-bullet strip in [`list_item_node`]
+/// drops them too.
+const PUA_FONT_BULLETS: [char; 8] = [
+    '\u{F0B7}', '\u{F0A7}', '\u{F06E}', '\u{F076}', '\u{F0D8}', '\u{F0E0}', '\u{F0FC}', '\u{F0A8}',
+];
 
 /// docling's numbered-marker patterns as byte-length scanners over the start
 /// of the text, in its first-wins order (the compound ones first, as they are
@@ -1605,8 +1618,13 @@ fn list_item_node(text: &str, loc: [u16; 4], first_in_list: bool) -> Node {
     // docling's match runs on the text as docling-parse hands it over; the
     // glued symbol-font bullets it never sees are stripped only when the raw
     // text matches no marker (`•Text` → `Text`, but `• Text` → marker `•`).
+    // The private-use Symbol/Wingdings bullets (docling#5043) are stripped
+    // the same way: glued to the text they match no marker either, and a
+    // PUA code left in the item text prints as tofu.
     let stripped = text
-        .trim_start_matches(['•', '◦', '▪', '·', '*'])
+        .trim_start_matches(|c| {
+            matches!(c, '•' | '◦' | '▪' | '·' | '*') || PUA_FONT_BULLETS.contains(&c)
+        })
         .trim_start();
     let split = split_list_marker(text).or_else(|| split_list_marker(stripped));
     let bullet = |text: String, marker: &str| Node::ListItem {
@@ -1729,6 +1747,7 @@ fn clean_text_keep_wrap(text: &str) -> String {
     // justified double spaces); preserve internal runs of spaces, only
     // normalizing line breaks/tabs and trimming the ends.
     let out = replaced.replace(['\n', '\r', '\t'], " ").trim().to_string();
+    let out = fold_presentation_forms(&out);
     let mut out = fix_arabic_lam_alef(&out);
     if wrap && !out.is_empty() {
         out.push('\u{ad}');
@@ -1783,6 +1802,87 @@ fn fold_typography(text: &str) -> String {
         .replace('\u{2044}', "/") // ⁄ fraction slash → /
         .replace('\u{2022}', "\u{b7}") // • → · (docling never emits •; inline CCS-concept separators)
         .replace('\u{2026}', "...") // … → ...
+}
+
+/// The character folds of docling's `normalize_extracted_text` (docling#3929,
+/// docling#5069) beyond [`fold_typography`]: Latin ligatures spelled out
+/// (`ﬁ` → `fi`, `ﬅ`/`ﬆ` → `st`, Dutch `Ĳ`/`ĳ` → `IJ`/`ij`), the spurious
+/// private-use glyph U+F0A0 some fonts emit dropped, and runs of Arabic
+/// Presentation Forms-A/B (U+FB50–FDFF, U+FE70–FEFF) NFKC-folded back to the
+/// canonical letters, so shaped Arabic (`ﻣﺎﺮﺱ` → `مارس`) is searchable. The
+/// NFKC is per run, never global, so `x²`, `H₂O` and full-width forms
+/// survive. The text layer already spells out U+FB00–FB06
+/// (`textparse::decompose_ligatures`); folding them here too covers the
+/// other text sources. Not typography: `pdf_keep_typography` keeps these.
+pub(crate) fn fold_presentation_forms(text: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    let is_arabic_form = |c: char| matches!(c, '\u{FB50}'..='\u{FDFF}' | '\u{FE70}'..='\u{FEFF}');
+    let needs = |c: char| {
+        matches!(
+            c,
+            '\u{FB00}'..='\u{FB06}' | '\u{132}' | '\u{133}' | '\u{F0A0}'
+        ) || is_arabic_form(c)
+    };
+    if !text.chars().any(needs) {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut run = String::new();
+    for c in text.chars() {
+        if is_arabic_form(c) {
+            run.push(c);
+            continue;
+        }
+        if !run.is_empty() {
+            out.extend(run.nfkc());
+            run.clear();
+        }
+        match c {
+            '\u{FB00}' => out.push_str("ff"),
+            '\u{FB01}' => out.push_str("fi"),
+            '\u{FB02}' => out.push_str("fl"),
+            '\u{FB03}' => out.push_str("ffi"),
+            '\u{FB04}' => out.push_str("ffl"),
+            '\u{FB05}' | '\u{FB06}' => out.push_str("st"),
+            '\u{132}' => out.push_str("IJ"),
+            '\u{133}' => out.push_str("ij"),
+            '\u{F0A0}' => {}
+            _ => out.push(c),
+        }
+    }
+    if !run.is_empty() {
+        out.extend(run.nfkc());
+    }
+    out
+}
+
+/// docling's `normalize_extracted_text` for a TableFormer cell (docling#5069):
+/// cells get the same folds as body text — before, only `@ ` joined, so a
+/// cell kept `it’s`, `“quoted”` and `• dot` where the paragraph beside it
+/// read `it's`, `"quoted"`, `· dot`. The typography half honours
+/// `pdf_keep_typography` like [`clean_text_keep_wrap`]; the Arabic lam-alef
+/// reordering stays a body-text step (pdfium's visual-order runs).
+fn normalize_table_text(text: &str) -> String {
+    let text = if KEEP_TYPOGRAPHY.with(std::cell::Cell::get) {
+        text.to_string()
+    } else {
+        fold_typography(text)
+    };
+    fold_presentation_forms(&text)
+}
+
+/// [`normalize_table_text`] over a TableFormer grid: the dense `rows` text and
+/// the first-class `cells` the JSON / DocLang exports read.
+fn normalize_grid(mut grid: TableGrid) -> TableGrid {
+    for row in &mut grid.rows {
+        for cell in row.iter_mut() {
+            *cell = normalize_table_text(cell);
+        }
+    }
+    for cell in &mut grid.cells {
+        cell.text = normalize_table_text(&cell.text);
+    }
+    grid
 }
 
 /// pdfium decomposes the Arabic lam-alef ligature (لا / لإ / لأ / لآ) into its
@@ -2092,7 +2192,9 @@ fn assign_cells(regions: &[Region], cells: &[TextCell]) -> Vec<Vec<usize>> {
 /// ([`LIST_BULLET_MARKERS`]), not a box. Symbol-font boxes that reach the text
 /// layer as Private Use Area codes or as their ASCII byte (Wingdings `o`,
 /// `þ`) are not recognized: without the font the code is ambiguous (`U+F06F`
-/// is Symbol's omicron too).
+/// is Symbol's omicron too). The private-use codes docling#5043 made list
+/// bullets ([`PUA_FONT_BULLETS`] — Wingdings' `U+F0A8` square and `U+F0FC`
+/// tick among them) stay bullets here as well, as docling reads them.
 pub(crate) fn checkbox_glyph(c: char) -> Option<bool> {
     match c {
         '☐' | '□' | '▢' | '◻' | '❏' | '❐' | '❑' | '❒' => Some(false),
@@ -3701,7 +3803,7 @@ pub fn assemble_page(
                 // the public model, and the DocLang structure overlay derives
                 // from them so DCLX emits real span/header tokens. The
                 // geometric fallback has no per-cell records.
-                let (mut rows, cells, structure) = match table_rows[i].clone() {
+                let (mut rows, cells, structure) = match table_rows[i].clone().map(normalize_grid) {
                     Some(grid) => {
                         let nrows = grid.rows.len();
                         let ncols = grid.rows.first().map_or(0, Vec::len);
@@ -5324,6 +5426,35 @@ mod tests {
             text_of(&super::list_item_node("•Glued", loc, false)),
             (false, 0, "Glued".into(), Some("·".into()))
         );
+        // docling#5043's `test_private_use_font_bullets_are_markers`: the
+        // Symbol/Wingdings bullets as private-use code points (a Word-exported
+        // PDF's text layer) are bullet markers, never part of the item text.
+        for bullet in ['\u{F0B7}', '\u{F0A7}', '\u{F0D8}'] {
+            let input = format!("{bullet} Transcribo: converts audio to text");
+            assert_eq!(
+                text_of(&super::list_item_node(&input, loc, false)),
+                (
+                    false,
+                    0,
+                    "Transcribo: converts audio to text".into(),
+                    Some(bullet.to_string())
+                )
+            );
+            assert_eq!(super::split_list_marker(&input).map(|m| m.2), Some(false));
+            assert_eq!(super::checkbox_glyph(bullet), None);
+        }
+        for bullet in super::PUA_FONT_BULLETS {
+            assert!(super::LIST_BULLET_MARKERS.contains(bullet), "{bullet:?}");
+            // Glued to the text it is stripped like `•Glued`.
+            assert_eq!(
+                text_of(&super::list_item_node(
+                    &format!("{bullet}Glued"),
+                    loc,
+                    false
+                )),
+                (false, 0, "Glued".into(), Some("·".into()))
+            );
+        }
         // No whitespace after the glyph → not a marker (docling's `\s` is required).
         assert_eq!(
             text_of(&super::list_item_node("-5 degrees", loc, false)),
@@ -6021,5 +6152,77 @@ mod tests {
             &cell("perfect", 302.0, 98.0, 330.0, 106.0),
             &host
         ));
+    }
+
+    /// docling#3929 `TestSanitizeTextArabicPresentationForms` (#1001): shaped
+    /// Arabic folds to the canonical letters, per run — other scripts' NFKC
+    /// compatibility forms are left alone.
+    #[test]
+    fn arabic_presentation_forms_fold_like_docling() {
+        assert_eq!(clean_text("ﻣﺎﺮﺱ"), "مارس");
+        assert_eq!(clean_text("ﻻ"), "لا");
+        assert_eq!(clean_text("ﭘ"), "پ");
+        assert!(clean_text("ﺍﻟﺤﺮﺱ").contains("الحرس"));
+        assert_eq!(clean_text("مرحبا"), "مرحبا");
+        assert_eq!(clean_text("x²"), "x²");
+        assert_eq!(clean_text("H₂O"), "H₂O");
+        let fullwidth: String = [0xFF46, 0xFF55, 0xFF4C, 0xFF4C]
+            .iter()
+            .map(|&c| char::from_u32(c).unwrap())
+            .collect();
+        assert_eq!(clean_text(&fullwidth), fullwidth);
+        assert_eq!(clean_text("2024 ﻣﺎﺮﺱ x²"), "2024 مارس x²");
+    }
+
+    /// docling#5069's ligature map (#1001): `ﬅ` is `ſt` → `st`, Dutch `Ĳ`/`ĳ`
+    /// spell out, the spurious U+F0A0 glyph goes and a real word boundary
+    /// after it stays.
+    #[test]
+    fn ligatures_and_the_private_use_glyph_fold_like_docling() {
+        assert_eq!(clean_text("\u{FB05}ar \u{FB06}op"), "star stop");
+        assert_eq!(clean_text("\u{132} is \u{133}s"), "IJ is ijs");
+        assert_eq!(clean_text("hello\u{F0A0} world"), "hello world");
+        assert_eq!(clean_text("con\u{FB01}gure"), "configure");
+    }
+
+    /// docling#5069: TableFormer cells get body text's folds (they kept
+    /// `it’s`, `“quoted”`, `• dot` and shaped Arabic), unless
+    /// `pdf_keep_typography` keeps the typography.
+    #[test]
+    fn table_cells_are_normalized_like_body_text() {
+        use super::{normalize_grid, TableGrid, TypographyScope};
+        let grid = || TableGrid {
+            rows: vec![vec![
+                "it\u{2019}s".into(),
+                "\u{201c}quoted\u{201d}".into(),
+                "\u{2022} dot".into(),
+                "ﻣﺎﺮﺱ".into(),
+            ]],
+            cells: vec![docling_core::TableCell {
+                text: "\u{201c}a\u{FB01}\u{201d}".into(),
+                bbox: None,
+                start_row: 0,
+                start_col: 0,
+                row_span: 1,
+                col_span: 1,
+                column_header: false,
+                row_header: false,
+                row_section: false,
+            }],
+        };
+        let g = normalize_grid(grid());
+        assert_eq!(g.rows[0], ["it's", "\"quoted\"", "\u{b7} dot", "مارس"]);
+        assert_eq!(g.cells[0].text, "\"afi\"");
+        let _keep = TypographyScope::set(true);
+        let g = normalize_grid(grid());
+        assert_eq!(
+            g.rows[0],
+            [
+                "it\u{2019}s",
+                "\u{201c}quoted\u{201d}",
+                "\u{2022} dot",
+                "مارس"
+            ]
+        );
     }
 }
