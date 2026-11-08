@@ -664,6 +664,21 @@ impl<'a> Serializer<'a> {
         let part = if Self::is_group(item) {
             match Self::label(item) {
                 "list" => self.list_group(item, inline),
+                // #1040: in the Markdown backend's HTML detour a paragraph's
+                // inline group is the paragraph — written as docling's
+                // `<span class='inline-group'>`, two neighbouring paragraphs
+                // were two adjacent spans, which the HTML backend reads back
+                // as *one* paragraph (`**2.1** First.**2.2** Second.`).
+                // Upstream does exactly that (a lossy merge, a documented
+                // divergence); a block-level group is a `<p>` here instead.
+                "inline" if !inline && self.picture_ref_prefix.is_some() => {
+                    let parts = self.parts(item, true);
+                    if parts.is_empty() {
+                        String::new()
+                    } else {
+                        format!("<p>{}</p>", parts.concat())
+                    }
+                }
                 "inline" => self.inline_group(item),
                 _ => self.parts(item, inline).join("\n"),
             }

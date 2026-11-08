@@ -591,6 +591,129 @@ fn normalize_table_edge_pipes(text: &str) -> std::borrow::Cow<'_, str> {
     std::borrow::Cow::Owned(out.join("\n"))
 }
 
+/// Whether the byte at `at` is a backslash escape's escaped character: an
+/// odd number of backslashes right before it (an even run is escaped
+/// backslashes, not an escape of what follows).
+pub(super) fn escaped_at(text: &str, at: usize) -> bool {
+    let run = text.as_bytes()[..at.min(text.len())]
+        .iter()
+        .rev()
+        .take_while(|&&b| b == b'\\')
+        .count();
+    run % 2 == 1
+}
+
+/// docling's `_strip_frontmatter` (docling#4596): the text after a leading
+/// `---` … `---` (or `...`) block that is a YAML *mapping*, else the text
+/// unchanged. As in Pandoc, an opening `---` followed by a blank line is a
+/// thematic break, and an empty block is not a mapping. Upstream asks
+/// `yaml.safe_load`; [`is_yaml_mapping`] is a conservative stand-in, so no
+/// YAML parser enters the library for one test.
+fn strip_frontmatter(text: &str) -> &str {
+    let mut lines = text.split_inclusive('\n');
+    let Some(first) = lines.next() else {
+        return text;
+    };
+    fn line_body(l: &str) -> &str {
+        l.trim_end_matches('\n').trim_end_matches('\r')
+    }
+    if line_body(first).trim_end_matches([' ', '\t']) != "---" || !first.ends_with('\n') {
+        return text;
+    }
+    let mut offset = first.len();
+    let mut body_end = None;
+    for (n, line) in lines.enumerate() {
+        let content = line_body(line);
+        if n == 0 && content.trim_matches([' ', '\t']).is_empty() {
+            return text;
+        }
+        let fence = content.trim_end_matches([' ', '\t']);
+        if fence == "---" || fence == "..." {
+            body_end = Some((offset, offset + line.len()));
+            break;
+        }
+        offset += line.len();
+    }
+    let Some((body_end, end)) = body_end else {
+        return text;
+    };
+    if is_yaml_mapping(&text[first.len()..body_end]) {
+        &text[end..]
+    } else {
+        text
+    }
+}
+
+/// Whether a frontmatter block reads as a YAML mapping: its first
+/// significant line is a `key:` entry (or a `{…}` flow mapping), every line
+/// at that indentation is another entry (or a `- ` item of the entry above,
+/// which YAML allows unindented), deeper lines continue an entry, and the
+/// flow brackets and quotes balance. A block of prose (`Just a sentence`,
+/// a setext heading), a list or an unclosed `[` is not one — upstream's
+/// `yaml.safe_load` gives a string, a list or an error for those. YAML that
+/// this misjudges (a complex `?` key, tab indentation) keeps its text.
+fn is_yaml_mapping(body: &str) -> bool {
+    let key = cached_regex!(
+        r#"^(?:"[^"]*"|'[^']*'|[^\s#\-?:,\[\]{}!&*|>'"%@`][^#]*?|-[^\s#][^#]*?)[ \t]*:(?:[ \t]|$)"#
+    );
+    let mut base: Option<usize> = None;
+    let mut entries = 0usize;
+    let (mut depth, mut quote) = (0i32, None::<char>);
+    for raw in body.lines() {
+        let line = raw.trim_end_matches('\r');
+        let trimmed = line.trim_start_matches(' ');
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if line.starts_with('\t') {
+            return false;
+        }
+        let indent = line.len() - trimmed.len();
+        match base {
+            None => {
+                if trimmed.starts_with('{') {
+                    entries += 1;
+                } else if !key.is_match(trimmed) {
+                    return false;
+                }
+                base = Some(indent);
+                entries += 1;
+            }
+            Some(b) if indent == b && depth == 0 && quote.is_none() => {
+                let item = trimmed == "-" || trimmed.starts_with("- ");
+                if !(key.is_match(trimmed) || item) {
+                    return false;
+                }
+                entries += usize::from(!item);
+            }
+            Some(b) if indent < b => return false,
+            Some(_) => {}
+        }
+        // Flow brackets and quotes, outside comments.
+        let mut prev = ' ';
+        for ch in trimmed.chars() {
+            match quote {
+                Some(q) if ch == q => quote = None,
+                Some(_) => {}
+                None => match ch {
+                    '#' if prev == ' ' || prev == '\t' => break,
+                    '"' | '\'' if matches!(prev, ' ' | ':' | '[' | '{' | ',') => quote = Some(ch),
+                    '[' | '{' => depth += 1,
+                    ']' | '}' => depth -= 1,
+                    _ => {}
+                },
+            }
+            if depth < 0 {
+                return false;
+            }
+            prev = ch;
+        }
+        // A single-quoted or double-quoted scalar may span lines; a quote
+        // still open at the block's end is an error (checked below).
+    }
+    entries > 0 && depth == 0 && quote.is_none()
+}
+
 impl DeclarativeBackend for MarkdownBackend {
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
         // GFM makes a table row's edge pipes optional, but pulldown-cmark only
@@ -599,42 +722,35 @@ impl DeclarativeBackend for MarkdownBackend {
         // up front lets pulldown parse the same tables. `text` stays borrowed
         // (no allocation) when nothing needs normalizing — the common case.
         let text = source.text()?;
-        let normalized = normalize_table_edge_pipes(&text);
+        // docling#4596 (#1022): a leading YAML frontmatter block is metadata,
+        // not content — dropped before either walk parses the text.
+        let text = strip_frontmatter(&text);
+        let normalized = normalize_table_edge_pipes(text);
         let text = normalized.as_ref();
         let mut opts = Options::empty();
         opts.insert(Options::ENABLE_TABLES);
         opts.insert(Options::ENABLE_STRIKETHROUGH);
         opts.insert(Options::ENABLE_MATH);
 
-        // Merge only *contiguous* text events. pulldown splits both `[11]`
-        // (failed link) and `2\.` (escape) into multiple text events, but the
-        // escape leaves an offset gap (the backslash). marko keeps `[11]` as one
-        // run yet treats the escaped `.` as a separate run — so merging the
-        // contiguous pieces and leaving gapped ones split reproduces both.
-        // Inside a table the gap rule does not apply: a cell's text is its
-        // plain text as a whole (`_cell_plain_text`), so a backslash-escaped
-        // `\|` — or any other escape — is cell content with nothing around it
-        // (docling#4313: `a\|b` is the cell `a|b`).
+        // Merge neighbouring text events into one run. pulldown splits both
+        // `[11]` (a failed link) and `2\.` (an escape) into several text
+        // events; the escape leaves an offset gap — the backslash. docling
+        // merges marko's neighbouring `RawText` and escaped `Literal` nodes
+        // into one run too (docling#4991, #1022: `snake\_case here` is one
+        // text, not `snake` / `_` / `case here`), as it always did for a
+        // table cell's plain text (docling#4313: `a\|b` is the cell `a|b`).
         let raw: Vec<(Event, std::ops::Range<usize>)> =
             Parser::new_ext(text, opts).into_offset_iter().collect();
         let raw = marko_strikethrough(raw, text);
         let raw = link_bare_urls(fold_math_into_text(raw, text), text);
         let mut events: Vec<Event> = Vec::with_capacity(raw.len());
         let mut k = 0;
-        let mut in_table = false;
         while k < raw.len() {
-            match &raw[k].0 {
-                Event::Start(Tag::Table(_)) => in_table = true,
-                Event::End(TagEnd::Table) => in_table = false,
-                _ => {}
-            }
             if matches!(raw[k].0, Event::Text(_)) {
                 let mut merged = String::new();
                 let mut end = raw[k].1.start;
                 while let Some((Event::Text(t), range)) = raw.get(k) {
-                    let escape_gap = in_table
-                        && range.start == end + 1
-                        && text.as_bytes().get(end) == Some(&b'\\');
+                    let escape_gap = escaped_at(text, range.start) && range.start == end + 1;
                     if range.start != end && !escape_gap {
                         break;
                     }
@@ -1538,6 +1654,191 @@ mod tests {
         .unwrap();
         doc.strict_markdown = true;
         doc
+    }
+
+    /// The JSON's text items as `(label, text)` and its group labels.
+    fn json_texts(md: &str) -> (Vec<(String, String)>, Vec<String>) {
+        let json = convert(md).export_to_json_value();
+        let texts = json["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| {
+                let s = |k: &str| t[k].as_str().unwrap_or_default().to_string();
+                (s("label"), s("text"))
+            })
+            .collect();
+        let groups = json["groups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|g| g["label"].as_str().unwrap().to_string())
+            .collect();
+        (texts, groups)
+    }
+
+    /// #1022, docling#4991 (`test_backslash_escape_stays_in_its_text_run`):
+    /// a backslash escape is part of the text run around it, not an item of
+    /// its own, and an escape protects the entity around it.
+    #[test]
+    fn a_backslash_escape_stays_in_its_text_run() {
+        let cases: &[(&str, &[(&str, &str)])] = &[
+            (r"snake\_case here", &[("text", "snake_case here")]),
+            (
+                r"Price is \$5 and 50\% off",
+                &[("text", "Price is $5 and 50% off")],
+            ),
+            (r"\*not emphasis\*", &[("text", "*not emphasis*")]),
+            (r"1\. not a list", &[("text", "1. not a list")]),
+            (r"- item with \* star", &[("list_item", "item with * star")]),
+            (r"# Head \# x", &[("title", "Head # x")]),
+            (r"> quote \* star", &[("text", "quote * star")]),
+            (
+                r"Use `x` and snake\_case",
+                &[("text", "Use "), ("code", "x"), ("text", " and snake_case")],
+            ),
+            (
+                r"**bold \* star** plain",
+                &[("text", "bold * star"), ("text", " plain")],
+            ),
+            (r"a \&amp; b", &[("text", "a &amp; b")]),
+            (r"&\#35;x", &[("text", "&#35;x")]),
+            (r"&amp\; e", &[("text", "&amp; e")]),
+            (r"&\#169; vs &#169;", &[("text", "&#169; vs ©")]),
+            (r"R&D &amp; \_x &#169;", &[("text", "R&D & _x ©")]),
+        ];
+        for (md, expected) in cases {
+            let (texts, groups) = json_texts(md);
+            let want: Vec<(String, String)> = expected
+                .iter()
+                .map(|(l, t)| (l.to_string(), t.to_string()))
+                .collect();
+            assert_eq!(texts, want, "{md}");
+            // One run of text is one item: no inline group wraps it.
+            if expected.len() == 1 {
+                assert!(!groups.iter().any(|g| g == "inline"), "{md}: {groups:?}");
+            }
+        }
+    }
+
+    /// docling#4991: an escape inside link text stays in the one text item
+    /// that carries the link; inside a rich table cell the runs are `z` and
+    /// `* w`, not `z`, `*` and `w`.
+    #[test]
+    fn a_backslash_escape_in_a_link_or_rich_cell_stays_in_its_run() {
+        let json = convert(r"[a\_b](http://x.y)").export_to_json_value();
+        let texts = json["texts"].as_array().unwrap();
+        assert_eq!(texts.len(), 1);
+        assert_eq!(texts[0]["text"], "a_b");
+        assert!(texts[0]["hyperlink"]
+            .as_str()
+            .unwrap()
+            .starts_with("http://x.y"));
+
+        let (texts, _) = json_texts("| h |\n|---|\n| **z**\\* w |");
+        let texts: Vec<&str> = texts.iter().map(|(_, t)| t.as_str()).collect();
+        assert_eq!(texts, ["z", "* w"]);
+    }
+
+    /// #1022, docling#4596 (`test_convert_strips_leading_frontmatter`): a
+    /// leading `---` block that is a YAML mapping is dropped; a `---`
+    /// followed by a blank line stays a thematic break, and a block that is
+    /// not a mapping stays content.
+    #[test]
+    fn a_leading_yaml_frontmatter_is_dropped() {
+        let cases = [
+            ("---\ntitle: T\n---\n\n# H\n\nbody\n", "# H\n\nbody"),
+            (
+                "---\r\ntitle: T\r\n---\r\n\r\n# H\r\n\r\nbody\r\n",
+                "# H\n\nbody",
+            ),
+            (
+                "---\ntitle: T\n\ntags: [a, b]\n---\n\n# H\n\nbody\n",
+                "# H\n\nbody",
+            ),
+            ("---\ntitle: T\n...\n\n# H\n\nbody\n", "# H\n\nbody"),
+            ("---\n\n# H\n\nbody\n", "# H\n\nbody"),
+            (
+                "---\n\nNote: this is important.\n\n---\n\nbody\n",
+                "Note: this is important.\n\nbody",
+            ),
+            (
+                "---\nJust a sentence\n---\n\nbody\n",
+                "## Just a sentence\n\nbody",
+            ),
+            ("---\n---\n\n# H\n\nbody\n", "# H\n\nbody"),
+            ("---\ntitle: T\n---", ""),
+            ("---   \ntitle: T\n---  \n\n# H\n\nbody\n", "# H\n\nbody"),
+        ];
+        for (md, expected) in cases {
+            let out = convert(md).export_to_markdown();
+            assert_eq!(out.trim_end(), expected, "{md:?}");
+        }
+        // Frontmatter directly followed by content keeps the content
+        // (`test_convert_frontmatter_followed_by_content_keeps_the_content`).
+        let out = convert("---\ntitle: T\n---\nIntro\nSection\n---\n\nbody\n").export_to_markdown();
+        assert!(!out.contains("title: T"), "{out}");
+        for word in ["Intro", "Section", "body"] {
+            assert!(out.contains(word), "{out}");
+        }
+    }
+
+    /// The mapping test behind [`strip_frontmatter`]: what `yaml.safe_load`
+    /// gives a dict for, and what it does not.
+    #[test]
+    fn frontmatter_must_be_a_yaml_mapping() {
+        for yes in [
+            "title: T\n",
+            "title: \"a: b\"\ntags:\n  - x\n  - y\n",
+            "tags:\n- x\n- y\nauthor: me # comment\n",
+            "{a: 1, b: [2, 3]}\n",
+            "# a comment\nkey: |\n  block\n  text\n",
+        ] {
+            assert!(is_yaml_mapping(yes), "{yes:?}");
+        }
+        for no in [
+            "",
+            "Just a sentence\n",
+            "- a\n- b\n",
+            "title: [unclosed\n",
+            "title: T\nnot an entry\n",
+            "\ttitle: T\n",
+        ] {
+            assert!(!is_yaml_mapping(no), "{no:?}");
+        }
+        // Not at the very start: content, not frontmatter.
+        assert_eq!(
+            strip_frontmatter("x\n---\na: 1\n---\n"),
+            "x\n---\na: 1\n---\n"
+        );
+        assert_eq!(strip_frontmatter("---\na: 1\n---\nrest"), "rest");
+    }
+
+    /// #1040: a raw HTML block sends the document through the HTML backend
+    /// (upstream's detour); each following paragraph's inline group stays
+    /// its own — upstream's `<span class='inline-group'>`s parsed back as
+    /// one paragraph, merging `**2.1** First.` and `**2.2** Second.`.
+    #[test]
+    fn paragraphs_after_a_raw_html_block_keep_their_own_inline_groups() {
+        for prefix in [
+            "<!-- note -->\n\n",
+            "<!--\nmulti\n-->\n\n",
+            "<div>hi</div>\n\n",
+            "",
+        ] {
+            let md = format!("{prefix}## 2. PURPOSE\n\n**2.1** First.\n\n**2.2** Second.\n");
+            let json = convert(&md).export_to_json_value();
+            let sizes: Vec<usize> = json["groups"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|g| g["label"] == "inline")
+                .map(|g| g["children"].as_array().unwrap().len())
+                .collect();
+            assert_eq!(sizes, [2, 2], "{prefix:?}");
+            let out = convert(&md).export_to_markdown();
+            assert!(out.contains("First.\n\n**2.2**"), "{prefix:?}: {out}");
+        }
     }
 
     /// Block nesting is capped at markdown-it's `maxNesting` (100): 50 000

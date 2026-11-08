@@ -133,9 +133,8 @@ impl El {
 
 /// Rebuild marko's tree from pulldown's CommonMark events.
 fn parse(text: &str) -> El {
-    // Contiguous text events merge into one `RawText`; an escape leaves an
-    // offset gap (the backslash), so the pieces around it stay separate — a
-    // marko `Literal` (see `markdown.rs`).
+    // Neighbouring text events merge into one `RawText` — across an escape
+    // too, whose offset gap is the backslash (docling#4991, see below).
     // Math on, then folded back into text except for a standalone display
     // formula (`markdown.rs`): the text runs come out as marko's.
     let options = Options::ENABLE_MATH | Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH;
@@ -146,44 +145,36 @@ fn parse(text: &str) -> El {
         super::markdown::link_bare_urls(super::markdown::fold_math_into_text(raw, text), text);
     let mut events: Vec<Event> = Vec::with_capacity(raw.len());
     let mut k = 0;
-    // Where the previous event's source ended: a text event starting one
-    // byte later, behind a backslash, is a resolved escape whose source
-    // range no longer shows the backslash.
-    let mut prev_end = 0usize;
     while k < raw.len() {
         if matches!(raw[k].0, Event::Text(_)) {
             let mut merged = String::new();
             let mut end = raw[k].1.start;
-            let run_escaped =
-                raw[k].1.start == prev_end + 1 && text.as_bytes().get(prev_end) == Some(&b'\\');
-            if run_escaped {
-                // pulldown hands the escaped character over glued to the text
-                // that follows it; marko keeps it as a `Literal` node of its
-                // own, so it is split off here.
-                if let Some((Event::Text(t), range)) = raw.get(k) {
-                    let mut chars = t.chars();
-                    if let Some(first) = chars.next() {
-                        events.push(Event::Text(first.to_string().into()));
-                        merged.push_str(chars.as_str());
-                        end = range.end;
-                        k += 1;
-                    }
-                }
-            }
+            // An escape inside the run (or opening it, glued to the text
+            // that follows by pulldown).
+            let mut escaped = super::markdown::escaped_at(text, end);
             while let Some((Event::Text(t), range)) = raw.get(k) {
-                if range.start != end {
+                let escape_gap =
+                    range.start == end + 1 && super::markdown::escaped_at(text, range.start);
+                if range.start != end && !escape_gap {
                     break;
                 }
+                escaped |= escape_gap;
                 merged.push_str(t);
                 end = range.end;
                 k += 1;
             }
-            prev_end = end;
+            // docling#4991 (#1022): marko's neighbouring `RawText` and
+            // escaped `Literal` nodes are one run (`snake\_case here`). Each
+            // piece is final — its `&` kept as an entity, as upstream's
+            // `_text_run_piece` does — so the entity decoding every text gets
+            // later leaves the run as written: `a \&amp; b` stays `a &amp; b`.
+            if escaped {
+                merged = merged.replace('&', "&amp;");
+            }
             if !merged.is_empty() {
                 events.push(Event::Text(merged.into()));
             }
         } else {
-            prev_end = raw[k].1.end;
             events.push(raw[k].0.clone());
             k += 1;
         }
