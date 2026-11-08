@@ -911,6 +911,26 @@ impl PictureDescription {
     pub fn is_alt_text(&self) -> bool {
         self.provenance == Self::ALT_TEXT
     }
+
+    /// The (empty) provenance of a description docling's backend writes
+    /// itself as `PictureMeta.description` — `text` only, no `created_by`
+    /// and no legacy `annotations` entry: the alt text of an XLSX image
+    /// placed in a cell (docling#5015). Unlike [`Self::ALT_TEXT`] it is
+    /// upstream's own output, so every format renders it unconditionally.
+    pub const DOCLING_META: &'static str = "";
+
+    /// A docling-native description, see [`Self::DOCLING_META`].
+    pub fn docling_meta(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            provenance: Self::DOCLING_META.to_string(),
+        }
+    }
+
+    /// Whether this is a docling-native description ([`Self::DOCLING_META`]).
+    pub fn is_docling_meta(&self) -> bool {
+        self.provenance == Self::DOCLING_META
+    }
 }
 
 /// An extracted picture's raw encoded bytes plus its mimetype and pixel size —

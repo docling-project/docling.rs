@@ -1,7 +1,7 @@
-| name   | photo   |   price | stock   |
-|--------|---------|---------|---------|
-| apple  | #VALUE! |     100 | #N/A    |
-| pear   | #VALUE! |     200 | 7       |
+| name   | photo                          |   price | stock   |
+|--------|--------------------------------|---------|---------|
+| apple  | <!-- image -->  A red square   |     100 | #N/A    |
+| pear   | <!-- image -->  A green square |     200 | 7       |
 
-| #VALUE!   |
-|-----------|
+| <!-- image -->   |
+|------------------|

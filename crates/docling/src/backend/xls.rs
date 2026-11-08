@@ -60,6 +60,8 @@ impl DeclarativeBackend for XlsBackend {
             let formats = SheetFormats {
                 xfs: xfs.clone(),
                 cells: sheet_cells.next().unwrap_or_default(),
+                // BIFF has no rich values.
+                images: Default::default(),
             };
             if !matches!(typ, calamine::SheetType::WorkSheet) {
                 continue;
