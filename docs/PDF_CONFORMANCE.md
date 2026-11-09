@@ -62,7 +62,9 @@ changes). That is the 407; #1001's cell normalization (docling#5069 —
 `’` → `'` inside TableFormer cells) took it to 405. (On the stale pre-refresh groundtruth the old tree
 read 10 / 18, 328 — a match to docling as it no longer is.) The two Korean
 pages `skipped_1page` / `skipped_2pages` carry no Markdown
-groundtruth and are not scored.
+groundtruth and are not scored: docling keeps them out of its end-to-end
+tests as fixtures for failed-page handling (`test_failed_pages.py`), though
+it converts their text.
 
 | PDF | diff | dominant remaining blocker |
 |---|---:|---|
