@@ -73,14 +73,14 @@ const STYLE_PARENT_FIELD: u32 = 3;
 const MAX_STYLE_INHERITANCE: usize = 8;
 const STYLE_NAME_FIELD: u32 = 1;
 /// `TST.TableModelArchive` — table name + data store.
-const TST_TABLE_MODEL: u32 = 6001;
+pub(crate) const TST_TABLE_MODEL: u32 = 6001;
 /// `TST.TableInfoArchive` — a table drawable, references the model.
-const TST_TABULAR_INFO: u32 = 6000;
+pub(crate) const TST_TABULAR_INFO: u32 = 6000;
 const TABULAR_INFO_MODEL_FIELD: u32 = 2;
 /// `TSD.ImageArchive`.
-const TSD_IMAGE: u32 = 3005;
+pub(crate) const TSD_IMAGE: u32 = 3005;
 /// `TSD.GroupArchive` — drawables grouped together.
-const TSD_GROUP: u32 = 3008;
+pub(crate) const TSD_GROUP: u32 = 3008;
 const GROUP_CHILDREN_FIELD: u32 = 2;
 /// The fields of an image that may name its data, in the order upstream tries
 /// them.
@@ -135,6 +135,10 @@ const TABLE_COLS_FIELD: u32 = 7;
 const TABLE_HEADER_ROWS_FIELD: u32 = 9;
 const TABLE_DATA_STORE_FIELD: u32 = 4;
 const STORE_TILES_FIELD: u32 = 3;
+/// The tile list of a data store, and each entry's first row and tile.
+const TILE_LIST_FIELD: u32 = 1;
+const TILE_ENTRY_ROW_FIELD: u32 = 1;
+const TILE_ENTRY_TILE_FIELD: u32 = 2;
 const STORE_STRINGS_FIELD: u32 = 4;
 const STORE_RICH_TEXT_FIELD: u32 = 17;
 const LIST_ENTRIES_FIELD: u32 = 3;
@@ -152,32 +156,6 @@ const ROW_OFFSETS_FIELD: u32 = 4;
 const ROW_WIDE_STORAGE_FIELD: u32 = 6;
 const ROW_WIDE_OFFSETS_FIELD: u32 = 7;
 const ROW_WIDE_OFFSETS_FLAG: u32 = 8;
-/// Storage versions of a packed cell, in byte 0.
-const CELL_VERSION_LEGACY: u8 = 4;
-const CELL_VERSION_CURRENT: u8 = 5;
-/// Value types of a packed cell, in byte 1, that carry text.
-const CELL_TYPE_TEXT: u8 = 3;
-const CELL_TYPE_RICH_TEXT: u8 = 9;
-/// Where a version 4 cell keeps the key of its string.
-const CELL_KEY_OFFSET: usize = 16;
-/// Where a version 5 cell keeps its flags, and where its values begin. The
-/// flags say which values are present; each one that is takes a fixed width,
-/// so the position of any of them depends on all the ones before it.
-const CELL_FLAGS_OFFSET: usize = 8;
-const CELL_VALUES_OFFSET: usize = 12;
-const CELL_FLAG_STRING: u32 = 0x8;
-const CELL_FLAG_RICH_TEXT: u32 = 0x10;
-/// The values a version 5 cell may hold, in the order they are laid out: a
-/// decimal, a double and a duration first, then the keys of the string and
-/// the rich text a cell may reference. Nothing after the rich text key is
-/// needed, so the walk stops there.
-const CELL_VALUE_WIDTHS: [(u32, usize); 5] = [
-    (0x1, 16),
-    (0x2, 8),
-    (0x4, 8),
-    (CELL_FLAG_STRING, 4),
-    (CELL_FLAG_RICH_TEXT, 4),
-];
 /// Storage field holding the paragraph-style run table.
 const STORAGE_PARAGRAPH_STYLE_FIELD: u32 = 5;
 /// `TSWP.HyperlinkFieldArchive`.
@@ -499,12 +477,7 @@ fn storage_runs(payload: &[u8], objects: &Objects) -> StorageRuns {
 
 // --- tables -----------------------------------------------------------------
 
-/// The plain strings and the rich text of a table, each keyed by cell
-/// reference.
-struct CellValues {
-    strings: HashMap<u32, String>,
-    rich_text: HashMap<u32, String>,
-}
+use super::iwork_cells::CellValues;
 
 /// `iwa_table`: a table keeps its geometry on the model, its cell contents in
 /// a shared value list, and the placement of those values in tiles. Cells
@@ -519,13 +492,15 @@ fn table(model: &Archive, objects: &Objects) -> Option<Table> {
         return None;
     }
     let header_rows = first_varint(&model.payload, TABLE_HEADER_ROWS_FIELD).unwrap_or(0) as usize;
-    let values = CellValues {
-        strings: value_list(store, STORE_STRINGS_FIELD, objects, entry_string),
-        rich_text: value_list(store, STORE_RICH_TEXT_FIELD, objects, entry_rich_text),
-    };
+    let values = cell_values(store, objects);
     let mut cells: Vec<TableCell> = Vec::new();
-    for tile in tiles(store, objects) {
-        tile_cells(tile, &values, num_cols, header_rows, &mut cells);
+    for placed in placements(store, objects) {
+        if placed.row >= num_rows || placed.col >= num_cols {
+            continue;
+        }
+        if let Some(text) = super::iwork_cells::cell_text(placed.storage, placed.start, &values) {
+            cells.push(text_cell(text, placed.row, placed.col, header_rows));
+        }
     }
     if cells.is_empty() {
         return None;
@@ -533,14 +508,23 @@ fn table(model: &Archive, objects: &Objects) -> Option<Table> {
     Some(grid_table(num_rows, num_cols, cells))
 }
 
+/// `iwa_cell_values`: a table's shared value lists, keyed as its cells
+/// reference them.
+pub(crate) fn cell_values(store: &[u8], objects: &Objects) -> CellValues {
+    CellValues {
+        strings: value_list(store, STORE_STRINGS_FIELD, objects, entry_string),
+        rich_text: value_list(store, STORE_RICH_TEXT_FIELD, objects, entry_rich_text),
+    }
+}
+
 /// `iwa_value_list`: one `TST.TableDataList`, following any segments it spills
 /// into.
-fn value_list(
+pub(crate) fn value_list<T>(
     store: &[u8],
     field: u32,
     objects: &Objects,
-    decode: impl Fn(&[u8], &Objects) -> Option<String>,
-) -> HashMap<u32, String> {
+    decode: impl Fn(&[u8], &Objects) -> Option<T>,
+) -> HashMap<u32, T> {
     let mut values = HashMap::new();
     let Some(list) = first_bytes(store, field)
         .and_then(reference)
@@ -590,30 +574,44 @@ fn entry_rich_text(entry: &[u8], objects: &Objects) -> Option<String> {
     (!text.is_empty()).then_some(text)
 }
 
-/// `iwa_tiles`: the tiles a table's data store points at.
-fn tiles<'a>(store: &[u8], objects: &Objects<'a>) -> Vec<&'a Archive> {
-    let Some(container) = first_bytes(store, STORE_TILES_FIELD) else {
-        return Vec::new();
-    };
-    Fields::new(container)
-        .filter_map(|(f, v)| match (f, v) {
-            (1, Value::Bytes(entry)) => first_bytes(entry, 2)
-                .and_then(reference)
-                .and_then(|id| objects.get(&id).copied())
-                .filter(|a| a.ty == TST_TILE),
-            _ => None,
-        })
-        .collect()
+/// Where one stored cell sits in a table, and where to find its bytes —
+/// docling's `Placement`.
+pub(crate) struct Placement<'a> {
+    pub row: usize,
+    pub col: usize,
+    pub storage: &'a [u8],
+    pub start: usize,
 }
 
-/// `iwa_tile_cells`: one tile's cells, placed by each row's per-column offsets.
-fn tile_cells(
-    tile: &Archive,
-    values: &CellValues,
-    num_cols: usize,
-    header_rows: usize,
-    out: &mut Vec<TableCell>,
-) {
+/// `iwa_placements`: walk a table's tiles, yielding where each stored cell
+/// sits. A table taller than one tile is split across several, and each tile
+/// numbers its rows from its own start, so the entry's first row is added
+/// back.
+pub(crate) fn placements<'a>(store: &[u8], objects: &Objects<'a>) -> Vec<Placement<'a>> {
+    let mut out = Vec::new();
+    let Some(container) = first_bytes(store, STORE_TILES_FIELD) else {
+        return out;
+    };
+    for (f, v) in Fields::new(container) {
+        let (TILE_LIST_FIELD, Value::Bytes(entry)) = (f, v) else {
+            continue;
+        };
+        let first_row = first_varint(entry, TILE_ENTRY_ROW_FIELD).unwrap_or(0) as usize;
+        let Some(tile) = first_bytes(entry, TILE_ENTRY_TILE_FIELD)
+            .and_then(reference)
+            .and_then(|id| objects.get(&id).copied())
+            .filter(|a| a.ty == TST_TILE)
+        else {
+            continue;
+        };
+        tile_placements(tile, first_row, &mut out);
+    }
+    out
+}
+
+/// `iwa_tile_placements`: one tile's rows, each cell placed by its
+/// per-column offset.
+fn tile_placements<'a>(tile: &'a Archive, first_row: usize, out: &mut Vec<Placement<'a>>) {
     for (f, v) in Fields::new(&tile.payload) {
         let (TILE_ROWS_FIELD, Value::Bytes(row)) = (f, v) else {
             continue;
@@ -642,64 +640,19 @@ fn tile_cells(
                 _ => continue,
             },
         };
-        let row_index = row_index as usize;
-        for column in 0..num_cols.min(offsets.len() / 2) {
+        for column in 0..offsets.len() / 2 {
             let start = i16::from_le_bytes([offsets[2 * column], offsets[2 * column + 1]]);
-            let Some(text) = cell_text(storage, i64::from(start) * scale, values) else {
+            if start < 0 {
                 continue;
-            };
-            out.push(text_cell(text, row_index, column, header_rows));
+            }
+            out.push(Placement {
+                row: first_row + row_index as usize,
+                col: column,
+                storage,
+                start: start as usize * scale,
+            });
         }
     }
-}
-
-/// `iwa_cell_text`: one packed cell, or `None` when there is nothing readable
-/// there. Only the layouts that carry text are decoded; a number, a date, a
-/// formula result is skipped rather than guessed at.
-fn cell_text(storage: &[u8], start: i64, values: &CellValues) -> Option<String> {
-    if start < 0 {
-        return None;
-    }
-    let start = start as usize;
-    if start.checked_add(CELL_VALUES_OFFSET)? > storage.len() {
-        return None;
-    }
-    let version = storage[start];
-    if version == CELL_VERSION_LEGACY {
-        if storage[start + 1] != CELL_TYPE_TEXT {
-            return None;
-        }
-        let key = read_u32(storage, start + CELL_KEY_OFFSET)?;
-        return values.strings.get(&key).cloned();
-    }
-    if version != CELL_VERSION_CURRENT {
-        return None;
-    }
-    if !matches!(storage[start + 1], CELL_TYPE_TEXT | CELL_TYPE_RICH_TEXT) {
-        return None;
-    }
-    let flags = read_u32(storage, start + CELL_FLAGS_OFFSET)?;
-    let mut offset = start + CELL_VALUES_OFFSET;
-    for (flag, width) in CELL_VALUE_WIDTHS {
-        if flags & flag == 0 {
-            continue;
-        }
-        if offset + width > storage.len() {
-            return None;
-        }
-        if flag == CELL_FLAG_STRING {
-            return values.strings.get(&read_u32(storage, offset)?).cloned();
-        }
-        if flag == CELL_FLAG_RICH_TEXT {
-            return values.rich_text.get(&read_u32(storage, offset)?).cloned();
-        }
-        offset += width;
-    }
-    None
-}
-
-fn read_u32(buffer: &[u8], at: usize) -> Option<u32> {
-    Some(u32::from_le_bytes(buffer.get(at..at + 4)?.try_into().ok()?))
 }
 
 // --- the object-graph walk --------------------------------------------------
@@ -1047,6 +1000,54 @@ impl<'a, 'p> Reader<'a, 'p> {
         Picture {
             data: None,
             name: named,
+        }
+    }
+
+    /// `IWAReader.pictures`: the pictures one drawable places, looking
+    /// inside a group; anything else it holds is left out.
+    pub(crate) fn pictures(&mut self, identifier: u64) -> Vec<Picture> {
+        self.drawable_blocks(identifier)
+            .into_iter()
+            .filter_map(|b| match b {
+                Block::Picture(p) => Some(p),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// `IWAReader.data_picture`: the picture one data file holds, for an
+    /// archive that names the data itself (a table cell filled with an
+    /// image). Apple writes member names in UTF-8 without the flag that says
+    /// so, and a ZIP reader then reads a non-ASCII name as code page 437, so
+    /// a name is also looked up under that reading.
+    pub(crate) fn data_picture(&mut self, identifier: u64) -> Picture {
+        let Some(member) = self.data_files.get(&identifier).cloned() else {
+            return Picture {
+                data: None,
+                name: String::new(),
+            };
+        };
+        let cp437: String = member
+            .bytes()
+            .map(|b| {
+                if b < 0x80 {
+                    char::from(b)
+                } else {
+                    super::dos_codepage::CP437[usize::from(b - 0x80)]
+                }
+            })
+            .collect();
+        for name in [member.clone(), cp437] {
+            if let Some(data) = self.pkg.read_bytes(&format!("{}{name}", self.data_prefix)) {
+                return Picture {
+                    data: Some(data),
+                    name: member,
+                };
+            }
+        }
+        Picture {
+            data: None,
+            name: member,
         }
     }
 

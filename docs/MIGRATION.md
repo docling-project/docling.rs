@@ -261,6 +261,7 @@ from 2.142.1 is mostly the inline whitespace contract (#997, § JSON):
 | iCalendar (`.ics`) | 4 | **4** | **4** | — (#1032, docling#4880; against upstream's committed groundtruth, `crates/docling/tests/suite/calendar.rs`) |
 | iWork Pages | 3 | **3** | **3** | — (the password-protected and nested-dir fixtures fail in upstream) |
 | iWork Keynote | 5 | **5** | **5** | — (against upstream's committed groundtruth; a live run of 2.142.1 here writes the float32 boxes widened, `708.9999694824219` for `709.0`) (docling#4330 + docling#4376, 2.130+; #466 — both container generations and the nested 2018 index; charts as classified pictures with their data table and title caption, the fixture built the way upstream's test builds it: the Numbers chart placed on the deck's table slide) |
+| iWork Numbers | 4 | **4** | **4** | — (#1031, docling#4113 + docling#5087 + docling#5101; against upstream's committed groundtruth, `crates/docling/tests/suite/numbers.rs` — picture bytes aside, which we keep as stored; the three fixtures without groundtruth match a live run too) |
 | EBCDIC | 3 | **3** | **3** | — |
 | AFP (MO:DCA) | 1 | **1** | **1** | — (#1034, docling#4177; against upstream's committed groundtruth, `crates/docling/tests/suite/afp.rs`) |
 | Box Note | 1 | **1** | **1** | — (#1033, against upstream's committed groundtruth) |
@@ -288,7 +289,7 @@ converted once more as that format with a warning.
 | Presentations | PPTX `.pptx` `.pptm` `.potx` `.potm` `.ppsx` `.ppsm` · PowerPoint 97–2003 `.ppt` `.pot` `.pps` · OpenDocument `.odp` `.otp` `.fodp` · OpenOffice 1.x `.sxi` `.sti` · StarImpress/StarDraw `.sdd` `.sda` | PPTX JSON is docling's item tree — slides, lists, tables, pictures, charts, notes, comments |
 | Diagrams | Visio `.vsdx` `.vsdm` · SVG `.svg` · CGM `.cgm` | Visio: pages as sections, shape text in reading order, connectors as a relations table; SVG rasterized into the image pipeline, or its `<text>` as paragraphs without ML; CGM (ISO 8632, binary and clear text) its text elements as paragraphs |
 | Spreadsheets | XLSX `.xlsx` `.xlsm` `.xltx` `.xltm` · XLSB `.xlsb` · Excel 97–2004 `.xls` `.xlt` · OpenDocument `.ods` `.ots` `.fods` · OpenOffice 1.x `.sxc` `.stc` · CSV `.csv` `.tsv` · dBase `.dbf` · DIF `.dif` · SYLK `.slk` `.sylk` · Lotus 1-2-3 / Symphony `.wk1` `.wk2` `.wk3` `.wk4` `.wks` `.wrk` `.123` · Quattro Pro `.wq1` `.wq2` `.wb1` `.wb2` `.wb3` `.qpw` · MS Works `.xlr` · Kingsoft `.et` `.ett` `.eth` | cells print what Excel displays — `$12.50`, `10%`, `Feb-25`; merged cells keep their spans; chart sheets expose their chart |
-| Apple iWork | Pages `.pages` · Numbers `.numbers` · Keynote `.key` | both container generations (`Index/*.iwa` and iWork '09 XML); Pages and Keynote mirror docling's readers, Keynote charts as classified pictures with their data table; Numbers as sheet/table text |
+| Apple iWork | Pages `.pages` · Numbers `.numbers` · Keynote `.key` | both container generations (`Index/*.iwa` and iWork '09 XML); all three mirror docling's readers, charts as classified pictures with their data table; Numbers sheets as pages of typed table grids |
 | XML dialects | JATS / USPTO / XBRL / RIS (`.xml` `.nxml`, content-sniffed) · DocLang `.dclg` | XBRL converts without arelle: `dei` title, text blocks, numeric facts as docling's key-value graph, the taxonomy read offline from `xbrl_taxonomy`; RIS (#902, a docling.rs extension) is Austria's federal legal XML (`risdok`) — sections, headings, paragraphs with their formatting, lists, tables, running headers/footers as furniture |
 | PDF & images | `.pdf` · `.png` `.jpg` `.jpeg` `.tif` `.tiff` `.bmp` `.webp` `.gif` · HEIC/HEIF `.heic` `.heif` (`--features heif`) · METS/GBS scan packages `.tar.gz` · DjVu `.djvu` `.djv` | pure-Rust text layer, page renderer and scan raster, ONNX layout + TableFormer + OCR (`docling-pdf`; no native PDF library in the default build, `pdfium` is an opt-in feature — [`docs/PDF_CONFORMANCE.md`](./PDF_CONFORMANCE.md)); JPEG 2000 and JBIG2 decode in Rust (#598, #811 — `/JBIG2Globals` included; an image no decoder can read draws a mid-gray placeholder, a stencil too); DjVu reads its hidden text layer without models and falls back to OCR with them |
 | docling native | docling JSON `.json` · DocTags `.doctags` `.dt` · DCLX `.dclx` | DocTags — the token markup docling's VLMs emit — read through docling-core's tolerant parser, the one the VLM pipeline uses |
@@ -1499,10 +1500,20 @@ converted once more as that format with a warning.
   - the slide-number placeholder and everything a master slide draws left out
   - an iWork '09 table keeps every datasource cell's grid position (a number cell is an empty cell, not a shift along the column)
 - Charts (`TSCH.ChartDrawableArchive`, docling#4376) are not read yet
-- **Numbers remains a docling.rs extension** (upstream has no reader):
-  - sheets/tables as headings with shared-string cell text as a list
-  - nested-dir and zipped-package layouts unwrap (upstream rejects them)
-  - numeric cells and full grid reconstruction are follow-ups
+- **Numbers: 4/4 exact Markdown and identical JSON** on upstream's committed `tests/data/numbers/` groundtruth (docling#4113 with docling#5087 and docling#5101; #1031), the three fixtures upstream ships without one matching a live run of upstream's `bcb3678` too, through `numbers.rs` (the sheet model and its emission), `numbers_iwa.rs` (Numbers 3+ `Index/*.iwa`), `numbers_xml.rs` (iWork '09 `index.xml`, optionally gzipped) and `iwork_cells.rs` (the packed cell storage, shared with the Pages tables), mirroring upstream's `IWorkNumbersDocumentBackend`:
+  - each sheet a page (sized to what is drawn on it) and a `sheet` group; `page_range` selects sheets, keeping their page numbers
+  - tables as **real grids**: caption from the table's name, `TOPLEFT` box of the frame placing it, Numbers' own header rows and columns (`column_header` above them, `row_header` beside them), sorted down the sheet with the charts and pictures (drawables are stored in z-order)
+  - typed cells rendered as docling renders them: numbers without a trailing `.0` or binary noise, a **decimal128 exactly** (all 34 digits, no decimal context), dates `YYYY-MM-DD HH:MM:SS` from the 2001 epoch, durations as Python's `timedelta`, booleans `True`/`False`, the cached result of a formula; a date or duration no datetime can hold (a corrupt `1e308`, `NaN`) leaves its cell empty
+  - both cell layouts (version 4 before 2017, version 5 since) and the tile b-tree, rows offset by their tile; an iWork '09 datasource's sparse rows placed back by the grid's per-column occupancy counts, `sf:col-span` spans, pop-up menu cells through the choice they point at
+  - a cell **filled with an image** a rich cell (an `unspecified` group `rich_cell_group_{table}_{col}_{row}` holding the cell's text, if any, then the picture, both in the table's frame), the image found under its code page 437 reading when the member name is UTF-8 without the flag; colour and gradient fills make nothing
+  - **charts** as pictures classified by kind (`TSCH.ChartType`, or `sf:chart-type` in the order of Keynote '09's scripting dictionary), carrying the data they plot as a table (the cached `.chrtshr` property list for iWork '09, read in `sf:chart-direction`) and captioned with their title
+  - pictures (`TSD.ImageArchive`, a group's pictures in the group's frame; `sf:media` on the sheet's drawables layer)
+  - **sticky notes** as `comment_section` groups `comment-{sheet}-{n}` holding a notes-layer text, `[author: …, time: …]: text` for 2013+ (iWork '09 recorded neither)
+- deliberate divergences:
+  - pictures keep the bytes the document stores (upstream re-encodes every one to PNG through Pillow), as for Pages and Keynote — the JSON differs only in those `image.uri`/`mimetype` values
+  - the iWork backend options upstream adds with it are not ported: `sheet_names`, the `max_*` archive limits (our ZIP limits are `DOCLING_RS_ZIP_*`), and `render_chart_images` (LibreOffice redraws a chart from its data); a chart's picture carries no image
+  - nested-dir and zipped-package (`Index.zip`) layouts still unwrap (upstream rejects them)
+- the old text-level reader (sheet/table headings and a list of the shared strings) is gone
 
 #### HEIC/HEIF (.heic, .heif)
 

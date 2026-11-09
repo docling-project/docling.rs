@@ -300,7 +300,7 @@ fn zip_with(members: &[(&str, &[u8])]) -> Vec<u8> {
 /// A ZIP that is not a Keynote document of any generation — no `Index/`, no
 /// `Index.zip`, no `index.apxl` (a Pages-style `index.xml` is not one) —
 /// fails with docling's message naming the three layouts (#466), not a
-/// generic parse failure. Pre-2013 Numbers packages still say so.
+/// generic parse failure.
 #[test]
 fn non_keynote_package_reports_clearly() {
     // A minimal zip with only an index.xml member.
@@ -319,10 +319,9 @@ fn non_keynote_package_reports_clearly() {
         err.to_string().contains("index.apxl"),
         "unexpected error: {err}"
     );
+    // Numbers reads an iWork '09 `index.xml` (#1031): one without a sheet
+    // is an empty spreadsheet, as in docling.
     let source = SourceDocument::from_bytes("old", docling::InputFormat::Numbers, buf);
-    let err = DocumentConverter::new().convert(source).unwrap_err();
-    assert!(
-        err.to_string().contains("pre-2013"),
-        "unexpected error: {err}"
-    );
+    let doc = DocumentConverter::new().convert(source).unwrap().document;
+    assert!(doc.export_to_markdown().trim().is_empty());
 }

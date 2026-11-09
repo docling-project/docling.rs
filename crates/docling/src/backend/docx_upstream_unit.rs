@@ -572,7 +572,9 @@ fn pages_sub_list_belongs_to_the_item_above_it() {
         InputFormat::Pages,
         package(&[("index.xml", xml)]),
     );
-    let doc = super::IworkBackend.convert(&src).expect("converts");
+    let doc = super::IworkBackend::default()
+        .convert(&src)
+        .expect("converts");
     let json = doc.export_to_json_value();
     let texts = json["texts"].as_array().unwrap();
     let by_text = |t: &str| {

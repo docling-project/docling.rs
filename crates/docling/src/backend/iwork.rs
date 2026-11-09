@@ -27,40 +27,27 @@
 //! Keynote 2018+ zips a second time) and `keynote_xml.rs` (iWork '09
 //! `index.apxl`), reusing the Pages readers for everything on a slide.
 //!
-//! Numbers remains a docling.rs extension (upstream has no reader),
-//! text-level per the original phasing: sheets as headings, each table's
-//! name plus its shared string-table entries (the cells' text) as a list.
-//! Full grid reconstruction needs the tile b-tree and is a follow-up.
+//! **Numbers is a conformance format as well** (#1031): upstream gained a
+//! Numbers reader in docling#4113 (with docling#5087 and docling#5101), so
+//! `.numbers` mirrors `IWorkNumbersDocumentBackend` — `numbers.rs` (the
+//! sheet model and its emission: a page and a `sheet` group per sheet,
+//! tables as real grids, charts, pictures, sticky notes), `numbers_iwa.rs`
+//! (Numbers 3+ `Index/*.iwa`) and `numbers_xml.rs` (iWork '09 `index.xml`),
+//! with the packed cell decoding the Pages tables share in `iwork_cells.rs`.
 //!
 //! The wire walk is defensive throughout: unknown fields are skipped, short
 //! buffers end the walk, and a package with no extractable text converts to
 //! an empty document rather than erroring (a blank presentation is not a
 //! failure).
 
-use std::collections::HashMap;
-
 use crate::backend::ooxml::Package;
 use crate::backend::{
-    keynote, keynote_iwa, keynote_xml, pages, pages_iwa, pages_xml, DeclarativeBackend,
+    keynote, keynote_iwa, keynote_xml, numbers, numbers_iwa, numbers_xml, pages, pages_iwa,
+    pages_xml, DeclarativeBackend,
 };
 use crate::error::ConversionError;
 use crate::source::SourceDocument;
-use docling_core::{DoclingDocument, Node, Table, TableCell};
-
-/// TSWP.StorageArchive — every piece of rich text in any iWork app.
-const TYPE_TEXT_STORAGE: u32 = 2001;
-/// TN.SheetArchive — a Numbers sheet (type 2 in the Numbers namespace; the
-/// per-app namespaces reuse small ids, so these are only consulted for the
-/// matching flavor).
-const TYPE_TN_SHEET: u32 = 2;
-/// TN.DocumentArchive (Numbers root).
-const TYPE_TN_DOCUMENT: u32 = 1;
-/// TST.TableInfoArchive — a table drawable, references the model.
-const TYPE_TST_TABLE_INFO: u32 = 6000;
-/// TST.TableModelArchive — table name + data store.
-const TYPE_TST_TABLE_MODEL: u32 = 6001;
-/// TST.TableDataList — shared per-table value lists (strings, formats, …).
-const TYPE_TST_DATA_LIST: u32 = 6005;
+use docling_core::{DoclingDocument, Table, TableCell};
 
 /// One decoded IWA archive: object identifier, message type of its first
 /// message, and that message's payload.
@@ -70,13 +57,19 @@ pub(crate) struct Archive {
     pub(crate) payload: Vec<u8>,
 }
 
-pub struct IworkBackend;
+#[derive(Default)]
+pub struct IworkBackend {
+    /// 1-based inclusive window of Numbers sheets to keep (docling's
+    /// `page_range`: each sheet is a page); Pages and Keynote ignore it.
+    pub page_range: Option<(usize, usize)>,
+}
 
 impl DeclarativeBackend for IworkBackend {
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
         let mut pkg = Package::open(&source.bytes)
             .ok_or_else(|| ConversionError::Parse("iwork: not a zip package".into()))?;
         let flavor = Flavor::of(source.format);
+        let page_range = self.page_range;
 
         // docling's `is_encrypted`: Pages does not set the standard ZIP
         // encryption flag on a password-protected document — it writes a
@@ -88,8 +81,11 @@ impl DeclarativeBackend for IworkBackend {
             return Err(ConversionError::encrypted_with_message(
                 "iwork",
                 crate::EncryptionError::NotDecryptable("iWork package encryption".into()),
-                "the document is password-protected; docling.rs cannot read encrypted iWork \
-                 documents. Remove the password in Pages and save again",
+                format!(
+                    "the document is password-protected; docling.rs cannot read encrypted \
+                     iWork documents. Remove the password in {} and save again",
+                    flavor.app()
+                ),
             ));
         }
 
@@ -124,71 +120,31 @@ impl DeclarativeBackend for IworkBackend {
             .names()
             .any(|n| n.ends_with(".iwa") && n.contains("Index/"));
         let mut doc = DoclingDocument::new(&source.name);
-        if !has_iwa {
-            if flavor == Flavor::Pages {
-                // iWork '09 and earlier: a plain (optionally gzipped) index.xml.
-                let legacy = ["index.xml", "index.xml.gz"]
-                    .into_iter()
-                    .find(|m| pkg.names().any(|n| n == *m));
-                if let Some(member) = legacy {
-                    let content = pages_xml::read_content(&mut pkg, member)?;
-                    pages::emit(content, &mut doc);
-                    return Ok(doc);
-                }
-                return Err(ConversionError::Parse(
-                    "iwork: a ZIP archive, but not a Pages document — it has neither an \
-                     Index/ directory nor an index.xml"
-                        .into(),
-                ));
+        // iWork '09 and earlier: a plain (optionally gzipped) index.xml.
+        let legacy = ["index.xml", "index.xml.gz"]
+            .into_iter()
+            .find(|m| pkg.names().any(|n| n == *m));
+        let kind = flavor.app();
+        if !has_iwa && legacy.is_none() {
+            return Err(ConversionError::Parse(format!(
+                "iwork: a ZIP archive, but not a {kind} document — it has neither an \
+                 Index/ directory nor an index.xml"
+            )));
+        }
+        match (flavor, legacy) {
+            (Flavor::Pages, Some(member)) if !has_iwa => {
+                pages::emit(pages_xml::read_content(&mut pkg, member)?, &mut doc)
             }
-            return Err(ConversionError::Parse(
-                "iwork: no Index/*.iwa members — pre-2013 Numbers/Keynote documents \
-                 (index.xml) are not supported"
-                    .into(),
-            ));
-        }
-        if flavor == Flavor::Pages {
-            let content = pages_iwa::read_content(&mut pkg)?;
-            pages::emit(content, &mut doc);
-            return Ok(doc);
-        }
-
-        // Deterministic package order: the app's root archive first, then the
-        // remaining .iwa members sorted; slide files sort numerically so
-        // `Slide2` precedes `Slide10`.
-        // Master slides only carry layout placeholder text ("Title Text",
-        // "Body Level One", …) — skipping their members keeps Keynote output
-        // to what the deck actually says.
-        let mut names: Vec<String> = pkg
-            .names()
-            .filter(|n| n.ends_with(".iwa") && n.contains("Index/"))
-            .filter(|n| !n.contains("Index/MasterSlide"))
-            .map(str::to_string)
-            .collect();
-        names.sort_by_key(|n| (!n.ends_with("Index/Document.iwa"), natural_key(n)));
-
-        let mut archives: Vec<Archive> = Vec::new();
-        for name in &names {
-            let Some(bytes) = pkg.read_bytes(name) else {
-                continue;
-            };
-            // A malformed member is skipped, not fatal: the other members
-            // still carry content.
-            if let Ok(stream) = decode_iwa(&bytes) {
-                parse_archives(&stream, &mut archives, false);
+            (Flavor::Pages, _) => pages::emit(pages_iwa::read_content(&mut pkg)?, &mut doc),
+            (_, Some(member)) if !has_iwa => {
+                let sheets = numbers_xml::read_content(&mut pkg, member)?;
+                numbers::emit(sheets, page_range, &mut doc);
+            }
+            _ => {
+                let sheets = numbers_iwa::read_content(&mut pkg)?;
+                numbers::emit(sheets, page_range, &mut doc);
             }
         }
-
-        if docling_core::env::debug_enabled() {
-            let mut hist: HashMap<u32, usize> = HashMap::new();
-            for a in &archives {
-                *hist.entry(a.ty).or_default() += 1;
-            }
-            let mut counts: Vec<_> = hist.into_iter().collect();
-            counts.sort();
-            docling_core::debug_log!("iwork: archive types {counts:?}");
-        }
-        convert_numbers(&archives, &mut doc);
         Ok(doc)
     }
 }
@@ -252,6 +208,15 @@ enum Flavor {
 }
 
 impl Flavor {
+    /// The application a reader is pointed back at (docling's `kind`).
+    fn app(self) -> &'static str {
+        match self {
+            Flavor::Pages => "Pages",
+            Flavor::Numbers => "Numbers",
+            Flavor::Keynote => "Keynote",
+        }
+    }
+
     fn of(format: crate::InputFormat) -> Self {
         match format {
             crate::InputFormat::Numbers => Flavor::Numbers,
@@ -259,30 +224,6 @@ impl Flavor {
             _ => Flavor::Pages,
         }
     }
-}
-
-/// `Slide10` after `Slide2`: compare path components with embedded numbers
-/// expanded to their numeric value.
-fn natural_key(name: &str) -> Vec<(u64, String)> {
-    let mut key = Vec::new();
-    let mut digits = String::new();
-    let mut text = String::new();
-    for c in name.chars() {
-        if c.is_ascii_digit() {
-            digits.push(c);
-        } else {
-            if !digits.is_empty() {
-                key.push((
-                    digits.parse().unwrap_or(u64::MAX),
-                    std::mem::take(&mut text),
-                ));
-                digits.clear();
-            }
-            text.push(c);
-        }
-    }
-    key.push((digits.parse().unwrap_or(u64::MAX), text));
-    key
 }
 
 // --- IWA container ----------------------------------------------------------
@@ -456,205 +397,6 @@ pub(crate) fn reference(bytes: &[u8]) -> Option<u64> {
     })
 }
 
-// --- content extraction -----------------------------------------------------
-
-/// A `TSWP.StorageArchive` payload → (kind, its text blocks).
-/// Fields: 1 = kind (default TEXTBOX), 3 = repeated string text.
-fn storage_text(payload: &[u8]) -> (u64, Vec<String>) {
-    let mut kind = 3; // KindType TEXTBOX is the proto default
-    let mut texts = Vec::new();
-    for (f, v) in Fields::new(payload) {
-        match (f, v) {
-            (1, Value::Varint(k)) => kind = k,
-            (3, Value::Bytes(b)) => {
-                if let Ok(s) = std::str::from_utf8(b) {
-                    texts.push(s.to_string());
-                }
-            }
-            _ => {}
-        }
-    }
-    (kind, texts)
-}
-
-/// Split a storage's text blocks into clean paragraphs: newline-separated,
-/// attachment/placeholder control characters removed, blanks dropped.
-fn paragraphs(texts: &[String]) -> Vec<String> {
-    let mut out = Vec::new();
-    for block in texts {
-        for line in block.split(['\n', '\u{2029}']) {
-            let cleaned: String = line
-                .chars()
-                // U+FFFC/U+FFFB mark inline attachments; iWork also uses a
-                // few private-use sentinels (page number fields etc.).
-                .filter(|c| !matches!(c, '\u{FFFC}' | '\u{FFFB}' | '\u{E000}'..='\u{F8FF}'))
-                .collect();
-            let trimmed = cleaned.trim();
-            if !trimmed.is_empty() {
-                out.push(trimmed.to_string());
-            }
-        }
-    }
-    out
-}
-
-/// Numbers: document → sheets → table drawables → models → shared string
-/// tables. Sheet and table names become headings; the string table holds the
-/// cells' text (insertion-keyed — sorted by key for a stable, roughly
-/// row-major order).
-fn convert_numbers(archives: &[Archive], doc: &mut DoclingDocument) {
-    let by_id: HashMap<u64, &Archive> = archives.iter().map(|a| (a.id, a)).collect();
-
-    // TN.DocumentArchive field 1 = repeated sheet references.
-    let sheets: Vec<u64> = archives
-        .iter()
-        .filter(|a| a.ty == TYPE_TN_DOCUMENT)
-        .flat_map(|a| {
-            Fields::new(&a.payload)
-                .filter_map(|(f, v)| match (f, v) {
-                    (1, Value::Bytes(b)) => reference(b),
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect();
-
-    for sheet_id in sheets {
-        let Some(sheet) = by_id.get(&sheet_id).filter(|a| a.ty == TYPE_TN_SHEET) else {
-            continue;
-        };
-        // TN.SheetArchive: field 1 = name, field 2 = repeated drawable refs.
-        let mut name = String::new();
-        let mut drawables = Vec::new();
-        for (f, v) in Fields::new(&sheet.payload) {
-            match (f, v) {
-                (1, Value::Bytes(b)) => name = String::from_utf8_lossy(b).into_owned(),
-                (2, Value::Bytes(b)) => drawables.extend(reference(b)),
-                _ => {}
-            }
-        }
-        if !name.trim().is_empty() {
-            doc.push(Node::Heading {
-                level: 1,
-                text: name.trim().to_string(),
-            });
-        }
-        for id in drawables {
-            let Some(info) = by_id.get(&id).filter(|a| a.ty == TYPE_TST_TABLE_INFO) else {
-                continue;
-            };
-            // TST.TableInfoArchive field 2 = table model reference.
-            let model = Fields::new(&info.payload).find_map(|(f, v)| match (f, v) {
-                (2, Value::Bytes(b)) => reference(b),
-                _ => None,
-            });
-            let Some(model) = model.and_then(|id| by_id.get(&id)) else {
-                continue;
-            };
-            if model.ty != TYPE_TST_TABLE_MODEL {
-                continue;
-            }
-            emit_table(model, &by_id, doc);
-        }
-    }
-}
-
-/// One `TST.TableModelArchive`: heading from `table_name` (field 8), cells
-/// from the data lists behind `base_data_store` (field 4) — plain strings in
-/// `stringTable` (field 4), rich-text cells (Keynote/Pages tables) in
-/// `rich_text_table` (field 17), whose entries reference CELL text storages.
-fn emit_table(model: &Archive, by_id: &HashMap<u64, &Archive>, doc: &mut DoclingDocument) {
-    let mut table_name = String::new();
-    let mut string_table = None;
-    let mut rich_table = None;
-    for (f, v) in Fields::new(&model.payload) {
-        match (f, v) {
-            (8, Value::Bytes(b)) => table_name = String::from_utf8_lossy(b).into_owned(),
-            (4, Value::Bytes(store)) => {
-                for (sf, sv) in Fields::new(store) {
-                    match (sf, sv) {
-                        (4, Value::Bytes(b)) => string_table = reference(b),
-                        (17, Value::Bytes(b)) => rich_table = reference(b),
-                        _ => {}
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    if !table_name.trim().is_empty() {
-        doc.push(Node::Heading {
-            level: 2,
-            text: table_name.trim().to_string(),
-        });
-    }
-    let mut entries: Vec<(u64, String)> = Vec::new();
-    if let Some(list) = string_table.and_then(|id| by_id.get(&id)) {
-        collect_list_entries(list, by_id, &mut entries);
-    }
-    if let Some(list) = rich_table.and_then(|id| by_id.get(&id)) {
-        collect_list_entries(list, by_id, &mut entries);
-    }
-    entries.sort_by_key(|(k, _)| *k);
-    for (i, (_, text)) in entries.into_iter().enumerate() {
-        doc.push(Node::ListItem {
-            ordered: false,
-            number: 0,
-            first_in_list: i == 0,
-            text,
-            level: 0,
-            marker: None,
-            location: None,
-            dclx: None,
-            href: None,
-            layer: None,
-        });
-    }
-}
-
-/// Read a `TST.TableDataList`'s text entries: field 1 = listType, field 3 =
-/// entries; ListEntry: field 1 = key, field 3 = string (STRING lists),
-/// field 9 = reference to a CELL text storage (RICH_TEXT_PAYLOAD lists).
-fn collect_list_entries(
-    list: &Archive,
-    by_id: &HashMap<u64, &Archive>,
-    out: &mut Vec<(u64, String)>,
-) {
-    if list.ty != TYPE_TST_DATA_LIST {
-        return;
-    }
-    for (f, v) in Fields::new(&list.payload) {
-        if let (3, Value::Bytes(entry)) = (f, v) {
-            let (mut key, mut s, mut rich) = (0u64, None, None);
-            for (ef, ev) in Fields::new(entry) {
-                match (ef, ev) {
-                    (1, Value::Varint(k)) => key = k,
-                    (3, Value::Bytes(b)) => s = std::str::from_utf8(b).ok().map(str::to_string),
-                    (9, Value::Bytes(b)) => rich = reference(b),
-                    _ => {}
-                }
-            }
-            if s.is_none() {
-                if let Some(storage) = rich.and_then(|id| by_id.get(&id)) {
-                    if storage.ty == TYPE_TEXT_STORAGE {
-                        let (_, texts) = storage_text(&storage.payload);
-                        let joined = paragraphs(&texts).join(" ");
-                        if !joined.is_empty() {
-                            s = Some(joined);
-                        }
-                    }
-                }
-            }
-            if let Some(s) = s {
-                let t = s.trim();
-                if !t.is_empty() {
-                    out.push((key, t.to_string()));
-                }
-            }
-        }
-    }
-}
-
 // --- Shared wire/table helpers (also used by the Pages reader modules) ------
 
 /// First length-delimited value of `field` (docling's `fields.get(f, [None])[0]`
@@ -739,15 +481,5 @@ mod tests {
         // Truncated length-delimited field ends the walk cleanly.
         let bad = [0x12, 0x0A, b'x'];
         assert_eq!(Fields::new(&bad).count(), 0);
-    }
-
-    #[test]
-    fn natural_order_sorts_slides_numerically() {
-        let mut names = vec!["Index/Slide10.iwa", "Index/Slide2.iwa", "Index/Slide1.iwa"];
-        names.sort_by_key(|n| natural_key(n));
-        assert_eq!(
-            names,
-            vec!["Index/Slide1.iwa", "Index/Slide2.iwa", "Index/Slide10.iwa"]
-        );
     }
 }
