@@ -324,6 +324,7 @@ fn build_parts(doc: &DoclingDocument, note_keys: bool) -> Parts {
         None => b.walk_into(&doc.nodes, "#/body"),
     };
     b.link_comments();
+    b.link_script_runs();
 
     // docling-core's `validate_document` — a pydantic `model_validator` every
     // `DoclingDocument` passes through when a `ConversionResult` (or a
@@ -1530,6 +1531,11 @@ struct Builder {
     /// *after* the body they annotate (docx appends them), so the link is
     /// patched in once the whole document has been walked.
     pending_comments: Vec<(String, Vec<usize>)>,
+    /// The items the script-position stage marked (#1005), with their runs
+    /// and the label and link the runs take: docling adds the inline groups
+    /// once the document is assembled, so their groups and run items come
+    /// after every other item.
+    pending_scripts: Vec<(String, Vec<crate::ScriptRun>, String)>,
 }
 
 impl Builder {
@@ -1607,6 +1613,77 @@ impl Builder {
     fn adopt_loc(&mut self, loc: Option<[u16; 4]>) {
         if self.pending_loc.is_none() && self.cur_page > 0 {
             self.pending_loc = loc;
+        }
+    }
+
+    /// Give each item the script-position stage marked (#1005) its inline
+    /// group, after the walk as docling's post-assembly stage does: the group
+    /// is the item's first child (`insert_inline_group(…, after=False)` /
+    /// `add_inline_group`), and each run is a text item with the item's label,
+    /// its own `prov` (the box of its characters, per page) and
+    /// `formatting.script` when it is raised or lowered. A linked footnote's
+    /// link rides on its baseline runs only, so a marker stays out of it.
+    fn link_script_runs(&mut self) {
+        for (item, runs, label) in std::mem::take(&mut self.pending_scripts) {
+            let group = format!("#/groups/{}", self.groups.len());
+            let layer = self
+                .item_mut(&item)
+                .and_then(|v| v.get("content_layer").cloned())
+                .unwrap_or_else(|| json!("body"));
+            let mut children = Vec::with_capacity(runs.len());
+            for run in &runs {
+                let self_ref = format!("#/texts/{}", self.texts.len());
+                children.push(ref_value(&self_ref));
+                let prov: Vec<Value> = run
+                    .prov
+                    .iter()
+                    .map(|p| {
+                        let [l, t, r, b] = p.bbox.map(|v| round2(f64::from(v)));
+                        json!({
+                            "page_no": p.page_no,
+                            "bbox": {"l": l, "t": t, "r": r, "b": b, "coord_origin": "BOTTOMLEFT"},
+                            "charspan": p.charspan,
+                        })
+                    })
+                    .collect();
+                let mut m = serde_json::Map::new();
+                m.insert("self_ref".into(), json!(self_ref));
+                m.insert("parent".into(), ref_value(&group));
+                m.insert("children".into(), json!([]));
+                m.insert("content_layer".into(), layer.clone());
+                m.insert("label".into(), json!(label));
+                m.insert("prov".into(), Value::Array(prov));
+                m.insert("orig".into(), json!(run.text));
+                m.insert("text".into(), json!(run.text));
+                if run.script != crate::Script::Baseline {
+                    m.insert(
+                        "formatting".into(),
+                        formatting_json(&crate::tree::Formatting {
+                            script: run.script,
+                            ..Default::default()
+                        }),
+                    );
+                }
+                if let Some(url) = &run.hyperlink {
+                    m.insert("hyperlink".into(), json!(url));
+                }
+                self.texts.push(Item::json(Value::Object(m)));
+            }
+            self.groups.push(json!({
+                "self_ref": group,
+                "parent": ref_value(&item),
+                "children": children,
+                "content_layer": layer,
+                "name": "group",
+                "label": "inline",
+            }));
+            if let Some(obj) = self.item_mut(&item).and_then(Value::as_object_mut) {
+                let mut kids = vec![ref_value(&group)];
+                if let Some(Value::Array(old)) = obj.get("children") {
+                    kids.extend(old.iter().cloned());
+                }
+                obj.insert("children".into(), Value::Array(kids));
+            }
         }
     }
 
@@ -2056,6 +2133,27 @@ impl Builder {
                     None => json!({}),
                 };
                 Some(self.add_text("caption", text, parent, extra))
+            }
+            // A marked PDF item (#1005, docling's `ScriptPositionModel._apply`):
+            // the item keeps its place and its `prov`, its text moves into an
+            // inline group of the runs (see `link_script_runs`).
+            Node::ScriptText { inner, runs } => {
+                let label = match inner.as_ref() {
+                    Node::LabeledText { label, .. } => label.clone(),
+                    _ => "text".to_string(),
+                };
+                let r = self.add_node(inner, parent)?;
+                let link = runs.iter().find_map(|run| run.hyperlink.clone());
+                if let Some(obj) = self.item_mut(&r).and_then(Value::as_object_mut) {
+                    obj.insert("orig".into(), json!(""));
+                    obj.insert("text".into(), json!(""));
+                    // The item keeps its own link, as docling's does.
+                    if let Some(url) = link {
+                        obj.insert("hyperlink".into(), json!(url));
+                    }
+                }
+                self.pending_scripts.push((r.clone(), runs.clone(), label));
+                Some(r)
             }
             // A PDF footnote: docling's own label, and its link as the item's
             // `hyperlink` rather than Markdown baked into the text.
@@ -4849,6 +4947,113 @@ mod tests {
         assert_eq!(
             doc.export_to_text(),
             "1 https://example.com/a_b\n\n© 2022 the authors"
+        );
+    }
+
+    /// A marked PDF item (#1005, docling's `ScriptPositionModel._apply`):
+    /// the item keeps its place with an empty text and holds an inline group
+    /// of its runs, added after every other item; two such paragraphs stay
+    /// separate HTML blocks; a linked footnote's link rides on its baseline
+    /// runs only, so the marker stays out of it.
+    #[test]
+    fn script_runs_follow_docling() {
+        use crate::{Script, ScriptRun, ScriptRunProv};
+        let run = |text: &str, script, hyperlink: Option<&str>| ScriptRun {
+            text: text.into(),
+            script,
+            prov: vec![ScriptRunProv {
+                page_no: 1,
+                bbox: [10.0, 700.0, 20.0, 690.0],
+                charspan: [0, text.chars().count()],
+            }],
+            hyperlink: hyperlink.map(String::from),
+        };
+        let mut doc = DoclingDocument::new("t");
+        doc.push(Node::PageInfo {
+            page_no: 1,
+            width: 612.0,
+            height: 792.0,
+        });
+        let located = |inner: Node| Node::Located {
+            location: [40, 80, 200, 90],
+            inner: Box::new(inner),
+        };
+        doc.push(located(Node::ScriptText {
+            inner: Box::new(Node::Paragraph {
+                text: "E = mc2".into(),
+            }),
+            runs: vec![
+                run("E = mc", Script::Baseline, None),
+                run("2", Script::Super, None),
+            ],
+        }));
+        doc.push(located(Node::ScriptText {
+            inner: Box::new(Node::Paragraph { text: "H2O".into() }),
+            runs: vec![
+                run("H", Script::Baseline, None),
+                run("2", Script::Sub, None),
+                run("O", Script::Baseline, None),
+            ],
+        }));
+        let url = "https://example.com/x";
+        doc.push(located(Node::ScriptText {
+            inner: Box::new(Node::LabeledText {
+                label: "footnote".into(),
+                text: format!("1[Note text]({url})"),
+                href: None,
+            }),
+            runs: vec![
+                run("1", Script::Super, None),
+                run("Note text", Script::Baseline, Some(url)),
+            ],
+        }));
+        doc.push(located(Node::Paragraph {
+            text: "Plain line".into(),
+        }));
+
+        let v: Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+        let texts = v["texts"].as_array().unwrap();
+        // The items first, in place; the runs after them.
+        assert_eq!(texts[0]["text"], "");
+        assert_eq!(
+            texts[0]["children"],
+            serde_json::json!([{"$ref": "#/groups/0"}])
+        );
+        assert_eq!(texts[2]["label"], "footnote");
+        assert_eq!(texts[2]["hyperlink"], url);
+        assert_eq!(texts[3]["text"], "Plain line");
+        assert_eq!(texts[4]["text"], "E = mc");
+        assert_eq!(texts[5]["formatting"]["script"], "super");
+        assert_eq!(texts[5]["prov"][0]["bbox"]["coord_origin"], "BOTTOMLEFT");
+        assert_eq!(texts[7]["formatting"]["script"], "sub");
+        assert_eq!(texts[9]["label"], "footnote");
+        assert!(texts[9].get("hyperlink").is_none());
+        assert_eq!(texts[10]["hyperlink"], url);
+        assert_eq!(v["groups"][0]["label"], "inline");
+        assert_eq!(v["groups"][0]["parent"]["$ref"], "#/texts/0");
+
+        assert_eq!(
+            doc.export_to_markdown(),
+            format!("E = mc2\n\nH2O\n\n1[Note text]({url})\n\nPlain line\n")
+        );
+        let html = doc.export_to_html();
+        // Each marked item is a block of its own (the footnote too, as
+        // docling-core renders it).
+        assert_eq!(
+            html.matches("<p><span class='inline-group'>").count(),
+            3,
+            "{html}"
+        );
+        assert!(html.contains("E = mc<sup>2</sup>"), "{html}");
+        assert!(html.contains("H<sub>2</sub>O"), "{html}");
+        assert!(
+            html.contains(&format!("<sup>1</sup><a href=\"{url}\">Note text</a>")),
+            "{html}"
+        );
+        let dclx = doc.export_to_doclang();
+        assert!(
+            dclx.contains("E = mc<superscript>2</superscript>"),
+            "{dclx}"
         );
     }
 }

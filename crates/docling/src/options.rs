@@ -200,6 +200,8 @@ pub struct ConvertOptions {
     pub no_text_panels: Option<bool>,
     /// Infer heading levels after assembly (#302).
     pub heading_hierarchy: Option<bool>,
+    /// Mark PDF superscripts and subscripts (#1005).
+    pub script_positions: Option<bool>,
     /// `ppocr` (default) | `tesseract` (#460).
     pub ocr_engine: Option<String>,
     /// OCR language: `en` | `ch` or a BCP-47 tag under PP-OCR, tessdata stems
@@ -651,6 +653,7 @@ pub const OPTIONS: &[OptionInfo] = &[
     },
     row("no_text_panels"),
     row("heading_hierarchy"),
+    row("script_positions"),
     row("ocr_engine"),
     row("ocr_lang"),
     row("ocr_mode"),
@@ -1411,6 +1414,9 @@ impl ConvertOptions {
         }
         if let Some(v) = self.heading_hierarchy {
             c = c.heading_hierarchy(v);
+        }
+        if let Some(v) = self.script_positions {
+            c = c.script_positions(v);
         }
         if let Some(v) = &self.ocr_engine {
             c = c.ocr_engine(v.clone());

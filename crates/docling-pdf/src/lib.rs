@@ -83,7 +83,10 @@ pub mod embedded;
 pub mod raster;
 #[cfg(feature = "render")]
 pub mod render;
+mod script_position;
 mod std14;
+#[cfg(feature = "ml")]
+mod table_tokens;
 #[cfg(feature = "ml")]
 pub mod tableformer;
 #[cfg(feature = "ml")]
@@ -771,6 +774,100 @@ fn text_less_regions(regions: &[layout::Region], cells: &[TextCell]) -> Vec<layo
                 !c.text.trim().is_empty()
                     && c.r.min(r.r) > c.l.max(r.l)
                     && c.b.min(r.b) > c.t.max(r.t)
+            })
+        })
+        .map(|r| layout::Region {
+            label: match r.label {
+                "page_header" | "page_footer" => "text",
+                l => l,
+            },
+            ..r.clone()
+        })
+        .collect()
+}
+
+#[cfg(feature = "ml")]
+/// docling's `THIN_SHAPE_LINE_HEIGHTS`: a band no thicker than this many
+/// text lines is accounted for by any text on it.
+const THIN_BAND_LINES: f32 = 2.0;
+#[cfg(feature = "ml")]
+/// docling's `TEXT_BACKED_MIN_COVERAGE`: a thicker area is accounted for
+/// when text covers this share of it.
+const TEXT_BACKED_MIN_COVERAGE: f32 = 0.1;
+#[cfg(feature = "ml")]
+/// The share of a region a bitmap must cover for [`bitmap_regions`] to OCR
+/// it.
+const BITMAP_REGION_COVER: f32 = 0.5;
+
+#[cfg(feature = "ml")]
+/// The layout regions of a page with a text layer that lie on a bitmap the
+/// text layer does not account for (#999) — docling's other
+/// `_find_pdf_aware_layout_ocr_rects` trigger, "clusters overlapping a
+/// bitmap": a scanned form with one typed-in value has text in its table
+/// region, so [`text_less_regions`] skipped it and the table read the one
+/// native word. The same labels as there; regions [`text_less_regions`]
+/// already takes are left to it.
+///
+/// Narrower than docling, on purpose: docling OCRs every cluster that
+/// touches a bitmap. Here the bitmap must cover at least
+/// [`BITMAP_REGION_COVER`] of the region, and its part inside the region
+/// must not be accounted for by the text layer, judged with docling's own
+/// rule for shapes (`_text_accounts_for`: a band no thicker than two text
+/// lines is explained by any text on it, a thicker one by text over a
+/// tenth of it). A searchable scan — an invisible text layer over the
+/// page image — and a digital page's logo or figure beside its text are
+/// left to their text layer instead of being OCR'd a second time.
+fn bitmap_regions(
+    regions: &[layout::Region],
+    cells: &[TextCell],
+    bitmaps: &[[f32; 4]],
+) -> Vec<layout::Region> {
+    if bitmaps.is_empty() {
+        return Vec::new();
+    }
+    let ink = |c: &&TextCell| !c.text.trim().is_empty();
+    regions
+        .iter()
+        .filter(|r| {
+            ocr_prep::is_text_label(r.label)
+                || assemble::is_table_like(r.label)
+                || matches!(r.label, "page_header" | "page_footer")
+        })
+        .filter(|r| {
+            // Regions with no text at all are `text_less_regions`'.
+            cells
+                .iter()
+                .filter(ink)
+                .any(|c| c.r.min(r.r) > c.l.max(r.l) && c.b.min(r.b) > c.t.max(r.t))
+        })
+        .filter(|r| {
+            let area = ((r.r - r.l) * (r.b - r.t)).max(1.0);
+            bitmaps.iter().any(|&[bl, bt, br, bb]| {
+                let (l, t, rr, b) = (bl.max(r.l), bt.max(r.t), br.min(r.r), bb.min(r.b));
+                let (w, h) = (rr - l, b - t);
+                if w <= 0.0 || h <= 0.0 || w * h < BITMAP_REGION_COVER * area {
+                    return false;
+                }
+                let under: Vec<(f32, f32)> = cells
+                    .iter()
+                    .filter(ink)
+                    .filter_map(|c| {
+                        let iw = c.r.min(rr) - c.l.max(l);
+                        let ih = c.b.min(b) - c.t.max(t);
+                        (iw > 0.0 && ih > 0.0).then_some((c.b - c.t, iw * ih))
+                    })
+                    .collect();
+                if under.is_empty() {
+                    return true;
+                }
+                let mut heights: Vec<f32> = under.iter().map(|u| u.0).collect();
+                heights.sort_by(f32::total_cmp);
+                let line = heights[heights.len() / 2];
+                if w.min(h) <= THIN_BAND_LINES * line {
+                    return false;
+                }
+                let covered: f32 = under.iter().map(|u| u.1).sum();
+                covered / (w * h) < TEXT_BACKED_MIN_COVERAGE
             })
         })
         .map(|r| layout::Region {
@@ -2173,8 +2270,11 @@ impl Worker {
             // cluster without any programmatic text in it
             // (`_find_pdf_aware_layout_ocr_rects`); do the same for the text,
             // furniture and table regions (pictures go through the bare-
-            // picture pass below).
-            let empty = text_less_regions(&regions, &page.cells);
+            // picture pass below). Its other trigger, a cluster over a
+            // bitmap, takes the regions a scan's image covers past a thin
+            // text layer (#999, `bitmap_regions`).
+            let mut empty = text_less_regions(&regions, &page.cells);
+            empty.extend(bitmap_regions(&regions, &page.cells, &page.bitmaps));
             if let (false, Some(_)) = (empty.is_empty(), self.ocr_model()?) {
                 // A page with a text layer and no picture or table had its
                 // bitmap declined (#897); render it now — rare, and only
@@ -2212,10 +2312,18 @@ impl Worker {
                 let det_lines =
                     (ocr::det_lines() && !detected.is_empty()).then_some(detected.as_slice());
                 let ocr = self.ocr_model()?.expect("checked above");
-                let scored = timing::timed("ocr.page", || {
+                // docling's merge for this mode (`PDF_FIRST`): every native
+                // cell is kept, and an OCR cell only where it touches none —
+                // a typed-in value over its own scanned pixels is read once.
+                let native = page.cells.clone();
+                let pdf_first = |cells: &mut Vec<(TextCell, f32)>| {
+                    cells.retain(|(c, _)| table_tokens::uncovered([c], &native).len() == 1)
+                };
+                let mut scored = timing::timed("ocr.page", || {
                     ocr.ocr_page_with(img, &empty, scl, det_lines)
                 })
                 .map_err(|e| PdfError::Ocr(format!("page {}: {e}", n + 1)))?;
+                pdf_first(&mut scored);
                 docling_core::debug_log!(
                     "docling-pdf: page {}: {} text-less layout region(s) OCR'd, {} line(s)",
                     n + 1,
@@ -2226,15 +2334,21 @@ impl Worker {
                 ocr_cells.extend(cell_confs(&scored));
                 page.cells.extend(scored.into_iter().map(|(cell, _)| cell));
                 if empty.iter().any(|r| assemble::is_table_like(r.label)) {
-                    let words = timing::timed("ocr.table_words", || {
+                    let mut words = timing::timed("ocr.table_words", || {
                         ocr.ocr_table_words(img, &empty, scl, det_lines)
                     })
                     .map_err(|e| PdfError::Ocr(format!("page {}: {e}", n + 1)))?;
+                    pdf_first(&mut words);
                     ocr_confs.extend(words.iter().map(|(_, conf)| conf));
                     ocr_cells.extend(cell_confs(&words));
                     let words: Vec<_> = words.into_iter().map(|(cell, _)| cell).collect();
                     page.cells.extend(words.iter().cloned());
-                    page.word_cells.extend(words);
+                    // TableFormer's tokens (#999, docling's
+                    // `_words_and_ocr_cells`): the native words beside the
+                    // surviving OCR lines — the matcher saw the natives
+                    // alone, and one typed-in value made the whole table.
+                    page.word_cells =
+                        table_tokens::words_and_ocr_cells(&page.word_cells, &[], &words);
                 }
             }
         }
@@ -2699,6 +2813,9 @@ pub struct Pipeline {
     /// OCR only the pages whose text layer is broken (#1006). See
     /// [`Pipeline::replace_broken_text_layer`].
     replace_broken_text_layer: bool,
+    /// Mark superscripts and subscripts (#1005). See
+    /// [`Pipeline::script_positions`].
+    script_positions: bool,
     /// Never demote text-panel pictures. See [`Pipeline::no_text_panels`].
     no_text_panels: bool,
     /// Opt-in enrichment passes. See [`Pipeline::enrichments`].
@@ -2762,6 +2879,7 @@ impl Pipeline {
             skip_ocr: false,
             force_full_page_ocr: false,
             replace_broken_text_layer: false,
+            script_positions: false,
             no_text_panels: false,
             enrich: EnrichmentOptions::default(),
             page_range: None,
@@ -2862,6 +2980,35 @@ impl Pipeline {
             _ => Default::default(),
         };
         heading_hierarchy::apply(nodes, &outline, &styles, opts);
+    }
+
+    /// Run the opt-in script-position stage (#1005) on an assembled
+    /// document, after the heading hierarchy as docling runs it.
+    fn apply_script_positions(&self, nodes: &mut [Node], bytes: &[u8]) {
+        if self.script_positions {
+            timing::timed("script_position", || script_position::apply(nodes, bytes));
+        }
+    }
+
+    /// Mark superscript and subscript text — docling's
+    /// `script_position_options.enabled` (docling#4815, #1005). Characters
+    /// drawn smaller than their line and raised or lowered against it
+    /// (footnote markers, `1st`, `mc²`, `H₂O`) become runs with
+    /// `formatting.script`: a paragraph or footnote holding them keeps its
+    /// place, and its text moves into an inline group of the runs in the
+    /// JSON (HTML `<sup>`/`<sub>`, DocLang `<superscript>`/`<subscript>`);
+    /// Markdown joins the runs as docling does (`E = mc2 in 1905.`, where the
+    /// plain text layer reads `E = mc 2 in 1905.`). Headings, captions,
+    /// tables, code, formulas, list items, OCR'd and invisible text are left
+    /// alone. Off by default: the output is unchanged.
+    pub fn script_positions(mut self, enable: bool) -> Self {
+        self.set_script_positions(enable);
+        self
+    }
+
+    /// In-place variant of [`script_positions`](Self::script_positions).
+    pub fn set_script_positions(&mut self, enable: bool) {
+        self.script_positions = enable;
     }
 
     /// Install (or clear) the per-page progress hook: called with a
@@ -3576,6 +3723,7 @@ impl Pipeline {
         )?;
         assemble::merge_continuations(&mut doc.nodes);
         self.apply_heading_hierarchy(&mut doc.nodes, Some(bytes));
+        self.apply_script_positions(&mut doc.nodes, bytes);
         doc.confidence = Some(docling_core::ConfidenceReport::from_pages(confs));
         Ok((doc, done, timed_out))
     }
@@ -3634,6 +3782,7 @@ impl Pipeline {
         )?;
         assemble::merge_continuations(&mut doc.nodes);
         self.apply_heading_hierarchy(&mut doc.nodes, Some(bytes));
+        self.apply_script_positions(&mut doc.nodes, bytes);
         doc.confidence = Some(confidence_report(confs, ocr_cells_by_page));
         Ok((doc, done, timed_out))
     }
@@ -3849,6 +3998,7 @@ impl Pipeline {
         }
         assemble::merge_continuations(&mut doc.nodes);
         self.apply_heading_hierarchy(&mut doc.nodes, Some(bytes));
+        self.apply_script_positions(&mut doc.nodes, bytes);
         doc.confidence = Some(confidence_report(confs, ocr_cells_by_page));
         let timed_out = timed_out.load(std::sync::atomic::Ordering::Relaxed);
         Ok((doc, done, timed_out))
@@ -4242,6 +4392,7 @@ impl Pipeline {
             cells: Vec::new(),
             code_cells: Vec::new(),
             checkboxes: Vec::new(),
+            bitmaps: Vec::new(),
             word_cells: Vec::new(),
             // A standalone image *is* its own scale-1.0 page image, so the
             // layout model sees it through the docling-exact PIL kernel.
@@ -4654,5 +4805,66 @@ mod text_layer_auto_tests {
             nodes
         };
         assert_eq!(streamed(&mut only), streamed(&mut auto));
+    }
+}
+
+#[cfg(all(test, feature = "ml"))]
+mod bitmap_region_tests {
+    use super::{bitmap_regions, layout::Region, TextCell};
+
+    fn region(label: &'static str, l: f32, t: f32, r: f32, b: f32) -> Region {
+        Region {
+            label,
+            score: 1.0,
+            l,
+            t,
+            r,
+            b,
+        }
+    }
+
+    fn cell(text: &str, l: f32, t: f32, r: f32, b: f32) -> TextCell {
+        TextCell {
+            text: text.into(),
+            l,
+            t,
+            r,
+            b,
+        }
+    }
+
+    const PAGE: [f32; 4] = [0.0, 0.0, 612.0, 792.0];
+
+    /// #999: a scanned table with one typed-in value is OCR'd; a text-less
+    /// region is left to `text_less_regions`; a page without a bitmap, or a
+    /// region the scan barely touches, is not.
+    #[test]
+    fn a_scan_under_a_thin_layer_is_read() {
+        let table = region("table", 100.0, 300.0, 500.0, 500.0);
+        let blank = region("text", 100.0, 100.0, 500.0, 120.0);
+        let cells = [cell("420", 226.0, 444.0, 251.0, 458.0)];
+        let got = bitmap_regions(&[table.clone(), blank], &cells, &[PAGE]);
+        assert_eq!(got.len(), 1);
+        assert_eq!((got[0].label, got[0].t), ("table", 300.0));
+        assert!(bitmap_regions(std::slice::from_ref(&table), &cells, &[]).is_empty());
+        // A logo over a corner of the region: not half of it.
+        let logo = [450.0, 290.0, 520.0, 340.0];
+        assert!(bitmap_regions(&[table], &cells, &[logo]).is_empty());
+    }
+
+    /// A searchable scan — an invisible layer over the page image — keeps
+    /// its text layer: a one-line region is a thin band any text explains,
+    /// a paragraph is covered well past a tenth of its area.
+    #[test]
+    fn a_searchable_scan_keeps_its_text_layer() {
+        let line = region("text", 72.0, 100.0, 540.0, 114.0);
+        let para = region("text", 72.0, 200.0, 540.0, 260.0);
+        let cells: Vec<TextCell> = std::iter::once(cell("Heading", 72.0, 100.0, 300.0, 114.0))
+            .chain((0..4).map(|i| {
+                let t = 200.0 + 15.0 * i as f32;
+                cell("body text", 72.0, t, 540.0, t + 12.0)
+            }))
+            .collect();
+        assert!(bitmap_regions(&[line, para], &cells, &[PAGE]).is_empty());
     }
 }

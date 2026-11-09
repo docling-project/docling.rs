@@ -68,6 +68,7 @@ impl Pipeline {
             cells: Vec::new(),
             code_cells: Vec::new(),
             checkboxes: Vec::new(),
+            bitmaps: Vec::new(),
             word_cells: Vec::new(),
             image_layout: None,
             image: image.clone(),

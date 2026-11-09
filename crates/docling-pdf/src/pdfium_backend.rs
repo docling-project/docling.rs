@@ -47,6 +47,13 @@ pub struct PdfPage {
     /// with one in front of it its own checkbox item. Empty without a text
     /// layer (OCR pages) or vector paths.
     pub checkboxes: Vec<crate::checkbox::CheckBox>,
+    /// The page's image placements (`[l, t, r, b]`, page points, the cells'
+    /// frame), as the text parser walks past them (#999) — what docling's
+    /// pdf-aware OCR calls the page's bitmaps: a layout region over one whose
+    /// text layer does not account for it is OCR'd even though it holds
+    /// programmatic text (a scan with a typed-in value). Empty without a text
+    /// layer (an OCR page is OCR'd whole anyway).
+    pub bitmaps: Vec<[f32; 4]>,
     /// The rendered page bitmap. Present whenever pixels are available at all
     /// (`ocr-prep` ⊂ `ml`): the native pipeline renders it with pdfium, the
     /// browser pipeline receives it from the host canvas. Picture regions are
@@ -118,6 +125,7 @@ impl PdfPage {
             code_cells: Vec::new(),
             word_cells: Vec::new(),
             checkboxes: Vec::new(),
+            bitmaps: Vec::new(),
             #[cfg(feature = "ocr-prep")]
             image: RgbImage::new(0, 0),
             #[cfg(feature = "ocr-prep")]
@@ -1173,6 +1181,7 @@ fn extract_page(
     let rc = rust_cells.unwrap_or_default();
     let (mut cells, mut code_cells, mut word_cells) = (rc.prose, rc.code, rc.words);
     let mut checkboxes = rc.checkboxes;
+    let mut bitmaps = rc.bitmaps;
     if rotation != 0 {
         for c in cells
             .iter_mut()
@@ -1185,6 +1194,10 @@ fn extract_page(
         for c in &mut checkboxes {
             let (l, t, r, b) = to_display_frame((c.l, c.t, c.r, c.b), rotation, unrot_w, unrot_h);
             (c.l, c.t, c.r, c.b) = (l, t, r, b);
+        }
+        for [l, t, r, b] in &mut bitmaps {
+            let d = to_display_frame((*l, *t, *r, *b), rotation, unrot_w, unrot_h);
+            (*l, *t, *r, *b) = d;
         }
     }
 
@@ -1367,6 +1380,7 @@ fn extract_page(
         code_cells,
         word_cells,
         checkboxes,
+        bitmaps,
         image,
         links,
         rotation: 0,
@@ -1477,6 +1491,9 @@ pub(crate) struct Glyph {
     /// `has_math_positioning_semantics`): a sub- or superscript in it next to
     /// its base is attached, not a new word (#921).
     pub(crate) math_font: bool,
+    /// Drawn in an invisible text rendering mode (`Tr` 3 or 7) — an OCR
+    /// layer over a scan. Only the script-position stage reads it (#1005).
+    pub(crate) invisible: bool,
 }
 
 impl Glyph {

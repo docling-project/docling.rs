@@ -596,7 +596,9 @@ fn render_one(node: &Node, list_level: usize, inline: bool, parts: &mut Vec<Stri
         Node::TextDump(text) => push(parts, text_item(text)),
         // Notes-layer comments are omitted; an annotated item renders itself.
         Node::CommentSection { .. } => {}
-        Node::Commented { inner, .. } => render_one(inner, list_level, inline, parts),
+        Node::Commented { inner, .. } | Node::ScriptText { inner, .. } => {
+            render_one(inner, list_level, inline, parts)
+        }
         Node::Located { inner, .. } | Node::Prov { inner, .. } | Node::Track { inner, .. } => {
             render_one(inner, list_level, inline, parts)
         }

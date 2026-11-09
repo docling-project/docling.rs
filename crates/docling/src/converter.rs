@@ -304,6 +304,9 @@ pub struct DocumentConverter {
     /// OCR only the pages whose text layer is broken (#1006). See
     /// [`Self::replace_broken_text_layer`].
     replace_broken_text_layer: bool,
+    /// Mark PDF superscripts and subscripts (#1005). See
+    /// [`Self::script_positions`].
+    script_positions: bool,
     /// OCR mode id (docling's `OcrMode`, #254); parsed at the ML call sites.
     ocr_mode: Option<String>,
     /// OCR engine id (`ppocr` | `tesseract`, #460); parsed at the ML call
@@ -627,6 +630,7 @@ impl Default for DocumentConverter {
             password: None,
             force_full_page_ocr: false,
             replace_broken_text_layer: false,
+            script_positions: false,
             ocr_mode: None,
             ocr_engine: None,
             ocr_scale: None,
@@ -830,6 +834,7 @@ impl DocumentConverter {
         p.set_word_gap(self.pdf_word_gap_choice());
         p.set_keep_typography(self.pdf_keep_typography);
         p.set_replace_broken_text_layer(self.replace_broken_text_layer);
+        p.set_script_positions(self.script_positions);
         p.set_images(docling_pdf::ImageOutput {
             scale: self.images_scale,
             page_images: self.generate_page_images,
@@ -2304,6 +2309,22 @@ impl DocumentConverter {
         self
     }
 
+    /// Mark superscript and subscript text in PDFs — docling's
+    /// `script_position_options.enabled` (docling#4815, #1005). Characters
+    /// drawn smaller than their line and raised or lowered against it
+    /// (footnote markers, `1st`, `mc²`, `H₂O`) are marked with
+    /// `formatting.script`: a paragraph or footnote holding them keeps its
+    /// place, and its text moves into an inline group of runs in the JSON
+    /// (HTML `<sup>`/`<sub>`); Markdown joins the runs (`E = mc2 in 1905.`).
+    /// Headings, captions, tables, code, formulas, list items, OCR'd and
+    /// invisible text are left alone. Off by default (the output is
+    /// unchanged); the PDF pipeline only — the text-layer-only route skips
+    /// it.
+    pub fn script_positions(mut self, enable: bool) -> Self {
+        self.script_positions = enable;
+        self
+    }
+
     /// Which document regions feed the OCR — docling's `OcrMode` (#254):
     /// `default`, `full_page`, `layout_regions`, or
     /// `pdf_aware_layout_regions`. The default is the text-layer-aware
@@ -2787,6 +2808,10 @@ impl DocumentConverter {
     /// assembled document, and streamed output must stay byte-identical to
     /// buffered output).
     #[cfg(feature = "pdf")]
+    pub(crate) fn script_positions_enabled(&self) -> bool {
+        self.script_positions
+    }
+
     pub(crate) fn heading_hierarchy_enabled(&self) -> bool {
         self.heading_hierarchy
     }

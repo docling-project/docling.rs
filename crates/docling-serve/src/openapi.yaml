@@ -85,6 +85,7 @@ paths:
         - { $ref: "#/components/parameters/no_table_former" }
         - { $ref: "#/components/parameters/no_text_panels" }
         - { $ref: "#/components/parameters/heading_hierarchy" }
+        - { $ref: "#/components/parameters/script_positions" }
         - { $ref: "#/components/parameters/do_picture_classification" }
         - { $ref: "#/components/parameters/do_code_enrichment" }
         - { $ref: "#/components/parameters/do_formula_enrichment" }
@@ -188,6 +189,7 @@ paths:
                 no_table_former: { type: boolean }
                 no_text_panels: { type: boolean }
                 heading_hierarchy: { type: boolean }
+                script_positions: { type: boolean }
                 do_picture_classification: { type: boolean }
                 do_code_enrichment: { type: boolean }
                 do_formula_enrichment: { type: boolean }
@@ -954,6 +956,15 @@ components:
             HeadingHierarchyModel): PDF bookmarks are authoritative, then
             legal/outline numbering, then font style. Off by default; headings
             then keep the flat level the pipeline emits.
+        script_positions:
+          type: boolean
+          default: false
+          description: >
+            PDF — mark superscript and subscript text (docling's
+            script_position_options.enabled): characters drawn smaller than
+            their line and raised or lowered against it become runs with
+            formatting.script, an inline group in the JSON (HTML sup/sub);
+            Markdown joins the runs. Off by default.
         do_picture_classification:
           type: boolean
           default: false
@@ -1671,6 +1682,8 @@ components:
       { name: no_text_panels, in: query, schema: { type: boolean } }
     heading_hierarchy:
       { name: heading_hierarchy, in: query, schema: { type: boolean } }
+    script_positions:
+      { name: script_positions, in: query, schema: { type: boolean } }
     do_picture_classification:
       { name: do_picture_classification, in: query, schema: { type: boolean } }
     do_code_enrichment:

@@ -316,6 +316,19 @@ pub enum Node {
         runs: Vec<InlineRun>,
         md_text: String,
     },
+    /// A PDF text item whose superscripts and subscripts the opt-in
+    /// script-position stage marked (#1005, docling's `ScriptPositionModel`,
+    /// `script_position_options.enabled`). `inner` is the item — a paragraph
+    /// or a footnote — with its text already the runs' joined text (Markdown-
+    /// escaped, `E = mc2 in 1905.`): every serializer but JSON and DocLang
+    /// renders it as it is. The JSON writes docling's shape — the item with
+    /// an empty `text`, holding an inline group of the runs, each a text item
+    /// with `formatting.script` and the box of its own characters — and
+    /// DocLang writes the runs as an inline group.
+    ScriptText {
+        inner: Box<Node>,
+        runs: Vec<ScriptRun>,
+    },
     /// A node in a non-body content layer — `furniture` (page headers/footers,
     /// the HTML `<title>`, site navigation/chrome) or `notes` (docx comments).
     /// Markdown and JSON omit these layers by default; DocLang renders the wrapped
@@ -477,6 +490,33 @@ pub enum Node {
     /// ODF text box's raw text). Markdown/JSON render it as one text block,
     /// DocLang as one `<text>` whose `<content>` keeps the breaks.
     TextDump(String),
+}
+
+/// One run of a [`Node::ScriptText`]: a piece of the item's text at one
+/// script position, with its provenance — one entry per page it is on.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScriptRun {
+    /// The run's raw text (not Markdown-escaped), its spaces included:
+    /// serializers join runs with nothing.
+    pub text: String,
+    pub script: Script,
+    /// The run's provenance, one per page, in text order.
+    pub prov: Vec<ScriptRunProv>,
+    /// The item's link, on its baseline runs (each linked run exports as a
+    /// link of its own, so a marker stays out of it).
+    pub hyperlink: Option<String>,
+}
+
+/// Where a [`ScriptRun`] sits on one page: docling's `ProvenanceItem` with a
+/// bottom-left-origin box.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScriptRunProv {
+    /// 1-based page number.
+    pub page_no: usize,
+    /// `[l, t, r, b]`, PDF points, bottom-left origin (`t > b`).
+    pub bbox: [f32; 4],
+    /// The run's characters on this page, as a span of its `text`.
+    pub charspan: [usize; 2],
 }
 
 /// Vertical text position of an [`InlineRun`] — docling's `Script`.

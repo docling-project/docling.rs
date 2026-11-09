@@ -144,7 +144,8 @@ pub(crate) fn spawn(
         // PDF is the format with internal page-level parallelism, so it gets the
         // true streaming path: emit each page's Markdown in order as it completes.
         // Exception: the heading-hierarchy stage (#302) rewrites levels across
-        // the *whole* assembled document, so those conversions run buffered
+        // the *whole* assembled document (and the script-position stage,
+        // #1005, runs after it on the assembled items), so those conversions run buffered
         // (one chunk) — streamed output stays byte-identical to buffered.
         // A `.pdf` without the PDF header is something else saved under that
         // name: the buffered path converts it, retrying as its content's
@@ -153,6 +154,7 @@ pub(crate) fn spawn(
         // A registered backend (#680) claiming the source takes it buffered.
         InputFormat::Pdf
             if !converter.heading_hierarchy_enabled()
+                && !converter.script_positions_enabled()
                 && !converter.claims(&source)
                 && crate::sniff::looks_like_pdf(&source.bytes) =>
         {

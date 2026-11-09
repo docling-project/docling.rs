@@ -1706,7 +1706,7 @@ fn parse_ordered_marker(s: &str) -> Option<(u64, String)> {
 /// does (`markdown.py` post_process): `_` → `\_`, then HTML-escape `&`, `<`, `>`
 /// (quote=False, so quotes are left). Applied to prose (headings, list items,
 /// paragraphs); code blocks, the formula placeholder, and table cells are left raw.
-fn md_escape(text: &str) -> String {
+pub(crate) fn md_escape(text: &str) -> String {
     text.replace('_', "\\_")
         .replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -5105,6 +5105,7 @@ mod tests {
             cells: Vec::new(),
             code_cells: Vec::new(),
             checkboxes: Vec::new(),
+            bitmaps: Vec::new(),
             // "LinkedIn | GitHub | Credly" = 26 chars over x 100..360.
             word_cells: vec![cell(
                 "LinkedIn | GitHub | Credly",

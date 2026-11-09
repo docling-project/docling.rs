@@ -51,6 +51,7 @@ from .options import (
     DocumentStream,
     HeadingHierarchyOptions,
     InputFormat,
+    ScriptPositionOptions,
     PdfFormatOption,
     PdfPipelineOptions,
     TableFormerMode,
@@ -138,6 +139,7 @@ __all__ = [
     "PdfPipelineOptions",
     "PdfFormatOption",
     "TableStructureOptions",
+    "ScriptPositionOptions",
     "TableFormerMode",
     "AcceleratorOptions",
     "AcceleratorDevice",
@@ -284,6 +286,10 @@ class DocumentConverter:
       assembly (docling's ``HeadingHierarchyModel``, #302 — bookmarks >
       numbering > font style). Also accepted docling-shaped, via
       ``pipeline_options.heading_hierarchy_options.enabled``.
+    * ``script_positions`` — PDF: mark superscript and subscript text as
+      ``formatting.script`` runs (docling's ``ScriptPositionModel``, #1005);
+      off by default. Also accepted docling-shaped, via
+      ``pipeline_options.script_position_options.enabled``.
     * ``fetch_images`` — resolve remote/local ``<img src>`` for HTML/EPUB
       (the alias of ``image_sources="remote"``; #646).
     * ``image_sources`` — which image references resolve (#646): ``"none"``
@@ -511,6 +517,7 @@ class DocumentConverter:
         replace_broken_text_layer: bool = False,
         no_text_panels: bool = False,
         heading_hierarchy: bool = False,
+        script_positions: bool = False,
         do_picture_classification: bool = False,
         do_code_enrichment: bool = False,
         do_formula_enrichment: bool = False,
@@ -626,6 +633,9 @@ class DocumentConverter:
             hh = getattr(pdf_opts, "heading_hierarchy_options", None)
             if hh is not None:
                 heading_hierarchy = bool(getattr(hh, "enabled", heading_hierarchy))
+            sp = getattr(pdf_opts, "script_position_options", None)
+            if sp is not None:
+                script_positions = bool(getattr(sp, "enabled", script_positions))
             do_picture_classification = getattr(
                 pdf_opts, "do_picture_classification", do_picture_classification
             )
@@ -804,6 +814,7 @@ class DocumentConverter:
             replace_broken_text_layer=replace_broken_text_layer,
             no_text_panels=no_text_panels,
             heading_hierarchy=heading_hierarchy,
+            script_positions=script_positions,
             do_table_structure=do_table_structure,
             use_web_browser=use_web_browser,
             do_picture_classification=do_picture_classification,

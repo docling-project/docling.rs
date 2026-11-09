@@ -19,7 +19,7 @@
 //! the same name): one identifier per line, sorted, for scripts that ask the
 //! binary what it converts instead of hard-coding a list.
 //!
-//! Usage: docling-rs [--strict] [--page-break-placeholder TEXT] [--layers body|all|LIST] [--traverse-pictures] [--to md|json|html|text|dclx|chunks|images|latex|pandoc|vtt] [--pages A-B] [--scale X] [--images MODE] [--input GLOB --output DIR [--jobs N]] [--output-file PATH] [--fetch-images] [--image-sources none|embedded|local|remote] [--image-hosts LIST] [--max-images N] [--max-image-bytes N] [--max-image-total-mb N] [--min-image-bytes N] [--list-attachments] [--skip-empty-cells] [--compact-tables] [--picture-alt-text] [--ebcdic-layout JSON|PATH] [--encoding LABEL] [--ipynb-outputs none|text] [--metadata none|json|frontmatter] [--track-changes accept|reject|all] [--extract-diagrams mermaid|none] [--no-outline-level-headings] [--from FORMAT] [--mime-type TYPE] [--no-url-fetch] [--no-stream] [--progress|--no-progress] [--no-table-former] [--no-ocr] [--text-layer-only] [--password PASSWORD | --password-file PATH] [--force-full-page-ocr] [--replace-broken-text-layer] [--no-text-panels] [--heading-hierarchy] [--ocr-lang LANG] [--ocr-engine ppocr|tesseract] [--ocr-mode MODE] [--ocr-scale X] [--pdf-word-gap adaptive|legacy|F] [--pdf-keep-typography] [--pdf-report-repairs] [--ocr-textline-orientation] [--images-scale X] [--page-images] [--chunker hierarchical|hybrid] [--chunk-tokenizer PATH] [--chunk-max-tokens N] [--no-chunk-merge-peers] [--pipeline standard|vlm] [--vlm-endpoint URL] [--vlm-model NAME] [--vlm-api-key TOKEN] [--vlm-prompt TEXT] [--vlm-max-tokens N] [--asr-model PRESET] [--asr-lang CODE] [--video-frames N|all] [--video-scene-threshold X] [--video-frame-max-side PX] [--video-frame-dedupe N] [--xbrl-taxonomy DIR] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] [--picture-ocr] [--picture-ocr-classes LABELS] [--picture-ocr-min-side N] [--picture-ocr-scale X] [--no-picture-images] [--picture-description] [--picture-description-endpoint URL] [--picture-description-model NAME] [--picture-description-api-key TOKEN] [--picture-description-prompt TEXT] [--picture-description-mode caption|ocr] [--picture-description-concurrency N] [--redact-pii] [--redact-mode label|pseudonym|fixed:TEXT] [--redact-kinds LIST] [--redact-pattern NAME=REGEX]... [--redact-images drop|box_out|keep] [--redact-allow-terms LIST] [--redact-deny-terms LIST] [--redact-allow-pattern REGEX]... [--redact-ner-min-score X] [--document-timeout SECONDS] [--abort-on-error] [--output-dirs auto|flat|mirror] [--archive-merge|--no-archive-merge] <input-file> | - | URL | SOURCE...
+//! Usage: docling-rs [--strict] [--page-break-placeholder TEXT] [--layers body|all|LIST] [--traverse-pictures] [--to md|json|html|text|dclx|chunks|images|latex|pandoc|vtt] [--pages A-B] [--scale X] [--images MODE] [--input GLOB --output DIR [--jobs N]] [--output-file PATH] [--fetch-images] [--image-sources none|embedded|local|remote] [--image-hosts LIST] [--max-images N] [--max-image-bytes N] [--max-image-total-mb N] [--min-image-bytes N] [--list-attachments] [--skip-empty-cells] [--compact-tables] [--picture-alt-text] [--ebcdic-layout JSON|PATH] [--encoding LABEL] [--ipynb-outputs none|text] [--metadata none|json|frontmatter] [--track-changes accept|reject|all] [--extract-diagrams mermaid|none] [--no-outline-level-headings] [--from FORMAT] [--mime-type TYPE] [--no-url-fetch] [--no-stream] [--progress|--no-progress] [--no-table-former] [--no-ocr] [--text-layer-only] [--password PASSWORD | --password-file PATH] [--force-full-page-ocr] [--replace-broken-text-layer] [--no-text-panels] [--heading-hierarchy] [--script-positions] [--ocr-lang LANG] [--ocr-engine ppocr|tesseract] [--ocr-mode MODE] [--ocr-scale X] [--pdf-word-gap adaptive|legacy|F] [--pdf-keep-typography] [--pdf-report-repairs] [--ocr-textline-orientation] [--images-scale X] [--page-images] [--chunker hierarchical|hybrid] [--chunk-tokenizer PATH] [--chunk-max-tokens N] [--no-chunk-merge-peers] [--pipeline standard|vlm] [--vlm-endpoint URL] [--vlm-model NAME] [--vlm-api-key TOKEN] [--vlm-prompt TEXT] [--vlm-max-tokens N] [--asr-model PRESET] [--asr-lang CODE] [--video-frames N|all] [--video-scene-threshold X] [--video-frame-max-side PX] [--video-frame-dedupe N] [--xbrl-taxonomy DIR] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] [--picture-ocr] [--picture-ocr-classes LABELS] [--picture-ocr-min-side N] [--picture-ocr-scale X] [--no-picture-images] [--picture-description] [--picture-description-endpoint URL] [--picture-description-model NAME] [--picture-description-api-key TOKEN] [--picture-description-prompt TEXT] [--picture-description-mode caption|ocr] [--picture-description-concurrency N] [--redact-pii] [--redact-mode label|pseudonym|fixed:TEXT] [--redact-kinds LIST] [--redact-pattern NAME=REGEX]... [--redact-images drop|box_out|keep] [--redact-allow-terms LIST] [--redact-deny-terms LIST] [--redact-allow-pattern REGEX]... [--redact-ner-min-score X] [--document-timeout SECONDS] [--abort-on-error] [--output-dirs auto|flat|mirror] [--archive-merge|--no-archive-merge] <input-file> | - | URL | SOURCE...
 //!   --to FORMAT        repeatable (#491, like Python's `docling convert --to
 //!                      md --to json`): each document converts once and is
 //!                      written in every format named, `<stem>.md` +
@@ -295,6 +295,12 @@
 //!                      are authoritative, legal/outline numbering covers the
 //!                      rest, font style breaks the ties. Off by default —
 //!                      headings then keep the flat level docling emits
+//!   --script-positions  mark PDF superscripts and subscripts (#1005, docling's
+//!                      script_position_options): characters drawn smaller
+//!                      and raised or lowered against their line become runs
+//!                      with formatting.script — HTML <sup>/<sub>, an inline
+//!                      group in the JSON; Markdown joins them (`mc2`). Off
+//!                      by default
 //!   --text-layer-only  skip layout detection, OCR, and TableFormer entirely for
 //!                      PDF/image input — no model load or inference at all
 //!                      (`--no-ocr` before 2.0, #611). `--text-layer-only=auto`
@@ -654,6 +660,8 @@ PDF / IMAGE PIPELINE
                           glyphs, mojibake); other pages keep their text layer
   --no-text-panels        disable the text-panel heuristic
   --heading-hierarchy     infer heading levels from font weight/slant/case
+  --script-positions      mark PDF superscripts and subscripts (footnote
+                          markers, 1st, mc2, H2O) as formatting.script runs
   --ocr-lang LANG         OCR recognition model (default: en): en | ch, or a
                           BCP-47 tag for English/Chinese (en-US, eng, zh,
                           zh-Hans, zh-TW; docling's iso: prefix accepted)
@@ -995,6 +1003,7 @@ fn main() -> ExitCode {
             "--replace-broken-text-layer" => opts.replace_broken_text_layer = Some(true),
             "--no-text-panels" => opts.no_text_panels = Some(true),
             "--heading-hierarchy" => opts.heading_hierarchy = Some(true),
+            "--script-positions" => opts.script_positions = Some(true),
             "--use-web-browser" => opts.use_web_browser = Some(true),
             // Opt-in enrichment models (docling CLI flag names): picture
             // classification, code rewrite + language, formula LaTeX.
@@ -2819,6 +2828,7 @@ fn batch_pipeline<'a>(
             .heading_hierarchy(docling::HeadingHierarchyOptions::enabled(
                 o.heading_hierarchy.unwrap_or(false),
             ))
+            .script_positions(o.script_positions.unwrap_or(false))
             .ocr_mode(o.ocr_mode().map_err(err)?)
             .ocr_engine(o.ocr_engine().map_err(err)?)
             .tesseract_lang(o.tesseract_lang().map_err(err)?)

@@ -68,6 +68,7 @@ everywhere. The ones most conversions reach for:
 | `no_table_former` | `--no-table-former` | geometric tables instead of TableFormer |
 | `ocr_lang` · `ocr_engine` | `--ocr-lang` · `--ocr-engine` | `en` / `ch` / BCP-47; `ppocr` or `tesseract` (#460) |
 | `heading_hierarchy` | `--heading-hierarchy` | infer PDF heading levels (#302) |
+| `script_positions` | `--script-positions` | mark PDF superscripts and subscripts as `formatting.script` runs (#1005) |
 | `images_scale` · `page_images` | `--images-scale` · `--page-images` | picture-crop resolution; keep page renders in the JSON (#520) |
 | `document_timeout` | `--document-timeout` | per-document budget; the pages done so far become a partial success (#497) |
 | `password` | `--password` | encrypted PDF and Office documents (#611, #625) |
@@ -306,6 +307,13 @@ and defaults in [`docs/OPTIONS.md`](../../docs/OPTIONS.md):
   section-header levels after assembly from the PDF outline, legal/outline
   numbering and font style, in that precedence. Off by default, as in the
   docling groundtruth.
+- `--script-positions` (#1005, docling's `ScriptPositionModel`): marks
+  superscript and subscript text from the size and baseline of the PDF's
+  characters. A paragraph or footnote holding such text becomes, in the
+  JSON, an item with an inline group of runs carrying `formatting.script`
+  (HTML `<sup>`/`<sub>`, DocLang `<superscript>`/`<subscript>`); Markdown
+  joins the runs — `E = mc2 in 1905.` where the plain text layer reads
+  `E = mc 2 in 1905.`. Off by default.
 - `--no-text-panels`: keeps every detected picture a picture instead of
   demoting uncaptioned dense-text "pictures" into paragraphs (#173).
 - `--skip-empty-cells`, `--compact-tables` (#271): sparse-spreadsheet

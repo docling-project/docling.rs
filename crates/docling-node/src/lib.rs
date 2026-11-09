@@ -215,6 +215,10 @@ pub struct ConverterOptions {
     /// legal/outline numbering, then font style. Default `false` — headings
     /// then keep the flat detected level.
     pub heading_hierarchy: Option<bool>,
+    /// Mark PDF superscripts and subscripts as `formatting.script` runs
+    /// (docling's `script_position_options.enabled`, #1005). Default
+    /// `false`.
+    pub script_positions: Option<bool>,
     /// Classify every PDF/image picture with DocumentFigureClassifier
     /// (docling's `do_picture_classification`, #423): the 26-class prediction
     /// lands on the JSON picture item's `classification`. Needs
@@ -569,6 +573,8 @@ pub struct ConvertOptions {
     /// Infer PDF/image section-header levels after assembly (#302). Default
     /// `false`.
     pub heading_hierarchy: Option<bool>,
+    /// Mark PDF superscripts and subscripts (#1005). Default `false`.
+    pub script_positions: Option<bool>,
     /// Opt-in enrichment models (#423): picture classification, code rewrite
     /// + language, formula LaTeX. See [`ConverterOptions`]. Default `false`.
     pub do_picture_classification: Option<bool>,
@@ -1716,6 +1722,7 @@ struct WarmPipelineConfig {
     replace_broken_text_layer: bool,
     no_text_panels: bool,
     heading_hierarchy: bool,
+    script_positions: bool,
     page_range: Option<(usize, usize)>,
     /// docling's `document_timeout` (#497).
     document_timeout: Option<std::time::Duration>,
@@ -1762,6 +1769,7 @@ fn warm_pipeline_config(o: &ConverterOptions) -> Result<WarmPipelineConfig> {
         replace_broken_text_layer: s.replace_broken_text_layer.unwrap_or(false),
         no_text_panels: s.no_text_panels.unwrap_or(false),
         heading_hierarchy: s.heading_hierarchy.unwrap_or(false),
+        script_positions: s.script_positions.unwrap_or(false),
         page_range: s.page_range().map_err(option_err)?,
         document_timeout: s.document_timeout().map_err(option_err)?,
         ocr_engine: s.ocr_engine().map_err(option_err)?,
@@ -1836,6 +1844,7 @@ impl Pipeline {
             .heading_hierarchy(docling::HeadingHierarchyOptions::enabled(
                 warm.heading_hierarchy,
             ))
+            .script_positions(warm.script_positions)
             .ocr_engine(warm.ocr_engine)
             .ocr_lang(warm.ocr_lang)
             .tesseract_lang(warm.tesseract_lang)
@@ -3193,6 +3202,7 @@ mod tests {
                 replace_broken_text_layer: false,
                 no_text_panels: false,
                 heading_hierarchy: false,
+                script_positions: false,
                 page_range: None,
                 document_timeout: None,
                 ocr_engine: None,

@@ -1144,6 +1144,7 @@ fn render_one(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
         | Node::CommentSection { .. }
         | Node::PictureChildren(_)
         | Node::Commented { .. }
+        | Node::ScriptText { .. }
         | Node::Located { .. }
         | Node::Prov { .. }
         | Node::Track { .. }
@@ -1388,6 +1389,9 @@ fn render_item(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
             }
         }
         Node::Commented { inner, .. } => render_one(inner, blocks, ctx),
+        // The item's text is already the runs' text (docling's Markdown of
+        // its inline group: the runs joined, no markup — `H2O`).
+        Node::ScriptText { inner, .. } => render_one(inner, blocks, ctx),
         // Layout provenance is DocLang-only; render the wrapped node.
         Node::Located { inner, .. } | Node::Prov { inner, .. } | Node::Track { inner, .. } => {
             render_one(inner, blocks, ctx)

@@ -1209,6 +1209,13 @@ impl<'a> Redactor<'a> {
     }
 
     fn redact_node(&mut self, node: &mut Node) {
+        // A marked PDF item (#1005) is redacted as its plain item: the runs
+        // split a name across a script boundary (`Smith²`) where a pattern
+        // would miss it, and each value is counted once.
+        if let Node::ScriptText { inner, .. } = node {
+            let plain = std::mem::replace(inner.as_mut(), Node::PageBreak);
+            *node = plain;
+        }
         match node {
             Node::Heading { text, .. }
             | Node::Paragraph { text }
@@ -1278,6 +1285,8 @@ impl<'a> Redactor<'a> {
                 self.redact_runs(runs);
                 self.redact_text(md_text);
             }
+            // Replaced by its plain item above.
+            Node::ScriptText { .. } => {}
             Node::Furniture { inner, .. }
             | Node::Commented { inner, .. }
             | Node::Located { inner, .. }

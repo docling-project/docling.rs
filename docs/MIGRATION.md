@@ -2336,13 +2336,33 @@ These are deliberate or unavoidable divergences, not bugs.
     more and skips the probe, which costs a full-page text detection) is
     also probed for a sideways raster like a scan (#936) — a landscape table turned
     90° and outlined, beside an upright page number, is un-rotated before
-    layout and OCR instead of read as noise. Its
-    other two triggers — clusters over a bitmap, and clusters whose text
-    layer leaves a non-rule shape unexplained (an outlined glyph next to
-    real text, docling#4209) — are not ported: the first is the bare-picture
-    pass, the second needs the page's vector shapes. On the PDF corpus it
-    fires on 4 files; text appears on the attention-map figures of
-    1706.03762 (`Input-Input Layer5`, outlined titles). `no_ocr` / `skip_ocr` keep the text layer
+    layout and OCR instead of read as noise. Its second trigger, clusters
+    over a bitmap, is ported by #999 (docling#4928) for scans: a scanned
+    form with one typed-in value used to keep its table region off the OCR
+    (the value is programmatic text), and TableFormer matched the native
+    word alone — a seven-row table read `| 420 |`. A text, furniture or
+    table region a page image covers at least half of is now OCR'd unless
+    the text layer accounts for the image there, by docling's own rule for
+    shapes (`_text_accounts_for`: a band at most two text lines thick is
+    explained by any text on it, a thicker one by text over a tenth of it).
+    The text parser records the image placements as it walks the page, so
+    finding them costs nothing. Two deliberate narrowings of docling, which
+    OCRs every cluster touching a bitmap: the half-cover rule, and the
+    text-layer check, so a searchable scan's invisible layer and a digital
+    page's logo beside its heading keep their text layer instead of paying
+    a second read. As in docling's `PDF_FIRST` merge, the native cells all
+    stay and an OCR cell is kept only where it touches none, and the
+    table's tokens are docling's `_words_and_ocr_cells`: the native words
+    no surviving OCR line covers, plus those lines. The third trigger,
+    clusters whose text layer leaves a non-rule shape unexplained (an
+    outlined glyph next to real text, docling#4209), is not ported: it
+    needs the page's vector shapes. On the PDF corpus it
+    fires on the attention-map figures of 1706.03762 (`Input-Input Layer5`,
+    outlined titles). On docling's two Korean `skipped_*` pages, whose
+    Adobe-Korea1 CID fonts carry no ToUnicode, it used to OCR a few stray
+    glyphs (`[ 4-5] 8`); since #1039 those glyphs read through the predefined
+    CJK collections docling-parse maps them with, so the regions hold text
+    and are not OCR'd. `no_ocr` / `skip_ocr` keep the text layer
     alone; `full_page` and `layout_regions` both map onto the
     `force_full_page_ocr` machinery (the whole-page vs per-region *detector*
     distinction has no analogue in the det-free PP-OCR recognizer here).
@@ -2623,6 +2643,51 @@ These are deliberate or unavoidable divergences, not bugs.
     groundtruth is unchanged (7 / 18, 407), and one snapshot moves — a
     LaTeX figure's math, `𝐤𝑡𝑅 ]}` → `𝐤𝑡𝑅]}`, the closing bracket after a
     raised index.
+
+23. **Unmapped glyphs read `�`** (#1003, docling#5070 / docling-parse
+    7.24). A painted glyph no source maps to Unicode used to vanish from the
+    text layer, so a lost `⁻¹` read `mL1` and nothing downstream could tell.
+    It now reads U+FFFD, as docling-parse 7.24 emits it: a bare glyph-index
+    `/Differences` name (`g115`, `gid00043`, `cid42`, `glyph7`, `index9`), a
+    code a composite font's ToUnicode lacks, a code no table covers, and a
+    NUL a ToUnicode maps a code to (docling's own `\x00` → `\ufffd`). A
+    glyph whose embedded program paints nothing is a space instead — its box
+    has no height and it is a word boundary (redp5110's `/g3`). An unknown
+    code-like name keeps its text without the slash (`SM590000`, as
+    docling-parse reads it; we used to print `/SM590000`). Two deliberate
+    differences: a composite font with no ToUnicode reads `�` where
+    docling-parse takes the CID for a code point (redp5110's bullet, CID 114,
+    reads `r` there), and the predefined CJK cmaps (`Adobe-Korea1-UCS2`, …)
+    are not ported, so such a font reads `�` too (the Korean `skipped_*`
+    fixtures). Without the renderer (the wasm text-layer build) there is no
+    font program to ask, and every unmapped glyph reads `�`. With it came a
+    ToUnicode fix: a `bfrange` whose destination is a surrogate pair
+    (`<1d59> <1d5a> <d835dec2>`) steps its last code unit and maps `𝛂 𝛃`;
+    the range used to be dropped. On the corpus: redp5110 155 → 119
+    groundtruth diff lines (373 → 337 in all), four snapshots move.
+
+24. **Superscripts and subscripts, opt-in** (#1005, docling#4815's
+    `ScriptPositionModel`; `script_positions` / `--script-positions` on
+    every surface, docling's `pipeline_options.script_position_options.
+    enabled` read by the Python facade). The port of
+    `utils/script_position.py` is rule for rule — line splitting, baseline
+    groups, the body baseline, the touch / in-word / footnote-mark tests,
+    difflib's matching blocks over the NFKC- and punctuation-folded text —
+    and its unit tests are ported with it (`script_position.rs`), the
+    end-to-end ones on docling's fixture and its rotated, cropped and
+    invisible-text pages (`tests/suite/script_position.rs`). The characters
+    come from our text layer instead of pypdfium2: the loose box, the pen's
+    baseline and size, `Tr` 3 / 7 left out. A marked paragraph or footnote
+    is a `Node::ScriptText`; the JSON writes docling's shape (the item with
+    an empty text, an inline group of the runs added after every other
+    item, each run with `formatting.script` and its characters' box), so
+    the HTML reads `H<sub>2</sub>O` and Markdown `H2O`. Three differences:
+    list items are not rewritten (ours carry their own location and would
+    leave their list under a wrapper); an item's box is the 0–511 grid
+    location, so the character test's slack is one grid step wider than
+    docling's 0.5 pt; and the stage runs on the PDF pipeline only, not on
+    `text_layer_only` conversions. Off by default, so nothing changes
+    unless it is asked for.
 ---
 
 ## 5. Not migrated / out of scope
