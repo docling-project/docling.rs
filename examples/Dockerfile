@@ -165,6 +165,7 @@ RUN apt-get update \
 ENV DOCLING_RS_SYSTEM_FONTS=0 \
     DOCLING_RS_FONT_DIRS=/usr/share/fonts/truetype/liberation:/usr/share/fonts/truetype/dejavu
 
+COPY crates/docling-pdf/data/mapping-resources-pdf/LICENSE.txt /usr/share/doc/docling.rs/LICENSE-mapping-resources-pdf.txt
 COPY --from=builder /artifacts/ /tmp/artifacts/
 RUN cp /tmp/artifacts/docling-rs /usr/local/bin/ \
     && (cp /tmp/artifacts/libonnxruntime*.so* /usr/local/lib/ 2>/dev/null || true) \
