@@ -163,6 +163,7 @@ fi
 say "installing to $PREFIX"
 $SUDO mkdir -p "$PREFIX/bin"
 $SUDO cp "${PREBUILT_BIN:-target/release/docling-rs}" "$PREFIX/bin/docling-rs"
+$SUDO cp "$SRC_DIR/crates/docling-pdf/data/mapping-resources-pdf/LICENSE.txt" "$PREFIX/LICENSE-mapping-resources-pdf.txt"
 
 # The models land inside the prefix; download_dependencies.sh fetches into
 # the *current* directory, so run it from there. It is idempotent (skips files

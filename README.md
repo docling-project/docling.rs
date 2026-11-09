@@ -543,3 +543,16 @@ conformance workflow, and the conventions a change is expected to follow.
 ## License
 
 MIT, matching upstream docling.
+
+The CID → Unicode tables in
+[`crates/docling-pdf/data/mapping-resources-pdf/`](./crates/docling-pdf/data/mapping-resources-pdf/)
+are Adobe's, under the BSD-3-Clause
+[`LICENSE.txt`](./crates/docling-pdf/data/mapping-resources-pdf/LICENSE.txt)
+there. The native builds compile them in (docling-pdf's `cid-collections`
+feature), so the published binaries carry that licence as
+`LICENSE-mapping-resources-pdf.txt`: the CLI and FFI archives and the Node.js
+packages next to the binary, the wheels in their `.dist-info/licenses/`
+(maturin includes `crates/docling-py/LICENSE-*`), the container images in
+`/usr/share/doc/docling.rs/`, and `install.sh` in its prefix. The wasm package
+and demo leave the tables out. A binary you build and redistribute yourself
+with the feature on needs the licence beside it too.
