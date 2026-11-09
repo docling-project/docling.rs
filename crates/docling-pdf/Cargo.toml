@@ -3,7 +3,8 @@ name = "docling-pdf"
 description = "PDF/image backend for docling.rs: pure-Rust text layer and page renderer + ONNX layout/table/OCR pipeline."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+# Adobe's CID -> Unicode tables in data/mapping-resources-pdf/ are BSD-3-Clause.
+license = "MIT AND BSD-3-Clause"
 repository.workspace = true
 homepage.workspace = true
 readme.workspace = true
@@ -12,7 +13,11 @@ categories.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["ml"]
+default = ["ml", "cid-collections"]
+# Adobe's CID -> Unicode tables for CJK fonts without ToUnicode, which
+# build.rs packs into about 350 KB. The wasm build leaves them out; enable
+# them there with `--features docling-pdf/cid-collections`.
+cid-collections = []
 # The full pipeline: the pure-Rust page renderer/raster + ONNX
 # layout/OCR/TableFormer/enrichment. Without it only the pure-Rust text-layer path remains
 # (`convert_text_layer` — lopdf content-stream parsing + the docling-parse
@@ -87,10 +92,10 @@ serde_json = { version = "1", optional = true }
 # what current LTS distros ship (Ubuntu 24.04 = 1.17). Newer libheif-rs
 # requires libheif >= 1.18 and can be selected once baselines move.
 libheif-rs = { version = "~1.0", default-features = false, optional = true }
-docling-core = { path = "../docling-core", version = "2.71.2", default-features = false }
+docling-core = { path = "../docling-core", version = "2.71.4", default-features = false }
 # Shared ONNX execution-provider selection (DOCLING_RS_EP, #74/#288);
 # re-exported as `docling_pdf::ep`.
-docling-onnx = { path = "../docling-onnx", version = "2.71.2", optional = true }
+docling-onnx = { path = "../docling-onnx", version = "2.71.4", optional = true }
 pdfium-render = { version = "0.8", optional = true }
 # Runtime loading of the opt-in docling-parse renderer plugin (#478,
 # `dparse_render.rs`) — the same mechanism pdfium-render uses for libpdfium.

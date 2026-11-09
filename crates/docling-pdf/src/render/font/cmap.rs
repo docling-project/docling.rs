@@ -41,10 +41,17 @@ impl CMap {
         if s.starts_with("Identity") {
             return c;
         }
-        // Everything else is two-byte with unknown CIDs; the Unicode-keyed
-        // families at least tell what the codes mean.
+        // CIDs remain unknown for non-Identity predefined CMaps, but the
+        // Unicode families tell us the codes and their byte lengths.
         c.identity = false;
         c.unicode_codes = s.contains("UCS2") || s.contains("UTF16");
+        if s.contains("UTF16") {
+            c.codespace = vec![
+                (2, 0, 0xd7ff),
+                (4, 0xd800dc00, 0xdbffdfff),
+                (2, 0xe000, 0xffff),
+            ];
+        }
         c
     }
 
@@ -152,7 +159,12 @@ impl CMap {
                 let code = bytes[i..i + n]
                     .iter()
                     .fold(0u32, |a, &b| (a << 8) | u32::from(b));
-                if code >= lo && code <= hi {
+                if code >= lo
+                    && code <= hi
+                    && !(self.unicode_codes
+                        && n == 4
+                        && crate::textparse::unicode_cmap_char(code).is_none())
+                {
                     taken = Some((code, n));
                     break;
                 }
@@ -309,5 +321,25 @@ mod tests {
         assert_eq!(c.split(b"\x00\x41\x12\x34"), vec![(0x41, 2), (0x1234, 2)]);
         assert_eq!(c.cid(0x1234), 0x1234);
         assert!(CMap::predefined(b"UniGB-UCS2-H").unicode_codes);
+    }
+
+    #[test]
+    fn utf16_pairs_are_four_byte_codes_only_in_utf16_cmaps() {
+        let bytes = b"\x65\xe5\xd8\x42\xdf\xb7\x8a\x9e";
+        for name in [b"UniJIS-UTF16-H".as_slice(), b"UniJIS-UTF16-V"] {
+            assert_eq!(
+                CMap::predefined(name).split(bytes),
+                vec![(0x65e5, 2), (0xd842dfb7, 4), (0x8a9e, 2)]
+            );
+        }
+        for name in [b"Identity-H".as_slice(), b"UniJIS-UCS2-H"] {
+            assert_eq!(
+                CMap::predefined(name).split(bytes),
+                vec![(0x65e5, 2), (0xd842, 2), (0xdfb7, 2), (0x8a9e, 2)]
+            );
+        }
+        let c = CMap::predefined(b"UniJIS-UTF16-H");
+        assert_eq!(c.split(b"\xd8\x42\x65\xe5"), vec![(0xd842, 2), (0x65e5, 2)]);
+        assert_eq!(c.split(b"\xd8\x42"), vec![(0xd842, 2)]);
     }
 }

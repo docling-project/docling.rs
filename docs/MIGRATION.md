@@ -258,6 +258,7 @@ from 2.142.1 is mostly the inline whitespace contract (#997, § JSON):
 | ODF | 7 | **7** | 6 | `text_document_03` JSON: its picture's alt text also sits in a `description` annotation, which upstream's groundtruth leaves out (#1016 ported docling#4809's formatted table cells, and the mirrored HTML groundtruth is upstream's own again) |
 | EPUB | 1 | **1** | **1** | — |
 | Email (`.eml`) | 2 | **2** | **2** | — (`.msg` is a docling.rs extension) |
+| iCalendar (`.ics`) | 4 | **4** | **4** | — (#1032, docling#4880; against upstream's committed groundtruth, `crates/docling/tests/suite/calendar.rs`) |
 | iWork Pages | 3 | **3** | **3** | — (the password-protected and nested-dir fixtures fail in upstream) |
 | iWork Keynote | 5 | **5** | **5** | — (against upstream's committed groundtruth; a live run of 2.142.1 here writes the float32 boxes widened, `708.9999694824219` for `709.0`) (docling#4330 + docling#4376, 2.130+; #466 — both container generations and the nested 2018 index; charts as classified pictures with their data table and title caption, the fixture built the way upstream's test builds it: the Numbers chart placed on the deck's table slide) |
 | EBCDIC | 3 | **3** | **3** | — |
@@ -290,7 +291,7 @@ converted once more as that format with a warning.
 | PDF & images | `.pdf` · `.png` `.jpg` `.jpeg` `.tif` `.tiff` `.bmp` `.webp` `.gif` · HEIC/HEIF `.heic` `.heif` (`--features heif`) · METS/GBS scan packages `.tar.gz` · DjVu `.djvu` `.djv` | pure-Rust text layer, page renderer and scan raster, ONNX layout + TableFormer + OCR (`docling-pdf`; no native PDF library in the default build, `pdfium` is an opt-in feature — [`docs/PDF_CONFORMANCE.md`](./PDF_CONFORMANCE.md)); JPEG 2000 and JBIG2 decode in Rust (#598, #811 — `/JBIG2Globals` included; an image no decoder can read draws a mid-gray placeholder, a stencil too); DjVu reads its hidden text layer without models and falls back to OCR with them |
 | docling native | docling JSON `.json` · DocTags `.doctags` `.dt` · DCLX `.dclx` | DocTags — the token markup docling's VLMs emit — read through docling-core's tolerant parser, the one the VLM pipeline uses |
 | Mainframe data | EBCDIC `.ebc` `.ebcdic` | fixed-width records decoded through a COBOL copybook (docling's `EbcdicLayout`): `ebcdic_layout`, or a `<stem>.layout.json` sidecar |
-| Email & subtitles | `.eml` · Outlook `.msg` · WebVTT `.vtt` | `.msg` is projected onto RFC 822 (same output as the `.eml`); `list_attachments` names the attachments, `email_attachments()` converts them; `cid:` images embed under `image_sources=embedded` |
+| Email, calendars & subtitles | `.eml` · Outlook `.msg` · iCalendar `.ics` `.ical` `.icalendar` `.ifb` · WebVTT `.vtt` | `.msg` is projected onto RFC 822 (same output as the `.eml`); `list_attachments` names the attachments, `email_attachments()` converts them; `cid:` images embed under `image_sources=embedded`; iCalendar (#1032, docling#4880): each event / task / journal entry / free-busy block a heading with `Field: value` paragraphs, its description, and attendee / reminder / attachment lists (inline payloads never decoded), the calendar name as title; `text/calendar` and a nameless `BEGIN:VCALENDAR` input are recognized, folds are joined on the bytes before decoding, `encoding` applies |
 | Audio | `.wav` `.mp3` `.mpga` `.m4a` `.aac` `.ogg` `.flac` | Rust all the way down: symphonia decodes, Whisper tiny (ONNX, docling's ASR defaults) or the Parakeet TDT 0.6B v3 preset transcribes; `[time: start-end] text` paragraphs, the timing as the JSON item's track, `--to vtt` for subtitles; language auto-detected or `asr_lang`. Ogg Opus falls back to the `ffmpeg` binary |
 | Video | `.mp4` `.avi` `.mov` `.mkv` `.webm` `.mpeg` `.mpg` | the audio track transcribed the same way; with the `ffmpeg` binary on `PATH` (`DOCLING_FFMPEG`), `video_frames` scene-change frames (8 by default, `all` for every cut) interleave as `[time: <ts>]` pictures, tuned by the `video_*` options. AVI needs ffmpeg; without it a video is its transcript |
 
@@ -321,12 +322,12 @@ converted once more as that format with a warning.
 - Upstream bug, not reproduced: docling 2.142.1 with docling-core **2.104.0** (what a fresh `pip install docling` resolves) prints every raw HTML block as escaped text (`&lt;table&gt;…`) — 2.104's HTML serializer escapes a code item's text, so the detour's markup stays text. Its lock (2.103.1) and its committed groundtruth parse the markup, as this port does
 - re-verified vs docling 2.129
 - docling#4202: every text-format input (Markdown, CSV, AsciiDoc, WebVTT, LaTeX, JATS/USPTO XML, …) decodes like docling's `decode_text`:
-  - a UTF-32/UTF-8/UTF-16 BOM settles the encoding and is dropped
+  - a UTF-32/UTF-8/UTF-16 BOM settles the encoding and is dropped; bytes it cannot decode are an error naming the BOM-detected encoding (`'utf-8-sig'`, `'utf-16'`, `'utf-32'`), never a windows-1252 fallback reading the mark as `ï»¿` (docling#4949, #1029)
   - otherwise strict UTF-8
   - otherwise — #675, beyond docling — a statistical guess (`chardetng`, Firefox's detector; what MarkItDown asks `charset_normalizer` for) taken when it names a non-Latin encoding (Shift_JIS / EUC-JP / GBK / Big5 / EUC-KR / KOI8-R / windows-1251 / Greek / Hebrew / Arabic / Thai) that decodes the bytes cleanly into letters, with a warning naming it (MarkItDown's cp932 `test_mskanji.csv`, a KOI8-R or GBK file read as written)
   - otherwise windows-1252 with a warning when under half of the non-ASCII bytes form UTF-8 sequences (a Latin code page other than 1252 is never guessed — its bytes read as text under 1252 as they always did; name it with `encoding`)
   - and an error for *damaged* UTF-8 (≥ 50%) or a byte cp1252 leaves undefined, where an undeclared non-UTF-8 file used to fail outright
-- docling's `TextBackendOptions.encoding` (`MarkdownBackendOptions(encoding="shift_jis")`) is the `encoding` option on every surface — `DocumentConverter::encoding` / `SourceDocument::with_encoding`, `--encoding`, serve's `encoding` field/param, the Python kwarg, the Node option, the FFI key — a WHATWG label or Python codec name decoded strictly, an undecodable byte or unknown label failing the conversion like docling's `DocumentLoadError`
+- docling's `TextBackendOptions.encoding` (`MarkdownBackendOptions(encoding="shift_jis")`) is the `encoding` option on every surface — `DocumentConverter::encoding` / `SourceDocument::with_encoding`, `--encoding`, serve's `encoding` field/param, the Python kwarg, the Node option, the FFI key — a WHATWG label or Python codec name decoded strictly (every Python alias of a Unicode codec too — `u8`, `utf_16_le`, `utf-16-be`, `utf-32`, `utf_32_be`, …, a leading mark dropped under each, docling#4849, #1029), an undecodable byte or unknown label failing the conversion like docling's `DocumentLoadError`
 - #319 (docling 2.122's docling#3817): tables written without edge pipes (`Region | Q1` over `--- | ---`) are normalized up front so pulldown parses them like the canonical spelling
 - a leading UTF-8 BOM no longer hides the first heading (docling#4109)
 - #466 (docling#4019, 2.126; `line_breaks.md` mirrored, exact in Markdown and JSON): a line break inside a paragraph, heading or list item is kept:
@@ -388,7 +389,9 @@ converted once more as that format with a warning.
   - `<br>` splits (`\n` for one, a new paragraph for two)
   - a mixed-formatting `<li>` is an empty `list_item` over an inline group, a `<dt>` a bold item whose `<dd>`s form a `descriptions` list group under it, `<ul>` directly inside `<ul>` its own nested group
   - a rich table cell's items are re-parented under a `rich_cell_group_{tables}_{col}_{row}` group of the table (named with upstream's lazily advanced column, i.e. the *previous* cell's), the cell carrying `ref` to it, cell text docling's raw `get_text`, declared spans unclamped
-  - a picture's caption is a body-level `caption` item
+  - a picture's caption is a `caption` item under its picture, so it stays in the picture's section or rich table cell (docling#5037, #1023 — it was a body-level item before)
+  - a `<pre>`'s sibling `<code>` children are one code item, not code runs of an inline group (docling#4998, #1023)
+  - a table's `<tfoot>` rows are kept and come after every other row group wherever the element sits — HTML 4 put it before `<tbody>` — in the JSON and the Markdown alike (docling#4323, #1023; the JSON used to drop them and the Markdown kept source order)
   - the `<title>`, everything before the first heading and a `<footer>` (a `section` group) are `furniture`
   - `<details>` a `section` group
   - `field_value` items carry `kind`
@@ -412,6 +415,12 @@ converted once more as that format with a warning.
 - the 42 documents upstream's `test_backend_asciidoc.py` converts are mirrored in `crates/docling/tests/data/asciidoc/upstream/` with docling's Markdown and JSON — all re-run through 2.142.1, where only the two comment documents moved (their JSON is 2.142.1's) — and match **42/42** in both, as do our 15 `edge_*` probes.
 - **comments (#863, docling#4663, 2.141)**: a run of consecutive `//` lines is one comment and everything between two `////` lines another (an unclosed `////` runs to the end, as Asciidoctor reads it); each becomes a `text` item on the **notes** layer under the open list item, else under the current section, without ending the list or the paragraph it sits in — a comment between two lines of a paragraph lands before the paragraph. A comment block is checked ahead of every other construct (a `----` inside `////` is comment text, not a listing), and the lines inside an example / sidebar / quote / open / passthrough block now run through the same loop, so a comment there is one too. Exports leave the notes layer out by default, so the default Markdown is unchanged. In the flat outputs (Markdown / LaTeX / DocLang with the notes layer included) a comment met inside a list is printed after the list, not between its items — a node there would split the list the default Markdown prints; the JSON keeps it under its item.
 - docling `main` after 2.142.1: only exactly two slashes start a line comment — `///` and `//// text` are body text — and a comment block opened by four or more slashes closes only on an identical line (docling#4394); a symmetric title drops its closing marks, `== Intro ==` → `Intro`, while marks of another length stay (`=== Details ==`, docling#4938)
+- **docling 2.149 (#1024, #1025)** — checked item for item against docling 2.149.0 on all 114 AsciiDoc inputs of upstream's `test_backend_asciidoc.py`, both JSON and Markdown:
+  - tables (docling#5010): the first line's cell count — an `N*` cell counting N times, a span its width — is the column count, and the cells fill rows of that width, so a row may be written over several lines (Asciidoctor's own one-cell-per-line example was one row per line); `N+`, `.N+` and `N.M+` are spans placed at the first free position, a row span cut at the last row (they were dropped); `N*` writes the cell N times, a line continuing its text going to every copy. A span or factor counts at most 1000 — a crafted `999999999*|x` is not materialized. The Markdown repeats a spanning cell's text across what it covers, as docling-core does
+  - links (docling#5115): `url[text]`, `link:target[text]`, `mailto:addr[text]`, `<url>` and bare URLs (`http(s)`, `file`, `ftp`, `irc`; at a URL start only, a bare one ending before trailing punctuation) are text runs with docling's `hyperlink` (AnyUrl/Path-normalized) in an `inline` group — they were printed verbatim (`See https://example.com[Example site].`). Named attributes follow the link text (quoted when it holds a comma, `\[` `\]` unescaped, a trailing `^` dropped); no text shows the target; a link inside a link's text stays text of the outer one; a code run keeps its link
+  - block titles (docling#5144, docling#4391): a block title is one line — the next line starts the paragraph it titles (it used to run into the title: `**Procedure Do the thing.**`) — and is parsed like a paragraph: a bold paragraph keeps its links (an `inline` group of bold runs) and drops its marks when no run stands out; a picture's, table's or code block's caption joins the runs and keeps a hyperlink only when every non-blank run shares it
+  - a trailing ` +` is a hard line break (docling#5175): `Roses are red, +` → `Roses are red,\nviolets are blue.`, Markdown `  \n`
+  - `[start=4]` (or `[loweralpha,start=4]`, `[arabic, start="2"]`) numbers the next ordered list from 4 (docling#5180), kept past blank lines and a block title until the block it applies to
 - The parser follows `_parse` / `_iter_blocks` step for step and builds docling's item tree alongside the flat nodes, mirroring the `parents` / `indents` / `list_kinds` bookkeeping:
   - the title is the root
   - a heading is parented to the nearest present ancestor level (docling 2.127+) and clears the deeper ones
@@ -815,6 +824,16 @@ converted once more as that format with a warning.
   - the `.msg` fixed-property scan reads each storage at its own header offset with the record type checked (a FILETIME's value bytes used to pass for the attach-method record about once in 11 000 attachments — "no payload")
 - the bindings carry the detected format into `convert` (py `as_stream().format`, Node `format: att.format`), default their limits from `DOCLING_RS_ZIP_MAX_*` like the converter, and Node gets `emailAttachments*Async`
 
+#### iCalendar
+
+**Backend:** `calendar.rs`\
+**Status:** **4/4 exact, JSON 4/4 identical** against upstream's committed groundtruth (docling#4880, #1032)
+
+- a port of docling's `CalendarDocumentBackend` (`calendar/parser.py`, `values.py`, `render.py`): RFC 5545 content lines (parameters, quoted values, RFC 6868 caret escapes, TEXT unescaping, comma lists), the component tree with docling's containment recovery (a BEGIN the open component cannot hold closes it, a stray END is ignored), dates / durations / recurrence rules in words (a rule with a part the description cannot carry stays raw), all-day ends exclusive, `Z` over a TZID
+- folds are joined on the bytes before decoding (a fold may split a UTF-8 character) unless the input is UTF-16/32 — a wide BOM, or a requested `encoding` that is not ASCII compatible — which is decoded first and unfolded as text
+- the JSON is docling's item tree (`title`, `section_header` levels 1/2, `text` fields, `list` groups named after their heading); the flat Markdown prints `& < >` verbatim, as upstream's groundtruth does
+- detection: `.ics` `.ical` `.icalendar` `.ifb`, `text/calendar`, and a nameless input whose first non-blank line is `BEGIN:VCALENDAR` (UTF-16 behind its BOM too); a named `.txt` keeps its own route
+
 #### EPUB
 
 **Backend:** `epub.rs` → HTML backend\
@@ -825,6 +844,8 @@ converted once more as that format with a warning.
 - the flat Markdown path now applies docling's heading rule (`to_single_text_element`: parts joined by spaces, the first formatting found wrapping the whole heading, `## *To the Hibernia*`) and merges adjacent same-annotation text nodes into one run (`simplify_text_elements`: `<b><time>… <abbr>p.m.</abbr></time></b>` is one bold run)
 - #466 (docling#4351): a content document that opens with a UTF-16 byte order mark is decoded as UTF-16 instead of being dropped
 - docling#4293 (2.130.0-33): cross-document links of every content-document extension (`.xhtml`, `.xht`, `.htm`, `.html`) become anchors; a link with a scheme or `//host` is left alone
+- #1027 (docling#5170): a single-quoted cross-document link (`href='ch2.xhtml#n2'`) becomes an anchor too, keeping its quote; a single-quoted absolute URL keeps its host
+- #1027 (docling#5168): `container.xml`'s rootfile `full-path` is percent-decoded like the manifest hrefs, so `OEBPS/my%20book.opf` reads `OEBPS/my book.opf` instead of failing the conversion
 
 #### ODF (odt/ods/odp)
 
@@ -1518,6 +1539,9 @@ exact, 389 diff lines**, the rest close — see `PDF_CONFORMANCE.md`. A determin
 - the JSON carries page headers/footers as body-parented `page_header`/`page_footer` texts on the furniture layer, as upstream writes them (Markdown still leaves them out)
 - the text inside a picture reaches the JSON as that picture's children (docling's `_add_child_elements`), as upstream writes it (Markdown, like docling's, prints only the caption)
 - text outside the page's display box — the CropBox, else the MediaBox — is dropped glyph by glyph like docling-parse does (#529: a FrameMaker print slug, a tiled page's neighbouring text) instead of being clamped onto the page edge
+- a CJK composite font without ToUnicode is read through Adobe's CID → Unicode table of the collection its `CIDSystemInfo` names (Japan1, GB1, CNS1, Korea1, KR; ISO 32000-1 §9.10.2), as docling-parse does
+  - deliberately for every descendant font, `CIDFontType2` included, as docling-parse does
+  - some producers name an Adobe collection on a subset TrueType whose CIDs are really glyph ids (`CIDToGIDMap` Identity or absent); without ToUnicode such a font reads as plausible but wrong text, as it does in docling, where docling.rs read nothing before and OCR could step in
 - #598: a `JPXDecode` (JPEG 2000) image is decoded (`render/jpx.rs`, `hayro-jpeg2000`, within ±1 of OpenJPEG) instead of drawn as a mid-gray placeholder
   - on photo pages the blank rectangle left the layout model unsure of the picture (0.64 instead of 0.99): its box ran over the caption below, which nested inside as `text` and vanished from the Markdown, and two stacked photos split by a caption fused into one
   - decoded, the reporter's NASA pages give docling's result (caption linked and printed, two pictures) at int8 and fp32 alike — `crates/docling/tests/jpx_pictures.rs`
@@ -2334,9 +2358,9 @@ These are deliberate or unavoidable divergences, not bugs.
     fires on the attention-map figures of 1706.03762 (`Input-Input Layer5`,
     outlined titles). On docling's two Korean `skipped_*` pages, whose
     Adobe-Korea1 CID fonts carry no ToUnicode, it used to OCR a few stray
-    glyphs (`[ 4-5] 8`); since #1003 those glyphs are text-layer `�` (the
-    predefined CJK cmaps docling-parse maps them with are not ported), so
-    the regions hold text and are not OCR'd. `no_ocr` / `skip_ocr` keep the text layer
+    glyphs (`[ 4-5] 8`); since #1039 those glyphs read through the predefined
+    CJK collections docling-parse maps them with, so the regions hold text
+    and are not OCR'd. `no_ocr` / `skip_ocr` keep the text layer
     alone; `full_page` and `layout_regions` both map onto the
     `force_full_page_ocr` machinery (the whole-page vs per-region *detector*
     distinction has no analogue in the det-free PP-OCR recognizer here).

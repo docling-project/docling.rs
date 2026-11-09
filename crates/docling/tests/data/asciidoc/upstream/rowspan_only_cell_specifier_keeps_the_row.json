@@ -1,6 +1,6 @@
 {
   "schema_name": "DoclingDocument",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "rowspan_only_cell_specifier_keeps_the_row",
   "origin": {
     "mimetype": "text/asciidoc",
@@ -70,10 +70,10 @@
             "fillable": false
           },
           {
-            "row_span": 1,
+            "row_span": 2,
             "col_span": 1,
             "start_row_offset_idx": 1,
-            "end_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
             "start_col_offset_idx": 0,
             "end_col_offset_idx": 1,
             "text": "tall",
@@ -100,8 +100,8 @@
             "col_span": 1,
             "start_row_offset_idx": 2,
             "end_row_offset_idx": 3,
-            "start_col_offset_idx": 0,
-            "end_col_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
             "text": "y",
             "column_header": false,
             "row_header": false,
@@ -143,10 +143,10 @@
           ],
           [
             {
-              "row_span": 1,
+              "row_span": 2,
               "col_span": 1,
               "start_row_offset_idx": 1,
-              "end_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
               "start_col_offset_idx": 0,
               "end_col_offset_idx": 1,
               "text": "tall",
@@ -171,13 +171,13 @@
           ],
           [
             {
-              "row_span": 1,
+              "row_span": 2,
               "col_span": 1,
-              "start_row_offset_idx": 2,
+              "start_row_offset_idx": 1,
               "end_row_offset_idx": 3,
               "start_col_offset_idx": 0,
               "end_col_offset_idx": 1,
-              "text": "y",
+              "text": "tall",
               "column_header": false,
               "row_header": false,
               "row_section": false,
@@ -190,7 +190,7 @@
               "end_row_offset_idx": 3,
               "start_col_offset_idx": 1,
               "end_col_offset_idx": 2,
-              "text": "",
+              "text": "y",
               "column_header": false,
               "row_header": false,
               "row_section": false,

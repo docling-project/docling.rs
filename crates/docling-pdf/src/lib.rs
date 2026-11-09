@@ -99,6 +99,7 @@ pub mod tf_core;
 #[cfg(feature = "ocr-prep")]
 pub mod tf_match;
 pub mod timing;
+mod tounicode;
 
 #[cfg(feature = "ml")]
 use std::collections::BTreeMap;

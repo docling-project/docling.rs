@@ -63,7 +63,8 @@ pub struct HeadingHierarchyOptions {
     /// heading/list item.
     pub bookmark_match_threshold: f32,
     /// Override of the numbering-scheme precedence (highest level first);
-    /// known schemes: `part`, `chapter`, `article`, `roman_u`, `arabic`,
+    /// known schemes: `part`, `chapter`, `division`, `subdivision`,
+    /// `article`, `roman_u`, `arabic`,
     /// `alpha_u`, `alpha_l`, `roman_l`. `None` = the default legal ordering.
     pub numbering_schemes: Option<Vec<String>>,
 }
@@ -115,15 +116,17 @@ pub(crate) struct GlyphStyle {
 
 /// Default precedence of numbering schemes, highest hierarchy level first.
 /// `dotted` shares the `arabic` rank and orders below it by segment depth.
-const DEFAULT_FAMILY_ORDER: [&str; 8] = [
-    "part",    // PART I / TITLE I / BOOK I
-    "chapter", // CHAPTER 1
-    "article", // ARTICLE 1 / SECTION 1 / Clause / § 1
-    "roman_u", // I. II. III.
-    "arabic",  // 1. 2. 3.  (and dotted 1.1, 1.1.1 by depth)
-    "alpha_u", // A. B. C.
-    "alpha_l", // (a) (b) (c)
-    "roman_l", // (i) (ii) (iii)
+const DEFAULT_FAMILY_ORDER: [&str; 10] = [
+    "part",        // PART I / TITLE I / BOOK I
+    "chapter",     // CHAPTER 1
+    "division",    // DIVISION I / Division 1 / Division A (docling#4473)
+    "subdivision", // SUBDIVISION A / Subdivision a
+    "article",     // ARTICLE 1 / SECTION 1 / Clause / § 1
+    "roman_u",     // I. II. III.
+    "arabic",      // 1. 2. 3.  (and dotted 1.1, 1.1.1 by depth)
+    "alpha_u",     // A. B. C.
+    "alpha_l",     // (a) (b) (c)
+    "roman_l",     // (i) (ii) (iii)
 ];
 
 // ------------------------------------------------------------------ markers
@@ -262,27 +265,183 @@ fn classify_letter(token: &str) -> Option<Marker> {
     None
 }
 
+/// What docling's `_KW_TAIL` (docling#5154) matches after a part/chapter/
+/// article keyword: `Some(None)` when the keyword stands alone — the end, or
+/// `.` `:` `–` `—` or `- ` after optional whitespace (`APPENDIX`, `Annex:`,
+/// `Appendix – Data`) — `Some(Some(token))` for the whitespace-separated
+/// token that follows (`[^\s.,:;)\]–—-]+`), `None` when the keyword is not
+/// a whole word there (`Part-Year`, `Parts`, `Chapter, …`).
+fn keyword_tail<'a>(s: &'a str, kw: &str) -> Option<Option<&'a str>> {
+    // `get`: the keyword's byte length may fall inside a multi-byte char (#377).
+    let head = s.get(..kw.len())?;
+    if !head.eq_ignore_ascii_case(kw) {
+        return None;
+    }
+    let rest = &s[kw.len()..];
+    let after = rest.trim_start();
+    if after.len() < rest.len() {
+        let tok_len = after.find(keyword_token_end).unwrap_or(after.len());
+        if tok_len > 0 {
+            return Some(Some(&after[..tok_len]));
+        }
+    }
+    let mut chars = after.chars();
+    match chars.next() {
+        None | Some('.' | ':' | '\u{2013}' | '\u{2014}') => Some(None),
+        Some('-') if chars.next().is_some_and(char::is_whitespace) => Some(None),
+        _ => None,
+    }
+}
+
+/// The characters that end a keyword's enumerator token: whitespace and
+/// docling's `.,:;)]–—-`.
+fn keyword_token_end(c: char) -> bool {
+    c.is_whitespace()
+        || matches!(
+            c,
+            '.' | ',' | ':' | ';' | ')' | ']' | '\u{2013}' | '\u{2014}' | '-'
+        )
+}
+
+/// docling's `_NUMBER_WORDS` (docling#5154): `CHAPTER ONE`, `ARTICLE FIRST`.
+const NUMBER_WORDS: [&str; 47] = [
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+    "twenty",
+    "thirty",
+    "forty",
+    "fifty",
+    "sixty",
+    "seventy",
+    "eighty",
+    "ninety",
+    "first",
+    "second",
+    "third",
+    "fourth",
+    "fifth",
+    "sixth",
+    "seventh",
+    "eighth",
+    "ninth",
+    "tenth",
+    "eleventh",
+    "twelfth",
+    "thirteenth",
+    "fourteenth",
+    "fifteenth",
+    "sixteenth",
+    "seventeenth",
+    "eighteenth",
+    "nineteenth",
+    "twentieth",
+];
+
+/// docling's `_keyword_marker` (docling#5154): part/chapter/article keywords
+/// are ordinary words too (`Rule Definition`, `Chapter Summary`, `Schedule of
+/// Fees`), so one is numbering only when it stands alone or the next token
+/// holds a digit (`Chapter 2D`, `Rule 12(b)`), is one letter, a valid Roman
+/// numeral or a number word — otherwise the plain word would outrank the
+/// heading's real `1.` / `2.1` numbering.
+fn keyword_marker(tail: Option<Option<&str>>) -> bool {
+    match tail {
+        None => false,
+        Some(None) => true,
+        Some(Some(tok)) => {
+            tok.chars().any(char::is_numeric)
+                || tok.chars().count() == 1
+                || is_roman(tok)
+                || NUMBER_WORDS.contains(&tok.to_lowercase().as_str())
+        }
+    }
+}
+
+/// docling's `_KW_ENUM` + `_keyword_enumerator` (docling#4473): `Division`
+/// / `Subdivision` are stricter still — an Arabic index, a single letter or a
+/// valid Roman numeral must follow, terminated by whitespace, the end or
+/// separator punctuation (so the French elision `Division d'appel` and
+/// `Division Civil Remedies` are not markers).
+fn keyword_enumerator(s: &str, kw: &str) -> bool {
+    let Some(head) = s.get(..kw.len()) else {
+        return false;
+    };
+    if !head.eq_ignore_ascii_case(kw) {
+        return false;
+    }
+    let rest = &s[kw.len()..];
+    let after = rest.trim_start();
+    if after.len() == rest.len() {
+        return false;
+    }
+    let tok = &after[..after.find(keyword_token_end).unwrap_or(after.len())];
+    !tok.is_empty()
+        && (tok.bytes().all(|b| b.is_ascii_digit())
+            || (tok.len() == 1 && tok.as_bytes()[0].is_ascii_alphabetic())
+            || is_roman(tok))
+}
+
+/// docling's `_KW_CHAPTER` lookahead: a statute citation such as `Chapter
+/// A-15` (letter-dash-digit) is not a chapter heading.
+fn chapter_citation(s: &str) -> bool {
+    let Some(rest) = s.get("chapter".len()..) else {
+        return false;
+    };
+    let after = rest.trim_start();
+    let b = after.as_bytes();
+    after.len() < rest.len()
+        && b.len() >= 3
+        && b[0].is_ascii_alphabetic()
+        && b[1] == b'-'
+        && after[2..].starts_with(|c: char| c.is_numeric())
+}
+
 /// Extract the leading numbering marker from a heading, or `None`.
 fn parse_marker(text: &str) -> Option<Marker> {
-    let s = text.trim_start();
+    let s = text.trim();
     if s.is_empty() {
         return None;
     }
 
-    for kw in ["part", "title", "book"] {
-        if starts_with_word(s, kw) {
-            return Some(Marker::family("part"));
-        }
+    // docling's order: part, division, subdivision, chapter, article.
+    if ["part", "title", "book"]
+        .iter()
+        .any(|kw| keyword_marker(keyword_tail(s, kw)))
+    {
+        return Some(Marker::family("part"));
     }
-    if starts_with_word(s, "chapter") {
+    if keyword_enumerator(s, "division") {
+        return Some(Marker::family("division"));
+    }
+    if keyword_enumerator(s, "subdivision") {
+        return Some(Marker::family("subdivision"));
+    }
+    if keyword_marker(keyword_tail(s, "chapter")) && !chapter_citation(s) {
         return Some(Marker::family("chapter"));
     }
-    for kw in [
+    if [
         "article", "section", "clause", "schedule", "annex", "appendix", "rule",
-    ] {
-        if starts_with_word(s, kw) {
-            return Some(Marker::family("article"));
-        }
+    ]
+    .iter()
+    .any(|kw| keyword_marker(keyword_tail(s, kw)))
+    {
+        return Some(Marker::family("article"));
     }
     // § 1 / §§ 1.2
     if s.starts_with('§') {
@@ -708,8 +867,19 @@ fn strip_marker(text: &str) -> String {
 fn leading_marker_len(s: &str) -> Option<usize> {
     // Keyword + optional `[\s.:]*[0-9ivxlcdm]*` tail.
     for kw in [
-        "chapter", "article", "section", "clause", "schedule", "annex", "appendix", "rule", "part",
-        "title", "book",
+        "chapter",
+        "article",
+        "section",
+        "clause",
+        "schedule",
+        "annex",
+        "appendix",
+        "rule",
+        "part",
+        "title",
+        "book",
+        "division",
+        "subdivision",
     ] {
         if starts_with_word(s, kw) {
             let mut i = kw.len();
@@ -1237,6 +1407,84 @@ mod tests {
         assert_eq!(fam("1-A Something"), None);
         assert_eq!(fam("2 Methods"), None);
         assert_eq!(fam("1.5 kg"), Some(("dotted", 2)));
+    }
+
+    /// docling#5154's `test_keyword_part_and_article` additions: a keyword
+    /// standing alone or before an enumerator (digit-holding token, letter,
+    /// Roman numeral, number word) is a marker.
+    #[test]
+    fn keyword_part_and_article() {
+        let fam = |t: &str| parse_marker(t).map(|m| m.family);
+        assert_eq!(fam("Part I"), Some("part"));
+        assert_eq!(fam("TITLE II General"), Some("part"));
+        assert_eq!(fam("Article 1 - Scope"), Some("article"));
+        assert_eq!(fam("Section 2"), Some("article"));
+        assert_eq!(fam("§ 1.2 Liability"), Some("article"));
+        assert_eq!(fam("Part One."), Some("part"));
+        assert_eq!(fam("CHAPTER ONE"), Some("chapter"));
+        assert_eq!(fam("ARTICLE FIRST"), Some("article"));
+        assert_eq!(fam("Rule 12(b) Motions"), Some("article"));
+        assert_eq!(fam("Appendix A1"), Some("article"));
+        assert_eq!(fam("APPENDIX"), Some("article"));
+        assert_eq!(fam("Annex: Glossary"), Some("article"));
+        assert_eq!(fam("Appendix \u{2013} Data Tables"), Some("article"));
+        assert_eq!(fam("Chapter 2D"), Some("chapter"));
+        // `Chapter A-15` is a statute citation, not a chapter.
+        assert_eq!(fam("Chapter A-15 Licensing"), None);
+        // A multi-byte char right after the keyword neither panics nor matches.
+        assert_eq!(fam("Part\u{e9}e"), None);
+    }
+
+    /// docling#5154's `test_keyword_followed_by_a_word_is_not_a_marker`: a
+    /// keyword used as an ordinary word does not outrank the real numbering.
+    #[test]
+    fn keyword_followed_by_a_word_is_not_a_marker() {
+        let fam = |t: &str| parse_marker(t).map(|m| m.family);
+        for t in [
+            "Rule Definition",
+            "Part-Year Method",
+            "Title Insurance",
+            "Book Review",
+            "Chapter Summary",
+            "Section Overview",
+            "Schedule of Fees",
+        ] {
+            assert_eq!(fam(t), None, "{t}");
+        }
+        let opts = HeadingHierarchyOptions::default();
+        let texts = ["1. Overview", "Rule Definition", "2. Rules", "2.1 Syntax"];
+        let map = infer_from_numbering(&texts.map(|t| t), &opts);
+        let mut got: Vec<_> = map.iter().map(|(k, v)| (*k, *v)).collect();
+        got.sort();
+        assert_eq!(got, vec![(0, 1), (2, 1), (3, 2)]);
+    }
+
+    /// docling#4473's `Division` / `Subdivision`: markers only before an
+    /// explicit enumerator, ranked between chapter and article.
+    #[test]
+    fn keyword_division_and_subdivision() {
+        let fam = |t: &str| parse_marker(t).map(|m| m.family);
+        assert_eq!(fam("DIVISION I"), Some("division"));
+        assert_eq!(fam("Division 1 - General"), Some("division"));
+        assert_eq!(fam("Division A"), Some("division"));
+        assert_eq!(fam("SUBDIVISION A"), Some("subdivision"));
+        assert_eq!(fam("Subdivision a: Scope"), Some("subdivision"));
+        assert_eq!(fam("Division of Powers"), None);
+        assert_eq!(fam("Division Civil Remedies"), None);
+        assert_eq!(fam("Division d'appel"), None);
+        assert_eq!(fam("Division"), None);
+        let opts = HeadingHierarchyOptions::default();
+        let texts = [
+            "CHAPTER 1",
+            "DIVISION I",
+            "SUBDIVISION A",
+            "ARTICLE 1",
+            "1. Scope",
+        ];
+        let map = infer_from_numbering(&texts.map(|t| t), &opts);
+        let levels: Vec<_> = (0..texts.len()).map(|i| map[&i]).collect();
+        assert_eq!(levels, vec![1, 2, 3, 4, 5]);
+        assert_eq!(strip_marker("Division 2 General"), "General");
     }
 
     /// docling#4179 (2.129): bare Arabic chapter numbers count once the

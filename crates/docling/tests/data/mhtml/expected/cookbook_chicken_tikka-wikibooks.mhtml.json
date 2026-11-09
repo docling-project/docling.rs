@@ -48,13 +48,7 @@
         "$ref": "#/groups/1"
       },
       {
-        "$ref": "#/texts/23"
-      },
-      {
         "$ref": "#/pictures/0"
-      },
-      {
-        "$ref": "#/texts/24"
       },
       {
         "$ref": "#/pictures/1"
@@ -91,18 +85,6 @@
       },
       {
         "$ref": "#/texts/36"
-      },
-      {
-        "$ref": "#/texts/104"
-      },
-      {
-        "$ref": "#/texts/105"
-      },
-      {
-        "$ref": "#/texts/336"
-      },
-      {
-        "$ref": "#/texts/338"
       }
     ],
     "content_layer": "body",
@@ -2016,7 +1998,7 @@
     {
       "self_ref": "#/texts/23",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/pictures/0"
       },
       "children": [],
       "content_layer": "furniture",
@@ -2029,7 +2011,7 @@
     {
       "self_ref": "#/texts/24",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/pictures/1"
       },
       "children": [],
       "content_layer": "furniture",
@@ -3245,7 +3227,7 @@
     {
       "self_ref": "#/texts/104",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/pictures/2"
       },
       "children": [],
       "content_layer": "body",
@@ -3258,7 +3240,7 @@
     {
       "self_ref": "#/texts/105",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/pictures/3"
       },
       "children": [],
       "content_layer": "body",
@@ -6424,7 +6406,7 @@
     {
       "self_ref": "#/texts/336",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/pictures/4"
       },
       "children": [],
       "content_layer": "furniture",
@@ -6455,7 +6437,7 @@
     {
       "self_ref": "#/texts/338",
       "parent": {
-        "$ref": "#/body"
+        "$ref": "#/pictures/5"
       },
       "children": [],
       "content_layer": "furniture",
@@ -6496,7 +6478,11 @@
       "parent": {
         "$ref": "#/body"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/23"
+        }
+      ],
       "content_layer": "furniture",
       "label": "picture",
       "prov": [],
@@ -6514,7 +6500,11 @@
       "parent": {
         "$ref": "#/body"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/24"
+        }
+      ],
       "content_layer": "furniture",
       "label": "picture",
       "prov": [],
@@ -6532,7 +6522,11 @@
       "parent": {
         "$ref": "#/groups/19"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/104"
+        }
+      ],
       "content_layer": "body",
       "label": "picture",
       "prov": [],
@@ -6550,7 +6544,11 @@
       "parent": {
         "$ref": "#/groups/20"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/105"
+        }
+      ],
       "content_layer": "body",
       "label": "picture",
       "prov": [],
@@ -6568,7 +6566,11 @@
       "parent": {
         "$ref": "#/texts/335"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/336"
+        }
+      ],
       "content_layer": "furniture",
       "label": "picture",
       "prov": [],
@@ -6586,7 +6588,11 @@
       "parent": {
         "$ref": "#/texts/337"
       },
-      "children": [],
+      "children": [
+        {
+          "$ref": "#/texts/338"
+        }
+      ],
       "content_layer": "furniture",
       "label": "picture",
       "prov": [],

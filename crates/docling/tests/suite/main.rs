@@ -17,6 +17,7 @@
 //! test --release -p docling --test regression`).
 
 mod asciidoc_upstream;
+mod calendar;
 mod charset;
 mod chunk_refs;
 mod dclx_roundtrip;

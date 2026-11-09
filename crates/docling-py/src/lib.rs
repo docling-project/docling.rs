@@ -1332,6 +1332,7 @@ fn parse_format(name: &str) -> Option<docling::InputFormat> {
         "jsonl" => Jsonl,
         "xml" => Xml,
         "ipynb" => Ipynb,
+        "calendar" => Calendar,
         _ => return None,
     })
 }

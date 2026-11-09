@@ -346,6 +346,12 @@ jobs:
         run: |
           npx napi create-npm-dir -t .
           npx napi artifacts --dir artifacts
+          for dir in npm/*/; do
+            cp ../docling-pdf/data/mapping-resources-pdf/LICENSE.txt "${dir}LICENSE-mapping-resources-pdf.txt"
+            node -e 'const f = process.argv[1], p = require(f);
+              p.files.push("LICENSE-mapping-resources-pdf.txt");
+              require("fs").writeFileSync(f, JSON.stringify(p, null, 2) + "\n")' "$PWD/${dir}package.json"
+          done
 
       # A re-run after a partial publish: `napi prepublish` publishes every
       # platform package unconditionally, so one that made it to npm last
@@ -471,6 +477,7 @@ jobs:
                 ../../target/release/libonnxruntime_providers_cuda.so \
                 cuda/release-assets/
           cp docling-rs.linux-x64-gnu.node cuda/release-assets/
+          cp ../docling-pdf/data/mapping-resources-pdf/LICENSE.txt cuda/release-assets/LICENSE-mapping-resources-pdf.txt
           cd cuda/release-assets
           node -e '
             const fs = require("fs"), crypto = require("crypto");
