@@ -1485,6 +1485,9 @@ exact, 389 diff lines**, the rest close — see `PDF_CONFORMANCE.md`. A determin
 - the JSON carries page headers/footers as body-parented `page_header`/`page_footer` texts on the furniture layer, as upstream writes them (Markdown still leaves them out)
 - the text inside a picture reaches the JSON as that picture's children (docling's `_add_child_elements`), as upstream writes it (Markdown, like docling's, prints only the caption)
 - text outside the page's display box — the CropBox, else the MediaBox — is dropped glyph by glyph like docling-parse does (#529: a FrameMaker print slug, a tiled page's neighbouring text) instead of being clamped onto the page edge
+- a CJK composite font without ToUnicode is read through Adobe's CID → Unicode table of the collection its `CIDSystemInfo` names (Japan1, GB1, CNS1, Korea1, KR; ISO 32000-1 §9.10.2), as docling-parse does
+  - deliberately for every descendant font, `CIDFontType2` included, as docling-parse does
+  - some producers name an Adobe collection on a subset TrueType whose CIDs are really glyph ids (`CIDToGIDMap` Identity or absent); without ToUnicode such a font reads as plausible but wrong text, as it does in docling, where docling.rs read nothing before and OCR could step in
 - #598: a `JPXDecode` (JPEG 2000) image is decoded (`render/jpx.rs`, `hayro-jpeg2000`, within ±1 of OpenJPEG) instead of drawn as a mid-gray placeholder
   - on photo pages the blank rectangle left the layout model unsure of the picture (0.64 instead of 0.99): its box ran over the caption below, which nested inside as `text` and vanished from the Markdown, and two stacked photos split by a caption fused into one
   - decoded, the reporter's NASA pages give docling's result (caption linked and printed, two pictures) at int8 and fp32 alike — `crates/docling/tests/jpx_pictures.rs`
