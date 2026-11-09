@@ -12,7 +12,7 @@ We shipped a **new** parser. See the [docs](https://example.com/docs) for detail
 2. Second step
 
 - [x] Write tests
-- [] Ship it
+- [ ] Ship it
 
 ~~Old caveat~~
 
