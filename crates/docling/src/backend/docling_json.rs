@@ -22,7 +22,7 @@ pub struct DoclingJsonBackend;
 impl DeclarativeBackend for DoclingJsonBackend {
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
         let text = source.text()?;
-        let mut root: Value = match serde_json::from_str(&text) {
+        let root: Value = match serde_json::from_str(&text) {
             Ok(v) => v,
             // Not JSON at all — but not a docling document either (its
             // schema name is nowhere in the text): the bytes as a json
@@ -38,52 +38,67 @@ impl DeclarativeBackend for DoclingJsonBackend {
         if !crate::backend::text::is_docling_document(&root) {
             return crate::backend::text::convert_json_text(source);
         }
-        // docling-core's `RefItem` reads a reference under either key
-        // (`populate_by_name`): upstream fixtures written with `cref`
-        // (`table_footnotes_496.json`) read like `$ref` ones (#1014).
-        normalize_crefs(&mut root);
-        check_table_budget(&root)?;
-        // A document saved before schema 1.11.0 has trimmed inline runs its
-        // producer expected joined with `" "`; put that join back in the
-        // runs, as docling-core does on load (#997), before the faithful join.
-        docling_core::inline::migrate_legacy_json(&mut root);
-        // Referenced images resolve against the JSON file's directory (#403).
-        inline_referenced_images(
-            &mut root,
+        read_document(
+            root,
+            &source.name,
             source.path.as_deref().and_then(std::path::Path::parent),
-        );
-        let root = root;
-        let name = root["name"].as_str().unwrap_or(&source.name).to_string();
-        let mut doc = DoclingDocument::new(name);
-        // The `metadata` object (#679) a docling.rs export carried.
-        if root["metadata"].is_object() {
-            doc.metadata = docling_core::DocumentMetadata::from_json(&root["metadata"]);
-        }
-        let mut guard = WalkGuard {
-            pages: page_sizes(&root),
-            claimed_footnotes: claimed_footnotes(&root),
-            ..WalkGuard::default()
-        };
-        if let Some(children) = root["body"]["children"].as_array() {
-            for c in children {
-                walk(c, &root, 0, &mut doc, &mut guard);
-            }
-        }
-        // A page no body item sits on (a blank page, a furniture-only one)
-        // is still a page of the document: its marker keeps it in the
-        // exported `pages` map. Trailing markers render nothing — Markdown's
-        // page break goes only between two rendered blocks.
-        for (&page_no, &(width, height)) in &guard.pages {
-            if !guard.seen_pages.contains(&page_no) {
-                doc.push(Node::PageInfo {
-                    page_no,
-                    width,
-                    height,
-                });
-            }
-        }
-        Ok(doc)
+        )
     }
+}
+
+/// Read a parsed `DoclingDocument` JSON value into the flat [`Node`] model —
+/// the walk behind [`DoclingJsonBackend`], shared with backends that build
+/// docling's item tree and take their Markdown nodes from that tree's own
+/// JSON (the Box Note backend, #1033), so both read the same structure the
+/// way docling-core's serializers do. `base` resolves referenced images;
+/// `fallback_name` names a document whose JSON has no `name`.
+pub(crate) fn read_document(
+    mut root: Value,
+    fallback_name: &str,
+    base: Option<&std::path::Path>,
+) -> Result<DoclingDocument, ConversionError> {
+    // docling-core's `RefItem` reads a reference under either key
+    // (`populate_by_name`): upstream fixtures written with `cref`
+    // (`table_footnotes_496.json`) read like `$ref` ones (#1014).
+    normalize_crefs(&mut root);
+    check_table_budget(&root)?;
+    // A document saved before schema 1.11.0 has trimmed inline runs its
+    // producer expected joined with `" "`; put that join back in the
+    // runs, as docling-core does on load (#997), before the faithful join.
+    docling_core::inline::migrate_legacy_json(&mut root);
+    // Referenced images resolve against the JSON file's directory (#403).
+    inline_referenced_images(&mut root, base);
+    let root = root;
+    let name = root["name"].as_str().unwrap_or(fallback_name).to_string();
+    let mut doc = DoclingDocument::new(name);
+    // The `metadata` object (#679) a docling.rs export carried.
+    if root["metadata"].is_object() {
+        doc.metadata = docling_core::DocumentMetadata::from_json(&root["metadata"]);
+    }
+    let mut guard = WalkGuard {
+        pages: page_sizes(&root),
+        claimed_footnotes: claimed_footnotes(&root),
+        ..WalkGuard::default()
+    };
+    if let Some(children) = root["body"]["children"].as_array() {
+        for c in children {
+            walk(c, &root, 0, &mut doc, &mut guard);
+        }
+    }
+    // A page no body item sits on (a blank page, a furniture-only one)
+    // is still a page of the document: its marker keeps it in the
+    // exported `pages` map. Trailing markers render nothing — Markdown's
+    // page break goes only between two rendered blocks.
+    for (&page_no, &(width, height)) in &guard.pages {
+        if !guard.seen_pages.contains(&page_no) {
+            doc.push(Node::PageInfo {
+                page_no,
+                width,
+                height,
+            });
+        }
+    }
+    Ok(doc)
 }
 
 /// Every table of the file against the cell budget (#861; docling-core
@@ -711,11 +726,62 @@ fn list_group(
         let Some(item) = resolve(c, root) else {
             continue;
         };
+        let checkbox = match item["label"].as_str() {
+            Some("checkbox_selected") => Some("[x]"),
+            Some("checkbox_unselected") => Some("[ ]"),
+            _ => None,
+        };
+        if let Some(mark) = checkbox {
+            // A checkbox in a list group (a Box Note check list, #1033) is a
+            // line of the list: `- [x] text`, the next item right below it.
+            if !g.seen.insert(kind.to_string()) {
+                continue;
+            }
+            let body = formatted_text(item);
+            doc.push(Node::ListItem {
+                ordered: false,
+                number: pos as u64 + 1,
+                first_in_list: first,
+                text: format!("{mark} {body}"),
+                level,
+                marker: None,
+                location: None,
+                dclx: None,
+                href: None,
+                layer: None,
+            });
+            first = false;
+            if let Some(sub) = item["children"].as_array() {
+                for s in sub {
+                    walk(s, root, level + 1, doc, g);
+                }
+            }
+            continue;
+        }
         if item["label"].as_str() != Some("list_item") {
             continue;
         }
         let position = pos as u64 + 1;
-        let body = formatted_text(item);
+        let sub = item["children"].as_array().map_or(&[][..], Vec::as_slice);
+        // The item's leading inline content — the inline groups opening its
+        // children (a Box Note list item's second paragraph,
+        // #1033) — continues the item's own line, as docling-core's list
+        // serializer prints it (`- Intro more **x** y`).
+        let lead = sub.iter().take_while(|s| leading_inline(s, root)).count();
+        let mut body = formatted_text(item);
+        for s in &sub[..lead] {
+            if !g.seen.insert(ref_kind(s).to_string()) {
+                continue;
+            }
+            let more = text_of(s, root);
+            let more = more.trim();
+            if !more.is_empty() {
+                if !body.is_empty() {
+                    body.push(' ');
+                }
+                body.push_str(more);
+            }
+        }
         let (ordered, number, text) = match marker_of(item) {
             Marker::Verbatim(Some(n)) => (true, n, body),
             Marker::Verbatim(None) => (false, position, body),
@@ -745,12 +811,33 @@ fn list_group(
             layer: None,
         });
         first = false;
-        if let Some(sub) = item["children"].as_array() {
-            for s in sub {
-                walk(s, root, level + 1, doc, g);
-            }
+        for s in &sub[lead..] {
+            walk(s, root, level + 1, doc, g);
         }
     }
+}
+
+/// Whether a list item's child is inline content its line takes in: an
+/// `inline` group (upstream's `test_list_item_text_keeps_boundary_before_rich_paragraph`).
+fn leading_inline(reference: &Value, root: &Value) -> bool {
+    ref_kind(reference).starts_with("#/groups/")
+        && resolve(reference, root).is_some_and(|c| c["label"].as_str() == Some("inline"))
+}
+
+/// A `RichTableCell`'s Markdown: docling-core serializes the group its `ref`
+/// points at — the cell's blocks, blank-line separated — and a table cell
+/// holds one line, so each newline becomes a space (`1\n\n*primary*` →
+/// `1  *primary*`, a Box Note cell, #1033). `None` for a plain cell, or a
+/// rich one whose group renders nothing.
+fn rich_cell_markdown(cell: &Value, root: &Value) -> Option<String> {
+    let group = cell
+        .get("ref")
+        .filter(|r| ref_kind(r).starts_with("#/groups/"))?;
+    let mut sub = DoclingDocument::new("cell");
+    walk(group, root, 0, &mut sub, &mut WalkGuard::default());
+    let md = sub.export_to_markdown();
+    let md = md.trim();
+    (!md.is_empty()).then(|| md.replace('\n', " "))
 }
 
 fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
@@ -763,6 +850,23 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
     // writes `column_header` on every cell, so all-`false` means "no header"
     // (#1042), not "unknown".
     let mut declares_headers = false;
+    // A `RichTableCell`'s `ref` sits on `table_cells` only (the derived
+    // `grid` shows plain cells): keyed by the cell's anchor.
+    let rich: std::collections::HashMap<(u64, u64), &Value> = item["data"]["table_cells"]
+        .as_array()
+        .map_or(&[][..], Vec::as_slice)
+        .iter()
+        .filter(|c| c.get("ref").is_some())
+        .filter_map(|c| {
+            Some((
+                (
+                    c["start_row_offset_idx"].as_u64()?,
+                    c["start_col_offset_idx"].as_u64()?,
+                ),
+                c,
+            ))
+        })
+        .collect();
     if let Some(grid) = item["data"]["grid"].as_array() {
         for (r, row) in grid.iter().enumerate() {
             let Some(cells) = row.as_array() else {
@@ -771,7 +875,15 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
             rows.push(
                 cells
                     .iter()
-                    .map(|cell| cell["text"].as_str().unwrap_or("").to_string())
+                    .map(|cell| {
+                        let anchor = (
+                            cell["start_row_offset_idx"].as_u64().unwrap_or(u64::MAX),
+                            cell["start_col_offset_idx"].as_u64().unwrap_or(u64::MAX),
+                        );
+                        rich.get(&anchor)
+                            .and_then(|rc| rich_cell_markdown(rc, root))
+                            .unwrap_or_else(|| cell["text"].as_str().unwrap_or("").to_string())
+                    })
                     .collect::<Vec<_>>(),
             );
             // A spanning cell is repeated at each grid position it covers; its

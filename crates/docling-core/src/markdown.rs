@@ -628,6 +628,11 @@ fn strict_text(text: &str, strict: bool) -> String {
     if !strict {
         return text.to_string();
     }
+    // A list item's leading GFM task box (`[ ] todo`, a docling-JSON check
+    // list item, #1033) is markup, not a stray space inside brackets.
+    if let Some(rest) = text.strip_prefix("[ ] ") {
+        return format!("[ ] {}", strict_text(rest, strict));
+    }
     text.replace("\\_", "_")
         .replace(" ,", ",")
         .replace(" .", ".")

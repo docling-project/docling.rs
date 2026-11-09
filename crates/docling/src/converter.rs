@@ -3160,8 +3160,13 @@ impl DocumentConverter {
                 // `"cells"` — reads as one, like MarkItDown's `application/json`
                 // sniff; any other JSON is the docling-JSON backend's.
                 InputFormat::JsonDocling => {
-                    if crate::backend::ipynb::looks_like_notebook(&source.text()?) {
+                    let text = source.text()?;
+                    if crate::backend::ipynb::looks_like_notebook(&text) {
                         self.ipynb_backend().convert(source)?
+                    } else if crate::backend::boxnote::looks_like_boxnote(&text) {
+                        // A Box Note saved as `.json` (#1033): a top-level
+                        // `doc` node, which no docling document has.
+                        crate::backend::BoxNoteBackend.convert(source)?
                     } else {
                         DoclingJsonBackend.convert(source)?
                     }
@@ -3169,6 +3174,8 @@ impl DocumentConverter {
                 InputFormat::Jsonl => crate::backend::text::convert_json_text(source)?,
                 InputFormat::Text => crate::backend::TextBackend.convert(source)?,
                 InputFormat::Ipynb => self.ipynb_backend().convert(source)?,
+                // Box Notes (#1033): docling's ProseMirror JSON reader.
+                InputFormat::Boxnote => crate::backend::BoxNoteBackend.convert(source)?,
                 // RSS / Atom / RDF feeds (#678): the title, each item's heading,
                 // date and body (its HTML through the HTML backend).
                 InputFormat::Feed => crate::backend::FeedBackend {

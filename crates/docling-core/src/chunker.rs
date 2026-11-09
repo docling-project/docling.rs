@@ -581,7 +581,7 @@ impl Walker<'_> {
         if body.is_empty() {
             return;
         }
-        let segments: Vec<String> = inline_segments_tagged(md_text)
+        let segments: Vec<String> = inline_segments_tagged(md_text, runs)
             .into_iter()
             .flat_map(|(text, is_plain)| {
                 if is_plain {
@@ -1299,7 +1299,7 @@ fn triplet_table_text(t: &Table) -> String {
 /// uniform item. The single space docling's serializer inserts between inline
 /// items is stripped from the adjacent plain runs.
 fn inline_segments(md: &str) -> Vec<String> {
-    inline_segments_tagged(md)
+    inline_segments_tagged(md, &[])
         .into_iter()
         .map(|(t, _)| t)
         .collect()
@@ -1308,7 +1308,20 @@ fn inline_segments(md: &str) -> Vec<String> {
 /// Like [`inline_segments`], with each segment tagged `true` when it came from
 /// plain (unmarked) text — those may still need splitting at run boundaries
 /// invisible in markdown (underline, soft breaks).
-fn inline_segments_tagged(md: &str) -> Vec<(String, bool)> {
+///
+/// `runs` are the node's structured inline runs (empty for a plain
+/// paragraph). The flat text cannot tell an inline formula's `$…$` from a
+/// literal dollar sign (`a bet of $5 … has won $6`, #1065), so a `$…$` span
+/// is a formula only when it is one: when the node carries `formula` runs,
+/// the span's LaTeX must be one of them; otherwise it must satisfy Pandoc's
+/// `tex_math_dollars` delimiter rule ([`dollar_math_closer`]), which no
+/// currency amount does.
+fn inline_segments_tagged(md: &str, runs: &[crate::InlineRun]) -> Vec<(String, bool)> {
+    let formula_runs: Vec<&str> = runs
+        .iter()
+        .filter(|r| r.formula)
+        .map(|r| r.text.trim())
+        .collect();
     let chars: Vec<char> = md.chars().collect();
     let n = chars.len();
     let find = |from: usize, pat: &str| -> Option<usize> {
@@ -1452,7 +1465,15 @@ fn inline_segments_tagged(md: &str) -> Vec<(String, bool)> {
         }
         // An inline formula: standalone it re-serializes in display form.
         if chars[i] == '$' {
-            if let Some(end) = find(i + 1, "$") {
+            let end = if formula_runs.is_empty() {
+                dollar_math_closer(&chars, i)
+            } else {
+                find(i + 1, "$").filter(|&end| {
+                    let latex: String = chars[i + 1..end].iter().collect();
+                    formula_runs.contains(&latex.trim())
+                })
+            };
+            if let Some(end) = end {
                 if end > i + 1 {
                     flush(&mut out, &mut plain, true, after_span);
                     let latex: String = chars[i + 1..end].iter().collect();
@@ -1471,6 +1492,23 @@ fn inline_segments_tagged(md: &str) -> Vec<(String, bool)> {
         out.push((unescape_text(md), true));
     }
     out
+}
+
+/// The closing `$` of an inline formula opened at `open`, by Pandoc's
+/// `tex_math_dollars` rule: the opener has a non-space character right after
+/// it, the closer is the next `$`, has a non-space character right before it
+/// and is not followed by a digit. `$5 riding … won $6` fails it twice (a
+/// space before the second `$`, a digit after it), so a price is never a
+/// formula, while `$x$`, `$a+b$` and `$E=mc^2$` still are.
+fn dollar_math_closer(chars: &[char], open: usize) -> Option<usize> {
+    let first = *chars.get(open + 1)?;
+    if first.is_whitespace() || first == '$' {
+        return None;
+    }
+    let end = open + 1 + chars[open + 1..].iter().position(|&c| c == '$')?;
+    let before_ok = !chars[end - 1].is_whitespace();
+    let after_ok = !chars.get(end + 1).is_some_and(|c| c.is_ascii_digit());
+    (before_ok && after_ok).then_some(end)
 }
 
 /// Split a plain markdown segment at run boundaries the markdown cannot show
@@ -3485,5 +3523,64 @@ mod tests {
         let tok = WordTok(4);
         let out = semchunk("one two three. four five six\nseven eight", 4, &tok);
         assert!(out.iter().all(|c| tok.count_tokens(c) <= 4), "{out:?}");
+    }
+
+    /// #1065: a literal `$` in running text (prices) is not an inline-formula
+    /// delimiter — the paragraph stays one item, its text verbatim.
+    #[test]
+    fn dollar_amounts_are_not_inline_formulas() {
+        for text in [
+            "costs $5 and $0.25",
+            "a bet of $5 riding on the game. The player has just won $6 on the game.",
+            "pay $10, get $ 3 back",
+        ] {
+            assert_eq!(
+                inline_segments(text),
+                vec![text.to_string()],
+                "{text:?} was split"
+            );
+            let doc = doc_with(vec![Node::Paragraph { text: text.into() }]);
+            let chunks = HierarchicalChunker.chunk(&doc);
+            assert_eq!(chunks.len(), 1);
+            assert_eq!(chunks[0].text, text);
+            assert_eq!(chunks[0].doc_items.len(), 1);
+            assert_eq!(chunks[0].doc_items[0].text, text);
+        }
+    }
+
+    /// Real inline formulas keep their own item, re-wrapped as `$$…$$`.
+    #[test]
+    fn dollar_math_inline_formulas_still_split() {
+        assert_eq!(
+            inline_segments("where $E=mc^2$ holds"),
+            vec!["where", "$$E=mc^2$$", "holds"]
+        );
+        assert_eq!(inline_segments("$x$"), vec!["$$x$$"]);
+    }
+
+    /// With structured runs, only a `formula` run's LaTeX is a formula — a
+    /// price next to a real equation stays plain text.
+    #[test]
+    fn formula_runs_decide_inline_formulas() {
+        let runs = vec![
+            crate::InlineRun {
+                text: "costs $5, and".into(),
+                ..Default::default()
+            },
+            crate::InlineRun {
+                text: "x + 1".into(),
+                formula: true,
+                ..Default::default()
+            },
+            crate::InlineRun {
+                text: "is $6".into(),
+                ..Default::default()
+            },
+        ];
+        let segs: Vec<String> = inline_segments_tagged("costs $5, and $x + 1$ is $6", &runs)
+            .into_iter()
+            .map(|(t, _)| t)
+            .collect();
+        assert_eq!(segs, vec!["costs $5, and", "$$x + 1$$", "is $6"]);
     }
 }
