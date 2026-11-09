@@ -3157,6 +3157,10 @@ impl DocumentConverter {
                 }
                 .convert(source)?,
                 InputFormat::Vtt => WebVttBackend.convert(source)?,
+                InputFormat::Afp => crate::backend::AfpBackend {
+                    page_range: self.page_range,
+                }
+                .convert(source)?,
                 InputFormat::Calendar => CalendarBackend.convert(source)?,
                 InputFormat::Ebcdic => EbcdicBackend {
                     layout: self.ebcdic_layout.clone(),

@@ -23,6 +23,7 @@ macro_rules! cached_regex {
 }
 
 mod abw;
+pub(crate) mod afp;
 mod asciidoc;
 pub(crate) mod boxnote;
 #[cfg(feature = "web-browser")]
@@ -122,6 +123,7 @@ mod xlsx_richdata;
 pub(crate) mod xml_depth;
 
 pub use abw::AbwBackend;
+pub use afp::AfpBackend;
 pub use asciidoc::AsciiDocBackend;
 pub use boxnote::BoxNoteBackend;
 pub use calendar::CalendarBackend;

@@ -47,6 +47,11 @@ pub enum InputFormat {
     Vtt,
     /// EBCDIC mainframe data + JSON copybook layout (#252, docling 2.118).
     Ebcdic,
+    /// An AFP / MO:DCA print stream (`.afp`, `application/vnd.ibm.modcap`,
+    /// or a nameless input opening with a structured-field introducer): its
+    /// pages and their PTOCA text — docling's `InputFormat.AFP`
+    /// (docling#4177, #1034).
+    Afp,
     Latex,
     Email,
     Epub,
@@ -225,6 +230,7 @@ impl InputFormat {
             InputFormat::Video => "video",
             InputFormat::Vtt => "vtt",
             InputFormat::Ebcdic => "ebc",
+            InputFormat::Afp => "afp",
             InputFormat::Latex => "latex",
             InputFormat::Email => "email",
             InputFormat::Epub => "epub",
@@ -296,6 +302,7 @@ impl InputFormat {
             "video" => InputFormat::Video,
             "vtt" => InputFormat::Vtt,
             "ebc" => InputFormat::Ebcdic,
+            "afp" => InputFormat::Afp,
             "latex" => InputFormat::Latex,
             "email" => InputFormat::Email,
             "epub" => InputFormat::Epub,
@@ -372,6 +379,7 @@ impl InputFormat {
             "text/csv" | "text/tab-separated-values" => InputFormat::Csv,
             "text/x-tex" | "application/x-tex" | "application/x-latex" => InputFormat::Latex,
             "text/vtt" => InputFormat::Vtt,
+            "application/vnd.ibm.modcap" | "application/x-afp" => InputFormat::Afp,
             "text/calendar" => InputFormat::Calendar,
             "application/json" => InputFormat::JsonDocling,
             "application/x-ndjson" | "application/jsonl" | "application/x-jsonlines" => {
@@ -635,6 +643,7 @@ const EXTENSIONS: &[(&str, InputFormat)] = {
         // backend sniffs the magic and projects it onto RFC 822.
         ("msg", Email),
         ("ebc", Ebcdic),
+        ("afp", Afp),
         // Plain text and source code (#671): the extensions MarkItDown's
         // plain-text converter would take by `text/*` media type, each as
         // one code block in its language (`crate::backend::text::code_language`)

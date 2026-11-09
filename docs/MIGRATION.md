@@ -262,6 +262,7 @@ from 2.142.1 is mostly the inline whitespace contract (#997, § JSON):
 | iWork Pages | 3 | **3** | **3** | — (the password-protected and nested-dir fixtures fail in upstream) |
 | iWork Keynote | 5 | **5** | **5** | — (against upstream's committed groundtruth; a live run of 2.142.1 here writes the float32 boxes widened, `708.9999694824219` for `709.0`) (docling#4330 + docling#4376, 2.130+; #466 — both container generations and the nested 2018 index; charts as classified pictures with their data table and title caption, the fixture built the way upstream's test builds it: the Numbers chart placed on the deck's table slide) |
 | EBCDIC | 3 | **3** | **3** | — |
+| AFP (MO:DCA) | 1 | **1** | **1** | — (#1034, docling#4177; against upstream's committed groundtruth, `crates/docling/tests/suite/afp.rs`) |
 | Box Note | 1 | **1** | **1** | — (#1033, against upstream's committed groundtruth) |
 | DocLang (`.dclg`/`.dclx`) | 15 | 14 | **15** | read under DocLang 0.9's rules as 2.148 reads them (§ DocLang input); `equations`: an inline formula's Markdown keeps one space at each side where upstream's has two (15/15 after whitespace normalization) |
 
@@ -291,7 +292,7 @@ converted once more as that format with a warning.
 | XML dialects | JATS / USPTO / XBRL / RIS (`.xml` `.nxml`, content-sniffed) · DocLang `.dclg` | XBRL converts without arelle: `dei` title, text blocks, numeric facts as docling's key-value graph, the taxonomy read offline from `xbrl_taxonomy`; RIS (#902, a docling.rs extension) is Austria's federal legal XML (`risdok`) — sections, headings, paragraphs with their formatting, lists, tables, running headers/footers as furniture |
 | PDF & images | `.pdf` · `.png` `.jpg` `.jpeg` `.tif` `.tiff` `.bmp` `.webp` `.gif` · HEIC/HEIF `.heic` `.heif` (`--features heif`) · METS/GBS scan packages `.tar.gz` · DjVu `.djvu` `.djv` | pure-Rust text layer, page renderer and scan raster, ONNX layout + TableFormer + OCR (`docling-pdf`; no native PDF library in the default build, `pdfium` is an opt-in feature — [`docs/PDF_CONFORMANCE.md`](./PDF_CONFORMANCE.md)); JPEG 2000 and JBIG2 decode in Rust (#598, #811 — `/JBIG2Globals` included; an image no decoder can read draws a mid-gray placeholder, a stencil too); DjVu reads its hidden text layer without models and falls back to OCR with them |
 | docling native | docling JSON `.json` · DocTags `.doctags` `.dt` · DCLX `.dclx` | DocTags — the token markup docling's VLMs emit — read through docling-core's tolerant parser, the one the VLM pipeline uses |
-| Mainframe data | EBCDIC `.ebc` `.ebcdic` | fixed-width records decoded through a COBOL copybook (docling's `EbcdicLayout`): `ebcdic_layout`, or a `<stem>.layout.json` sidecar |
+| Mainframe data | EBCDIC `.ebc` `.ebcdic` · AFP `.afp` | fixed-width records decoded through a COBOL copybook (docling's `EbcdicLayout`): `ebcdic_layout`, or a `<stem>.layout.json` sidecar; AFP / MO:DCA print streams (#1034, docling#4177): each page a `chapter` group of its PTOCA text lines, decoded as cp500 (code-page resources are not resolved), images / graphics / barcodes / overlays / page segments skipped with a warning; `application/vnd.ibm.modcap` and a nameless input opening with a structured-field introducer are recognized, `page_range` keeps the page numbers |
 | Notes | Box Note `.boxnote` (and a `.json` with a top-level `doc` node) | #1033, docling's `BoxNoteDocumentBackend` (docling#3722, #5160, #5119) ported: the ProseMirror `doc` tree — headings (level 1 the title), paragraphs as one text or an `inline` group of styled runs (`http`/`https`/`mailto` links only), bullet / ordered / check lists with the item text from its leading paragraph, code blocks, tables with clamped spans and rich cells, images as captioned pictures; the JSON is docling's item tree; a legacy `atext`/`pool` note is rejected as unsupported, as upstream does |
 | Email, calendars & subtitles | `.eml` · Outlook `.msg` · iCalendar `.ics` `.ical` `.icalendar` `.ifb` · WebVTT `.vtt` | `.msg` is projected onto RFC 822 (same output as the `.eml`); `list_attachments` names the attachments, `email_attachments()` converts them; `cid:` images embed under `image_sources=embedded`; iCalendar (#1032, docling#4880): each event / task / journal entry / free-busy block a heading with `Field: value` paragraphs, its description, and attendee / reminder / attachment lists (inline payloads never decoded), the calendar name as title; `text/calendar` and a nameless `BEGIN:VCALENDAR` input are recognized, folds are joined on the bytes before decoding, `encoding` applies |
 | Audio | `.wav` `.mp3` `.mpga` `.m4a` `.aac` `.ogg` `.flac` | Rust all the way down: symphonia decodes, Whisper tiny (ONNX, docling's ASR defaults) or the Parakeet TDT 0.6B v3 preset transcribes; `[time: start-end] text` paragraphs, the timing as the JSON item's track, `--to vtt` for subtitles; language auto-detected or `asr_lang`. Ogg Opus falls back to the `ffmpeg` binary |
@@ -804,6 +805,16 @@ converted once more as that format with a warning.
 
 - incl. the four-schema packed-decimal sample and `Decimal` rendering in fixed-point at every scale (`0.0000`, `0.0000000` — docling#4296 dropped `str()`'s `0E-7`, #466; `ola013k` groundtruth refreshed)
 - layout via `ebcdic_layout` option (all surfaces) or the `<stem>.layout.json` sidecar (docling.rs convenience; upstream requires explicit backend options)
+
+#### AFP (.afp)
+
+**Backend:** `afp.rs`\
+**Status:** **1/1 exact, JSON 1/1 identical** against upstream's committed groundtruth (docling#4177, #1034)
+
+- a port of docling's minimal `AfpDocumentBackend`: MO:DCA structured fields (introducer extension and padding stripped, the same malformed-input checks and byte offsets), Begin/End Page as pages, the PTOCA Transparent Data strings of each presentation-text object (chained control sequences, a line per Begin Line or per Absolute Move Baseline to a new baseline), C0/C1 controls dropped
+- text decodes as cp500 — the ebcdic backend's table — since code-page resources are not resolved; pages are `0 × 0` and items carry a zero bbox, as upstream
+- unsupported content (IOCA / IM images, GOCA graphics, BCOCA barcodes, object containers, overlays, page segments) is counted and warned about once per kind; a resource's presentation text lies outside any page and is never read
+- DocLang: docling-core 2.106's export raises on upstream's own document (it divides by the zero page size); ours prints the text with a page break between pages
 
 #### Email (.eml, .msg)
 

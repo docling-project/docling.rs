@@ -433,6 +433,12 @@ fn scale_decimal(raw_digits: &str, negative: bool, scale: u32) -> String {
 
 include!("ebcdic_tables.rs");
 
+/// The cp500 (International EBCDIC) decode table — AFP's PTOCA text falls
+/// back to it when no code page is resolved (#1034).
+pub(crate) fn cp500_table() -> &'static [u16; 256] {
+    &CP500
+}
+
 #[cfg(test)]
 mod tests {
     use super::{decode_int_like, decode_value, scale_decimal, FieldDef, FieldType, CP037};
