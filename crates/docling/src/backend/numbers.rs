@@ -470,8 +470,8 @@ fn grid(t: &SheetTable) -> Table {
             continue;
         }
         let span = cell.col_span.max(1).min(t.num_cols - cell.col);
-        for c in cell.col..cell.col + span {
-            rows[cell.row][c] = cell.text.clone();
+        for slot in &mut rows[cell.row][cell.col..cell.col + span] {
+            slot.clone_from(&cell.text);
         }
         cells.push(TableCell {
             text: cell.text.clone(),
