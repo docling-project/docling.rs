@@ -1040,7 +1040,7 @@ fn walk_linear(
                 // `<disp-formula>`), carrying any enclosing emphasis (#3726).
                 extend_segments(
                     &mut segments,
-                    walk_inline_formula(child, current, current_link),
+                    walk_inline_formula(child, current, current_link, false),
                 );
                 stop_walk = true;
             }
@@ -1082,15 +1082,29 @@ fn walk_linear(
 
 /// Walk an `<inline-formula>`: recognize its `<tex-math>` as a formula run and
 /// keep every other text run inline, carrying `fmt` (docling's
-/// `_walk_inline_formula`).
-fn walk_inline_formula(node: XmlNode, fmt: Fmt, hyperlink: Option<&str>) -> Vec<Seg> {
+/// `_walk_inline_formula`). With `resolve_links` (a table note's walk,
+/// docling#4818), an `<ext-link>` with a usable `xlink:href` sets the
+/// hyperlink of the runs inside it. MathML is skipped, its tail kept.
+fn walk_inline_formula(
+    node: XmlNode,
+    fmt: Fmt,
+    hyperlink: Option<&str>,
+    resolve_links: bool,
+) -> Vec<Seg> {
     let current = fmt.with_tag(node.tag_name().name());
+    let own_link = (resolve_links && node.has_tag_name("ext-link"))
+        .then(|| ext_link_href(node))
+        .flatten();
+    let hyperlink = own_link.as_deref().or(hyperlink);
     let mut segments = Vec::new();
     if let Some(t) = node.text() {
         append_run(&mut segments, t, current, hyperlink);
     }
     for child in node.children().filter(XmlNode::is_element) {
-        if child.tag_name().name() == "tex-math" {
+        if child.tag_name().name() == "math" && child.tag_name().namespace().is_some() {
+            // MathML (`{…}math`): docling skips it — a `<tex-math>` sibling
+            // carries the formula.
+        } else if child.tag_name().name() == "tex-math" {
             if let Some(formula) = extract_tex_math(child) {
                 segments.push(Seg {
                     formula: true,
@@ -1100,7 +1114,7 @@ fn walk_inline_formula(node: XmlNode, fmt: Fmt, hyperlink: Option<&str>) -> Vec<
                 });
             }
         } else {
-            let child_segments = walk_inline_formula(child, current, hyperlink);
+            let child_segments = walk_inline_formula(child, current, hyperlink, resolve_links);
             let ws_end = segments
                 .last()
                 .is_some_and(|s: &Seg| s.text.ends_with(char::is_whitespace));
@@ -1882,12 +1896,62 @@ fn add_table_grid(out: &mut Out, parent: Option<usize>, node: XmlNode) -> bool {
         },
     );
     add_rich_cells(out, table_id, &mut table, rich);
+    table.footnotes = add_table_footnotes(out, table_id, node);
     // The label+caption becomes the table's own caption (docling attaches it to
     // the `TableItem` rather than emitting a standalone paragraph before it).
     // Stored escaped, matching the backend's text-node convention.
     table.caption = (!cap_text.is_empty()).then(|| escape_text(&cap_text));
     out.doc.push(Node::Table(table));
     true
+}
+
+/// docling's `_add_table_footnotes` (docling#4818): each `<fn>` directly
+/// under the wrap's `<table-wrap-foot>` is one `footnote` item of the table,
+/// in source order — an empty item under the table holding an inline group
+/// of its runs (`footnote` runs, a formula a `formula` run; ext-links
+/// resolved, labels and `<p>` boundaries kept), as the article-level
+/// footnotes are. A note with no text is skipped, and a bare `<p>` in the
+/// foot stays dropped, as upstream leaves it. Returns the notes' Markdown
+/// for the flat table, which prints them after the grid.
+fn add_table_footnotes(out: &mut Out, table_id: usize, node: XmlNode) -> Vec<String> {
+    let mut texts = Vec::new();
+    let mut ids = Vec::new();
+    for fn_node in node
+        .children()
+        .filter(|c| c.has_tag_name("table-wrap-foot"))
+        .flat_map(|foot| foot.children().filter(|c| c.has_tag_name("fn")))
+    {
+        // Coalesce equivalent text runs (a literal `<xref>`) first.
+        let mut merged = Vec::new();
+        extend_segments(
+            &mut merged,
+            walk_inline_formula(fn_node, Fmt::default(), None, true),
+        );
+        let segs = trim_segment_edges(merged);
+        if segs.is_empty() {
+            continue;
+        }
+        let note = out.text(Some(table_id), "footnote", "", None, None, None, None);
+        let group = Some(out.group(Some(note), "inline", "group"));
+        for seg in &segs {
+            let label = if seg.formula { "formula" } else { "footnote" };
+            out.text(
+                group,
+                label,
+                &seg.text,
+                tree_formatting(seg.fmt),
+                seg.hyperlink.clone(),
+                None,
+                None,
+            );
+        }
+        ids.push(note);
+        texts.push(segs.iter().map(seg_markdown).collect());
+    }
+    if let TreeKind::Table { footnotes, .. } = &mut out.tree.items[table_id].kind {
+        *footnotes = ids;
+    }
+    texts
 }
 
 /// Parse a JATS/XHTML `<table>` into a row-major grid, expanding `colspan`
@@ -2096,7 +2160,7 @@ fn add_footnote_group(out: &mut Out, parent: Option<usize>, node: XmlNode, hleve
     let footnotes: Vec<Vec<Seg>> = node
         .children()
         .filter(|c| c.has_tag_name("fn"))
-        .map(|f| trim_segment_edges(walk_inline_formula(f, Fmt::default(), None)))
+        .map(|f| trim_segment_edges(walk_inline_formula(f, Fmt::default(), None, false)))
         .filter(|segs| !segs.is_empty())
         .collect();
     if footnotes.is_empty() {
@@ -2320,6 +2384,10 @@ fn rstrip_dot_space(s: &mut String) {
         s.pop();
     }
 }
+
+#[cfg(test)]
+#[path = "jats_table_footnotes.rs"]
+mod table_footnote_tests;
 
 #[cfg(test)]
 mod tests {

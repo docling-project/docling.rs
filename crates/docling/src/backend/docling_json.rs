@@ -260,7 +260,10 @@ fn claimed_footnotes(root: &Value) -> std::collections::HashSet<String> {
 
 /// An item's `footnotes`, each footnote item's plain text escaped (the flat
 /// nodes' convention) — docling-core#675's `serialize_footnotes` prints
-/// `it.text` without the run's formatting.
+/// `it.text` without the run's formatting. A note whose text lives in its
+/// inline runs — an empty item holding an inline group, JATS's table notes
+/// (docling#4818, #1010) — reads as those runs' Markdown, which docling's
+/// walk prints after the table.
 fn footnotes_of(item: &Value, root: &Value) -> Vec<String> {
     item["footnotes"]
         .as_array()
@@ -268,9 +271,20 @@ fn footnotes_of(item: &Value, root: &Value) -> Vec<String> {
         .flatten()
         .filter_map(|r| resolve(r, root))
         .filter(|it| it["content_layer"].as_str() != Some("furniture"))
-        .filter_map(|it| it["text"].as_str())
-        .filter(|t| !t.is_empty())
-        .map(escape_text)
+        .filter_map(|it| match it["text"].as_str() {
+            Some(t) if !t.is_empty() => Some(escape_text(t)),
+            _ => {
+                let empty = Vec::new();
+                let runs: String = it["children"]
+                    .as_array()
+                    .unwrap_or(&empty)
+                    .iter()
+                    .map(|c| text_of(c, root))
+                    .collect();
+                let runs = runs.trim();
+                (!runs.is_empty()).then(|| runs.to_string())
+            }
+        })
         .collect()
 }
 
