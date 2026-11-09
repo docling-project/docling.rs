@@ -736,11 +736,10 @@ composite font's ToUnicode lacks, a NUL a ToUnicode maps to — reads `�`, so
 the loss stays visible and the text-quality score counts it instead of the
 glyph silently vanishing (`mL⁻¹` reading `mL1`); one whose embedded program
 paints nothing is a space and a word boundary, as docling-parse reads it.
-Two deliberate differences: a composite font with no ToUnicode reads `�`
-where docling-parse takes the CID as a code point (redp5110's list bullet,
-CID 114, reads `r` there), and the predefined CJK cmaps docling-parse ships
-(`Adobe-Korea1-UCS2`, …) are not ported, so a CJK font without a ToUnicode
-reads `�` (the two Korean `skipped_*` fixtures) — and an
+A CJK composite font without ToUnicode reads through Adobe's CID tables
+first (#1039). One deliberate difference: a composite font with neither a
+ToUnicode nor a collection table reads `�` where docling-parse takes the CID
+as a code point (redp5110's list bullet, CID 114, reads `r` there) — and an
 **overprint dedup** (a kashida elongation re-stamped on itself — right_to_left_02).
 A char-frequency validator (`scripts/test/parser_completeness.py`) confirms nothing is
 silently skipped.
