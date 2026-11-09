@@ -46,6 +46,7 @@ mod json_prov;
 mod latex_upstream;
 mod legacy_216;
 mod md_upstream;
+mod numbers;
 mod odf_upstream;
 mod options_inventory;
 mod page_breaks;

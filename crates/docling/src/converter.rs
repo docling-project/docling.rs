@@ -697,8 +697,9 @@ impl DocumentConverter {
     /// numbers a viewer shows — issue #80's `--pages A-B`). Out-of-window pages
     /// are skipped before rasterization, so converting 3 pages of a 500-page
     /// PDF costs 3 pages. `last` clamps to the document; a window that selects
-    /// no pages at all errors at convert time. Non-PDF formats ignore the
-    /// window (they convert whole).
+    /// no pages at all errors at convert time. DjVu and AFP pages, and
+    /// Numbers sheets (each sheet a page, as in docling), take the window
+    /// too; other non-PDF formats ignore it (they convert whole).
     pub fn page_range(mut self, first: usize, last: usize) -> Self {
         self.page_range = Some((first, last));
         self
@@ -3323,7 +3324,10 @@ impl DocumentConverter {
                 InputFormat::Svg => crate::backend::SvgBackend.convert(source)?,
                 // Apple iWork (#213): pure-Rust IWA text extraction, all builds.
                 InputFormat::Pages | InputFormat::Numbers | InputFormat::Keynote => {
-                    crate::backend::IworkBackend.convert(source)?
+                    crate::backend::IworkBackend {
+                        page_range: self.page_range,
+                    }
+                    .convert(source)?
                 }
                 #[cfg(feature = "pdf")]
                 InputFormat::Image => self

@@ -14,7 +14,10 @@ groundtruth is ours — produced by the same reader that matches upstream on its
 own corpus. `pages_password_protected.pages` pins the error path (docling's
 "password-protected" message); it has no groundtruth.
 
-Numbers and Keynote remain docling.rs extensions (upstream has no reader).
+Keynote and Numbers are conformance formats too, with upstream's corpora
+mirrored in `tests/data/keynote/` (#466) and `tests/data/numbers/` (#1031);
+the Numbers and Keynote fixtures here are extra coverage from the
+numbers-parser and keynote-parser test data.
 
 Provenance:
 
