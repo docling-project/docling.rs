@@ -19,6 +19,7 @@ use std::sync::Arc;
 use lopdf::{Dictionary, Document, Object};
 
 use crate::pdfium_backend::Glyph;
+use crate::tounicode::parse_tounicode;
 
 /// Per-document caches for the content-stream interpreter. Fonts are indirect
 /// objects shared by many pages, but were fully re-parsed — ToUnicode CMap
@@ -158,8 +159,8 @@ impl Font {
                     }
                 }
                 CidFallback::Collection(table) => {
-                    if let Some(s) = table.get(&code) {
-                        return (Some(decompose_ligatures(s)), w);
+                    if let Some(s) = collection_text(table, code) {
+                        return (Some(decompose_ligatures(&s)), w);
                     }
                 }
             }
@@ -383,7 +384,7 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
 enum CidFallback {
     None,
     UnicodeCodes { utf16: bool },
-    Collection(&'static HashMap<u32, String>),
+    Collection(&'static [u8]),
 }
 
 /// A Unicode CMap code retains its original bytes for ToUnicode lookups;
@@ -399,33 +400,11 @@ pub(crate) fn unicode_cmap_char(code: u32) -> Option<char> {
     }
 }
 
-fn collection_table(ordering: &[u8]) -> Option<&'static HashMap<u32, String>> {
-    use std::sync::OnceLock;
+fn collection_table(ordering: &[u8]) -> Option<&'static [u8]> {
     macro_rules! table {
-        ($file:literal) => {{
-            static T: OnceLock<HashMap<u32, String>> = OnceLock::new();
-            T.get_or_init(|| {
-                characters(parse_tounicode(include_bytes!(concat!(
-                    "../data/mapping-resources-pdf/pdf2unicode/",
-                    $file
-                ))))
-            })
-        }};
-    }
-    // Adobe adds variation selectors for glyph variants, and maps CIDs
-    // without a character to U+0000, U+FFFD or a control code.
-    fn characters(table: HashMap<u32, String>) -> HashMap<u32, String> {
-        table
-            .into_iter()
-            .filter_map(|(cid, s)| {
-                let s: String = s
-                    .chars()
-                    .filter(|c| !matches!(c, '\u{FE00}'..='\u{FE0F}' | '\u{E0100}'..='\u{E01EF}'))
-                    .collect();
-                (!s.is_empty() && !s.chars().any(|c| c.is_control() || c == '\u{FFFD}'))
-                    .then_some((cid, s))
-            })
-            .collect()
+        ($file:literal) => {
+            include_bytes!(concat!(env!("OUT_DIR"), "/", $file))
+        };
     }
     Some(match ordering {
         b"Japan1" => table!("Adobe-Japan1-UCS2"),
@@ -435,6 +414,28 @@ fn collection_table(ordering: &[u8]) -> Option<&'static HashMap<u32, String>> {
         b"KR" => table!("Adobe-KR-UCS2"),
         _ => return None,
     })
+}
+
+/// The text of `cid` in a table build.rs wrote: the CID count, then three
+/// bytes per CID (0 for none, a code point, or 0x110000 + the offset of a
+/// length-prefixed UTF-8 string after the entries).
+pub(crate) fn collection_text(table: &[u8], cid: u32) -> Option<String> {
+    let n = u32::from_le_bytes(table.get(..4)?.try_into().ok()?) as usize;
+    let at = 4 + 3 * usize::try_from(cid).ok().filter(|&c| c < n)?;
+    let &[a, b, c] = table.get(at..at + 3)? else {
+        return None;
+    };
+    match u32::from_be_bytes([0, a, b, c]) {
+        0 => None,
+        v @ ..0x110000 => char::from_u32(v).map(String::from),
+        v => {
+            let at = 4 + 3 * n + (v - 0x110000) as usize;
+            let len = *table.get(at)? as usize;
+            std::str::from_utf8(table.get(at + 1..at + 1 + len)?)
+                .ok()
+                .map(str::to_owned)
+        }
+    }
 }
 
 fn cid_fallback(doc: &Document, fdict: &Dictionary) -> CidFallback {
@@ -459,10 +460,7 @@ fn cid_fallback(doc: &Document, fdict: &Dictionary) -> CidFallback {
 }
 
 /// The CID → Unicode table of the character collection a Type0 font uses.
-pub(crate) fn cid_collection(
-    doc: &Document,
-    fdict: &Dictionary,
-) -> Option<&'static HashMap<u32, String>> {
+pub(crate) fn cid_collection(doc: &Document, fdict: &Dictionary) -> Option<&'static [u8]> {
     let Object::Array(descendants) = deref(doc, fdict.get(b"DescendantFonts").ok()?)? else {
         return None;
     };
@@ -756,131 +754,6 @@ fn num(o: &Object) -> Option<f64> {
         Object::Real(r) => Some(*r as f64),
         _ => None,
     }
-}
-
-/// Parse a ToUnicode CMap's `bfchar` / `bfrange` sections into code→string.
-pub(crate) fn parse_tounicode(data: &[u8]) -> HashMap<u32, String> {
-    let text = String::from_utf8_lossy(data);
-    let mut map = HashMap::new();
-    let hex = |s: &str| -> Option<Vec<u16>> {
-        let s = s.trim();
-        if !s.starts_with('<') || !s.ends_with('>') {
-            return None;
-        }
-        let h = &s[1..s.len() - 1];
-        let bytes: Vec<u8> = (0..h.len())
-            .step_by(2)
-            .filter_map(|i| u8::from_str_radix(h.get(i..i + 2)?, 16).ok())
-            .collect();
-        Some(
-            bytes
-                .chunks(2)
-                .map(|c| {
-                    if c.len() == 2 {
-                        u16::from_be_bytes([c[0], c[1]])
-                    } else {
-                        c[0] as u16
-                    }
-                })
-                .collect(),
-        )
-    };
-    let u16s_to_string = |u: &[u16]| String::from_utf16_lossy(u);
-    let code_of = |u: &[u16]| u.iter().fold(0u32, |acc, &x| (acc << 16) | x as u32);
-
-    // Tokenize by structure, not whitespace: CMap hex groups are often written
-    // back-to-back with no separators (`<21><21><0054>`), so scan for `<…>`
-    // groups, `[`/`]` brackets, and bareword keywords.
-    let tokens: Vec<String> = {
-        let bytes = text.as_bytes();
-        let mut toks = Vec::new();
-        let mut i = 0;
-        while i < bytes.len() {
-            let c = bytes[i];
-            if c.is_ascii_whitespace() {
-                i += 1;
-            } else if c == b'<' {
-                let start = i;
-                while i < bytes.len() && bytes[i] != b'>' {
-                    i += 1;
-                }
-                i += 1; // include '>'
-                toks.push(String::from_utf8_lossy(&bytes[start..i.min(bytes.len())]).into_owned());
-            } else if c == b'[' || c == b']' {
-                toks.push((c as char).to_string());
-                i += 1;
-            } else {
-                let start = i;
-                while i < bytes.len()
-                    && !bytes[i].is_ascii_whitespace()
-                    && bytes[i] != b'<'
-                    && bytes[i] != b'['
-                    && bytes[i] != b']'
-                {
-                    i += 1;
-                }
-                toks.push(String::from_utf8_lossy(&bytes[start..i]).into_owned());
-            }
-        }
-        toks
-    };
-    let tokens: Vec<&str> = tokens.iter().map(|s| s.as_str()).collect();
-    let mut i = 0;
-    while i < tokens.len() {
-        match tokens[i] {
-            "beginbfchar" => {
-                i += 1;
-                while i + 1 < tokens.len() && tokens[i] != "endbfchar" {
-                    if let (Some(src), Some(dst)) = (hex(tokens[i]), hex(tokens[i + 1])) {
-                        map.insert(code_of(&src), u16s_to_string(&dst));
-                    }
-                    i += 2;
-                }
-            }
-            "beginbfrange" => {
-                i += 1;
-                while i + 2 < tokens.len() && tokens[i] != "endbfrange" {
-                    let (Some(lo), Some(hi)) = (hex(tokens[i]), hex(tokens[i + 1])) else {
-                        i += 1;
-                        continue;
-                    };
-                    let lo = code_of(&lo);
-                    let hi = code_of(&hi);
-                    if tokens[i + 2] == "[" {
-                        // `<lo> <hi> [ <d0> <d1> ... ]`: one dst per code in the range.
-                        let mut j = i + 3;
-                        let mut code = lo;
-                        while j < tokens.len() && tokens[j] != "]" {
-                            if let Some(dst) = hex(tokens[j]) {
-                                map.insert(code, u16s_to_string(&dst));
-                            }
-                            code += 1;
-                            j += 1;
-                        }
-                        i = j + 1;
-                    } else if let Some(mut dst) = hex(tokens[i + 2]) {
-                        // Increment the UTF-16BE string, preserving preceding
-                        // units (surrogate pairs and multi-character mappings).
-                        for code in lo..=hi {
-                            map.insert(code, u16s_to_string(&dst));
-                            for unit in dst.iter_mut().rev() {
-                                let (next, carry) = unit.overflowing_add(1);
-                                *unit = next;
-                                if !carry {
-                                    break;
-                                }
-                            }
-                        }
-                        i += 3;
-                    } else {
-                        i += 1;
-                    }
-                }
-            }
-            _ => i += 1,
-        }
-    }
-    map
 }
 
 /// Decode a PDF string literal into codes, retaining packed UTF-16 pairs
@@ -4196,16 +4069,18 @@ mod cid_collections {
     #[test]
     fn collection_ranges_keep_supplementary_characters() {
         assert_eq!(text(&type0("Identity-H"), "0CD44507450807A0"), "日𢭏𢭐語");
-        assert_eq!(super::collection_table(b"Japan1").unwrap()[&0x2714], "🄐");
-        assert_eq!(super::collection_table(b"CNS1").unwrap()[&0x3a32], "𡤃");
+        let text = |o: &[u8], cid| super::collection_text(super::collection_table(o).unwrap(), cid);
+        assert_eq!(text(b"Japan1", 0x2714).as_deref(), Some("🄐"));
+        assert_eq!(text(b"CNS1", 0x3a32).as_deref(), Some("𡤃"));
     }
 
     #[test]
     fn collection_entries_are_plain_characters() {
         assert_eq!(text(&type0("Identity-H"), "046D"), "逢");
-        let table = |o: &[u8]| super::collection_table(o).unwrap();
-        assert!(!table(b"Korea1").contains_key(&8752));
-        assert!(!table(b"KR").contains_key(&11704));
+        let text = |o: &[u8], cid| super::collection_text(super::collection_table(o).unwrap(), cid);
+        assert_eq!(text(b"Korea1", 8752), None);
+        assert_eq!(text(b"KR", 11704), None);
+        assert_eq!(text(b"Japan1", 0x1ffd).as_deref(), Some("sec"));
     }
 
     #[test]

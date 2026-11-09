@@ -112,7 +112,7 @@ pub struct LoadedFont {
     /// `ToUnicode`, for a fallback face's cmap lookups.
     to_unicode: HashMap<u32, String>,
     /// CID → Unicode of the font's Adobe collection.
-    collection: Option<&'static HashMap<u32, String>>,
+    collection: Option<&'static [u8]>,
     /// Standard-14 metrics for a non-embedded font without `/Widths`.
     std14: Option<crate::std14::Std14Widths>,
     /// Glyph cache: code/CID → outline in text space (font size 1).
@@ -445,7 +445,7 @@ impl LoadedFont {
                 Object::Stream(s) => s.decompressed_content().ok(),
                 _ => None,
             })
-            .map(|d| crate::textparse::parse_tounicode(&d))
+            .map(|d| crate::tounicode::parse_tounicode(&d))
             .unwrap_or_default();
 
         let collection = cmap
@@ -555,7 +555,7 @@ impl LoadedFont {
             return crate::textparse::unicode_cmap_char(code);
         }
         self.collection
-            .and_then(|t| t.get(&cid))
+            .and_then(|t| crate::textparse::collection_text(t, cid))
             .and_then(|s| s.chars().next())
     }
 
