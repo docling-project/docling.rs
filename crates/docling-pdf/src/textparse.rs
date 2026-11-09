@@ -4110,6 +4110,30 @@ mod cid_collections {
     }
 
     #[test]
+    fn tounicode_skips_lone_surrogates_overflows_and_huge_ranges() {
+        let map = super::parse_tounicode(
+            b"2 beginbfchar\n<01> <d842>\n<02> <0041>\nendbfchar\n\
+              4 beginbfrange\n\
+              <10> <11> [<dc00> <0042>]\n\
+              <20> <22> <0041fffe>\n\
+              <30> <31> <d842dfff>\n\
+              <00010000> <ffffffff> <>\n\
+              endbfrange",
+        );
+        assert!(!map.contains_key(&0x01));
+        assert_eq!(map[&0x02], "A");
+        assert!(!map.contains_key(&0x10));
+        assert_eq!(map[&0x11], "B");
+        assert_eq!(map[&0x20], "A\u{fffe}");
+        assert_eq!(map[&0x21], "A\u{ffff}");
+        assert!(!map.contains_key(&0x22));
+        assert_eq!(map[&0x30], "\u{20bff}");
+        assert!(!map.contains_key(&0x31));
+        assert_eq!(map[&0x1ffff], "");
+        assert_eq!(map.len(), 5 + 0x10000);
+    }
+
+    #[test]
     fn utf16_pairs_are_one_glyph_and_one_advance() {
         let font = type0("UniJIS-UTF16-H");
         assert_eq!(text(&font, "65E5D842DFB78A9E"), "日𠮷語");

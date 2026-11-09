@@ -27,7 +27,12 @@ pub(crate) fn parse_tounicode(data: &[u8]) -> HashMap<u32, String> {
                 .collect(),
         )
     };
-    let u16s_to_string = |u: &[u16]| String::from_utf16_lossy(u);
+    // None for a lone surrogate, which leaves the code unmapped.
+    let u16s_to_string = |u: &[u16]| {
+        char::decode_utf16(u.iter().copied())
+            .collect::<Result<String, _>>()
+            .ok()
+    };
     let code_of = |u: &[u16]| u.iter().fold(0u32, |acc, &x| (acc << 16) | x as u32);
 
     // Tokenize by structure, not whitespace: CMap hex groups are often written
@@ -73,8 +78,11 @@ pub(crate) fn parse_tounicode(data: &[u8]) -> HashMap<u32, String> {
             "beginbfchar" => {
                 i += 1;
                 while i + 1 < tokens.len() && tokens[i] != "endbfchar" {
-                    if let (Some(src), Some(dst)) = (hex(tokens[i]), hex(tokens[i + 1])) {
-                        map.insert(code_of(&src), u16s_to_string(&dst));
+                    if let (Some(src), Some(s)) = (
+                        hex(tokens[i]),
+                        hex(tokens[i + 1]).and_then(|d| u16s_to_string(&d)),
+                    ) {
+                        map.insert(code_of(&src), s);
                     }
                     i += 2;
                 }
@@ -93,24 +101,23 @@ pub(crate) fn parse_tounicode(data: &[u8]) -> HashMap<u32, String> {
                         let mut j = i + 3;
                         let mut code = lo;
                         while j < tokens.len() && tokens[j] != "]" {
-                            if let Some(dst) = hex(tokens[j]) {
-                                map.insert(code, u16s_to_string(&dst));
+                            if let Some(s) = hex(tokens[j]).and_then(|d| u16s_to_string(&d)) {
+                                map.insert(code, s);
                             }
                             code += 1;
                             j += 1;
                         }
                         i = j + 1;
                     } else if let Some(mut dst) = hex(tokens[i + 2]) {
-                        // Increment the UTF-16BE string, preserving preceding
-                        // units (surrogate pairs and multi-character mappings).
-                        for code in lo..=hi {
-                            map.insert(code, u16s_to_string(&dst));
-                            for unit in dst.iter_mut().rev() {
-                                let (next, carry) = unit.overflowing_add(1);
-                                *unit = next;
-                                if !carry {
-                                    break;
-                                }
+                        // Increment the last unit for at most 65,536 codes; the
+                        // range ends where it overflows or stops being UTF-16.
+                        for code in (lo..=hi).take(0x10000) {
+                            let Some(s) = u16s_to_string(&dst) else { break };
+                            map.insert(code, s);
+                            match dst.last_mut() {
+                                Some(unit) if *unit < u16::MAX => *unit += 1,
+                                Some(_) => break,
+                                None => {}
                             }
                         }
                         i += 3;
