@@ -70,6 +70,11 @@ pub(crate) fn detect_any(bytes: &[u8]) -> Option<InputFormat> {
     if looks_like_image(bytes) {
         return Some(InputFormat::Image);
     }
+    // docling's `_detect_afp` (docling#4177): a MO:DCA structured-field
+    // introducer — `X'5A'`, a length in 8..=32767, an `X'D3'` class byte.
+    if crate::backend::afp::looks_like_afp(bytes) {
+        return Some(InputFormat::Afp);
+    }
     if crate::backend::looks_like_djvu(bytes) {
         return Some(InputFormat::Djvu);
     }

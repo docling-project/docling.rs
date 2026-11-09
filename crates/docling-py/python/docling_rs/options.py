@@ -61,6 +61,8 @@ class InputFormat(str, enum.Enum):
     IPYNB = "ipynb"
     #: RSS / Atom / RDF feeds (#678).
     FEED = "feed"
+    #: AFP / MO:DCA print streams (``.afp``, docling#4177, #1034).
+    AFP = "afp"
     #: A format only a registered backend reads (#680, ``register_backend``).
     PLUGIN = "plugin"
 

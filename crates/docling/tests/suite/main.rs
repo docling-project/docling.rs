@@ -16,6 +16,7 @@
 //! does `regression`, which the fixture docs name (`DOCLING_RS_REGEN=1 cargo
 //! test --release -p docling --test regression`).
 
+mod afp;
 mod asciidoc_upstream;
 mod charset;
 mod chunk_refs;

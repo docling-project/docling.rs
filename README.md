@@ -191,7 +191,7 @@ warning.
 | Diagrams · Apple iWork | Visio, SVG, CGM (its text) · Pages, Numbers, Keynote |
 | PDF & images | PDF (layout, TableFormer, OCR), PNG, JPEG, TIFF, BMP, WebP, GIF, HEIC (opt-in), METS/GBS scans, DjVu |
 | XML · docling native | JATS, USPTO, XBRL, RIS (Austrian legal XML), DocLang · docling JSON, DocTags, DCLX |
-| Email · subtitles · mainframe | `.eml`, Outlook `.msg` · WebVTT · EBCDIC records through a COBOL copybook |
+| Email · subtitles · mainframe | `.eml`, Outlook `.msg` · WebVTT · EBCDIC records through a COBOL copybook, AFP / MO:DCA print streams |
 | Audio · video | WAV, MP3, M4A, AAC, OGG, FLAC; MP4, AVI, MOV, MKV, WebM, MPEG — local Whisper or Parakeet, plus scene frames from video; a YouTube watch URL — the video's title, description and caption transcript as timed items (`--asr-lang` picks the language) |
 
 Every extension, with what each backend does:
