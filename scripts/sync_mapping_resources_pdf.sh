@@ -11,3 +11,5 @@ git -C "$src" init -q && git -C "$src" fetch -q --depth 1 "$repo" "$commit"
 rm -rf mapping-resources-pdf && mkdir mapping-resources-pdf
 git -C "$src" archive "$commit" LICENSE.txt README.md pdf2unicode | tar -x -C mapping-resources-pdf
 echo "$repo @ $commit" > mapping-resources-pdf.txt
+# maturin ships the LICENSE-* files next to pyproject.toml in every wheel.
+cp mapping-resources-pdf/LICENSE.txt ../../docling-py/LICENSE-mapping-resources-pdf.txt
