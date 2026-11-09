@@ -67,6 +67,11 @@ pub(crate) fn detect_any(bytes: &[u8]) -> Option<InputFormat> {
     if let Some(f) = detect(bytes) {
         return Some(f);
     }
+    // docling's `_detect_calendar` (docling#4880): the first non-blank line
+    // is `BEGIN:VCALENDAR`, UTF-16 behind its BOM included.
+    if crate::backend::calendar::looks_like_calendar(bytes) {
+        return Some(InputFormat::Calendar);
+    }
     if looks_like_image(bytes) {
         return Some(InputFormat::Image);
     }

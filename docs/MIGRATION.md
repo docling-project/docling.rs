@@ -258,6 +258,7 @@ from 2.142.1 is mostly the inline whitespace contract (#997, § JSON):
 | ODF | 7 | **7** | 6 | `text_document_03` JSON: its picture's alt text also sits in a `description` annotation, which upstream's groundtruth leaves out (#1016 ported docling#4809's formatted table cells, and the mirrored HTML groundtruth is upstream's own again) |
 | EPUB | 1 | **1** | **1** | — |
 | Email (`.eml`) | 2 | **2** | **2** | — (`.msg` is a docling.rs extension) |
+| iCalendar (`.ics`) | 4 | **4** | **4** | — (#1032, docling#4880; against upstream's committed groundtruth, `crates/docling/tests/suite/calendar.rs`) |
 | iWork Pages | 3 | **3** | **3** | — (the password-protected and nested-dir fixtures fail in upstream) |
 | iWork Keynote | 5 | **5** | **5** | — (against upstream's committed groundtruth; a live run of 2.142.1 here writes the float32 boxes widened, `708.9999694824219` for `709.0`) (docling#4330 + docling#4376, 2.130+; #466 — both container generations and the nested 2018 index; charts as classified pictures with their data table and title caption, the fixture built the way upstream's test builds it: the Numbers chart placed on the deck's table slide) |
 | EBCDIC | 3 | **3** | **3** | — |
@@ -290,7 +291,7 @@ converted once more as that format with a warning.
 | PDF & images | `.pdf` · `.png` `.jpg` `.jpeg` `.tif` `.tiff` `.bmp` `.webp` `.gif` · HEIC/HEIF `.heic` `.heif` (`--features heif`) · METS/GBS scan packages `.tar.gz` · DjVu `.djvu` `.djv` | pure-Rust text layer, page renderer and scan raster, ONNX layout + TableFormer + OCR (`docling-pdf`; no native PDF library in the default build, `pdfium` is an opt-in feature — [`docs/PDF_CONFORMANCE.md`](./PDF_CONFORMANCE.md)); JPEG 2000 and JBIG2 decode in Rust (#598, #811 — `/JBIG2Globals` included; an image no decoder can read draws a mid-gray placeholder, a stencil too); DjVu reads its hidden text layer without models and falls back to OCR with them |
 | docling native | docling JSON `.json` · DocTags `.doctags` `.dt` · DCLX `.dclx` | DocTags — the token markup docling's VLMs emit — read through docling-core's tolerant parser, the one the VLM pipeline uses |
 | Mainframe data | EBCDIC `.ebc` `.ebcdic` | fixed-width records decoded through a COBOL copybook (docling's `EbcdicLayout`): `ebcdic_layout`, or a `<stem>.layout.json` sidecar |
-| Email & subtitles | `.eml` · Outlook `.msg` · WebVTT `.vtt` | `.msg` is projected onto RFC 822 (same output as the `.eml`); `list_attachments` names the attachments, `email_attachments()` converts them; `cid:` images embed under `image_sources=embedded` |
+| Email, calendars & subtitles | `.eml` · Outlook `.msg` · iCalendar `.ics` `.ical` `.icalendar` `.ifb` · WebVTT `.vtt` | `.msg` is projected onto RFC 822 (same output as the `.eml`); `list_attachments` names the attachments, `email_attachments()` converts them; `cid:` images embed under `image_sources=embedded`; iCalendar (#1032, docling#4880): each event / task / journal entry / free-busy block a heading with `Field: value` paragraphs, its description, and attendee / reminder / attachment lists (inline payloads never decoded), the calendar name as title; `text/calendar` and a nameless `BEGIN:VCALENDAR` input are recognized, folds are joined on the bytes before decoding, `encoding` applies |
 | Audio | `.wav` `.mp3` `.mpga` `.m4a` `.aac` `.ogg` `.flac` | Rust all the way down: symphonia decodes, Whisper tiny (ONNX, docling's ASR defaults) or the Parakeet TDT 0.6B v3 preset transcribes; `[time: start-end] text` paragraphs, the timing as the JSON item's track, `--to vtt` for subtitles; language auto-detected or `asr_lang`. Ogg Opus falls back to the `ffmpeg` binary |
 | Video | `.mp4` `.avi` `.mov` `.mkv` `.webm` `.mpeg` `.mpg` | the audio track transcribed the same way; with the `ffmpeg` binary on `PATH` (`DOCLING_FFMPEG`), `video_frames` scene-change frames (8 by default, `all` for every cut) interleave as `[time: <ts>]` pictures, tuned by the `video_*` options. AVI needs ffmpeg; without it a video is its transcript |
 
@@ -822,6 +823,16 @@ converted once more as that format with a warning.
   - names are unique within the message (`report-2.pdf`) and shed bidi-format characters, a forwarded subject with `/` is one name
   - the `.msg` fixed-property scan reads each storage at its own header offset with the record type checked (a FILETIME's value bytes used to pass for the attach-method record about once in 11 000 attachments — "no payload")
 - the bindings carry the detected format into `convert` (py `as_stream().format`, Node `format: att.format`), default their limits from `DOCLING_RS_ZIP_MAX_*` like the converter, and Node gets `emailAttachments*Async`
+
+#### iCalendar
+
+**Backend:** `calendar.rs`\
+**Status:** **4/4 exact, JSON 4/4 identical** against upstream's committed groundtruth (docling#4880, #1032)
+
+- a port of docling's `CalendarDocumentBackend` (`calendar/parser.py`, `values.py`, `render.py`): RFC 5545 content lines (parameters, quoted values, RFC 6868 caret escapes, TEXT unescaping, comma lists), the component tree with docling's containment recovery (a BEGIN the open component cannot hold closes it, a stray END is ignored), dates / durations / recurrence rules in words (a rule with a part the description cannot carry stays raw), all-day ends exclusive, `Z` over a TZID
+- folds are joined on the bytes before decoding (a fold may split a UTF-8 character) unless the input is UTF-16/32 — a wide BOM, or a requested `encoding` that is not ASCII compatible — which is decoded first and unfolded as text
+- the JSON is docling's item tree (`title`, `section_header` levels 1/2, `text` fields, `list` groups named after their heading); the flat Markdown prints `& < >` verbatim, as upstream's groundtruth does
+- detection: `.ics` `.ical` `.icalendar` `.ifb`, `text/calendar`, and a nameless input whose first non-blank line is `BEGIN:VCALENDAR` (UTF-16 behind its BOM too); a named `.txt` keeps its own route
 
 #### EPUB
 
@@ -1528,6 +1539,9 @@ exact, 389 diff lines**, the rest close — see `PDF_CONFORMANCE.md`. A determin
 - the JSON carries page headers/footers as body-parented `page_header`/`page_footer` texts on the furniture layer, as upstream writes them (Markdown still leaves them out)
 - the text inside a picture reaches the JSON as that picture's children (docling's `_add_child_elements`), as upstream writes it (Markdown, like docling's, prints only the caption)
 - text outside the page's display box — the CropBox, else the MediaBox — is dropped glyph by glyph like docling-parse does (#529: a FrameMaker print slug, a tiled page's neighbouring text) instead of being clamped onto the page edge
+- a CJK composite font without ToUnicode is read through Adobe's CID → Unicode table of the collection its `CIDSystemInfo` names (Japan1, GB1, CNS1, Korea1, KR; ISO 32000-1 §9.10.2), as docling-parse does
+  - deliberately for every descendant font, `CIDFontType2` included, as docling-parse does
+  - some producers name an Adobe collection on a subset TrueType whose CIDs are really glyph ids (`CIDToGIDMap` Identity or absent); without ToUnicode such a font reads as plausible but wrong text, as it does in docling, where docling.rs read nothing before and OCR could step in
 - #598: a `JPXDecode` (JPEG 2000) image is decoded (`render/jpx.rs`, `hayro-jpeg2000`, within ±1 of OpenJPEG) instead of drawn as a mid-gray placeholder
   - on photo pages the blank rectangle left the layout model unsure of the picture (0.64 instead of 0.99): its box ran over the caption below, which nested inside as `text` and vanished from the Markdown, and two stacked photos split by a caption fused into one
   - decoded, the reporter's NASA pages give docling's result (caption linked and printed, two pictures) at int8 and fp32 alike — `crates/docling/tests/jpx_pictures.rs`
@@ -2326,10 +2340,7 @@ These are deliberate or unavoidable divergences, not bugs.
     real text, docling#4209) — are not ported: the first is the bare-picture
     pass, the second needs the page's vector shapes. On the PDF corpus it
     fires on 4 files; text appears on the attention-map figures of
-    1706.03762 (`Input-Input Layer5`, outlined titles), and on docling's two
-    Korean `skipped_*` pages, whose CID fonts the text layer cannot map, the
-    en/ch recognizers read a few stray glyphs (`[ 4-5] 8`) — as docling's
-    default RapidOCR would. `no_ocr` / `skip_ocr` keep the text layer
+    1706.03762 (`Input-Input Layer5`, outlined titles). `no_ocr` / `skip_ocr` keep the text layer
     alone; `full_page` and `layout_regions` both map onto the
     `force_full_page_ocr` machinery (the whole-page vs per-region *detector*
     distinction has no analogue in the det-free PP-OCR recognizer here).
