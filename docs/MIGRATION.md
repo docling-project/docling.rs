@@ -2665,16 +2665,16 @@ These are deliberate or unavoidable divergences, not bugs.
     glyph whose embedded program paints nothing is a space instead — its box
     has no height and it is a word boundary (redp5110's `/g3`). An unknown
     code-like name keeps its text without the slash (`SM590000`, as
-    docling-parse reads it; we used to print `/SM590000`). Two deliberate
-    differences: a composite font with no ToUnicode reads `�` where
-    docling-parse takes the CID for a code point (redp5110's bullet, CID 114,
-    reads `r` there), and the predefined CJK cmaps (`Adobe-Korea1-UCS2`, …)
-    are not ported, so such a font reads `�` too (the Korean `skipped_*`
-    fixtures). Without the renderer (the wasm text-layer build) there is no
-    font program to ask, and every unmapped glyph reads `�`. With it came a
-    ToUnicode fix: a `bfrange` whose destination is a surrogate pair
-    (`<1d59> <1d5a> <d835dec2>`) steps its last code unit and maps `𝛂 𝛃`;
-    the range used to be dropped. On the corpus: redp5110 155 → 119
+    docling-parse reads it; we used to print `/SM590000`). A CJK composite
+    font without ToUnicode reads through Adobe's CID tables first (#1039,
+    the Korean `skipped_*` fixtures); only a CID no table maps is `�`. One
+    deliberate difference: a composite font with neither a ToUnicode nor a
+    collection table reads `�` where docling-parse takes the CID for a code
+    point (redp5110's bullet, CID 114, reads `r` there). Without the
+    renderer (the wasm text-layer build) there is no font program to ask,
+    and every unmapped glyph reads `�`. A `bfrange` whose destination is a
+    surrogate pair (`<1d59> <1d5a> <d835dec2>`) steps its last code unit and
+    maps `𝛂 𝛃` (#1039's `tounicode.rs`); the range used to be dropped. On the corpus: redp5110 155 → 119
     groundtruth diff lines (373 → 337 in all), four snapshots move.
 
 24. **Superscripts and subscripts, opt-in** (#1005, docling#4815's
