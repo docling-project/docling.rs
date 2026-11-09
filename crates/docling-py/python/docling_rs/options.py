@@ -63,6 +63,8 @@ class InputFormat(str, enum.Enum):
     FEED = "feed"
     #: AFP / MO:DCA print streams (``.afp``, docling#4177, #1034).
     AFP = "afp"
+    #: iCalendar files (``.ics``, docling#4880, #1032).
+    CALENDAR = "calendar"
     #: A format only a registered backend reads (#680, ``register_backend``).
     PLUGIN = "plugin"
 

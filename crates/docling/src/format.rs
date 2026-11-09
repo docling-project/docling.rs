@@ -176,6 +176,12 @@ pub enum InputFormat {
     /// read through the HTML backend — MarkItDown's `_rss_converter`
     /// shape. A docling.rs extension: docling has no feed backend.
     Feed,
+    /// An iCalendar file (`.ics`, `.ical`, `.icalendar`, `.ifb`,
+    /// `text/calendar`, or a nameless input opening with `BEGIN:VCALENDAR`):
+    /// events, tasks, journal entries and free/busy blocks as headings,
+    /// `Field: value` paragraphs and attendee / reminder / attachment lists —
+    /// docling's `InputFormat.CALENDAR` (docling#4880).
+    Calendar,
     /// A format only a backend registered on the converter reads (#680,
     /// [`DocumentConverter::register_backend`](crate::DocumentConverter::register_backend)):
     /// what [`DocumentConverter::load_file`](crate::DocumentConverter::load_file)
@@ -252,6 +258,7 @@ impl InputFormat {
             InputFormat::Xml => "xml",
             InputFormat::Ipynb => "ipynb",
             InputFormat::Feed => "feed",
+            InputFormat::Calendar => "calendar",
             InputFormat::Plugin => "plugin",
         }
     }
@@ -322,6 +329,7 @@ impl InputFormat {
             "xml" => InputFormat::Xml,
             "ipynb" => InputFormat::Ipynb,
             "feed" => InputFormat::Feed,
+            "calendar" => InputFormat::Calendar,
             "plugin" => InputFormat::Plugin,
             _ => return None,
         })
@@ -365,6 +373,7 @@ impl InputFormat {
             "text/x-tex" | "application/x-tex" | "application/x-latex" => InputFormat::Latex,
             "text/vtt" => InputFormat::Vtt,
             "application/vnd.ibm.modcap" | "application/x-afp" => InputFormat::Afp,
+            "text/calendar" => InputFormat::Calendar,
             "application/json" => InputFormat::JsonDocling,
             "application/x-ndjson" | "application/jsonl" | "application/x-jsonlines" => {
                 InputFormat::Jsonl
@@ -591,6 +600,10 @@ const EXTENSIONS: &[(&str, InputFormat)] = {
         ("rss", Feed),
         ("atom", Feed),
         ("rdf", Feed),
+        ("ics", Calendar),
+        ("ical", Calendar),
+        ("icalendar", Calendar),
+        ("ifb", Calendar),
         // `.mpga` *is* MPEG audio (an mp3 stream) — symphonia probes the
         // codec from the bytes, the extension is just the alias (#208).
         ("wav", Audio),

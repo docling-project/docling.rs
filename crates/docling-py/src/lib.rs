@@ -1323,6 +1323,7 @@ fn parse_format(name: &str) -> Option<docling::InputFormat> {
         "xml" => Xml,
         "ipynb" => Ipynb,
         "afp" => Afp,
+        "calendar" => Calendar,
         _ => return None,
     })
 }

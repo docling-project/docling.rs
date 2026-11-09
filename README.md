@@ -191,7 +191,7 @@ warning.
 | Diagrams · Apple iWork | Visio, SVG, CGM (its text) · Pages, Numbers, Keynote |
 | PDF & images | PDF (layout, TableFormer, OCR), PNG, JPEG, TIFF, BMP, WebP, GIF, HEIC (opt-in), METS/GBS scans, DjVu |
 | XML · docling native | JATS, USPTO, XBRL, RIS (Austrian legal XML), DocLang · docling JSON, DocTags, DCLX |
-| Email · subtitles · mainframe | `.eml`, Outlook `.msg` · WebVTT · EBCDIC records through a COBOL copybook, AFP / MO:DCA print streams |
+| Email · calendars · subtitles · mainframe | `.eml`, Outlook `.msg` · iCalendar `.ics` (events, tasks, journal entries, free/busy) · WebVTT · EBCDIC records through a COBOL copybook, AFP / MO:DCA print streams |
 | Audio · video | WAV, MP3, M4A, AAC, OGG, FLAC; MP4, AVI, MOV, MKV, WebM, MPEG — local Whisper or Parakeet, plus scene frames from video; a YouTube watch URL — the video's title, description and caption transcript as timed items (`--asr-lang` picks the language) |
 
 Every extension, with what each backend does:
@@ -543,3 +543,16 @@ conformance workflow, and the conventions a change is expected to follow.
 ## License
 
 MIT, matching upstream docling.
+
+The CID → Unicode tables in
+[`crates/docling-pdf/data/mapping-resources-pdf/`](./crates/docling-pdf/data/mapping-resources-pdf/)
+are Adobe's, under the BSD-3-Clause
+[`LICENSE.txt`](./crates/docling-pdf/data/mapping-resources-pdf/LICENSE.txt)
+there. The native builds compile them in (docling-pdf's `cid-collections`
+feature), so the published binaries carry that licence as
+`LICENSE-mapping-resources-pdf.txt`: the CLI and FFI archives and the Node.js
+packages next to the binary, the wheels in their `.dist-info/licenses/`
+(maturin includes `crates/docling-py/LICENSE-*`), the container images in
+`/usr/share/doc/docling.rs/`, and `install.sh` in its prefix. The wasm package
+and demo leave the tables out. A binary you build and redistribute yourself
+with the feature on needs the licence beside it too.

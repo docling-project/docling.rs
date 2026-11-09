@@ -2789,6 +2789,7 @@ pub fn supported_formats() -> Vec<String> {
         "ipynb",
         "feed",
         "afp",
+        "calendar",
     ]
     .iter()
     .map(|s| s.to_string())
