@@ -61,6 +61,8 @@ class InputFormat(str, enum.Enum):
     IPYNB = "ipynb"
     #: RSS / Atom / RDF feeds (#678).
     FEED = "feed"
+    #: Box Notes (#1033), docling's ``InputFormat.BOXNOTE``.
+    BOXNOTE = "boxnote"
     #: iCalendar files (``.ics``, docling#4880, #1032).
     CALENDAR = "calendar"
     #: A format only a registered backend reads (#680, ``register_backend``).

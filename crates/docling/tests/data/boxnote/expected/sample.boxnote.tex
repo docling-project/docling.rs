@@ -1,0 +1,61 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+\usepackage{graphicx}       % graphics
+\usepackage[normalem]{ulem} % strikethrough
+\title{Release notes}
+
+\begin{document}
+
+\maketitle
+
+We shipped a \textbf{new} parser. See the \href{https://example.com/docs}{docs} for details.
+
+\section{Highlights}
+
+\begin{itemize}
+\item Faster conversion
+\item Fewer allocations
+  \begin{itemize}
+\item Nested detail
+  \end{itemize}
+\end{itemize}
+
+\begin{enumerate}
+\item First step
+\item Second step
+\end{enumerate}
+
+\begin{itemize}
+\item [x] Write tests
+\item [ ] Ship it
+\end{itemize}
+
+\sout{Old caveat}
+
+\begin{verbatim}
+print("hello")
+\end{verbatim}
+
+\begin{table}[h]
+\begin{tabular}{|l|l|}
+\hline
+Name & Value \\ \hline
+\href{https://example.com/alpha}{alpha} & 1  \textit{primary} \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]
+% image
+\caption{Architecture diagram}
+\end{figure}
+
+\end{document}

@@ -171,6 +171,11 @@ pub enum InputFormat {
     /// read through the HTML backend — MarkItDown's `_rss_converter`
     /// shape. A docling.rs extension: docling has no feed backend.
     Feed,
+    /// A Box Note (`.boxnote`, `application/vnd.box.boxnote`, #1033): Box's
+    /// ProseMirror JSON document, read as docling's `BoxNoteDocumentBackend`
+    /// does. A `.json` holding one (a top-level `doc` node) takes the same
+    /// route.
+    Boxnote,
     /// An iCalendar file (`.ics`, `.ical`, `.icalendar`, `.ifb`,
     /// `text/calendar`, or a nameless input opening with `BEGIN:VCALENDAR`):
     /// events, tasks, journal entries and free/busy blocks as headings,
@@ -252,6 +257,7 @@ impl InputFormat {
             InputFormat::Xml => "xml",
             InputFormat::Ipynb => "ipynb",
             InputFormat::Feed => "feed",
+            InputFormat::Boxnote => "boxnote",
             InputFormat::Calendar => "calendar",
             InputFormat::Plugin => "plugin",
         }
@@ -322,6 +328,7 @@ impl InputFormat {
             "xml" => InputFormat::Xml,
             "ipynb" => InputFormat::Ipynb,
             "feed" => InputFormat::Feed,
+            "boxnote" => InputFormat::Boxnote,
             "calendar" => InputFormat::Calendar,
             "plugin" => InputFormat::Plugin,
             _ => return None,
@@ -372,6 +379,7 @@ impl InputFormat {
             }
             "application/xml" | "text/xml" => InputFormat::Xml,
             "application/x-ipynb+json" => InputFormat::Ipynb,
+            "application/vnd.box.boxnote" => InputFormat::Boxnote,
             "application/rss+xml" | "application/atom+xml" | "application/rdf+xml" => {
                 InputFormat::Feed
             }
@@ -592,6 +600,7 @@ const EXTENSIONS: &[(&str, InputFormat)] = {
         ("rss", Feed),
         ("atom", Feed),
         ("rdf", Feed),
+        ("boxnote", Boxnote),
         ("ics", Calendar),
         ("ical", Calendar),
         ("icalendar", Calendar),
