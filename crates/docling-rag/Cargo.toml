@@ -46,7 +46,7 @@ ort-load-dynamic = [
     "ort?/load-dynamic",
 ]
 remote-sources = ["dep:suppaftp", "dep:ssh2"]
-rabbitmq = ["dep:lapin", "dep:futures-lite"]
+rabbitmq = ["dep:lapin", "dep:futures-lite", "dep:time"]
 redis = ["dep:redis", "dep:futures-lite"]
 
 [dependencies]
@@ -99,6 +99,13 @@ ssh2 = { version = "0.9", optional = true }
 # build — so pin rustls to `ring`, the provider the rest of the workspace
 # (reqwest, sqlx, ort) already links.
 lapin = { version = "4", default-features = false, features = ["tokio", "rustls--ring", "rustls-native-certs"], optional = true }
+# Not used directly: a floor for the `time` that lapin's TLS stack pulls in
+# (lapin → amq-protocol-tcp → tcp-stream → p12-keystore → x509-parser →
+# asn1-rs), past RUSTSEC-2026-0009 (stack exhaustion, fixed in 0.3.47). The
+# fixed releases need Rust 1.88, and the workspace resolves with
+# `incompatible-rust-versions = "fallback"` against docling-core's 1.85, so
+# `cargo update` / `cargo audit fix` keep choosing 0.3.45 without it.
+time = { version = "0.3.47", default-features = false, optional = true }
 futures-lite = { version = "2", optional = true }
 redis = { version = "0.27", default-features = false, features = ["tokio-comp"], optional = true }
 
