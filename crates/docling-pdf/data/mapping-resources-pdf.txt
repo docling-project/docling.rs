@@ -1,0 +1,1 @@
+https://github.com/adobe-type-tools/mapping-resources-pdf.git @ 2dd5e53fb74a01718b9dfd448a0d1cce6fff2aa5
