@@ -530,7 +530,15 @@ fn render_one(node: &Node, list_level: usize, inline: bool, parts: &mut Vec<Stri
                 push(parts, "% formula-not-decoded".to_string());
             }
         }
-        Node::Table(t) => push(parts, render_table(t)),
+        Node::Table(t) => {
+            push(parts, render_table(t));
+            // docling-core's LaTeX serializer has no footnote pass; its walk
+            // reaches a table's footnote items after the table and writes
+            // them as paragraphs (JATS's table notes, docling#4818).
+            for note in t.footnotes.iter().filter(|n| !n.is_empty()) {
+                push(parts, inline_md(note));
+            }
+        }
         // The picture's meta as comments in the figure, docling-core's
         // `LaTeXMetaSerializer` order (docling-core#871): the main
         // classification, then the description — an alt-text description
