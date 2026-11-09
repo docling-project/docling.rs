@@ -1354,7 +1354,14 @@ impl<'a> Walker<'a> {
                 );
             }
             "pre" => {
-                let mut parts = simplify(self.extract(*tag, false, true, true));
+                // `<pre>` maps to code, so an inner `<code>`'s code mark adds
+                // nothing; cleared, it no longer splits sibling `<code>`s into
+                // separate runs of one inline group (docling#4998).
+                let mut parts = self.extract(*tag, false, true, true);
+                for p in &mut parts {
+                    p.code = false;
+                }
+                let mut parts = simplify(parts);
                 // Preformatted: every interior space is significant, only the
                 // block's edges are trimmed (HTML drops the newline right
                 // after `<pre>`).
@@ -1932,20 +1939,10 @@ impl<'a> Walker<'a> {
                 captions: caption.into_iter().collect(),
             },
         );
-        // `thead` / `tbody` are unwrapped; a `tfoot`'s rows are not reached.
-        let mut rows: Vec<ElementRef<'a>> = Vec::new();
-        for child in tag.children().filter_map(ElementRef::wrap) {
-            match child.value().name() {
-                "tr" => rows.push(child),
-                "thead" | "tbody" => rows.extend(
-                    child
-                        .children()
-                        .filter_map(ElementRef::wrap)
-                        .filter(|c| c.value().name() == "tr"),
-                ),
-                _ => {}
-            }
-        }
+        // upstream's `_unwrap_table_sections` (docling#4323): the row groups
+        // are unwrapped, and the `tfoot`s' rows come after every other row,
+        // wherever the element sits (HTML 4 put it before `tbody`).
+        let rows = super::html::table_rows(tag);
         let cells_of = |tr: ElementRef<'a>| -> Vec<ElementRef<'a>> {
             tr.children()
                 .filter_map(ElementRef::wrap)
@@ -2156,31 +2153,12 @@ impl<'a> Walker<'a> {
             }
         }
         let single = to_single(&normalize_whitespace(caption));
-        let mut captions = Vec::new();
-        if !single.text.is_empty() {
-            let text = clean_unicode(&single.text);
-            let orig = Some(single.text.clone()).filter(|o| *o != text);
-            // `doc.add_text(label=CAPTION, …)` with no parent: the body.
-            captions.push(self.add_annotated(
-                "caption",
-                text,
-                orig,
-                single.formatting,
-                single.hyperlink,
-                None,
-            ));
-            // The caption belongs to its `<figcaption>`; an `alt` or link
-            // text caption to the image.
-            if let Some(cap) = fig_cap {
-                self.record(*cap, first);
-            }
-        }
         let image = super::html::img_src(e).and_then(|s| self.images.resolve(&s));
         let pic = self.tree.add(
             parent,
             self.layer,
             TreeKind::Picture {
-                captions,
+                captions: Vec::new(),
                 image,
                 extra_classes: Vec::new(),
                 classification: None,
@@ -2191,6 +2169,28 @@ impl<'a> Walker<'a> {
             },
         );
         self.record(*img, first);
+        if !single.text.is_empty() {
+            let text = clean_unicode(&single.text);
+            let orig = Some(single.text.clone()).filter(|o| *o != text);
+            // The caption is a child of its picture, as the PDF pipeline
+            // has it, so it stays with the picture in its section or rich
+            // table cell instead of trailing in the body (docling#5037).
+            let cap_first = self.tree.items.len();
+            let cap = self.add_annotated(
+                "caption",
+                text,
+                orig,
+                single.formatting,
+                single.hyperlink,
+                Some(pic),
+            );
+            if let TreeKind::Picture { captions, .. } = &mut self.tree.items[pic].kind {
+                captions.push(cap);
+            }
+            // The caption belongs to its `<figcaption>`; an `alt` or link
+            // text caption to the image.
+            self.record(fig_cap.map_or(*img, |c| *c), cap_first);
+        }
         pic
     }
 

@@ -4,11 +4,12 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use crate::backend::{
-    is_deepseek_markdown, AbwBackend, AsciiDocBackend, CsvBackend, DeclarativeBackend,
-    DeepSeekBackend, DocBackend, DoclingJsonBackend, DocxBackend, EbcdicBackend, EmailBackend,
-    EpubBackend, InterchangeBackend, JatsBackend, LatexBackend, LotusBackend, MarkdownBackend,
-    MhtmlBackend, PptBackend, PptxBackend, QuattroBackend, RtfBackend, StarOffice5Backend,
-    UsptoBackend, VisioBackend, WebVttBackend, WpdBackend, WpsBackend, XlsBackend, XlsxBackend,
+    is_deepseek_markdown, AbwBackend, AsciiDocBackend, CalendarBackend, CsvBackend,
+    DeclarativeBackend, DeepSeekBackend, DocBackend, DoclingJsonBackend, DocxBackend,
+    EbcdicBackend, EmailBackend, EpubBackend, InterchangeBackend, JatsBackend, LatexBackend,
+    LotusBackend, MarkdownBackend, MhtmlBackend, PptBackend, PptxBackend, QuattroBackend,
+    RtfBackend, StarOffice5Backend, UsptoBackend, VisioBackend, WebVttBackend, WpdBackend,
+    WpsBackend, XlsBackend, XlsxBackend,
 };
 
 /// Drop the embedded image bytes from every picture — the flat nodes and the
@@ -3131,6 +3132,7 @@ impl DocumentConverter {
                 }
                 .convert(source)?,
                 InputFormat::Vtt => WebVttBackend.convert(source)?,
+                InputFormat::Calendar => CalendarBackend.convert(source)?,
                 InputFormat::Ebcdic => EbcdicBackend {
                     layout: self.ebcdic_layout.clone(),
                 }

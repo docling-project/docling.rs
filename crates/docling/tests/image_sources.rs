@@ -170,6 +170,35 @@ fn html_local_is_confined_to_the_source_directory() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// #1030: a bare relative file name (`cd dir && docling-rs page.html`)
+/// resolves its local images against the working directory. Its
+/// `Path::parent` is the empty path, which used to fail `canonicalize`, so
+/// nothing resolved while `./page.html` did. Tests run with the crate dir as
+/// CWD, so a crate fixture stands in for the image next to the page.
+#[test]
+fn html_local_resolves_for_a_bare_relative_file_name() {
+    let html =
+        r#"<html><body><img src="tests/fixtures/textline/axis_title.png" alt="x"></body></html>"#;
+    for name in ["page.html", "./page.html"] {
+        let mut source =
+            SourceDocument::from_bytes(name, docling::InputFormat::Html, html.as_bytes().to_vec());
+        source.path = Some(PathBuf::from(name));
+        assert_eq!(
+            source.base_dir().map(Path::to_path_buf),
+            Some(PathBuf::from(".")),
+            "{name}"
+        );
+        let doc = DocumentConverter::new()
+            .image_sources(ImageSources::Local)
+            .convert(source)
+            .unwrap()
+            .document;
+        let pics = pictures(&doc);
+        assert_eq!(pics.len(), 1, "{name}");
+        assert!(pics[0].is_some(), "{name}: the local image did not resolve");
+    }
+}
+
 /// Acceptance 3: under `Remote` with `image_hosts`, a host off the list is
 /// never contacted; the same URL resolves with the host listed (the
 /// redirect rule is proven in the resolver's unit test).

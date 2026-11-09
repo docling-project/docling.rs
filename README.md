@@ -191,7 +191,7 @@ warning.
 | Diagrams · Apple iWork | Visio, SVG, CGM (its text) · Pages, Numbers, Keynote |
 | PDF & images | PDF (layout, TableFormer, OCR), PNG, JPEG, TIFF, BMP, WebP, GIF, HEIC (opt-in), METS/GBS scans, DjVu |
 | XML · docling native | JATS, USPTO, XBRL, RIS (Austrian legal XML), DocLang · docling JSON, DocTags, DCLX |
-| Email · notes · subtitles · mainframe | `.eml`, Outlook `.msg` · Box Notes (`.boxnote`) · WebVTT · EBCDIC records through a COBOL copybook |
+| Email · notes · calendars · subtitles · mainframe | `.eml`, Outlook `.msg` · Box Notes (`.boxnote`) · iCalendar `.ics` (events, tasks, journal entries, free/busy) · WebVTT · EBCDIC records through a COBOL copybook |
 | Audio · video | WAV, MP3, M4A, AAC, OGG, FLAC; MP4, AVI, MOV, MKV, WebM, MPEG — local Whisper or Parakeet, plus scene frames from video; a YouTube watch URL — the video's title, description and caption transcript as timed items (`--asr-lang` picks the language) |
 
 Every extension, with what each backend does:

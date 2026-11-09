@@ -52,13 +52,6 @@ impl DeclarativeBackend for EpubBackend {
         let mut combined =
             String::from("<!DOCTYPE html><html><head><meta charset=\"utf-8\"/></head><body>");
         let body_re = cached_regex!(r"(?is)<body[^>]*>(.*?)</body>");
-        // A link into another content document is reduced to its anchor:
-        // the file it names is merged into this one. A content document is
-        // XHTML by its manifest media-type, not its name, so `.xht`, `.htm`
-        // and `.html` (Calibre's choice) count too (docling#4293); a link
-        // with a scheme or a protocol-relative one belongs to a host and is
-        // left alone.
-        let link_re = cached_regex!(r#"href="([^"]*\.(?:xhtml|xht|html?))(#[^"]*)""#);
         // Images extracted from the archive, keyed by their resolved in-archive
         // path (which each `<img src>` is rewritten to during concatenation).
         let mut images: HashMap<String, PictureImage> = HashMap::new();
@@ -70,13 +63,7 @@ impl DeclarativeBackend for EpubBackend {
                 .captures(&xhtml)
                 .map(|c| c[1].to_string())
                 .unwrap_or(xhtml);
-            let body = link_re.replace_all(&body, |caps: &regex::Captures| {
-                if is_external_href(&caps[1]) {
-                    caps[0].to_string()
-                } else {
-                    format!("href=\"{}\"", &caps[2])
-                }
-            });
+            let body = rewrite_internal_links(&body);
             // Each `<img src>` is relative to *this* spine file's directory, so
             // resolve + extract here, before the bodies are flattened together.
             let body = if self.images.sources.embedded() {
@@ -102,6 +89,31 @@ impl DeclarativeBackend for EpubBackend {
         };
         Ok(doc)
     }
+}
+
+/// A link into another content document is reduced to its anchor: the file
+/// it names is merged into this one. A content document is XHTML by its
+/// manifest media-type, not its name, so `.xht`, `.htm` and `.html`
+/// (Calibre's choice) count too (docling#4293); a link with a scheme or a
+/// protocol-relative one belongs to a host and is left alone. An attribute
+/// value is as legal in single quotes as in double ones, so both are matched
+/// and the link keeps its own quote (docling#5170) — the `regex` crate has no
+/// backreference for upstream's `(["'])…\1`, hence one alternative per quote.
+fn rewrite_internal_links(body: &str) -> std::borrow::Cow<'_, str> {
+    let link_re = cached_regex!(
+        r#"href=(?:"([^"]*\.(?:xhtml|xht|html?))(#[^"]*)"|'([^']*\.(?:xhtml|xht|html?))(#[^']*)')"#
+    );
+    link_re.replace_all(body, |caps: &regex::Captures| {
+        let (q, file, frag) = match caps.get(1) {
+            Some(file) => ('"', file.as_str(), &caps[2]),
+            None => ('\'', &caps[3], &caps[4]),
+        };
+        if is_external_href(file) {
+            caps[0].to_string()
+        } else {
+            format!("href={q}{frag}{q}")
+        }
+    })
 }
 
 /// Rewrite each in-archive `<img src>` in `body` to its resolved archive path and
@@ -190,13 +202,17 @@ fn extract_images(
         .into_owned()
 }
 
-/// `full-path` of the OPF package from `META-INF/container.xml`.
+/// `full-path` of the OPF package from `META-INF/container.xml`. It is a
+/// URL (a relative IRI reference inside the container) while the archive
+/// stores the literal file name, so its percent-escapes are decoded like the
+/// manifest hrefs' (docling#5168): `OEBPS/my%20book.opf` names
+/// `OEBPS/my book.opf`.
 pub(crate) fn rootfile_path(container: &str) -> Option<String> {
     let dom = Document::parse(container).ok()?;
     dom.descendants()
         .find(|n| n.has_tag_name("rootfile"))
         .and_then(|n| n.attribute("full-path"))
-        .map(str::to_string)
+        .map(percent_decode)
 }
 
 /// Spine reading order resolved to archive paths (`opf_dir/href`).
@@ -377,17 +393,7 @@ mod tests {
     /// the content document's extension; a link to a host is left alone.
     #[test]
     fn internal_links_of_every_extension_become_anchors() {
-        let re = cached_regex!(r#"href="([^"]*\.(?:xhtml|xht|html?))(#[^"]*)""#);
-        let fix = |html: &str| -> String {
-            re.replace_all(html, |caps: &regex::Captures| {
-                if is_external_href(&caps[1]) {
-                    caps[0].to_string()
-                } else {
-                    format!("href=\"{}\"", &caps[2])
-                }
-            })
-            .into_owned()
-        };
+        let fix = |html: &str| -> String { rewrite_internal_links(html).into_owned() };
         for ext in ["xhtml", "html", "htm", "xht"] {
             assert_eq!(
                 fix(&format!("<a href=\"../text/ch2.{ext}#n1\">")),
@@ -452,5 +458,111 @@ mod tests {
         assert!(imgs
             .iter()
             .all(|img| img.width > 0 && img.height > 0 && !img.data.is_empty()));
+    }
+
+    /// An in-memory EPUB: `container.xml` naming `opf_ref`, the package
+    /// stored at `opf_name`, and one spine item per `(file, body)`.
+    fn build_epub(opf_ref: &str, opf_name: &str, chapters: &[(&str, &str)]) -> Vec<u8> {
+        use std::io::Write;
+        let mut out = std::io::Cursor::new(Vec::new());
+        let mut w = zip::ZipWriter::new(&mut out);
+        let opts = zip::write::SimpleFileOptions::default();
+        let mut put = |name: &str, body: &str| {
+            w.start_file(name, opts).unwrap();
+            w.write_all(body.as_bytes()).unwrap();
+        };
+        put("mimetype", "application/epub+zip");
+        put(
+            "META-INF/container.xml",
+            &format!(
+                r#"<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="{opf_ref}" media-type="application/oebps-package+xml"/></rootfiles></container>"#
+            ),
+        );
+        let dir = opf_name.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
+        let (mut manifest, mut spine) = (String::new(), String::new());
+        for (i, (file, body)) in chapters.iter().enumerate() {
+            manifest.push_str(&format!(
+                r#"<item id="c{i}" href="{file}" media-type="application/xhtml+xml"/>"#
+            ));
+            spine.push_str(&format!(r#"<itemref idref="c{i}"/>"#));
+            put(
+                &format!("{dir}/{file}"),
+                &format!(
+                    r#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><body>{body}</body></html>"#
+                ),
+            );
+        }
+        put(
+            opf_name,
+            &format!(
+                r#"<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata/><manifest>{manifest}</manifest><spine>{spine}</spine></package>"#
+            ),
+        );
+        w.finish().unwrap();
+        out.into_inner()
+    }
+
+    fn convert_epub(bytes: Vec<u8>) -> Result<DoclingDocument, ConversionError> {
+        use crate::format::InputFormat;
+        let src = SourceDocument::from_bytes("book", InputFormat::Epub, bytes);
+        EpubBackend::default().convert(&src)
+    }
+
+    /// docling#5170 (`test_epub_internal_links_in_either_quote_style`): a
+    /// single-quoted cross-chapter link is reduced to its anchor like a
+    /// double-quoted one, and a single-quoted absolute URL keeps its host.
+    #[test]
+    fn internal_links_in_either_quote_style() {
+        let abs = "https://example.com/page.html#about";
+        let bytes = build_epub(
+            "OEBPS/content.opf",
+            "OEBPS/content.opf",
+            &[
+                (
+                    "chapter1.xhtml",
+                    &format!(
+                        "<p>See <a href='chapter2.xhtml#note2'>single</a>.</p>\
+                         <p>See <a href=\"chapter2.xhtml#note2\">double</a>.</p>\
+                         <p>Read <a href='{abs}'>about</a>.</p>"
+                    ),
+                ),
+                ("chapter2.xhtml", r#"<p id="note2">Note 2.</p>"#),
+            ],
+        );
+        let md = convert_epub(bytes).unwrap().export_to_markdown();
+        assert!(md.contains("[single](#note2)"), "{md}");
+        assert!(md.contains("[double](#note2)"), "{md}");
+        assert!(md.contains(&format!("[about]({abs})")), "{md}");
+        assert!(!md.contains("chapter2.xhtml"), "{md}");
+
+        assert_eq!(
+            rewrite_internal_links("<a href='../t/ch2.html#n1'>"),
+            "<a href='#n1'>"
+        );
+        assert_eq!(
+            rewrite_internal_links("<a href='//example.com/p.htm#x'>"),
+            "<a href='//example.com/p.htm#x'>"
+        );
+    }
+
+    /// docling#5168 (`test_epub_percent_encoded_package_path_is_read`): the
+    /// rootfile's `full-path` is a URL, so `my%20book.opf` reads the
+    /// archive's `my book.opf` instead of failing the conversion.
+    #[test]
+    fn percent_encoded_package_path_is_read() {
+        let bytes = build_epub(
+            "OEBPS/my%20book.opf",
+            "OEBPS/my book.opf",
+            &[("chapter-0.xhtml", "<p>Chapter 0 body.</p>")],
+        );
+        let md = convert_epub(bytes).unwrap().export_to_markdown();
+        assert!(md.contains("Chapter 0 body."), "{md}");
+        assert_eq!(
+            rootfile_path(
+                r#"<container><rootfiles><rootfile full-path="OEBPS/my%20book.opf"/></rootfiles></container>"#
+            )
+            .as_deref(),
+            Some("OEBPS/my book.opf")
+        );
     }
 }

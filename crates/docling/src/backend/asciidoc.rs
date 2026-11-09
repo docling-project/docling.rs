@@ -1,12 +1,14 @@
 //! AsciiDoc backend.
 //!
-//! A line-oriented port of docling's `AsciiDocBackend._parse` (as of 2.140):
+//! A line-oriented port of docling's `AsciiDocBackend._parse` (as of 2.149):
 //! titles (`= `), section headers (`== `…), bullet/numbered lists (with `+`
-//! continuation and literal-block/image children), `....`/`----`-delimited
-//! literal and listing blocks, bare and `|===`-delimited tables (with
-//! cell-format-specifier stripping), images and captions, and multi-line
-//! paragraphs with `*bold*`, `_italic_` and `` `mono` `` marks. Comments,
-//! block attributes and anchors are skipped.
+//! continuation and literal-block/image children, `[start=N]` numbering),
+//! `....`/`----`-delimited literal and listing blocks, bare and
+//! `|===`-delimited tables (rows of the first line's width, `N+`/`.N+` spans,
+//! `N*` copies), images and one-line block titles, and multi-line paragraphs
+//! with `*bold*`, `_italic_` and `` `mono` `` marks, links (URL macros,
+//! `link:`, `mailto:`, bare and `<…>` URLs) and ` +` hard breaks. Comments
+//! go to the notes layer; block attributes and anchors are skipped.
 //!
 //! Alongside the flat nodes the parser builds docling's item tree for the
 //! JSON export, mirroring `_parse`'s `parents` / `indents` bookkeeping: the
@@ -262,7 +264,9 @@ fn delimited_body(lines: &[&str], start: usize, delimiter: &str) -> (String, usi
 struct Parser<'r> {
     text_data: Vec<String>,
     caption_data: Vec<String>,
-    table_data: Vec<Vec<String>>,
+    /// The table's lines as written, each a list of its cells with their
+    /// spans and `N*` factors — grouped into rows when the table ends.
+    table_data: Vec<Vec<CellSource>>,
     in_list: bool,
     in_table: bool,
     /// A `|===` table is open: a blank line only separates its rows and a
@@ -293,6 +297,18 @@ struct Parser<'r> {
     last_item_tree: Option<usize>,
     /// The unescaped text of the caption [`Self::take_caption`] last returned.
     raw_caption: String,
+    /// Its hyperlink — docling's `_caption_text`: the one target every
+    /// non-blank run of the caption shares, AnyUrl/Path-normalized.
+    raw_caption_href: Option<String>,
+    /// docling's `pending_list_start` (docling#5180): the `start` of a block
+    /// attribute line (`[start=4]`, `[loweralpha,start=4]`), kept past blank
+    /// lines and a block title until the block it applies to.
+    pending_list_start: Option<u64>,
+    /// The start that applies to the line being fed.
+    list_start: Option<u64>,
+    /// docling's `next_list_numbers`: the next number of each ordered list
+    /// that does not start at 1, by its group's tree id.
+    next_list_numbers: std::collections::HashMap<usize, u64>,
     /// Comments met inside a list, for the flat nodes: they reach them when
     /// the list ends (see [`Parser::feed_comment`]).
     list_notes: Vec<String>,
@@ -373,8 +389,12 @@ impl Parser<'_> {
     /// A block title claimed by a table / picture / code block: docling adds
     /// it with `add_text(label=CAPTION)` and *no parent* — a body-level item
     /// the floating item then references in `captions`.
-    fn add_tree_caption(&mut self, text: &str) -> usize {
-        self.add_tree_text(None, "caption", text, None, None, None)
+    fn add_tree_caption(&mut self, text: &str, hyperlink: Option<String>) -> usize {
+        let id = self.add_tree_text(None, "caption", text, None, None, None);
+        if let TreeKind::Text { hyperlink: h, .. } = &mut self.tree.items[id].kind {
+            *h = hyperlink;
+        }
+        id
     }
 
     /// docling's `_close_list_if_needed`: anything that is not a list item, a
@@ -414,6 +434,9 @@ impl Parser<'_> {
     /// content's markers (docling's `detect_code_language`); without a hint
     /// the language stays unknown, as upstream passes `None`.
     fn feed_literal(&mut self, code: String, language: Option<String>, doc: &mut DoclingDocument) {
+        // Block attributes apply to the next block: a delimited one takes
+        // (and drops) a pending `start`.
+        self.pending_list_start = None;
         let language = language
             .and_then(|hint| super::code_language::detect_code_language(&code, Some(&hint)));
         self.close_list_if_needed(Trigger::Literal);
@@ -428,7 +451,8 @@ impl Parser<'_> {
         let caption = self.take_caption();
         let tree_caption = if caption.is_some() {
             let raw = self.raw_caption.clone();
-            Some(self.add_tree_caption(&raw))
+            let href = self.raw_caption_href.clone();
+            Some(self.add_tree_caption(&raw, href))
         } else {
             None
         };
@@ -460,7 +484,10 @@ impl Parser<'_> {
             });
         }
         if let Some(text) = caption {
-            doc.push(Node::Caption { text, href: None });
+            doc.push(Node::Caption {
+                text,
+                href: self.raw_caption_href.clone(),
+            });
         }
         self.list_continuation = false;
     }
@@ -483,7 +510,21 @@ impl Parser<'_> {
             || cached_regex!(r"^\[[^\[\]]+\]$").is_match(stripped)
             || cached_regex!(r"^:[\w.-]+:(\s.*)?$").is_match(stripped)
         {
+            // docling#5180: `[start=4]` numbers the next ordered list.
+            if let Some(n) =
+                cached_regex!(r#"^\[(?:[^\]]*,)?\s*start\s*=\s*"?(\d+)"?\s*(?:,[^\]]*)?\]$"#)
+                    .captures(stripped)
+                    .and_then(|c| c[1].parse().ok())
+            {
+                self.pending_list_start = Some(n);
+            }
             return;
+        }
+        // docling's `_take_list_start`: a pending start applies to this
+        // line, and is used up by any line but a blank one or a block title.
+        self.list_start = self.pending_list_start;
+        if !stripped.is_empty() && is_caption(line).is_none() {
+            self.pending_list_start = None;
         }
 
         // Title: `= ` — the root of the section tree.
@@ -556,7 +597,7 @@ impl Parser<'_> {
         // vertical layout).
         if is_table_line(line) {
             self.in_table = true;
-            self.table_data.push(parse_table_line(line));
+            self.table_data.push(parse_table_cells(line));
             return;
         }
         // Any other line ends a bare table — and goes with it, as docling's
@@ -580,9 +621,13 @@ impl Parser<'_> {
                 return;
             }
         }
-        // Continuation of a multi-line caption
+        // A block title is one line (docling#4391): the next line starts the
+        // paragraph it titles — which has no caption slot, so the title goes
+        // first as a bold paragraph.
         if !stripped.is_empty() && !self.caption_data.is_empty() {
-            self.caption_data.push(stripped.to_string());
+            self.flush_text(doc);
+            self.flush_caption_as_paragraph(doc);
+            self.text_data.push(stripped.to_string());
             return;
         }
 
@@ -612,7 +657,8 @@ impl Parser<'_> {
         let Some(cell) = self.table_data.last_mut().and_then(|row| row.last_mut()) else {
             return false;
         };
-        *cell = format!("{cell} {stripped}").trim_start().to_string();
+        // Before an `N*` factor is expanded, so every copy gets the line.
+        cell.text = format!("{} {stripped}", cell.text).trim_start().to_string();
         true
     }
 
@@ -624,23 +670,10 @@ impl Parser<'_> {
         parent: Option<usize>,
         doc: &mut DoclingDocument,
     ) {
-        if let Some(text) = self.take_caption() {
-            doc.push(Node::Paragraph {
-                text: format!("**{text}**"),
-            });
-            let raw = self.raw_caption.clone();
-            self.add_tree_text(
-                parent,
-                "paragraph",
-                &raw,
-                Some(Formatting {
-                    bold: true,
-                    ..Formatting::default()
-                }),
-                None,
-                None,
-            );
-        }
+        // docling's `_flush_text_data(bold=True)` over the title's lines:
+        // its marks and links are parsed like a paragraph's (docling#5144).
+        let lines = std::mem::take(&mut self.caption_data);
+        self.flush_lines(lines, parent, true, doc);
     }
 
     fn flush_caption_as_paragraph(&mut self, doc: &mut DoclingDocument) {
@@ -662,6 +695,10 @@ impl Parser<'_> {
             self.list_kinds = vec![None; LEVELS];
             self.open_list_group(level, parent, item.indent, kind);
             self.fresh_list = true;
+            // docling#5180: a pending `[start=N]` numbers this list from N.
+            if let (Some(start), Some(group)) = (self.list_start, self.parents[level + 1]) {
+                self.next_list_numbers.insert(group, start);
+            }
         } else if item.indent > self.indents[level].unwrap_or(0) {
             // A nested list belongs to the item above it (docling#4721): as a
             // sibling of the items it would count as an item of the outer
@@ -683,8 +720,19 @@ impl Parser<'_> {
         self.match_list_kind(&item, kind);
 
         let tree_parent = self.current_parent();
-        let explicit = numeric_marker(item.marker);
-        let tree_marker = explicit.map_or(String::new(), |_| item.marker.to_string());
+        // docling's `_list_item_marker`: an ordered item of a list with a
+        // start takes the list's next number, else an explicit `12.` stays.
+        let numbered = match tree_parent.and_then(|g| self.next_list_numbers.get_mut(&g)) {
+            Some(next) if item.numbered => {
+                *next += 1;
+                Some(*next - 1)
+            }
+            _ => None,
+        };
+        let numbered_marker = numbered.map(|n| format!("{n}."));
+        let explicit = numbered.or_else(|| numeric_marker(item.marker));
+        let marker_text = numbered_marker.unwrap_or_else(|| item.marker.to_string());
+        let tree_marker = explicit.map_or(String::new(), |_| marker_text.clone());
         let id = self.add_tree_text(
             tree_parent,
             "list_item",
@@ -714,7 +762,7 @@ impl Parser<'_> {
             first_in_list: self.fresh_list,
             text: escape_text(item.text.trim()),
             level: depth,
-            marker: explicit.map(|_| item.marker.to_string()),
+            marker: explicit.map(|_| marker_text.clone()),
             location: None,
             dclx: None,
             href: None,
@@ -802,7 +850,8 @@ impl Parser<'_> {
         // picture hangs off the open list item or the current section.
         let captions: Vec<usize> = if cap.is_some() {
             let raw = self.raw_caption.clone();
-            vec![self.add_tree_caption(&raw)]
+            let href = self.raw_caption_href.clone();
+            vec![self.add_tree_caption(&raw, href)]
         } else {
             Vec::new()
         };
@@ -846,8 +895,8 @@ impl Parser<'_> {
         // docling ≥ 2.127 parents the picture to the current section (it used
         // to go to the body root and render after everything).
         doc.push(Node::Picture {
+            caption_href: cap.as_ref().and(self.raw_caption_href.clone()),
             caption: cap,
-            caption_href: None,
             image,
             classification: None,
             description: None,
@@ -894,6 +943,7 @@ impl Parser<'_> {
     /// list's end there: a node between two list items would split the
     /// list the default Markdown prints.
     fn feed_comment(&mut self, text: String, doc: &mut DoclingDocument) {
+        self.pending_list_start = None;
         let parent = if self.in_list {
             self.last_item_tree
         } else {
@@ -933,23 +983,52 @@ impl Parser<'_> {
         if self.caption_data.is_empty() {
             return None;
         }
-        let cap = self.caption_data.join(" ");
+        // docling's `_caption_text` (docling#5144): one text item, so the
+        // runs are joined — marks dropped, a link's text kept — and the
+        // hyperlink survives only when every non-blank run has the same one.
+        let runs = parse_inline(&self.caption_data.join(" "), false, false, None);
         self.caption_data.clear();
+        let cap: String = runs.iter().map(|r| r.text.as_str()).collect();
+        let cap = cap.trim().to_string();
+        let mut targets = runs
+            .iter()
+            .filter(|r| !r.text.trim().is_empty())
+            .map(|r| r.hyperlink.as_deref());
+        let first = targets.next().flatten();
+        self.raw_caption_href = match first {
+            Some(t) if targets.all(|o| o == Some(t)) => Some(super::html_tree::docling_href(t)),
+            _ => None,
+        };
         self.raw_caption = cap.clone();
         Some(escape_text(&cap))
     }
 
-    /// docling's `_flush_text_data`: the accumulated lines as one paragraph —
-    /// or, when `*bold*`, `_italic_` or `` `mono` `` marks style part of it
-    /// (docling#4824), an `inline` group of one item per run: a text with its
-    /// bold/italic formatting, a monospace run a `code` item.
+    /// docling's `_flush_text_data`: the accumulated lines as one paragraph.
     fn flush_text(&mut self, doc: &mut DoclingDocument) {
-        if self.text_data.is_empty() {
+        let lines = std::mem::take(&mut self.text_data);
+        let parent = self.current_parent();
+        self.flush_lines(lines, parent, false, doc);
+    }
+
+    /// docling's `_flush_text_data` for `lines` under `parent`: the lines as
+    /// one paragraph (a trailing ` +` a hard line break, docling#5175) — or,
+    /// when `*bold*`, `_italic_`, `` `mono` `` marks style part of it
+    /// (docling#4824) or it holds a link (docling#5115), an `inline` group of
+    /// one item per run: a text with its bold/italic formatting and its
+    /// hyperlink, a monospace run a `code` item. `bold` is a block title's
+    /// paragraph (docling#5144): every run bold, its marks dropped when no run
+    /// stands out.
+    fn flush_lines(
+        &mut self,
+        lines: Vec<String>,
+        parent: Option<usize>,
+        bold: bool,
+        doc: &mut DoclingDocument,
+    ) {
+        if lines.is_empty() {
             return;
         }
-        let text = self.text_data.join(" ");
-        self.text_data.clear();
-        let parent = self.current_parent();
+        let text = join_lines(&lines);
         // Text still pending when a list opened is flushed into the list group
         // (docling's `parent=_get_current_parent(parents)`), which
         // docling-core's list serializer prints as one more line of the list,
@@ -958,18 +1037,35 @@ impl Parser<'_> {
         let list_level = parent
             .filter(|&p| self.is_list_group(p))
             .map(|g| self.group_depth(g));
-        let runs = parse_inline(&text, false, false);
-        if !runs.iter().any(|r| r.bold || r.italic || r.code) {
+        let runs = parse_inline(&text, bold, false, None);
+        if !runs
+            .iter()
+            .any(|r| r.bold != bold || r.italic || r.code || r.hyperlink.is_some())
+        {
+            let text = if bold {
+                runs.iter().map(|r| r.text.as_str()).collect()
+            } else {
+                text
+            };
             let escaped = escape_text(&text);
+            let shown = if bold {
+                format!("**{escaped}**")
+            } else {
+                escaped
+            };
             doc.push(match list_level {
                 Some(level) => Node::ListText {
                     level,
-                    text: escaped,
+                    text: shown,
                     glue: false,
                 },
-                None => Node::Paragraph { text: escaped },
+                None => Node::Paragraph { text: shown },
             });
-            self.add_tree_text(parent, "paragraph", &text, None, None, None);
+            let formatting = bold.then(|| Formatting {
+                bold: true,
+                ..Formatting::default()
+            });
+            self.add_tree_text(parent, "paragraph", &text, formatting, None, None);
             return;
         }
         let group = self.tree.add(
@@ -995,61 +1091,73 @@ impl Parser<'_> {
         // docling#3891: the runs keep their boundary whitespace and only the
         // block's outer edges are trimmed; a code run's edge whitespace moves
         // out into a plain run of its own, never inside the backticks.
-        let mut spaced: Vec<(String, bool, bool, bool)> = Vec::new();
-        for run in &runs {
+        let mut spaced: Vec<Run> = Vec::new();
+        for run in runs {
             let (lead, core, trail) = docling_core::inline::split_edges(&run.text);
             if !run.code || core.is_empty() {
-                spaced.push((run.text.clone(), run.bold, run.italic, false));
+                spaced.push(Run { code: false, ..run });
                 continue;
             }
-            for (part, code) in [(lead, false), (core, true), (trail, false)] {
-                if !part.is_empty() {
-                    let (b, i) = if code {
-                        (run.bold, run.italic)
-                    } else {
-                        (false, false)
-                    };
-                    spaced.push((part.to_string(), b, i, code));
+            let plain = |t: &str| Run {
+                text: t.to_string(),
+                bold: false,
+                italic: false,
+                code: false,
+                hyperlink: None,
+            };
+            let (lead, core, trail) = (plain(lead), core.to_string(), plain(trail));
+            for part in [lead, Run { text: core, ..run }, trail] {
+                if !part.text.is_empty() {
+                    spaced.push(part);
                 }
             }
         }
         let spaced = docling_core::inline::trim_run_edges(
             spaced,
-            |r| r.0.as_str(),
-            |r, t| r.0 = t,
+            |r| r.text.as_str(),
+            |r, t| r.text = t,
             |_| true,
         );
         let mut md_text = String::new();
-        for (t, bold, italic, code) in spaced {
-            if code {
+        for run in spaced {
+            let href = run.hyperlink.as_deref().map(super::html_tree::docling_href);
+            let link = |md: String| match &href {
+                Some(h) => format!("[{md}]({h})"),
+                None => md,
+            };
+            if run.code {
                 self.tree.add(
                     Some(group),
                     None,
                     TreeKind::Code {
-                        text: t.clone(),
+                        text: run.text.clone(),
                         orig: None,
                         language: None,
                         formatting: None,
-                        hyperlink: None,
+                        hyperlink: href.clone(),
                         captions: Vec::new(),
                     },
                 );
-                md_text.push_str(&docling_core::code_span(&t));
+                md_text.push_str(&link(docling_core::code_span(&run.text)));
             } else {
-                let formatting = (bold || italic).then(|| Formatting {
-                    bold,
-                    italic,
+                let (b, i) = (run.bold, run.italic);
+                let formatting = (b || i).then(|| Formatting {
+                    bold: b,
+                    italic: i,
                     ..Formatting::default()
                 });
-                self.add_tree_text(Some(group), "text", &t, formatting, None, None);
-                md_text.push_str(&docling_core::inline::hoist(&t, |core| {
+                let id = self.add_tree_text(Some(group), "text", &run.text, formatting, None, None);
+                if let TreeKind::Text { hyperlink, .. } = &mut self.tree.items[id].kind {
+                    hyperlink.clone_from(&href);
+                }
+                md_text.push_str(&docling_core::inline::hoist(&run.text, |core| {
                     let escaped = escape_text(core);
-                    match (bold, italic) {
+                    link(match (b, i) {
                         (true, true) => format!("***{escaped}***"),
                         (true, false) => format!("**{escaped}**"),
                         (false, true) => format!("*{escaped}*"),
                         (false, false) => escaped,
-                    }
+                    })
                 }));
             }
         }
@@ -1079,50 +1187,50 @@ impl Parser<'_> {
             if let Some(cap) = self.take_caption() {
                 doc.push(Node::Paragraph { text: cap });
                 let raw = self.raw_caption.clone();
-                captions.push(self.add_tree_caption(&raw));
+                let href = self.raw_caption_href.clone();
+                captions.push(self.add_tree_caption(&raw, href));
             }
-            let num_cols = self.table_data.iter().map(Vec::len).max().unwrap_or(0);
-            let raw_rows: Vec<Vec<String>> = self.table_data.clone();
-            let rows: Vec<Vec<String>> = self
-                .table_data
-                .drain(..)
-                .map(|mut r| {
-                    r.resize(num_cols, String::new());
-                    r
-                })
-                .collect();
+            // docling's grid (docling#5010): rows grouped by the first
+            // line's width, spans placed where they fall. The flat rows are
+            // the dense grid, a spanning cell's text repeated across what it
+            // covers — docling-core's Markdown — and an empty position where
+            // no cell is; the tree keeps docling's cells, spans and gaps.
+            let cells = table_grid(&self.table_data);
+            self.table_data.clear();
+            let num_rows = cells
+                .iter()
+                .map(|c| c.start_row + c.row_span)
+                .max()
+                .unwrap_or(0);
+            let num_cols = cells
+                .iter()
+                .map(|c| c.start_col + c.col_span)
+                .max()
+                .unwrap_or(0);
+            let mut rows = vec![vec![String::new(); num_cols]; num_rows];
+            for cell in &cells {
+                for row in rows.iter_mut().skip(cell.start_row).take(cell.row_span) {
+                    for slot in row.iter_mut().skip(cell.start_col).take(cell.col_span) {
+                        slot.clone_from(&cell.text);
+                    }
+                }
+            }
             let table = Table {
                 footnotes: Vec::new(),
                 rows,
                 location: None,
                 structure: None,
                 cell_blocks: None,
-                cells: None,
+                // A span is DocLang structure (`<lcel/>`, `<ucel/>`); a plain
+                // grid keeps the rows' default.
+                cells: cells
+                    .iter()
+                    .any(|c| c.row_span > 1 || c.col_span > 1)
+                    .then(|| cells.clone()),
                 caption: None,
                 caption_parent: Default::default(),
                 caption_location: None,
             };
-            // docling's `_populate_table_as_grid` writes a cell only where
-            // the source row has one — a short row leaves its tail empty in
-            // the grid (no cell, no header flag) — so the tree's table carries
-            // the ragged cells while the flat rows stay padded for Markdown.
-            let cells: Vec<TableCell> = raw_rows
-                .iter()
-                .enumerate()
-                .flat_map(|(r, row)| {
-                    row.iter().enumerate().map(move |(c, text)| TableCell {
-                        text: text.clone(),
-                        bbox: None,
-                        start_row: r,
-                        start_col: c,
-                        row_span: 1,
-                        col_span: 1,
-                        column_header: r == 0,
-                        row_header: false,
-                        row_section: false,
-                    })
-                })
-                .collect();
             let parent = self.current_parent();
             self.tree.add(
                 parent,
@@ -1168,12 +1276,14 @@ fn push_note(doc: &mut DoclingDocument, text: &str) {
     });
 }
 
-/// One run of a paragraph's text — docling's `_InlineRun`.
+/// One run of a paragraph's text — docling's `_InlineRun`. `hyperlink` is
+/// the link target as written (normalized when the item is made).
 struct Run {
     text: String,
     bold: bool,
     italic: bool,
     code: bool,
+    hyperlink: Option<String>,
 }
 
 /// Python's `\w` for one character.
@@ -1181,98 +1291,331 @@ fn is_word(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
-/// One alternative of docling's `_INLINE_FORMAT_RE` tried at `at`: the end of
-/// the match and the inner text's range, or `None`. Doubled marks
-/// (unconstrained) take the shortest non-empty run up to the closing pair;
-/// a single mark (constrained) needs no word character before it, a
-/// non-space right inside each end, and no word character after it.
-fn match_mark(
-    chars: &[char],
-    at: usize,
-    mark: char,
-    doubled: bool,
-) -> Option<(usize, std::ops::Range<usize>)> {
-    if doubled {
-        if chars.get(at) != Some(&mark) || chars.get(at + 1) != Some(&mark) {
-            return None;
+/// docling's `_join_lines`: a paragraph's lines joined with spaces, a line
+/// ending in ` +` (an AsciiDoc hard line break, docling#5175) with a newline.
+fn join_lines(lines: &[String]) -> String {
+    let mut text = String::new();
+    for (i, line) in lines.iter().enumerate() {
+        if i + 1 == lines.len() {
+            text.push_str(line);
+        } else if let Some(head) = line.strip_suffix(" +") {
+            text.push_str(head.trim_end());
+            text.push('\n');
+        } else {
+            text.push_str(line);
+            text.push(' ');
         }
-        let start = at + 2;
-        // `.+?`: at least one character, then the closing pair.
-        (start + 1..chars.len().saturating_sub(1))
-            .find(|&e| chars[e] == mark && chars[e + 1] == mark)
-            .map(|e| (e + 2, start..e))
-    } else {
-        if chars.get(at) != Some(&mark) || (at > 0 && is_word(chars[at - 1])) {
-            return None;
+    }
+    text
+}
+
+/// What one alternative of docling's `_INLINE_FORMAT_RE` matched.
+enum Mark {
+    /// A link: its target, its text (`None`: Asciidoctor shows the target),
+    /// what is shown then (a `link:` macro's target as written), and blank
+    /// brackets' whitespace, which stays.
+    Link {
+        target: String,
+        text: Option<String>,
+        shown: String,
+        blank: String,
+    },
+    Mono(String),
+    Bold(String),
+    Italic(String),
+}
+
+/// The URL schemes Asciidoctor links without a macro, at `at`: their length.
+fn url_scheme(text: &str, at: usize) -> Option<usize> {
+    cached_regex!(r"^(?:https?|file|ftp|irc)://")
+        .find(&text[at..])
+        .map(|m| m.end())
+}
+
+/// docling's `_URL_START`: a URL is linked only at the start of the text,
+/// after whitespace or after one of `>()[];"'`.
+fn url_start(prev: Option<char>) -> bool {
+    prev.is_none_or(|c| c.is_whitespace() || ">()[];\"'".contains(c))
+}
+
+/// docling's `_LINK_ATTRS` then `]`, from `at` (just past the `[`): the
+/// attribute list — a bracket in it must be escaped — and the end past the
+/// `]`.
+fn link_attrs(text: &str, at: usize) -> Option<(String, usize)> {
+    let mut chars = text[at..].char_indices();
+    while let Some((i, c)) = chars.next() {
+        match c {
+            '\\' => {
+                chars.next()?;
+            }
+            '[' => return None,
+            ']' => return Some((text[at..at + i].to_string(), at + i + 1)),
+            _ => {}
         }
-        let start = at + 1;
-        if chars.get(start).is_none_or(|c| c.is_whitespace()) {
-            return None;
+    }
+    None
+}
+
+/// The end of a maximal run of characters from `at` that `ok` accepts.
+fn run_end(text: &str, at: usize, ok: impl Fn(char) -> bool) -> usize {
+    text[at..]
+        .char_indices()
+        .find(|&(_, c)| !ok(c))
+        .map_or(text.len(), |(i, _)| at + i)
+}
+
+/// One of docling's `_INLINE_FORMAT_RE` alternatives at byte `at`, in its
+/// order — the link forms first, so the `_` and `*` of a URL are not marks,
+/// then the unconstrained (doubled) marks before the constrained ones — with
+/// the end of the match.
+fn match_at(text: &str, at: usize) -> Option<(usize, Mark)> {
+    let prev = text[..at].chars().next_back();
+    let rest = &text[at..];
+    let url_char = |c: char| !c.is_whitespace() && c != '[' && c != ']';
+    // `url[text]`, then a bare URL — both at a URL start.
+    if url_start(prev) {
+        if let Some(scheme) = url_scheme(text, at) {
+            let end = run_end(text, at + scheme, url_char);
+            if end > at + scheme && text[end..].starts_with('[') {
+                if let Some((attrs, close)) = link_attrs(text, end + 1) {
+                    let target = text[at..end].to_string();
+                    return Some((
+                        close,
+                        Mark::Link {
+                            shown: target.clone(),
+                            text: link_text(&attrs),
+                            blank: attrs,
+                            target,
+                        },
+                    ));
+                }
+            }
         }
-        (start + 1..chars.len())
-            .find(|&e| {
-                chars[e] == mark
-                    && !chars[e - 1].is_whitespace()
-                    && chars.get(e + 1).is_none_or(|&c| !is_word(c))
-            })
-            .map(|e| (e + 1, start..e))
+    }
+    // `<url>`.
+    if let Some(after) = rest.strip_prefix('<') {
+        let _ = after;
+        if let Some(scheme) = url_scheme(text, at + 1) {
+            let end = run_end(text, at + 1 + scheme, |c| {
+                url_char(c) && c != '<' && c != '>'
+            });
+            if end > at + 1 + scheme && text[end..].starts_with('>') {
+                let target = text[at + 1..end].to_string();
+                return Some((
+                    end + 1,
+                    Mark::Link {
+                        shown: target.clone(),
+                        text: None,
+                        blank: String::new(),
+                        target,
+                    },
+                ));
+            }
+        }
+    }
+    if url_start(prev) {
+        if let Some(scheme) = url_scheme(text, at) {
+            // `[^\s\[\]<]*[^\s,.?!\[\]<)]`: the longest run that does not
+            // end in trailing punctuation.
+            let end = run_end(text, at + scheme, |c| url_char(c) && c != '<');
+            let tail = text[at + scheme..end]
+                .char_indices()
+                .rev()
+                .find(|&(_, c)| !",.?!)".contains(c))
+                .map(|(i, c)| at + scheme + i + c.len_utf8());
+            if let Some(end) = tail {
+                let target = text[at..end].to_string();
+                return Some((
+                    end,
+                    Mark::Link {
+                        shown: target.clone(),
+                        text: None,
+                        blank: String::new(),
+                        target,
+                    },
+                ));
+            }
+        }
+    }
+    // The `link:` and `mailto:` macros, not inside a word or after `\`.
+    if prev.is_none_or(|c| !is_word(c) && c != '\\') {
+        let (mailto, after) = if let Some(r) = rest.strip_prefix("link:") {
+            (false, r)
+        } else if let Some(r) = rest.strip_prefix("mailto:") {
+            (true, r)
+        } else {
+            (false, "")
+        };
+        let start = at + (rest.len() - after.len());
+        if !after.is_empty()
+            && !after.starts_with([':', '['])
+            && !after.starts_with(char::is_whitespace)
+        {
+            let end = run_end(text, start, |c| !c.is_whitespace() && c != '[');
+            if text[end..].starts_with('[') {
+                if let Some((attrs, close)) = link_attrs(text, end + 1) {
+                    let written = text[start..end].to_string();
+                    let target = if mailto {
+                        format!("mailto:{written}")
+                    } else {
+                        written.clone()
+                    };
+                    return Some((
+                        close,
+                        Mark::Link {
+                            target,
+                            text: link_text(&attrs),
+                            shown: written,
+                            blank: attrs,
+                        },
+                    ));
+                }
+            }
+        }
+    }
+    // Unconstrained marks: the shortest non-empty run (`.+?`, which stops at
+    // a newline) up to the closing pair.
+    for (pair, kind) in [("``", 0), ("**", 1), ("__", 2)] {
+        let Some(inner) = rest.strip_prefix(pair) else {
+            continue;
+        };
+        let line = &inner[..inner.find('\n').unwrap_or(inner.len())];
+        let first = line.chars().next().map_or(0, char::len_utf8);
+        if first == 0 {
+            continue;
+        }
+        if let Some(close) = line[first..].find(pair) {
+            let body = inner[..first + close].to_string();
+            let end = at + 2 + first + close + 2;
+            return Some((end, mark(kind, body)));
+        }
+    }
+    // Constrained marks: no word character before or after, a non-space
+    // right inside each end, and none of its own mark inside — the scan
+    // stops at the next mark.
+    if prev.is_some_and(is_word) {
+        return None;
+    }
+    for (m, kind) in [('`', 0), ('*', 1), ('_', 2)] {
+        let Some(inner) = rest.strip_prefix(m) else {
+            continue;
+        };
+        let Some(first) = inner.chars().next() else {
+            continue;
+        };
+        if first == m || first.is_whitespace() {
+            continue;
+        }
+        let Some(close) = inner.find(m) else {
+            continue;
+        };
+        let body = &inner[..close];
+        if body.ends_with(char::is_whitespace) {
+            continue;
+        }
+        let end = at + 1 + close + 1;
+        if text[end..].chars().next().is_some_and(is_word) {
+            continue;
+        }
+        return Some((end, mark(kind, body.to_string())));
+    }
+    None
+}
+
+fn mark(kind: u8, body: String) -> Mark {
+    match kind {
+        0 => Mark::Mono(body),
+        1 => Mark::Bold(body),
+        _ => Mark::Italic(body),
     }
 }
 
-/// docling's `_parse_inline`: split text into plain, bold, italic and
-/// monospace runs by `_INLINE_FORMAT_RE`, unconstrained marks (` `` `,
-/// `**`, `__`) before constrained ones (`` ` ``, `*`, `_`) at each position,
-/// so `snake_case_name` and `2*3*4` stay plain. A bold or italic run's inner
-/// text is parsed again with that style on (`*_both_*`); a monospace run is
-/// literal.
-fn parse_inline(text: &str, bold: bool, italic: bool) -> Vec<Run> {
-    let chars: Vec<char> = text.chars().collect();
+/// docling's `_link_text`: the link text in a link's attribute list. As in
+/// Asciidoctor, named attributes (`window=_blank`) may follow the text, which
+/// is then quoted if it holds a comma; a final `^` (a new window) is not
+/// text. `None` when there is no text — Asciidoctor shows the target.
+fn link_text(attributes: &str) -> Option<String> {
+    let mut text = cached_regex!(r"\\([\[\]])")
+        .replace_all(attributes, "$1")
+        .into_owned();
+    if text.contains('=') {
+        if let Some(q) = cached_regex!(r#"^\s*"((?:[^"\\]|\\.)*)"\s*(?:,|$)"#).captures(&text) {
+            text = q[1].replace("\\\"", "\"");
+        } else {
+            text = text.split(',').next().unwrap_or("").trim().to_string();
+            if cached_regex!(r"^[A-Za-z_][\w-]*\s*=").is_match(&text) {
+                // Only named attributes, no link text.
+                text.clear();
+            }
+        }
+    }
+    if let Some(head) = text.strip_suffix('^') {
+        text = head.to_string();
+    }
+    (!text.trim().is_empty()).then_some(text)
+}
+
+/// docling's `_parse_inline`: split text into plain, bold, italic, monospace
+/// and link runs by `_INLINE_FORMAT_RE`, so `snake_case_name` and `2*3*4`
+/// stay plain and the marks inside a URL are not marks. A bold or italic
+/// run's inner text — and a link's text — is parsed again with that style
+/// (or link) on (`*_both_*`, `https://x[*Bold* link]`); a monospace run is
+/// literal. A link has no links in it: one found inside a link's text stays
+/// text of the outer link.
+fn parse_inline(text: &str, bold: bool, italic: bool, hyperlink: Option<&str>) -> Vec<Run> {
     let mut runs = Vec::new();
-    let plain = |from: usize, to: usize| Run {
-        text: chars[from..to].iter().collect(),
-        bold,
-        italic,
+    let run = |t: &str, b: bool, i: bool, h: Option<&str>| Run {
+        text: t.to_string(),
+        bold: b,
+        italic: i,
         code: false,
+        hyperlink: h.map(str::to_string),
     };
     let mut position = 0;
     let mut at = 0;
-    while at < chars.len() {
-        // (mark, doubled, kind): 0 = mono, 1 = bold, 2 = italic.
-        let found = [
-            ('`', true, 0),
-            ('*', true, 1),
-            ('_', true, 2),
-            ('`', false, 0),
-            ('*', false, 1),
-            ('_', false, 2),
-        ]
-        .into_iter()
-        .find_map(|(mark, doubled, kind)| {
-            match_mark(&chars, at, mark, doubled).map(|(end, inner)| (end, inner, kind))
-        });
-        let Some((end, inner, kind)) = found else {
-            at += 1;
+    while at < text.len() {
+        let Some((end, found)) = match_at(text, at) else {
+            at += text[at..].chars().next().map_or(1, char::len_utf8);
             continue;
         };
         if at > position {
-            runs.push(plain(position, at));
+            runs.push(run(&text[position..at], bold, italic, hyperlink));
         }
-        let inner_text: String = chars[inner].iter().collect();
-        match kind {
-            0 => runs.push(Run {
-                text: inner_text,
+        match found {
+            Mark::Link {
+                target,
+                text: link,
+                shown,
+                blank,
+            } => {
+                if hyperlink.is_some() {
+                    runs.push(run(&text[at..end], bold, italic, hyperlink));
+                } else if let Some(link) = link {
+                    runs.extend(parse_inline(&link, bold, italic, Some(&target)));
+                } else {
+                    runs.push(run(&shown, bold, italic, Some(&target)));
+                    // Blank brackets have no link text, but their whitespace
+                    // stays.
+                    if !blank.is_empty() && blank.chars().all(char::is_whitespace) {
+                        runs.push(run(&blank, bold, italic, None));
+                    }
+                }
+            }
+            Mark::Mono(code) => runs.push(Run {
+                text: code,
                 bold: false,
                 italic: false,
                 code: true,
+                hyperlink: hyperlink.map(str::to_string),
             }),
-            1 => runs.extend(parse_inline(&inner_text, true, italic)),
-            _ => runs.extend(parse_inline(&inner_text, bold, true)),
+            Mark::Bold(inner) => runs.extend(parse_inline(&inner, true, italic, hyperlink)),
+            Mark::Italic(inner) => runs.extend(parse_inline(&inner, bold, true, hyperlink)),
         }
         position = end;
         at = end;
     }
-    if position < chars.len() {
-        runs.push(plain(position, chars.len()));
+    if position < text.len() {
+        runs.push(run(&text[position..], bold, italic, hyperlink));
     }
     runs
 }
@@ -1362,30 +1705,180 @@ fn is_table_line(line: &str) -> bool {
     cached_regex!(&format!(r"^{CELL_SPEC}\|")).is_match(line)
 }
 
-/// docling's `_parse_table_line`: strip cell specifiers glued before a `|`,
-/// split on every `|` not escaped as `\|` (which is a pipe in the cell text,
-/// docling#4378), drop the leading empty field, and trim.
-fn parse_table_line(line: &str) -> Vec<String> {
-    let cleaned = cached_regex!(&format!(r"(^|\s){CELL_SPEC}(\|)")).replace_all(line, "$1$2");
-    let mut cells = Vec::new();
-    let mut cell = String::new();
-    let mut chars = cleaned.chars().peekable();
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' if chars.peek() == Some(&'|') => {
-                cell.push('|');
-                chars.next();
-            }
-            '|' => cells.push(std::mem::take(&mut cell)),
-            _ => cell.push(c),
+/// One table cell as written (docling's `_TableCellSource`): its text, its
+/// spans and its `N*` duplication factor.
+#[derive(Clone, Debug, PartialEq)]
+struct CellSource {
+    text: String,
+    col_span: usize,
+    row_span: usize,
+    repeat: usize,
+}
+
+/// The most a span or `N*` factor counts — a crafted `99999999*|x` must not
+/// materialize a grid of that size. Far above any real table.
+const MAX_CELL_FACTOR: usize = 1000;
+
+/// docling's `_parse_table_cells`: split a table line on every `|` not
+/// escaped as `\|` (which is a pipe in the cell text, docling#4378) and read
+/// each cell's specifier — the run glued before the `|` that opens it,
+/// anchored to whitespace so content ending in a style letter (`Eth`)
+/// survives: `2+` spans two columns, `.3+` three rows, `2.3+` both
+/// (docling#5010), `3*` writes the cell three times.
+fn parse_table_cells(line: &str) -> Vec<CellSource> {
+    let bytes = line.as_bytes();
+    let pipes: Vec<usize> = (0..bytes.len())
+        .filter(|&i| bytes[i] == b'|' && (i == 0 || bytes[i - 1] != b'\\'))
+        .collect();
+    let spec_at_end = cached_regex!(&format!(r"(?:^|\s)({CELL_SPEC})$"));
+    let spec_after_space = cached_regex!(&format!(r"\s({CELL_SPEC})$"));
+    let mut specs: Vec<&str> = Vec::new();
+    let mut texts: Vec<&str> = Vec::new();
+    for (index, &pipe) in pipes.iter().enumerate() {
+        let start = if index == 0 { 0 } else { pipes[index - 1] + 1 };
+        let segment = &line[start..pipe];
+        let re = if index == 0 {
+            spec_at_end
+        } else {
+            spec_after_space
+        };
+        let spec = re
+            .captures(segment)
+            .and_then(|c| c.get(1))
+            .map_or("", |m| m.as_str());
+        specs.push(spec);
+        if index > 0 {
+            texts.push(&segment[..segment.len() - spec.len()]);
         }
     }
-    cells.push(cell);
-    cells
+    if let Some(&last) = pipes.last() {
+        texts.push(&line[last + 1..]);
+    }
+    let factor = |m: Option<regex::Match<'_>>| {
+        m.and_then(|m| m.as_str().parse::<usize>().ok())
+            .unwrap_or(1)
+            .clamp(1, MAX_CELL_FACTOR)
+    };
+    specs
         .into_iter()
-        .skip(1)
-        .map(|c| c.trim().to_string())
+        .zip(texts)
+        .map(|(spec, text)| {
+            let span = cached_regex!(r"^(\d+)?(?:\.(\d+))?\+").captures(spec);
+            let repeat = cached_regex!(r"^(\d+)\*").captures(spec).filter(|c| {
+                // `(?![\d.])`: `2*3+` is no factor.
+                !spec[c.get(0).unwrap().end()..]
+                    .starts_with(|ch: char| ch.is_ascii_digit() || ch == '.')
+            });
+            CellSource {
+                text: text.replace("\\|", "|").trim().to_string(),
+                col_span: span.as_ref().map_or(1, |c| factor(c.get(1))),
+                row_span: span.as_ref().map_or(1, |c| factor(c.get(2))),
+                repeat: repeat.as_ref().map_or(1, |c| factor(c.get(1))),
+            }
+        })
         .collect()
+}
+
+/// docling's `_group_table_rows`: Asciidoctor takes the column count from
+/// the table's first line (an `N*` cell counting N times, spans counting
+/// their width) and fills each row with that many columns, so a row may be
+/// written over several lines — one cell per line is common. A line holding
+/// a whole row on its own stays one row, also when it is wider; columns a
+/// row span from above covers count as filled.
+fn group_table_rows(lines: &[Vec<CellSource>]) -> Vec<Vec<CellSource>> {
+    let lines: Vec<Vec<CellSource>> = lines
+        .iter()
+        .map(|line| {
+            line.iter()
+                .flat_map(|c| {
+                    std::iter::repeat_n(
+                        CellSource {
+                            repeat: 1,
+                            ..c.clone()
+                        },
+                        c.repeat,
+                    )
+                })
+                .collect()
+        })
+        .collect();
+    let Some(first) = lines.first() else {
+        return Vec::new();
+    };
+    let num_cols: usize = first.iter().map(|c| c.col_span).sum();
+    let mut rows: Vec<Vec<CellSource>> = Vec::new();
+    let mut covered: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
+    let mut row: Vec<CellSource> = Vec::new();
+    let mut width = 0usize;
+    let close_row = |row: &mut Vec<CellSource>,
+                     width: &mut usize,
+                     rows: &mut Vec<Vec<CellSource>>,
+                     covered: &mut std::collections::HashMap<usize, usize>| {
+        for cell in row.iter() {
+            for offset in 1..cell.row_span {
+                *covered.entry(rows.len() + offset).or_default() += cell.col_span;
+            }
+        }
+        rows.push(std::mem::take(row));
+        *width = 0;
+    };
+    for line in lines {
+        let needed = num_cols.saturating_sub(covered.get(&rows.len()).copied().unwrap_or(0));
+        if row.is_empty() && line.iter().map(|c| c.col_span).sum::<usize>() >= needed {
+            row = line;
+            close_row(&mut row, &mut width, &mut rows, &mut covered);
+            continue;
+        }
+        for cell in line {
+            width += cell.col_span;
+            row.push(cell);
+            let needed = num_cols.saturating_sub(covered.get(&rows.len()).copied().unwrap_or(0));
+            if width >= needed {
+                close_row(&mut row, &mut width, &mut rows, &mut covered);
+            }
+        }
+    }
+    if !row.is_empty() {
+        close_row(&mut row, &mut width, &mut rows, &mut covered);
+    }
+    rows
+}
+
+/// docling's `_populate_table_as_grid`: each cell takes the first column of
+/// its row that no cell to its left and no row span from above covers; a
+/// row span is cut at the table's last row. Row 0 is the column header.
+fn table_grid(lines: &[Vec<CellSource>]) -> Vec<TableCell> {
+    let rows = group_table_rows(lines);
+    let num_rows = rows.len();
+    let mut occupied: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
+    let mut cells = Vec::new();
+    for (r, row) in rows.into_iter().enumerate() {
+        let mut c = 0usize;
+        for source in row {
+            while occupied.contains(&(r, c)) {
+                c += 1;
+            }
+            let row_span = source.row_span.min(num_rows - r);
+            for rr in r..r + row_span {
+                for cc in c..c + source.col_span {
+                    occupied.insert((rr, cc));
+                }
+            }
+            cells.push(TableCell {
+                text: source.text,
+                bbox: None,
+                start_row: r,
+                start_col: c,
+                row_span,
+                col_span: source.col_span,
+                column_header: r == 0,
+                row_header: false,
+                row_section: false,
+            });
+            c += source.col_span;
+        }
+    }
+    cells
 }
 
 fn is_picture(line: &str) -> bool {
@@ -1614,8 +2107,17 @@ mod tests {
     /// specifier, not cell text; a `2.3+|` span and a bare `|` still read.
     #[test]
     fn rowspan_only_cell_specifiers_are_stripped() {
-        assert_eq!(parse_table_line(".2+|A |B"), vec!["A", "B"]);
-        assert_eq!(parse_table_line("2.3+|D ^.^h|E"), vec!["D", "E"]);
+        let texts = |line: &str| -> Vec<(String, usize, usize)> {
+            parse_table_cells(line)
+                .into_iter()
+                .map(|c| (c.text, c.row_span, c.col_span))
+                .collect()
+        };
+        assert_eq!(texts(".2+|A |B"), [("A".into(), 2, 1), ("B".into(), 1, 1)]);
+        assert_eq!(
+            texts("2.3+|D ^.^h|E"),
+            [("D".into(), 3, 2), ("E".into(), 1, 1)]
+        );
         assert!(is_table_line(".2+|A |B"));
         assert_eq!(
             md("|===\n.2+|A |B\n|===\n"),
@@ -1673,7 +2175,7 @@ mod tests {
     #[test]
     fn inline_marks_split_runs() {
         let runs = |t: &str| -> Vec<(String, u8)> {
-            parse_inline(t, false, false)
+            parse_inline(t, false, false, None)
                 .into_iter()
                 .map(|r| {
                     let k = u8::from(r.bold) | u8::from(r.italic) << 1 | u8::from(r.code) << 2;
@@ -1831,5 +2333,353 @@ mod tests {
         .expect("the local image is read");
         assert_eq!((fetched.width, fetched.height), (2, 3));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `(text, row, col, row_span, col_span)` of the first table's cells,
+    /// and its column count.
+    /// `(text, row, col, row_span, col_span)` of one cell.
+    type GridCell = (String, u64, u64, u64, u64);
+
+    fn grid(src: &str) -> (u64, Vec<GridCell>) {
+        let j = json(src);
+        let data = &j["tables"][0]["data"];
+        let cells = data["table_cells"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                let n = |k: &str| c[k].as_u64().unwrap();
+                (
+                    c["text"].as_str().unwrap().to_string(),
+                    n("start_row_offset_idx"),
+                    n("start_col_offset_idx"),
+                    n("row_span"),
+                    n("col_span"),
+                )
+            })
+            .collect();
+        (data["num_cols"].as_u64().unwrap(), cells)
+    }
+
+    fn rows(src: &str) -> Vec<Vec<String>> {
+        let (_, cells) = grid(src);
+        let mut out: Vec<Vec<String>> = Vec::new();
+        for (text, r, ..) in cells {
+            if out.len() <= r as usize {
+                out.resize(r as usize + 1, Vec::new());
+            }
+            out[r as usize].push(text);
+        }
+        out
+    }
+
+    fn cell(t: &str, r: u64, c: u64, rs: u64, cs: u64) -> GridCell {
+        (t.to_string(), r, c, rs, cs)
+    }
+
+    /// docling#5010 (`test_table_row_written_over_several_lines`): the first
+    /// line's cell count is the column count and the cells fill rows of that
+    /// width — Asciidoctor's own example writes one cell per line.
+    #[test]
+    fn a_table_row_may_be_written_over_several_lines() {
+        let src = "|===\n|Column 1, header row |Column 2, header row\n\n\
+                   |Cell in column 1, row 2\n|Cell in column 2, row 2\n\n\
+                   |Cell in column 1, row 3\n|Cell in column 2, row 3\n|===\n";
+        assert_eq!(
+            rows(src),
+            [
+                ["Column 1, header row", "Column 2, header row"],
+                ["Cell in column 1, row 2", "Cell in column 2, row 2"],
+                ["Cell in column 1, row 3", "Cell in column 2, row 3"],
+            ]
+        );
+        // The vertical layout: one column, one row per line.
+        assert_eq!(rows("|===\n|Name\n|Age\n|Alice\n|30\n|===\n").len(), 4);
+    }
+
+    /// docling#5010 (`test_table_spans_take_their_grid_positions`): a cell
+    /// carries its spans and starts at the first column no span covers; a
+    /// row span past the last row is cut there.
+    #[test]
+    fn table_spans_take_their_grid_positions() {
+        assert_eq!(
+            grid("|===\n|A |B\n2+|wide\n|x\n|y\n|===\n"),
+            (
+                2,
+                vec![
+                    cell("A", 0, 0, 1, 1),
+                    cell("B", 0, 1, 1, 1),
+                    cell("wide", 1, 0, 1, 2),
+                    cell("x", 2, 0, 1, 1),
+                    cell("y", 2, 1, 1, 1),
+                ]
+            )
+        );
+        assert_eq!(
+            grid("|===\n|A |B\n.2+|tall\n|x\n|y\n|z\n|===\n"),
+            (
+                2,
+                vec![
+                    cell("A", 0, 0, 1, 1),
+                    cell("B", 0, 1, 1, 1),
+                    cell("tall", 1, 0, 2, 1),
+                    cell("x", 1, 1, 1, 1),
+                    cell("y", 2, 1, 1, 1),
+                    cell("z", 3, 0, 1, 1),
+                ]
+            )
+        );
+        assert_eq!(
+            grid("|===\n|A |B\n.3+|tall |x\n|===\n").1[2],
+            cell("tall", 1, 0, 1, 1)
+        );
+        // Markdown repeats a spanning cell's text across what it covers.
+        assert!(md("|===\n|A |B\n2+|wide\n|x\n|y\n|===\n").contains("| wide | wide |"));
+    }
+
+    /// docling#5010 (`test_table_rows_over_several_lines_count_duplicated_cells`):
+    /// `2*|x` writes the cell twice, so it counts twice towards the first
+    /// line's width, and a line continuing its text applies to both copies.
+    /// A huge factor is capped rather than materialized.
+    #[test]
+    fn duplicated_cells_count_towards_the_row_width() {
+        assert_eq!(
+            rows("|===\n2*|x |y\n|z\n|p\n|q\n|===\n"),
+            [["x", "x", "y"], ["z", "p", "q"]]
+        );
+        assert_eq!(
+            rows("|===\n|A |B |C\n2*|x\nmore\n|y\n|===\n"),
+            [["A", "B", "C"], ["x more", "x more", "y"]]
+        );
+        let (cols, _) = grid("|===\n999999999*|x\n|===\n");
+        assert_eq!(cols, MAX_CELL_FACTOR as u64);
+    }
+
+    /// The texts of the JSON as `(label, text, hyperlink, bold)`.
+    fn texts(src: &str) -> Vec<(String, String, Option<String>, bool)> {
+        json(src)["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| {
+                (
+                    t["label"].as_str().unwrap().to_string(),
+                    t["text"].as_str().unwrap().to_string(),
+                    t["hyperlink"].as_str().map(str::to_string),
+                    t["formatting"]["bold"].as_bool().unwrap_or(false),
+                )
+            })
+            .collect()
+    }
+
+    fn links(src: &str) -> Vec<(String, String, bool)> {
+        texts(src)
+            .into_iter()
+            .filter_map(|(_, t, h, b)| Some((t, h?, b)))
+            .collect()
+    }
+
+    /// docling#5115 (`test_links_in_paragraphs`): URL macros, `link:`,
+    /// `mailto:`, `<url>` and bare URLs are text runs with a hyperlink
+    /// (AnyUrl / Path-normalized); a bare URL ends before trailing
+    /// punctuation, and a URL glued to a word stays text.
+    #[test]
+    fn links_in_paragraphs() {
+        let src = "See https://example.com[Example site], link:docs/install.html[Install]\n\
+                   and mailto:team@example.com[].\n\n\
+                   Bare https://example.com/a_b/c.html, <https://example.com/x> and\n\
+                   https://example.com[Docs, window=_blank] or https://example.com[*Bold* link^].\n\n\
+                   Not linked: word:https://example.com.\n";
+        let l = |t: &str, h: &str, b: bool| (t.to_string(), h.to_string(), b);
+        assert_eq!(
+            links(src),
+            [
+                l("Example site", "https://example.com/", false),
+                l("Install", "docs/install.html", false),
+                l("team@example.com", "mailto:team@example.com", false),
+                l(
+                    "https://example.com/a_b/c.html",
+                    "https://example.com/a_b/c.html",
+                    false
+                ),
+                l("https://example.com/x", "https://example.com/x", false),
+                l("Docs", "https://example.com/", false),
+                l("Bold", "https://example.com/", true),
+                l(" link", "https://example.com/", false),
+            ]
+        );
+        assert!(texts(src)
+            .iter()
+            .any(|(_, t, h, _)| t == "Not linked: word:https://example.com." && h.is_none()));
+        let out = md(src);
+        assert!(
+            out.contains("[Example site](https://example.com/)"),
+            "{out}"
+        );
+        assert!(
+            !out.contains("example.com[") && !out.contains("link:"),
+            "{out}"
+        );
+    }
+
+    /// docling#5115 (`test_link_labels_and_attributes`, the label and
+    /// code-link cases): named attributes follow the link text, which is
+    /// quoted when it holds a comma; no text shows the target; a link inside
+    /// a link's text stays text of the outer one; a code run keeps its link.
+    #[test]
+    fn link_labels_and_attributes() {
+        for (src, text) in [
+            (
+                r#"https://example.com["Docs, API", window=_blank]"#,
+                "Docs, API",
+            ),
+            (
+                r#"https://example.com["Say \"hello\", API", window=_blank]"#,
+                r#"Say "hello", API"#,
+            ),
+            ("https://example.com[window=_blank]", "https://example.com"),
+            (
+                r"https://example.com[Array \[index\], window=_blank]",
+                "Array [index]",
+            ),
+        ] {
+            let j = json(src);
+            assert_eq!(j["texts"].as_array().unwrap().len(), 1, "{src}");
+            assert_eq!(j["texts"][0]["text"], text, "{src}");
+            assert_eq!(j["texts"][0]["hyperlink"], "https://example.com/", "{src}");
+            assert_eq!(j["groups"][0]["label"], "inline", "{src}");
+            assert!(!md(src).contains("window=_blank"), "{src}");
+        }
+        let src = "https://outer.example[https://inner.example]";
+        assert_eq!(
+            links(src),
+            [(
+                "https://inner.example".into(),
+                "https://outer.example/".into(),
+                false
+            )]
+        );
+        assert!(md(src).contains("[https://inner.example](https://outer.example/)"));
+
+        // The code run stays a `code` item, with the link.
+        let j = json("https://example.com[`API`]");
+        assert_eq!(j["texts"].as_array().unwrap().len(), 1);
+        assert_eq!(j["texts"][0]["label"], "code");
+        assert_eq!(j["texts"][0]["text"], "API");
+        assert_eq!(j["texts"][0]["hyperlink"], "https://example.com/");
+        assert_eq!(j["groups"][0]["label"], "inline");
+        assert!(md("https://example.com[`API`]").contains("[`API`](https://example.com/)"));
+    }
+
+    /// docling#5144 / docling#4391: a block title is one line, parsed like a
+    /// paragraph — its links kept, all of it bold, its marks dropped when no
+    /// run stands out — and the paragraph after it is ordinary text. A
+    /// floating item's caption joins the runs and keeps a link only when
+    /// every run has it.
+    #[test]
+    fn block_titles_are_one_line_with_their_links() {
+        let src = ".Caption https://example.com[Docs]\nPara after title.\n\n\
+                   .Steps https://example.com[Docs]\n* one\n";
+        assert_eq!(
+            links(src),
+            vec![("Docs".to_string(), "https://example.com/".to_string(), true); 2]
+        );
+        let all = texts(src);
+        assert!(all.iter().any(|(_, t, _, b)| t == "Caption " && *b));
+        assert!(all.iter().any(|(_, t, _, b)| t == "Steps " && *b));
+        assert!(all
+            .iter()
+            .any(|(_, t, _, b)| t == "Para after title." && !*b));
+        assert!(!md(src).contains("example.com["));
+
+        let bold: Vec<String> = texts(".The *main* step\nPara after title.\n")
+            .into_iter()
+            .filter(|(.., b)| *b)
+            .map(|(_, t, ..)| t)
+            .collect();
+        assert_eq!(bold, ["The main step"]);
+
+        let flat = |src: &str| -> Vec<(String, bool)> {
+            texts(src).into_iter().map(|(_, t, _, b)| (t, b)).collect()
+        };
+        assert_eq!(
+            flat("Intro.\n\n.Block title\nTitled paragraph,\nsecond line.\n\nAfter.\n"),
+            [
+                ("Intro.".to_string(), false),
+                ("Block title".to_string(), true),
+                ("Titled paragraph, second line.".to_string(), false),
+                ("After.".to_string(), false),
+            ]
+        );
+
+        for target in ["image::x.png[]", "|===\n|a\n|===", "----\nx = 1\n----"] {
+            for (title, text, link) in [
+                (".See https://example.com[Docs]", "See Docs", None),
+                (
+                    ".https://example.com[Docs]",
+                    "Docs",
+                    Some("https://example.com/"),
+                ),
+            ] {
+                let captions: Vec<_> = texts(&format!("{title}\n{target}\n"))
+                    .into_iter()
+                    .filter(|(l, ..)| l == "caption")
+                    .collect();
+                assert_eq!(captions.len(), 1, "{title} {target}");
+                assert_eq!(captions[0].1, text, "{title} {target}");
+                assert_eq!(captions[0].2.as_deref(), link, "{title} {target}");
+            }
+        }
+    }
+
+    /// docling#5175 (`test_trailing_plus_is_a_hard_line_break`).
+    #[test]
+    fn a_trailing_plus_is_a_hard_line_break() {
+        let src = "Roses are red, +\nviolets are blue.\n\nA *bold* line +\nand more.\n";
+        let t: Vec<String> = texts(src).into_iter().map(|(_, t, ..)| t).collect();
+        assert_eq!(
+            t,
+            [
+                "Roses are red,\nviolets are blue.",
+                "A ",
+                "bold",
+                " line\nand more."
+            ]
+        );
+        assert_eq!(
+            md(src).trim_end(),
+            "Roses are red,  \nviolets are blue.\n\nA **bold** line  \nand more."
+        );
+    }
+
+    /// docling#5180 (`test_ordered_list_start_attribute_sets_the_first_number`).
+    #[test]
+    fn a_start_attribute_numbers_the_next_ordered_list() {
+        let src =
+            "[start=4]\n. four\n. five\n.. nested\n. six\n\n.Steps\n[arabic, start=\"2\"]\n\n\
+                   . two\n. three\n\n[start=7]\nNot a list.\n\n. one\n";
+        assert_eq!(
+            md(src).trim_end(),
+            "4. four\n5. five\n    1. nested\n6. six\n\n**Steps**\n\n2. two\n3. three\n\n\
+             Not a list.\n\n1. one"
+        );
+    }
+
+    /// `test_many_unclosed_inline_marks_stay_plain_text`: unclosed marks
+    /// stay text, and the scan is linear.
+    #[test]
+    fn many_unclosed_marks_stay_plain_text() {
+        for mark in ['*', '_', '`'] {
+            let line: String = std::iter::repeat_n(format!(" {mark}a"), 16_000).collect();
+            let started = std::time::Instant::now();
+            let t = texts(&line);
+            assert_eq!(t.len(), 1);
+            assert_eq!(t[0].1, line.trim());
+            assert!(
+                started.elapsed().as_secs() < 10,
+                "{mark}: {:?}",
+                started.elapsed()
+            );
+        }
     }
 }

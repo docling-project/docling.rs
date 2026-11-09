@@ -9,7 +9,10 @@
 //! (`.convert()`, then `export_to_markdown()` and `export_to_dict()`). The
 //! documents are the HTML of upstream's tests (`ol_start` puts every start
 //! value of `test_ordered_lists` in one document). Re-create a reference
-//! with upstream's backend, never from our own output.
+//! with upstream's backend, never from our own output. The picture captions
+//! of `br_outside_paragraphs` / `caption_partial_link` carry docling#5037
+//! (#1023, docling 2.149): the caption item moved under its picture, the one
+//! structural change that commit makes to these documents.
 use std::fs;
 use std::path::{Path, PathBuf};
 
