@@ -1132,6 +1132,7 @@ mod tests {
     use lopdf::{dictionary, Document, Object};
 
     #[test]
+    #[cfg(feature = "cid-collections")]
     fn collection_cids_have_a_character() {
         let type0 = dictionary! {
             "Type" => "Font",

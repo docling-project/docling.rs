@@ -400,6 +400,12 @@ pub(crate) fn unicode_cmap_char(code: u32) -> Option<char> {
     }
 }
 
+#[cfg(not(feature = "cid-collections"))]
+fn collection_table(_ordering: &[u8]) -> Option<&'static [u8]> {
+    None
+}
+
+#[cfg(feature = "cid-collections")]
 fn collection_table(ordering: &[u8]) -> Option<&'static [u8]> {
     macro_rules! table {
         ($file:literal) => {
@@ -4057,6 +4063,7 @@ mod cid_collections {
     }
 
     #[test]
+    #[cfg(feature = "cid-collections")]
     fn identity_codes_read_through_the_collection() {
         assert_eq!(text(&type0("Identity-H"), "0CD40E8A07A0"), "日本語");
     }
@@ -4067,6 +4074,7 @@ mod cid_collections {
     }
 
     #[test]
+    #[cfg(feature = "cid-collections")]
     fn collection_ranges_keep_supplementary_characters() {
         assert_eq!(text(&type0("Identity-H"), "0CD44507450807A0"), "日𢭏𢭐語");
         let text = |o: &[u8], cid| super::collection_text(super::collection_table(o).unwrap(), cid);
@@ -4075,6 +4083,7 @@ mod cid_collections {
     }
 
     #[test]
+    #[cfg(feature = "cid-collections")]
     fn collection_entries_are_plain_characters() {
         assert_eq!(text(&type0("Identity-H"), "046D"), "逢");
         let text = |o: &[u8], cid| super::collection_text(super::collection_table(o).unwrap(), cid);

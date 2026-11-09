@@ -13,7 +13,11 @@ categories.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["ml"]
+default = ["ml", "cid-collections"]
+# Adobe's CID -> Unicode tables for CJK fonts without ToUnicode, which
+# build.rs packs into about 350 KB. The wasm build leaves them out; enable
+# them there with `--features docling-pdf/cid-collections`.
+cid-collections = []
 # The full pipeline: the pure-Rust page renderer/raster + ONNX
 # layout/OCR/TableFormer/enrichment. Without it only the pure-Rust text-layer path remains
 # (`convert_text_layer` — lopdf content-stream parsing + the docling-parse

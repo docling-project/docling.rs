@@ -13,6 +13,9 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/tounicode.rs");
     println!("cargo:rerun-if-changed={}", dir.display());
+    if env::var_os("CARGO_FEATURE_CID_COLLECTIONS").is_none() {
+        return;
+    }
     let out = env::var_os("OUT_DIR").expect("OUT_DIR");
     for name in [
         "Adobe-Japan1-UCS2",
