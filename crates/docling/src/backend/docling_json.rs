@@ -773,6 +773,16 @@ fn list_group(
             continue;
         }
         if item["label"].as_str() != Some("list_item") {
+            // Not a list line: an ordinary body item that sits in the group.
+            // docling's DOCX backend does not close a list for a heading
+            // (`_handle_text_elements` excludes Title/Heading from the close
+            // branch), so a Word-numbered heading right after a list lands
+            // in the list group — its subheadings and body under it — and
+            // docling-core's serializer still prints it. Dropping it lost
+            // the section in the JSON round trip (#1090). A list item after
+            // it opens a new list.
+            walk(c, root, level, doc, g);
+            first = true;
             continue;
         }
         let position = pos as u64 + 1;
@@ -1887,6 +1897,119 @@ mod tests {
             doc.export_to_markdown(),
             "## Intro\n\nFirst para\n\n### Sub\n\nDeep para\n"
         );
+    }
+
+    /// #1090: docling's DOCX export of a Word-numbered heading right after a
+    /// bullet list — the heading (and its subheading) inside the list group,
+    /// exactly as docling 2.150 writes it. Read back, the section survives
+    /// and a list item after it opens a new list.
+    #[test]
+    fn a_heading_inside_a_list_group_is_kept() {
+        let json = r##"{
+          "name": "n",
+          "body": {"children": [{"$ref":"#/groups/0"},{"$ref":"#/texts/1"},
+                                {"$ref":"#/groups/1"},{"$ref":"#/texts/5"}]},
+          "groups": [
+            {"self_ref":"#/groups/0","parent":{"$ref":"#/body"},"label":"section","name":"header-0",
+             "children":[{"$ref":"#/texts/0"}]},
+            {"self_ref":"#/groups/1","parent":{"$ref":"#/body"},"label":"list","name":"list",
+             "children":[{"$ref":"#/texts/2"},{"$ref":"#/texts/3"},{"$ref":"#/texts/6"}]}
+          ],
+          "texts": [
+            {"self_ref":"#/texts/0","label":"section_header","level":1,"text":"1 First","children":[]},
+            {"self_ref":"#/texts/1","label":"text","text":"Body.","children":[]},
+            {"self_ref":"#/texts/2","label":"list_item","text":"A bullet item.","marker":"","enumerated":false,"children":[]},
+            {"self_ref":"#/texts/3","label":"section_header","level":1,"text":"2 Second",
+             "children":[{"$ref":"#/texts/4"}]},
+            {"self_ref":"#/texts/4","label":"section_header","level":2,"text":"2.1 Sub","children":[]},
+            {"self_ref":"#/texts/5","label":"text","text":"Body of sub.","children":[]},
+            {"self_ref":"#/texts/6","label":"list_item","text":"Later item.","marker":"","enumerated":false,"children":[]}
+          ],
+          "tables": [], "pictures": []
+        }"##;
+        assert_eq!(
+            md(json),
+            "## 1 First\n\nBody.\n\n- A bullet item.\n\n## 2 Second\n\n### 2.1 Sub\n\n\
+             - Later item.\n\nBody of sub.\n"
+        );
+    }
+
+    /// #1090, end to end: a DOCX whose numbered heading follows a bullet
+    /// list reads back from its own docling JSON with the same Markdown —
+    /// and so the same heading path for the chunker — as converted directly.
+    #[test]
+    fn docx_numbered_heading_after_list_survives_the_json_round_trip() {
+        use std::io::Write;
+        const W: &str = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main""#;
+        let p = |text: &str, style: Option<&str>, num: Option<(u8, u8)>| {
+            let mut ppr = String::new();
+            if let Some(s) = style {
+                ppr.push_str(&format!(r#"<w:pStyle w:val="{s}"/>"#));
+            }
+            if let Some((id, lvl)) = num {
+                ppr.push_str(&format!(
+                    r#"<w:numPr><w:ilvl w:val="{lvl}"/><w:numId w:val="{id}"/></w:numPr>"#
+                ));
+            }
+            format!(r#"<w:p><w:pPr>{ppr}</w:pPr><w:r><w:t>{text}</w:t></w:r></w:p>"#)
+        };
+        let body = [
+            p("First", Some("Heading1"), Some((1, 0))),
+            p("Body.", None, None),
+            p("A bullet item.", None, Some((2, 0))),
+            p("Second", Some("Heading1"), Some((1, 0))),
+            p("Sub", Some("Heading2"), Some((1, 1))),
+            p("Body of sub.", None, None),
+        ]
+        .concat();
+        let parts = [
+            (
+                "[Content_Types].xml",
+                r#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#.to_string(),
+            ),
+            (
+                "_rels/.rels",
+                r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#.to_string(),
+            ),
+            (
+                "word/_rels/document.xml.rels",
+                r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/></Relationships>"#.to_string(),
+            ),
+            (
+                "word/document.xml",
+                format!(r#"<?xml version="1.0" encoding="UTF-8"?><w:document {W}><w:body>{body}</w:body></w:document>"#),
+            ),
+            (
+                "word/styles.xml",
+                format!(
+                    r#"<?xml version="1.0" encoding="UTF-8"?><w:styles {W}><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/></w:style><w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/></w:style></w:styles>"#
+                ),
+            ),
+            (
+                "word/numbering.xml",
+                format!(
+                    r#"<?xml version="1.0" encoding="UTF-8"?><w:numbering {W}><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1"/></w:lvl><w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1.%2"/></w:lvl></w:abstractNum><w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num></w:numbering>"#
+                ),
+            ),
+        ];
+        let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        for (name, xml) in parts {
+            zip.start_file(name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            zip.write_all(xml.as_bytes()).unwrap();
+        }
+        let docx = zip.finish().unwrap().into_inner();
+        let direct = crate::DocumentConverter::new()
+            .convert(SourceDocument::from_bytes(
+                "list-then-heading.docx",
+                InputFormat::Docx,
+                docx,
+            ))
+            .unwrap()
+            .document;
+        let expected = "## 1 First\n\nBody.\n\n- A bullet item.\n\n## 2 Second\n\n### 2.1 Sub\n\nBody of sub.\n";
+        assert_eq!(direct.export_to_markdown(), expected);
+        assert_eq!(md(&direct.export_to_json()), expected);
     }
 
     #[test]
