@@ -5,9 +5,11 @@
 //! post-processor snaps unmatched cells to their column's median position,
 //! de-duplicates columns, assigns each word to its best cell, and finally
 //! picks up "orphan" words (no overlap with any cell — dot leaders in a TOC,
-//! stray page numbers) through row/column banding. Everything is kept
-//! bug-for-bug faithful, including duplicate `good` cells weighting the
-//! column medians and Python's banker's rounding on orphan depths.
+//! stray page numbers) through row/column banding, an orphan in only one band
+//! snapped to the nearest band on the other axis (docling-ibm-models 4.0.1,
+//! #185; 4.0.2's matcher is the same code). Everything is kept bug-for-bug
+//! faithful, including duplicate `good` cells weighting the column medians and
+//! Python's banker's rounding on orphan depths.
 //!
 //! Coordinates: docling matches in its 2x-scaled page space with the table
 //! bbox rounded to integers *before* scaling (`round(cluster.bbox.l) * scale`);
@@ -15,6 +17,8 @@
 //! rounding) agree.
 
 use std::collections::BTreeMap;
+
+use docling_core::debug_log;
 
 /// docling's `table_cell` dict: an OTSL grid cell with its predicted box in
 /// the matching coordinate space. `colspan_val`/`rowspan_val` are 0 when the
@@ -471,10 +475,105 @@ fn band_orphans(
     bands
 }
 
+/// The centre of each band (`row_centroids` / `col_centroids`): the band of
+/// the same member cells [`band_orphans`] scans, for the nearest-band
+/// fallbacks; `None` for a band with no member, or one reaching below zero
+/// (docling keys the centre on `lo >= 0 and hi >= 0`).
+fn band_centroids(
+    n_bands: usize,
+    cells_in_band: impl Fn(usize) -> Vec<[f64; 4]>,
+    lo_ix: usize,
+    hi_ix: usize,
+) -> Vec<Option<f64>> {
+    (0..n_bands)
+        .map(|band_ix| {
+            let boxes = cells_in_band(band_ix);
+            if boxes.is_empty() {
+                return None;
+            }
+            let lo = boxes.iter().map(|b| b[lo_ix]).fold(f64::INFINITY, f64::min);
+            let hi = boxes
+                .iter()
+                .map(|b| b[hi_ix])
+                .fold(f64::NEG_INFINITY, f64::max);
+            (lo >= 0.0 && hi >= 0.0).then_some((lo + hi) / 2.0)
+        })
+        .collect()
+}
+
+/// The band whose centre is nearest `at`, and the distance; the lowest index
+/// on a tie, as Python's `min` over the centroid dict in band order.
+fn nearest_band(centroids: &[Option<f64>], at: f64) -> Option<(usize, f64)> {
+    let mut best: Option<(usize, f64)> = None;
+    for (band_ix, c) in centroids.iter().enumerate() {
+        let Some(c) = c else { continue };
+        let dist = (at - c).abs();
+        if best.is_none_or(|(_, d)| dist < d) {
+            best = Some((band_ix, dist));
+        }
+    }
+    best
+}
+
+/// `_attach_orphan_to_cell`: an orphan word joins the structural cell at
+/// (row, column), growing its box, or a new body cell there; returns the
+/// possibly incremented `max_cell_id`.
+#[allow(clippy::too_many_arguments)]
+fn attach_orphan(
+    table_cells: &mut Vec<TfCell>,
+    matches: &mut Matches,
+    mut max_cell_id: usize,
+    pdf_id: usize,
+    row_id: usize,
+    column_id: usize,
+    confidence: i64,
+    pdf_bbox: [f64; 4],
+) -> usize {
+    let existing = table_cells
+        .iter()
+        .position(|c| c.row_id == row_id && c.column_id == column_id);
+    let table_cell_id = match existing {
+        Some(ix) => {
+            let merged = merge_two_bboxes(&table_cells[ix].bbox, &pdf_bbox);
+            table_cells[ix].bbox = merged;
+            table_cells[ix].cell_id
+        }
+        None => {
+            max_cell_id += 1;
+            table_cells.push(TfCell {
+                bbox: pdf_bbox,
+                cell_id: max_cell_id,
+                column_id,
+                row_id,
+                cell_class: 2,
+                colspan_val: 0,
+                rowspan_val: 0,
+            });
+            max_cell_id
+        }
+    };
+    matches.insert(
+        pdf_id,
+        vec![MatchEntry {
+            table_cell_id,
+            score: confidence as f64,
+        }],
+    );
+    max_cell_id
+}
+
 /// Step 9: `_pick_orphan_cells` — words with no match are placed by the row
 /// band containing them vertically and the column band containing them
 /// horizontally; the (row, column) either reuses an existing structural cell
-/// (growing its box) or creates a new one.
+/// (growing its box) or creates a new one. A word in a row band but in no
+/// column band goes to the column whose centre is nearest, and one in a
+/// column band but in no row band to the nearest row
+/// (docling-ibm-models#185: before it, both were dropped from the table, and
+/// their text with them — a TOC line between two predicted rows, a value right
+/// of the predicted columns). The confidence of a snapped word is negative:
+/// `-(distance) - 1`, as upstream. A word in no band at all is still dropped,
+/// and said so under `DOCLING_RS_DEBUG`. Upstream also warns once per snapped
+/// word; that is left out, since the word keeps its text.
 fn pick_orphan_cells(
     tab_rows: usize,
     tab_cols: usize,
@@ -483,44 +582,39 @@ fn pick_orphan_cells(
     pdf_cells: &[PdfWord],
     mut matches: Matches,
 ) -> (Matches, Vec<TfCell>, usize) {
+    let orphans: Vec<usize> = pdf_cells
+        .iter()
+        .filter(|w| !matches.contains_key(&w.id))
+        .map(|w| w.id)
+        .collect();
+    let row_cells = |row: usize| -> Vec<[f64; 4]> {
+        table_cells
+            .iter()
+            .filter(|c| c.row_id == row && c.rowspan_val == 0 && c.cell_class > 1)
+            .map(|c| c.bbox)
+            .collect()
+    };
+    let col_cells = |col: usize| -> Vec<[f64; 4]> {
+        table_cells
+            .iter()
+            .filter(|c| c.column_id == col && c.colspan_val == 0 && c.cell_class > 1)
+            .map(|c| c.bbox)
+            .collect()
+    };
     // NOTE: docling's row-band pass exposes an aliasing quirk — the band's
     // orphan test reads `matches` as it was on entry (orphans found later
     // never re-enter it), which we reproduce by collecting all bands before
     // assigning anything.
-    let orphan_rows = band_orphans(
-        tab_rows,
-        |row| {
-            table_cells
-                .iter()
-                .filter(|c| c.row_id == row && c.rowspan_val == 0 && c.cell_class > 1)
-                .map(|c| c.bbox)
-                .collect()
-        },
-        pdf_cells,
-        &matches,
-        1,
-        3,
-    );
-    let orphan_columns = band_orphans(
-        tab_cols,
-        |col| {
-            table_cells
-                .iter()
-                .filter(|c| c.column_id == col && c.colspan_val == 0 && c.cell_class > 1)
-                .map(|c| c.bbox)
-                .collect()
-        },
-        pdf_cells,
-        &matches,
-        0,
-        2,
-    );
+    let orphan_rows = band_orphans(tab_rows, row_cells, pdf_cells, &matches, 1, 3);
+    let orphan_columns = band_orphans(tab_cols, col_cells, pdf_cells, &matches, 0, 2);
+    let row_centroids = band_centroids(tab_rows, row_cells, 1, 3);
+    let col_centroids = band_centroids(tab_cols, col_cells, 0, 2);
 
     // pdf id → row / column of its accepted band record.
-    let mut row_of: BTreeMap<usize, usize> = BTreeMap::new();
+    let mut row_of: BTreeMap<usize, (usize, [f64; 4])> = BTreeMap::new();
     for (row_id, records) in orphan_rows.iter().enumerate() {
         for r in records {
-            row_of.insert(r.0, row_id);
+            row_of.insert(r.0, (row_id, r.2));
         }
     }
     let mut col_of: BTreeMap<usize, (usize, i64, [f64; 4])> = BTreeMap::new();
@@ -531,39 +625,58 @@ fn pick_orphan_cells(
     }
 
     // Ascending pdf id, matching the sorted C++-parity loop in the source.
-    for (&pdf_id, &new_row_id) in row_of.iter() {
-        let Some(&(new_column_id, confidence, pdf_bbox)) = col_of.get(&pdf_id) else {
+    for (&pdf_id, &(new_row_id, pdf_bbox)) in row_of.iter() {
+        let (new_column_id, confidence, pdf_bbox) = match col_of.get(&pdf_id) {
+            Some(&record) => record,
+            None => {
+                let at = (pdf_bbox[0] + pdf_bbox[2]) / 2.0;
+                let Some((col, dist)) = nearest_band(&col_centroids, at) else {
+                    continue;
+                };
+                (col, -py_round(dist) - 1, pdf_bbox)
+            }
+        };
+        max_cell_id = attach_orphan(
+            &mut table_cells,
+            &mut matches,
+            max_cell_id,
+            pdf_id,
+            new_row_id,
+            new_column_id,
+            confidence,
+            pdf_bbox,
+        );
+    }
+    // The mirror on the row axis: in a column band, in no row band.
+    for (&pdf_id, &(new_column_id, _, pdf_bbox)) in col_of.iter() {
+        if row_of.contains_key(&pdf_id) || matches.contains_key(&pdf_id) {
+            continue;
+        }
+        let at = (pdf_bbox[1] + pdf_bbox[3]) / 2.0;
+        let Some((new_row_id, dist)) = nearest_band(&row_centroids, at) else {
             continue;
         };
-        let existing = table_cells
-            .iter()
-            .position(|c| c.row_id == new_row_id && c.column_id == new_column_id);
-        let table_cell_id = match existing {
-            Some(ix) => {
-                let merged = merge_two_bboxes(&table_cells[ix].bbox, &pdf_bbox);
-                table_cells[ix].bbox = merged;
-                table_cells[ix].cell_id
-            }
-            None => {
-                max_cell_id += 1;
-                table_cells.push(TfCell {
-                    bbox: pdf_bbox,
-                    cell_id: max_cell_id,
-                    column_id: new_column_id,
-                    row_id: new_row_id,
-                    cell_class: 2,
-                    colspan_val: 0,
-                    rowspan_val: 0,
-                });
-                max_cell_id
-            }
-        };
-        matches.insert(
+        max_cell_id = attach_orphan(
+            &mut table_cells,
+            &mut matches,
+            max_cell_id,
             pdf_id,
-            vec![MatchEntry {
-                table_cell_id,
-                score: confidence as f64,
-            }],
+            new_row_id,
+            new_column_id,
+            -py_round(dist) - 1,
+            pdf_bbox,
+        );
+    }
+
+    let dropped = orphans
+        .iter()
+        .filter(|id| !matches.contains_key(id))
+        .count();
+    if dropped > 0 {
+        debug_log!(
+            "docling-pdf: tableformer: {dropped} of {} pdf cells matched neither a row nor a \
+             column band of the {tab_rows}x{tab_cols} grid and were dropped from the table",
+            pdf_cells.len()
         );
     }
     (matches, table_cells, max_cell_id)
@@ -624,4 +737,127 @@ pub fn match_and_post_process(
         final_matches,
     );
     (cells_wo, final_matches)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cell(cell_id: usize, row_id: usize, column_id: usize, bbox: [f64; 4]) -> TfCell {
+        TfCell {
+            bbox,
+            cell_id,
+            row_id,
+            column_id,
+            cell_class: 2,
+            colspan_val: 0,
+            rowspan_val: 0,
+        }
+    }
+
+    fn word(id: usize, bbox: [f64; 4]) -> PdfWord {
+        PdfWord {
+            id,
+            bbox,
+            text: "w".into(),
+        }
+    }
+
+    fn matched(pairs: &[(usize, usize)]) -> Matches {
+        pairs
+            .iter()
+            .map(|&(pdf_id, table_cell_id)| {
+                (
+                    pdf_id,
+                    vec![MatchEntry {
+                        table_cell_id,
+                        score: 0.9,
+                    }],
+                )
+            })
+            .collect()
+    }
+
+    /// The table cell a word ended in, and the match's confidence.
+    fn placed<'a>(cells: &'a [TfCell], matches: &Matches, pdf_id: usize) -> (&'a TfCell, f64) {
+        let entry = &matches[&pdf_id][0];
+        let cell = cells
+            .iter()
+            .find(|c| c.cell_id == entry.table_cell_id)
+            .expect("the matched cell exists");
+        (cell, entry.score)
+    }
+
+    /// Two columns at x 10–90 and 110–200 over two rows.
+    fn two_by_two() -> Vec<TfCell> {
+        vec![
+            cell(0, 0, 0, [10.0, 10.0, 90.0, 25.0]),
+            cell(1, 0, 1, [110.0, 10.0, 200.0, 25.0]),
+            cell(2, 1, 0, [10.0, 30.0, 90.0, 45.0]),
+            cell(3, 1, 1, [110.0, 30.0, 200.0, 45.0]),
+        ]
+    }
+
+    /// docling-ibm-models' `test_orphan_with_no_col_band_match_is_recovered_to_nearest_column`
+    /// and `test_band_matched_orphans_use_normal_path`: a word in row 1's band
+    /// right of both columns goes to the nearer column (centre 155, not 50)
+    /// with a negative confidence; one inside both bands is placed as before.
+    #[test]
+    fn an_orphan_in_a_row_band_only_goes_to_the_nearest_column() {
+        let words = [word(99, [550.0, 32.0, 590.0, 43.0])];
+        let (m, cells, _) = pick_orphan_cells(2, 2, 3, two_by_two(), &words, Matches::new());
+        let (c, confidence) = placed(&cells, &m, 99);
+        assert_eq!((c.row_id, c.column_id), (1, 1));
+        // The word's centre x = 570 is 415 from the column's 155.
+        assert_eq!(confidence, -416.0);
+
+        let words = [word(7, [20.0, 32.0, 80.0, 43.0])];
+        let (m, cells, _) = pick_orphan_cells(2, 2, 3, two_by_two(), &words, Matches::new());
+        let (c, confidence) = placed(&cells, &m, 7);
+        assert_eq!((c.row_id, c.column_id), (1, 0));
+        assert!(confidence >= 0.0);
+    }
+
+    /// `test_orphan_with_column_band_no_row_band_recovered_to_nearest_row`: a
+    /// trailing line below every row band (docling#3402) goes to the nearest
+    /// row, 30–50 rather than 0–20.
+    #[test]
+    fn an_orphan_in_a_column_band_only_goes_to_the_nearest_row() {
+        let grid = vec![
+            cell(0, 0, 0, [0.0, 0.0, 50.0, 20.0]),
+            cell(1, 1, 0, [0.0, 30.0, 50.0, 50.0]),
+        ];
+        let words = [
+            word(0, [0.0, 30.0, 50.0, 50.0]),
+            word(9, [0.0, 200.0, 50.0, 220.0]),
+        ];
+        let (m, cells, _) = pick_orphan_cells(2, 1, 1, grid, &words, matched(&[(0, 1)]));
+        let (c, confidence) = placed(&cells, &m, 9);
+        assert_eq!((c.row_id, c.column_id), (1, 0));
+        // The word's centre y = 210 is 170 from the row's 40.
+        assert_eq!(confidence, -171.0);
+    }
+
+    /// `test_orphan_cells_outside_every_band_are_reported` and
+    /// `test_no_warning_when_every_orphan_is_assigned`: a word below and right
+    /// of the only cell has no band on either axis and is still dropped; one
+    /// inside the band joins the cell.
+    #[test]
+    fn an_orphan_outside_every_band_is_dropped() {
+        let grid = || vec![cell(0, 0, 0, [0.0, 0.0, 50.0, 20.0])];
+        let words = [
+            word(0, [0.0, 0.0, 50.0, 20.0]),
+            word(1, [200.0, 200.0, 250.0, 220.0]),
+            word(2, [200.0, 300.0, 250.0, 320.0]),
+        ];
+        let (m, _, _) = pick_orphan_cells(1, 1, 0, grid(), &words, matched(&[(0, 0)]));
+        assert_eq!(m.keys().copied().collect::<Vec<_>>(), [0]);
+
+        let words = [
+            word(0, [0.0, 0.0, 50.0, 20.0]),
+            word(1, [0.0, 5.0, 50.0, 18.0]),
+        ];
+        let (m, _, _) = pick_orphan_cells(1, 1, 0, grid(), &words, matched(&[(0, 0)]));
+        assert_eq!(m.keys().copied().collect::<Vec<_>>(), [0, 1]);
+    }
 }
