@@ -2725,14 +2725,17 @@ These are deliberate or unavoidable divergences, not bugs.
     copy, and that is what the page shows. `textparse::drop_shadow_runs`
     drops a stretch of at least two glyphs that repeats a stretch drawn
     before it on the page — same characters, font and size — shifted by one
-    offset, of at most 0.15 em on each axis and not zero. The rule is narrow: text that
-    really repeats sits an advance apart or more (a doubled letter, a word
-    set twice, the same text on the next line or in the next table cell);
-    the characters one glyph expands to share its pen and are not a copy;
-    and the per-glyph re-stamp the sanitizer already folds is untouched.
-    On the corpus: the text layer of every PDF is unchanged
-    (`--text-layer-only --to json`, item by item), so the PDF groundtruth
-    and the snapshots are too.
+    offset, of at most 0.15 em on each axis, not zero, and shorter than the
+    step from the first stretch's glyph to its successor. The rule is
+    narrow: text that really repeats sits an advance apart or more (a
+    doubled letter, a word set twice, the same text on the next line or in
+    the next table cell); a run of one character set tighter than the
+    offset (dot leaders squeezed by `Tc`) steps less than it shifts; the
+    characters one glyph expands to share its pen and are not a copy; and
+    the per-glyph re-stamp the sanitizer already folds is untouched. On the
+    corpus: the text layer of every PDF is byte-identical
+    (`--text-layer-only --to json`), so the PDF groundtruth and the
+    snapshots are unchanged too.
 ---
 
 ## 5. Not migrated / out of scope
