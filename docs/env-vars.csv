@@ -64,6 +64,7 @@ DOCLING_RS_OCR_MODE,operational,crates/docling-pdf/src/ocr.rs
 DOCLING_RS_PDF_WORD_GAP,operational,crates/docling-pdf/src/dp_lines.rs
 DOCLING_RS_PDF_KEEP_TYPOGRAPHY,operational,crates/docling-pdf/src/assemble.rs
 DOCLING_RS_PDF_REPORT_REPAIRS,operational,crates/docling/src/converter.rs
+DOCLING_RS_PDF_ORDER_SEPARATORS,operational,crates/docling-pdf/src/assemble.rs
 DOCLING_RS_OCR_ORIENTATION,operational,crates/docling-pdf/src/orient.rs
 DOCLING_RS_OCR_TEXT_SCORE,operational,crates/docling-pdf/src/ocr_prep.rs
 DOCLING_RS_RENDERER,operational,crates/docling-pdf/src/render/mod.rs
