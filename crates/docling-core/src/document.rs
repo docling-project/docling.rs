@@ -1131,6 +1131,12 @@ pub struct Table {
     /// covered positions there); JSON serializes these cells verbatim when
     /// present, and the DocLang structure overlay is derived from them.
     pub cells: Option<Vec<TableCell>>,
+    /// The table is a table of contents — docling's `document_index` label
+    /// (#1091), which the PDF layout model gives a TOC region and docling
+    /// keeps on the `TableItem`. Only the JSON export (and its read-back)
+    /// tells it apart: every other serializer renders it as a table, as
+    /// docling-core does.
+    pub document_index: bool,
 }
 
 impl Table {

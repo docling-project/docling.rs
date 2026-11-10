@@ -48,6 +48,7 @@ fn tag_shaped_cell_text_round_trips() {
         caption: None,
         caption_parent: Default::default(),
         caption_location: None,
+        document_index: false,
     }));
     let back = roundtrip(&doc);
     let md = back.export_to_markdown();

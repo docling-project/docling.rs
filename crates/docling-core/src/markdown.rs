@@ -2295,6 +2295,7 @@ mod tests {
             caption: None,
             caption_parent: Default::default(),
             caption_location: None,
+            document_index: false,
         }));
         let md = doc.export_to_markdown();
         assert_eq!(md, "| a | b |\n| - | - |\n| 1 | 2 |\n");
@@ -2313,6 +2314,7 @@ mod tests {
             caption: None,
             caption_parent: Default::default(),
             caption_location: None,
+            document_index: false,
         }));
         let md = doc.export_to_markdown();
         // Numeric data columns are right-aligned; columns padded to header+2.
@@ -2436,6 +2438,7 @@ mod tests {
             caption: None,
             caption_parent: Default::default(),
             caption_location: None,
+            document_index: false,
         }));
         doc.push(Node::Picture {
             caption: Some("Fig 1".into()),

@@ -955,6 +955,8 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
             caption_parent: caption_parent_of(item, root),
             caption_location: None,
             footnotes: footnotes_of(item, root),
+            // A table of contents keeps its label through the round trip.
+            document_index: item["label"].as_str() == Some("document_index"),
         }));
     }
 }
@@ -2148,5 +2150,36 @@ mod tests {
         }
         let keyless = convert(&v.to_string());
         assert_eq!(chunk(&keyless), "2024, Revenue = 10");
+    }
+
+    /// #1091: a `document_index` table (docling's TOC label) reads back as
+    /// one and is written out with the same label; a plain table stays
+    /// `table`.
+    #[test]
+    fn a_document_index_table_keeps_its_label_through_the_round_trip() {
+        let html = "<table><tr><td>Intro</td><td>1</td></tr></table>";
+        let original = crate::DocumentConverter::new()
+            .convert(SourceDocument::from_bytes(
+                "t.html",
+                InputFormat::Html,
+                html.as_bytes().to_vec(),
+            ))
+            .unwrap()
+            .document;
+        let mut v: Value = serde_json::from_str(&original.export_to_json()).unwrap();
+        assert_eq!(v["tables"][0]["label"], "table");
+        v["tables"][0]["label"] = "document_index".into();
+        let reloaded = convert(&v.to_string());
+        assert!(matches!(
+            reloaded.nodes.iter().find(|n| matches!(n, Node::Table(_))),
+            Some(Node::Table(t)) if t.document_index
+        ));
+        let out: Value = serde_json::from_str(&reloaded.export_to_json()).unwrap();
+        assert_eq!(out["tables"][0]["label"], "document_index");
+        assert_eq!(
+            reloaded.export_to_markdown(),
+            original.export_to_markdown(),
+            "a table of contents renders as a table"
+        );
     }
 }

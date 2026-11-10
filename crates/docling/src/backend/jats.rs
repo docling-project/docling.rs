@@ -2083,6 +2083,7 @@ fn parse_jats_table(table: XmlNode) -> Option<(Table, Vec<RichCell>)> {
             caption: None,
             caption_parent: Default::default(),
             caption_location: None,
+            document_index: false,
         },
         rich,
     ))

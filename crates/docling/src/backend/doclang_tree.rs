@@ -1773,6 +1773,7 @@ fn empty_table() -> Table {
         caption: None,
         caption_parent: Default::default(),
         caption_location: None,
+        document_index: false,
     }
 }
 
@@ -1800,5 +1801,6 @@ pub(super) fn table_from_cells(cells: Vec<TableCell>, num_rows: usize, num_cols:
         caption: None,
         caption_parent: Default::default(),
         caption_location: None,
+        document_index: false,
     }
 }
