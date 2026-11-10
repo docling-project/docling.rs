@@ -97,3 +97,49 @@ fn raster_rotated_fixtures_match_groundtruth() {
         );
     }
 }
+
+/// #1093: an image input's page is sized from the file's resolution, as
+/// docling's `ImageDocumentBackend` sizes it (`pixels × 72 / dpi`): the QR
+/// bill is 1021 × 1423 px at 300 DPI, so its page is 245.04 × 341.52 pt and
+/// every box lies on it. The models still read the file's own pixels, so the
+/// text is what the 1 px = 1 pt page read: the same Markdown either way.
+#[test]
+fn an_image_page_is_sized_from_its_resolution() {
+    if !ml_stack_ready() {
+        eprintln!("skipping: models not found");
+        return;
+    }
+    let source = SourceDocument::from_file("tests/data/scanned/sources/qr_bill_example.jpg")
+        .expect("image fixture");
+    let doc = DocumentConverter::new()
+        .convert(source)
+        .expect("image conversion")
+        .document;
+    let json: serde_json::Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+    let size = &json["pages"]["1"]["size"];
+    let (w, h) = (
+        size["width"].as_f64().unwrap(),
+        size["height"].as_f64().unwrap(),
+    );
+    assert!(
+        (w - 245.04).abs() < 0.01 && (h - 341.52).abs() < 0.01,
+        "{w} x {h}"
+    );
+    let mut boxes = 0;
+    for kind in ["texts", "tables", "pictures"] {
+        for item in json[kind].as_array().unwrap() {
+            for prov in item["prov"].as_array().into_iter().flatten() {
+                let b = &prov["bbox"];
+                let (l, r) = (b["l"].as_f64().unwrap(), b["r"].as_f64().unwrap());
+                let (t, bt) = (b["t"].as_f64().unwrap(), b["b"].as_f64().unwrap());
+                assert!(l >= -0.01 && r <= w + 0.01, "{kind}: {b}");
+                assert!(t.max(bt) <= h + 0.01 && t.min(bt) >= -0.01, "{kind}: {b}");
+                boxes += 1;
+            }
+        }
+    }
+    assert!(
+        boxes > 10,
+        "the bill reads as text, not a picture: {boxes} boxes"
+    );
+}

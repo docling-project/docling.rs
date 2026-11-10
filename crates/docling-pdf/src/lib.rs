@@ -612,6 +612,34 @@ pub(crate) fn decode_image_limited(bytes: &[u8]) -> Result<image::RgbImage, PdfE
     decode_image_with_max_side(bytes, max_side)
 }
 
+/// The `(horizontal, vertical)` resolution an image input's page is sized by,
+/// as docling's `ImageDocumentBackend` reads it (#1093): Pillow's
+/// `info["dpi"]` ([`docling_core::image_dpi::resolution`]), 72 when the file
+/// records none or the `(1, 1)` / `(0, 0)` placeholders, the axes swapped when
+/// the EXIF orientation turned the frame a quarter (`decoded` is the size
+/// after [`decode_image_limited`] applied it; docling's `_oriented_frame`
+/// compares the sizes the same way). A resolution docling rejects — not
+/// finite, zero or negative on one axis — fails its conversion; here it reads
+/// as 72, degradation over failure.
+#[cfg(feature = "ml")]
+fn image_page_dpi(bytes: &[u8], decoded: (u32, u32)) -> (f64, f64) {
+    const DEFAULT: (f64, f64) = (72.0, 72.0);
+    let dpi = match docling_core::image_dpi::resolution(bytes) {
+        None => return DEFAULT,
+        Some(d) if d == (1.0, 1.0) || d == (0.0, 0.0) => return DEFAULT,
+        Some((x, y)) if !(x.is_finite() && y.is_finite() && x > 0.0 && y > 0.0) => return DEFAULT,
+        Some(d) => d,
+    };
+    let stored = image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .ok()
+        .and_then(|r| r.into_dimensions().ok());
+    match stored {
+        Some(size) if size != decoded => (dpi.1, dpi.0),
+        _ => dpi,
+    }
+}
+
 /// Whether `bytes` is an ISOBMFF HEIF/HEIC container (the `ftyp` brands
 /// iPhones write). Checked by content, not extension — HEIC regularly
 /// arrives misnamed `.jpg`.
@@ -4405,7 +4433,15 @@ impl Pipeline {
             embedded_images: Vec::new(),
             pending_image: None,
         };
-        self.process_pages(vec![page], name)
+        let mut doc = self.process_pages(vec![page], name)?;
+        // docling sizes the page from the file's resolution (#1093); the
+        // models above ran on the file's own pixels, which only the page unit
+        // changes, so the text and the reading order cannot move.
+        let (dpi_x, dpi_y) = image_page_dpi(bytes, (w, h));
+        if (dpi_x, dpi_y) != (72.0, 72.0) {
+            doc.rescale_page_units((72.0 / dpi_x) as f32, (72.0 / dpi_y) as f32);
+        }
+        Ok(doc)
     }
 
     /// Run layout (+ OCR for cell-less pages) and assemble each already-rendered
@@ -4652,6 +4688,73 @@ mod image_limit_tests {
             r.is_err(),
             "decode must fail under the pixel cap, not abort"
         );
+    }
+}
+
+#[cfg(all(test, feature = "ml"))]
+mod image_page_dpi_tests {
+    use super::{decode_image_with_max_side, image_page_dpi};
+    use image::codecs::jpeg::{JpegEncoder, PixelDensity, PixelDensityUnit};
+
+    /// A 4 × 2 JPEG whose JFIF records `density`, tagged with EXIF
+    /// `orientation` when given.
+    fn jpeg(density: PixelDensity, orientation: Option<u16>) -> Vec<u8> {
+        let img = image::RgbImage::new(4, 2);
+        let mut out = Vec::new();
+        let mut enc = JpegEncoder::new(&mut out);
+        enc.set_pixel_density(density);
+        enc.encode_image(&img).unwrap();
+        let Some(o) = orientation else {
+            return out;
+        };
+        // An APP1 Exif segment (little-endian TIFF, one IFD entry:
+        // Orientation) right after SOI; the JFIF density stays authoritative.
+        let mut app1 = b"Exif\0\0II*\0".to_vec();
+        app1.extend(8u32.to_le_bytes());
+        app1.extend(1u16.to_le_bytes());
+        app1.extend(0x0112u16.to_le_bytes());
+        app1.extend(3u16.to_le_bytes());
+        app1.extend(1u32.to_le_bytes());
+        app1.extend(o.to_le_bytes());
+        app1.extend([0, 0, 0, 0, 0, 0]);
+        let mut spliced = out[..2].to_vec();
+        spliced.extend([0xff, 0xe1]);
+        spliced.extend((app1.len() as u16 + 2).to_be_bytes());
+        spliced.extend(app1);
+        spliced.extend(&out[2..]);
+        spliced
+    }
+
+    fn dpi_of(bytes: &[u8]) -> (f64, f64) {
+        let decoded = decode_image_with_max_side(bytes, 30_000).unwrap();
+        image_page_dpi(bytes, decoded.dimensions())
+    }
+
+    /// docling's `_get_frame_dpi`: each axis's resolution as Pillow reads it;
+    /// none, `(1, 1)` and `(0, 0)` read as 72.
+    #[test]
+    fn the_page_takes_the_files_resolution() {
+        let anisotropic = PixelDensity {
+            density: (300, 150),
+            unit: PixelDensityUnit::Inches,
+        };
+        assert_eq!(dpi_of(&jpeg(anisotropic, None)), (300.0, 150.0));
+        assert_eq!(dpi_of(&jpeg(PixelDensity::default(), None)), (72.0, 72.0));
+        assert_eq!(dpi_of(&jpeg(PixelDensity::dpi(1), None)), (72.0, 72.0));
+        assert_eq!(dpi_of(&jpeg(PixelDensity::dpi(0), None)), (72.0, 72.0));
+    }
+
+    /// docling's `_oriented_frame`: a quarter-turn EXIF orientation swaps the
+    /// frame's sides, and the resolution's axes with them; a half turn does
+    /// not.
+    #[test]
+    fn a_quarter_turn_swaps_the_axes() {
+        let anisotropic = PixelDensity {
+            density: (300, 150),
+            unit: PixelDensityUnit::Inches,
+        };
+        assert_eq!(dpi_of(&jpeg(anisotropic, Some(6))), (150.0, 300.0));
+        assert_eq!(dpi_of(&jpeg(anisotropic, Some(3))), (300.0, 150.0));
     }
 }
 
