@@ -64,7 +64,7 @@ fn entries(info: &Dictionary, doc: &lopdf::Document) -> Vec<(String, String)> {
 
 /// A PDF text string: UTF-16 with a byte-order mark, UTF-8 when it decodes
 /// as such (writers do), else PDFDocEncoding read as Latin-1.
-fn decode_text(bytes: &[u8]) -> String {
+pub(crate) fn decode_text(bytes: &[u8]) -> String {
     if bytes.len() >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF {
         let units: Vec<u16> = bytes[2..]
             .chunks_exact(2)

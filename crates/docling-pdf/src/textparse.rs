@@ -1980,6 +1980,88 @@ fn drop_shadow_runs(glyphs: &mut Vec<Glyph>) {
     glyphs.retain(|_| it.next().unwrap_or(true));
 }
 
+/// Put a marked-content span's `/ActualText` in place of the glyphs drawn
+/// inside it, as docling-parse does since 7.9 (`apply_actual_text`,
+/// docling-parse#300, on by default; PDF 32000-1 §14.9.4). A writer draws a
+/// glyph cluster whose characters the font cannot spell this way: a base
+/// letter and a zero-advance accent whose code collides with a Latin letter
+/// (`Oreši` read as `OresMi`, docling#3783), or the Arabic marks of a
+/// LibreOffice font subset whose `/ToUnicode` skips them, so the byte reads as
+/// WinAnsi (`منعًا` as `منع8ا`). docling-parse's rules, cell for cell: a span
+/// with no glyphs (over graphics) is left alone, and so is a text implausibly
+/// long for it (more than 8 characters and 4 per cell: `/Alt` written into
+/// the wrong key); an empty text removes the glyphs; as many characters as
+/// cells replace them one by one, keeping each cell's geometry; any other
+/// count puts the whole text on the span's first cell, over the union of the
+/// span's boxes, its baseline running to the cell that reaches furthest along
+/// it (an accent drawn after its base letter trails behind it). Nested spans
+/// apply innermost first, so the outer text wins. docling-parse has a cell per
+/// character code; a code whose `/ToUnicode` spells several characters is
+/// several glyphs here, all on the code's pen, and counts as one cell.
+fn apply_actual_text(out: &mut Vec<Glyph>, begin: usize, text: &str) {
+    let begin = begin.min(out.len());
+    let mut cells: Vec<std::ops::Range<usize>> = Vec::new();
+    for i in begin..out.len() {
+        match cells.last_mut() {
+            Some(cell) if out[i].pen.is_some() && out[i].pen == out[cell.end - 1].pen => {
+                cell.end = i + 1;
+            }
+            _ => cells.push(i..i + 1),
+        }
+    }
+    if cells.is_empty() {
+        return;
+    }
+    let chars: Vec<char> = text.chars().collect();
+    if chars.len() > (4 * cells.len()).max(8) {
+        return;
+    }
+    if chars.is_empty() {
+        out.truncate(begin);
+        return;
+    }
+    if chars.len() == cells.len() {
+        for (cell, &ch) in cells.iter().zip(&chars).rev() {
+            out[cell.start].ch = ch;
+            out.drain(cell.start + 1..cell.end);
+        }
+        return;
+    }
+    // The leading edge (quad corners 0 and 3) stays the first cell's; the
+    // trailing one (1 and 2) is the cell's that reaches furthest along the
+    // baseline, projected on it so a rotated run keeps its direction.
+    let quad_of = |g: &Glyph| {
+        g.quad
+            .unwrap_or([g.ll, g.lb, g.lr, g.lb, g.lr, g.lt, g.ll, g.lt])
+    };
+    let mut merged = Glyph { ..out[begin] };
+    let mut quad = quad_of(&merged);
+    let dir = (quad[2] - quad[0], quad[3] - quad[1]);
+    let along = |q: &[f32; 8]| q[2] * dir.0 + q[3] * dir.1;
+    let mut reach = along(&quad);
+    for g in &out[begin + 1..] {
+        merged.l = merged.l.min(g.l);
+        merged.b = merged.b.min(g.b);
+        merged.r = merged.r.max(g.r);
+        merged.t = merged.t.max(g.t);
+        merged.ll = merged.ll.min(g.ll);
+        merged.lb = merged.lb.min(g.lb);
+        merged.lr = merged.lr.max(g.lr);
+        merged.lt = merged.lt.max(g.lt);
+        let q = quad_of(g);
+        if along(&q) > reach {
+            reach = along(&q);
+            quad[2..6].copy_from_slice(&q[2..6]);
+        }
+    }
+    if merged.quad.is_some() {
+        merged.quad = Some(quad);
+    }
+    out.truncate(begin);
+    // The characters of one cell share its box, as a ligature's do.
+    out.extend(chars.iter().map(|&ch| Glyph { ch, ..merged }));
+}
+
 /// Drop a space glyph the next glyph is drawn over (#992). A typesetter
 /// that sets a superscript footnote marker as `( 1 )` — space glyphs around
 /// the raised digit — and then cancels each space's advance with a negative
@@ -2113,6 +2195,9 @@ fn run_content(
     // chart legend's swatch. The initial fill colour is black.
     let mut fill_light = false;
     let mut fill_stack: Vec<bool> = Vec::new();
+    // Open marked-content sequences (`BMC`/`BDC` … `EMC`): where each one's
+    // glyphs start in `out`, and its inline `/ActualText`, if any.
+    let mut marked: Vec<(usize, Option<String>)> = Vec::new();
 
     for op in &content.operations {
         let operands = &op.operands;
@@ -2121,6 +2206,28 @@ fn run_content(
             "q" => {
                 gstate_stack.push((ctm, tc, tw, th, tl, trise, fsize, tr, font));
                 fill_stack.push(fill_light);
+            }
+            "BMC" => marked.push((out.len(), None)),
+            // Only an inline property list is read: a named one (`/OC /MC0`)
+            // would need the `/Properties` resource, as in docling-parse.
+            "BDC" => {
+                let actual = operands
+                    .get(1)
+                    .and_then(|o| o.as_dict().ok())
+                    .and_then(|d| d.get(b"ActualText").ok())
+                    .and_then(|o| match o {
+                        Object::String(bytes, _) => Some(crate::info::decode_text(bytes)),
+                        _ => None,
+                    });
+                marked.push((out.len(), actual));
+            }
+            "EMC" => {
+                if let Some((begin, Some(text))) = marked.pop() {
+                    apply_actual_text(out, begin, &text);
+                }
+                // Shows no text: the invisible-mode stamp below has nothing
+                // new to mark, and the span may have shortened `out`.
+                continue;
             }
             "Q" => {
                 fill_light = fill_stack.pop().unwrap_or(false);
@@ -4315,6 +4422,84 @@ mod base14_fonts {
                 "Tc {tc}"
             );
         }
+    }
+
+    /// docling-parse's `test_unit_actual_text.py` (docling-parse#300): a
+    /// marked-content span's `/ActualText` replaces the glyphs drawn in it.
+    #[test]
+    fn actual_text_replaces_the_glyphs_of_its_span() {
+        let helvetica = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>";
+        // A non-embedded TrueType whose only code, 0x4D (`M` in WinAnsi), is a
+        // zero-advance caron: drawn after `s` it makes `š`.
+        let caron = b"<</Type/Font/Subtype/TrueType/BaseFont/SynthCaron/FirstChar 77/LastChar 77\
+            /Widths[0]/Encoding/WinAnsiEncoding/FontDescriptor<</Type/FontDescriptor\
+            /FontName/SynthCaron/Flags 32/FontBBox[-540 -200 0 800]/ItalicAngle 0/Ascent 800\
+            /Descent -200/CapHeight 700/StemV 80>>>>";
+        let text = |content: &str| {
+            let pdf = pdf_with_fonts(&[helvetica, caron], content.as_bytes());
+            super::PageTextParser::open(&pdf)
+                .expect("opens")
+                .cells(0)
+                .prose
+                .into_iter()
+                .map(|c| c.text)
+                .collect::<String>()
+        };
+        // Unmarked, the caron reads as its WinAnsi letter.
+        assert_eq!(
+            text("BT /F1 24 Tf 40 50 Td (Ore) Tj (s) Tj /F2 24 Tf <4D> Tj /F1 24 Tf (i) Tj ET"),
+            "OresMi"
+        );
+        // Two cells, one character: the accent composes onto its base letter.
+        assert_eq!(
+            text(
+                "BT /F1 24 Tf 40 50 Td (Ore) Tj /Span <</ActualText <FEFF0161>>> BDC \
+                  (s) Tj /F2 24 Tf <4D> Tj EMC /F1 24 Tf (i) Tj ET"
+            ),
+            "Oreši"
+        );
+        // As many characters as cells: one for one.
+        assert_eq!(
+            text("BT /F1 24 Tf 40 50 Td /Span <</ActualText (ab)>> BDC (xy) Tj EMC (z) Tj ET"),
+            "abz"
+        );
+        // An empty text declares the glyphs not text (a visual line-break
+        // hyphen); its advance may still read as a gap.
+        let hyphen = text(
+            "BT /F1 24 Tf 40 50 Td (exam) Tj /Span <</ActualText <FEFF>>> BDC (-) Tj EMC \
+             (ple) Tj ET",
+        );
+        assert!(!hyphen.contains('-'), "{hyphen}");
+        assert_eq!(hyphen.replace(' ', ""), "example");
+        // `/Alt` written into the wrong key: implausibly long, ignored.
+        assert_eq!(
+            text(
+                "BT /F1 24 Tf 40 50 Td /Span <</ActualText (A long description that belongs \
+                  in Alt not here)>> BDC (ab) Tj EMC ET"
+            ),
+            "ab"
+        );
+        // Over graphics only: nothing to replace.
+        assert_eq!(
+            text(
+                "BT /F1 24 Tf 40 50 Td (x) Tj ET /Span <</ActualText (ghost)>> BDC \
+                  10 10 50 50 re f EMC"
+            ),
+            "x"
+        );
+        // A named property list is not resolved.
+        assert_eq!(
+            text("BT /F1 24 Tf 40 50 Td /OC /MC0 BDC (ok) Tj EMC ET"),
+            "ok"
+        );
+        // Nested spans: the outer text describes the whole run.
+        assert_eq!(
+            text(
+                "BT /F1 24 Tf 40 50 Td /Span <</ActualText (AB)>> BDC (a) Tj \
+                  /Span <</ActualText (Z)>> BDC (b) Tj EMC EMC ET"
+            ),
+            "AB"
+        );
     }
 
     /// The identity follows docling-parse's precedence: a `/FontDescriptor/FontName`
