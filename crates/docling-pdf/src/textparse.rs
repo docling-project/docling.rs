@@ -1380,6 +1380,8 @@ pub struct PageParserCells {
     /// Image placements (#999), in the cells' frame — see
     /// [`crate::pdfium_backend::PdfPage::bitmaps`].
     pub bitmaps: Vec<[f32; 4]>,
+    /// The page's shapes for the reading-order separators (#1092).
+    pub shapes: PageShapes,
 }
 
 /// The parser text layer, driven one page at a time: the document is loaded
@@ -1542,7 +1544,8 @@ impl PageTextParser {
             return PageParserCells::default();
         };
         let (_w, h) = page_size(&self.doc, pid);
-        let (glyphs, inks, bitmaps) = page_glyphs_and_inks(&self.doc, pid, &mut self.caches);
+        let (glyphs, inks, bitmaps, shapes) =
+            page_glyphs_and_inks(&self.doc, pid, &mut self.caches);
         let (prose, words) =
             crate::dp_lines::line_and_word_cells_with(&glyphs, h, true, self.word_gap);
         PageParserCells {
@@ -1551,6 +1554,7 @@ impl PageTextParser {
             code: crate::pdfium_backend::code_cells_from_glyphs(&glyphs, h),
             checkboxes: crate::checkbox::find(&inks, h),
             bitmaps,
+            shapes,
         }
     }
 
@@ -1565,7 +1569,7 @@ impl PageTextParser {
     /// document's cells. A blank page (no cells) for an index the page tree
     /// doesn't have.
     pub fn text_page(&mut self, index: usize) -> crate::pdfium_backend::PdfPage {
-        let (w, h, (glyphs, inks, _)) = match self.pages.get(index) {
+        let (w, h, (glyphs, inks, _, shapes)) = match self.pages.get(index) {
             Some(&pid) => {
                 let (w, h) = page_size(&self.doc, pid);
                 (w, h, page_glyphs_and_inks(&self.doc, pid, &mut self.caches))
@@ -1588,6 +1592,7 @@ impl PageTextParser {
             word_cells: words,
             checkboxes: crate::checkbox::find(&inks, h),
             bitmaps: Vec::new(),
+            shapes,
             #[cfg(feature = "ocr-prep")]
             image: image::RgbImage::new(1, 1),
             links: Vec::new(),
@@ -1811,22 +1816,29 @@ fn page_glyphs_cached(
 
 /// [`page_glyphs_cached`] plus the small painted path pieces the same walk
 /// passed — what [`crate::checkbox::find`] looks for checkbox squares in
-/// (#609) — and the page's image placements (#999, `[l, t, r, b]` top-left
-/// page points clipped to the page, the cells' frame).
+/// (#609) — the page's image placements (#999, `[l, t, r, b]` top-left
+/// page points clipped to the page, the cells' frame), and its shapes for the
+/// reading-order separators (#1092, [`PageShapes`]).
 fn page_glyphs_and_inks(
     doc: &Document,
     page_id: lopdf::ObjectId,
     caches: &mut DocCaches,
-) -> (Vec<Glyph>, Vec<crate::checkbox::Ink>, Vec<[f32; 4]>) {
+) -> (
+    Vec<Glyph>,
+    Vec<crate::checkbox::Ink>,
+    Vec<[f32; 4]>,
+    PageShapes,
+) {
     let mut out = Vec::new();
     let mut inks = Vec::new();
     // get_page_content returns the assembled content-stream bytes directly
     // (an empty Vec when the page has none).
     let content_bytes = doc.get_page_content(page_id);
     let Ok(content) = lopdf::content::Content::decode(&content_bytes) else {
-        return (out, inks, Vec::new());
+        return (out, inks, Vec::new(), PageShapes::default());
     };
     let mut bitmaps = Vec::new();
+    let mut page_shapes = PageShapes::default();
     if let Some(res) = page_res(doc, page_id) {
         // pdfium's page matrix: user space translated so the display box's
         // lower-left corner is the origin (see [`PageBox`]).
@@ -1836,6 +1848,7 @@ fn page_glyphs_and_inks(
             f: -(pb.b as f64),
             ..Mat::ID
         };
+        let mut shapes = Shapes::default();
         run_content(
             doc,
             res,
@@ -1846,6 +1859,8 @@ fn page_glyphs_and_inks(
             caches,
             &mut out,
             &mut inks,
+            ShapeGs::INIT,
+            &mut shapes,
         );
         out.retain(|g| on_page(g, pb.w, pb.h));
         drop_overprinted_spaces(&mut out);
@@ -1861,8 +1876,31 @@ fn page_glyphs_and_inks(
             }
             _ => true,
         });
+        let top_left =
+            |[l, b, r, t]: [f64; 4]| [l as f32, (h - t) as f32, r as f32, (h - b) as f32];
+        page_shapes.lines = shapes.lines.into_iter().map(top_left).collect();
+        if shapes.boxes.len() <= MAX_SHAPE_BOXES {
+            page_shapes.boxes = connected_boxes(&shapes.boxes)
+                .into_iter()
+                .map(top_left)
+                .collect();
+        } else {
+            docling_core::debug_log!(
+                "textparse: {} painted paths on the page; their boxes are not merged",
+                shapes.boxes.len()
+            );
+        }
     }
-    (out, inks, bitmaps)
+    (out, inks, bitmaps, page_shapes)
+}
+
+/// A page's shapes for the reading-order separators (#1092), in the cells'
+/// frame (`[l, t, r, b]`, top-left page points): docling-parse's
+/// `get_shape_lines` and `get_connected_shape_bounding_boxes`.
+#[derive(Default, Clone, Debug, PartialEq)]
+pub struct PageShapes {
+    pub lines: Vec<[f32; 4]>,
+    pub boxes: Vec<[f32; 4]>,
 }
 
 /// Drop a run of glyphs painted again over itself — a text shadow. A word
@@ -2171,6 +2209,8 @@ fn run_content(
     caches: &mut DocCaches,
     out: &mut Vec<Glyph>,
     inks: &mut Vec<crate::checkbox::Ink>,
+    shape_init: ShapeGs,
+    shapes: &mut Shapes,
 ) {
     let fonts = fonts_from_res(doc, res, caches);
     let xobjects = res
@@ -2212,6 +2252,22 @@ fn run_content(
     // Open marked-content sequences (`BMC`/`BDC` … `EMC`): where each one's
     // glyphs start in `out`, and its inline `/ActualText`, if any.
     let mut marked: Vec<(usize, Option<String>)> = Vec::new();
+    // The reading-order shapes (#1092): docling-parse's view of the path
+    // under construction, its graphics state and the pending clip.
+    let mut shape_gs = shape_init;
+    let mut shape_stack: Vec<ShapeGs> = Vec::new();
+    let mut shape_path: Vec<ShapeSub> = Vec::new();
+    let mut clip_pending = false;
+    let ext_gstates = res
+        .get(b"ExtGState")
+        .ok()
+        .and_then(|o| deref(doc, o))
+        .and_then(|o| o.as_dict().ok());
+    let colorspaces = res
+        .get(b"ColorSpace")
+        .ok()
+        .and_then(|o| deref(doc, o))
+        .and_then(|o| o.as_dict().ok());
 
     for op in &content.operations {
         let operands = &op.operands;
@@ -2220,6 +2276,7 @@ fn run_content(
             "q" => {
                 gstate_stack.push((ctm, tc, tw, th, tl, trise, fsize, tr, font));
                 fill_stack.push(fill_light);
+                shape_stack.push(shape_gs.clone());
             }
             "BMC" => marked.push((out.len(), None)),
             // Only an inline property list is read: a named one (`/OC /MC0`)
@@ -2246,6 +2303,9 @@ fn run_content(
             }
             "Q" => {
                 fill_light = fill_stack.pop().unwrap_or(false);
+                if let Some(gs) = shape_stack.pop() {
+                    shape_gs = gs;
+                }
                 if let Some((c, a, b, h, l, r, fs, mode, f)) = gstate_stack.pop() {
                     ctm = c;
                     tc = a;
@@ -2387,11 +2447,17 @@ fn run_content(
             "m" => {
                 cur = ctm.apply(op_f(operands, 0), op_f(operands, 1));
                 start = cur;
+                shape_path.push(ShapeSub::at(cur));
             }
             "l" => {
                 let p = ctm.apply(op_f(operands, 0), op_f(operands, 1));
                 path.push(PathPiece::Line(cur, p));
                 cur = p;
+                if let Some(sub) = shape_path.last_mut() {
+                    sub.lines.push((sub.cur, p));
+                    sub.pts.push(p);
+                    sub.cur = p;
+                }
             }
             "c" | "v" | "y" => {
                 let pts: Vec<(f64, f64)> = (0..operands.len() / 2)
@@ -2402,6 +2468,10 @@ fn run_content(
                         std::iter::once(cur).chain(pts.iter().copied()).collect(),
                     ));
                     cur = end;
+                    if let Some(sub) = shape_path.last_mut() {
+                        sub.pts.extend(pts.iter().copied());
+                        sub.cur = end;
+                    }
                 }
             }
             "h" => {
@@ -2409,6 +2479,14 @@ fn run_content(
                     path.push(PathPiece::Line(cur, start));
                 }
                 cur = start;
+                // docling-parse closes the subpath and opens the next one at
+                // its start, where a following `l` continues.
+                if let Some(sub) = shape_path.last_mut() {
+                    sub.closed = true;
+                    sub.pts.push(sub.start);
+                    let at = sub.start;
+                    shape_path.push(ShapeSub::at(at));
+                }
             }
             "re" => {
                 let (x, y, w, h) = (
@@ -2425,6 +2503,21 @@ fn run_content(
                 ]));
                 cur = ctm.apply(x, y);
                 start = cur;
+                // `m` + three `l` + `h`, as docling-parse builds it.
+                let c = [
+                    ctm.apply(x, y),
+                    ctm.apply(x + w, y),
+                    ctm.apply(x + w, y + h),
+                    ctm.apply(x, y + h),
+                ];
+                shape_path.push(ShapeSub {
+                    start: c[0],
+                    cur: c[3],
+                    pts: vec![c[0], c[1], c[2], c[3], c[0]],
+                    lines: vec![(c[0], c[1]), (c[1], c[2]), (c[2], c[3])],
+                    closed: true,
+                });
+                shape_path.push(ShapeSub::at(c[0]));
             }
             "S" | "s" | "f" | "F" | "f*" | "B" | "B*" | "b" | "b*" => {
                 let op = op.operator.as_str();
@@ -2435,11 +2528,68 @@ fn run_content(
                 let fill = !matches!(op, "S" | "s");
                 paint_path(&path, stroke, fill, fill_light, inks);
                 path.clear();
+                // `s`, `f`, `f*`, `b`, `b*` close the last subpath first.
+                if !matches!(op, "S" | "B" | "B*") {
+                    if let Some(sub) = shape_path.last_mut() {
+                        sub.closed = true;
+                    }
+                }
+                let scale = (ctm.a * ctm.d - ctm.b * ctm.c).abs().sqrt();
+                record_shape(
+                    &shape_path,
+                    stroke,
+                    fill,
+                    &shape_gs,
+                    if scale > 0.0 { scale } else { 1.0 },
+                    shapes,
+                );
+                // A pending `W` takes effect after the painting operator.
+                if std::mem::take(&mut clip_pending) {
+                    capture_clip(&shape_path, &mut shape_gs.clips);
+                }
+                shape_path.clear();
             }
-            "n" => path.clear(),
+            "n" => {
+                path.clear();
+                if std::mem::take(&mut clip_pending) {
+                    capture_clip(&shape_path, &mut shape_gs.clips);
+                }
+                shape_path.clear();
+            }
+            "W" | "W*" => clip_pending = true,
+            "w" => shape_gs.line_width = op_f(operands, 0),
+            "gs" => {
+                let params = operands
+                    .first()
+                    .and_then(|o| o.as_name().ok())
+                    .and_then(|n| ext_gstates?.get(n).ok())
+                    .and_then(|o| deref(doc, o))
+                    .and_then(|o| o.as_dict().ok());
+                if let Some(params) = params {
+                    let get = |k: &[u8]| params.get(k).ok().and_then(num);
+                    if let Some(lw) = get(b"LW") {
+                        shape_gs.line_width = lw;
+                    }
+                    if let Some(a) = get(b"CA") {
+                        shape_gs.stroke_alpha = a;
+                    }
+                    if let Some(a) = get(b"ca") {
+                        shape_gs.fill_alpha = a;
+                    }
+                }
+            }
             // The fill colour, by its components: gray `g`, `rg`, CMYK `k`,
             // and `sc`/`scn` by operand count (a pattern name is not light).
             "g" | "rg" | "k" | "sc" | "scn" => {
+                // docling-parse: a colour resolves a pattern fill; a pattern
+                // name in `scn` makes it one.
+                if matches!(op.operator.as_str(), "scn")
+                    && matches!(operands.last(), Some(Object::Name(_)))
+                {
+                    shape_gs.fill_pattern = true;
+                } else if !operands.is_empty() {
+                    shape_gs.fill_pattern = false;
+                }
                 let v: Vec<f64> = operands
                     .iter()
                     .map(num)
@@ -2452,7 +2602,28 @@ fn run_content(
                     _ => false,
                 };
             }
-            "cs" => fill_light = false,
+            "cs" => {
+                fill_light = false;
+                // A Pattern space carries no colour until `scn` names one.
+                let pattern = match operands.first() {
+                    Some(Object::Name(n)) if n.as_slice() == b"Pattern" => true,
+                    Some(Object::Name(n)) => colorspaces
+                        .and_then(|cs| cs.get(n).ok())
+                        .and_then(|o| deref(doc, o))
+                        .is_some_and(|o| match o {
+                            Object::Name(f) => f.as_slice() == b"Pattern",
+                            Object::Array(a) => a
+                                .first()
+                                .and_then(|f| f.as_name().ok())
+                                .is_some_and(|f| f == b"Pattern"),
+                            _ => false,
+                        }),
+                    _ => false,
+                };
+                if pattern {
+                    shape_gs.fill_pattern = true;
+                }
+            }
             // An inline image: the unit square under the CTM (#999).
             "BI" => inks.push(image_ink(ctm)),
             "Do" => {
@@ -2560,6 +2731,8 @@ fn run_content(
                     caches,
                     out,
                     inks,
+                    shape_gs.clone(),
+                    shapes,
                 );
             }
             _ => {}
@@ -2588,6 +2761,246 @@ fn image_ink(ctm: Mat) -> crate::checkbox::Ink {
         (l, b, r, t) = (l.min(x), b.min(y), r.max(x), t.max(y));
     }
     crate::checkbox::Ink::Bitmap { l, b, r, t }
+}
+
+/// The page's vector shapes as docling-parse's page decoder reports them to
+/// docling's reading order (#1092): `get_shape_lines` — every stroked,
+/// axis-aligned straight segment, clipped — and the boxes
+/// `get_connected_shape_bounding_boxes` merges — every visible painted path,
+/// its stroke's half width included, clipped. `[l, b, r, t]`, page points,
+/// bottom-left origin, in the frame `run_content` walks (the display box's
+/// lower-left corner at the origin, before `/Rotate`).
+#[derive(Default, Clone, Debug, PartialEq)]
+pub(crate) struct Shapes {
+    pub lines: Vec<[f64; 4]>,
+    pub boxes: Vec<[f64; 4]>,
+}
+
+/// More painted paths than this on a page and their boxes are not merged —
+/// docling-parse's merge is quadratic in them, and a page that dense (a map,
+/// a seat plan, text drawn as outlines) yields no trustworthy rule anyway;
+/// the stroked lines still count.
+const MAX_SHAPE_BOXES: usize = 10_000;
+
+/// One subpath of the shape path under construction, page space: what
+/// docling-parse's `page_item<PAGE_SHAPE>` keeps of it.
+struct ShapeSub {
+    start: (f64, f64),
+    cur: (f64, f64),
+    /// Every point the path passes or is controlled by — a curve's control
+    /// points included, as docling-parse's segment data has them.
+    pts: Vec<(f64, f64)>,
+    /// Its straight segments, in order.
+    lines: Vec<((f64, f64), (f64, f64))>,
+    closed: bool,
+}
+
+impl ShapeSub {
+    fn at(p: (f64, f64)) -> Self {
+        ShapeSub {
+            start: p,
+            cur: p,
+            pts: vec![p],
+            lines: Vec::new(),
+            closed: false,
+        }
+    }
+
+    /// `keep_shape`: two points at least, spanning more than a speck (the
+    /// box diagonal, squared, over 1e-3).
+    fn kept(&self) -> bool {
+        let Some((l, b, r, t)) = bbox_of(&self.pts) else {
+            return false;
+        };
+        self.pts.len() >= 2 && (r - l).powi(2) + (t - b).powi(2) >= 1e-3
+    }
+}
+
+fn bbox_of(pts: &[(f64, f64)]) -> Option<(f64, f64, f64, f64)> {
+    let (&first, rest) = pts.split_first()?;
+    Some(rest.iter().fold(
+        (first.0, first.1, first.0, first.1),
+        |(l, b, r, t), &(x, y)| (l.min(x), b.min(y), r.max(x), t.max(y)),
+    ))
+}
+
+/// The graphics state docling-parse's shapes read: line width (user space),
+/// stroke and fill alpha (`CA` / `ca`), whether the fill colour is a pattern
+/// not yet resolved to a paint, and the clip paths' boxes. Saved and
+/// restored with `q` / `Q`.
+#[derive(Clone)]
+struct ShapeGs {
+    line_width: f64,
+    stroke_alpha: f64,
+    fill_alpha: f64,
+    fill_pattern: bool,
+    clips: Vec<[f64; 4]>,
+}
+
+impl ShapeGs {
+    const INIT: ShapeGs = ShapeGs {
+        line_width: 1.0,
+        stroke_alpha: 1.0,
+        fill_alpha: 1.0,
+        fill_pattern: false,
+        clips: Vec::new(),
+    };
+}
+
+/// docling-parse's `bbox_intersects`: the boxes share area (a degenerate box
+/// lying inside the other counts).
+fn boxes_intersect(a: [f64; 4], b: [f64; 4]) -> bool {
+    a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]
+}
+
+/// `clipped_bbox`: a box cut to every clip path's box in turn; `None` once
+/// one of them misses it.
+fn clipped(mut bbox: [f64; 4], clips: &[[f64; 4]]) -> Option<[f64; 4]> {
+    for c in clips {
+        if !boxes_intersect(bbox, *c) {
+            return None;
+        }
+        bbox = [
+            bbox[0].max(c[0]),
+            bbox[1].max(c[1]),
+            bbox[2].min(c[2]),
+            bbox[3].min(c[3]),
+        ];
+    }
+    Some(bbox)
+}
+
+/// `get_shape_lines`' `maybe_add_line` + `clip_axis_aligned_segment`: a
+/// straight segment that is horizontal or vertical within 1e-3 (not both: a
+/// point), cut to every clip path's box along its axis and dropped when one
+/// misses it.
+fn shape_line(a: (f64, f64), z: (f64, f64), clips: &[[f64; 4]], out: &mut Vec<[f64; 4]>) {
+    const TOL: f64 = 1e-3;
+    let horizontal = (z.1 - a.1).abs() <= TOL;
+    let vertical = (z.0 - a.0).abs() <= TOL;
+    if horizontal == vertical {
+        return;
+    }
+    let mut bbox = [a.0.min(z.0), a.1.min(z.1), a.0.max(z.0), a.1.max(z.1)];
+    for c in clips {
+        if horizontal {
+            if a.1 < c[1] - TOL || a.1 > c[3] + TOL {
+                return;
+            }
+            bbox[0] = bbox[0].max(c[0]);
+            bbox[2] = bbox[2].min(c[2]);
+            if bbox[0] > bbox[2] + TOL {
+                return;
+            }
+        } else {
+            if a.0 < c[0] - TOL || a.0 > c[2] + TOL {
+                return;
+            }
+            bbox[1] = bbox[1].max(c[1]);
+            bbox[3] = bbox[3].min(c[3]);
+            if bbox[1] > bbox[3] + TOL {
+                return;
+            }
+        }
+    }
+    out.push(bbox);
+}
+
+/// `capture_pending_clip`: each subpath of the clipping path with a segment
+/// (two points or more) bounds what later operators paint — appended, which
+/// approximates the intersection the spec asks for, as docling-parse does.
+fn capture_clip(subs: &[ShapeSub], clips: &mut Vec<[f64; 4]>) {
+    for sub in subs.iter().filter(|s| s.pts.len() >= 2) {
+        if let Some((l, b, r, t)) = bbox_of(&sub.pts) {
+            clips.push([l, b, r, t]);
+        }
+    }
+}
+
+/// docling-parse's `register_paths` for the reading-order geometry: a painted
+/// path's kept subpaths become shape lines (when its stroke shows) and a
+/// shape box (when anything of it shows). A fill whose colour is an
+/// unresolved pattern paints nothing, so a fill-only path is no shape and a
+/// fill-and-stroke one keeps its stroke. `scale` maps the user-space line
+/// width to page space (the CTM's `sqrt|det|`; a hairline stays 0).
+fn record_shape(
+    subs: &[ShapeSub],
+    stroke: bool,
+    fill: bool,
+    gs: &ShapeGs,
+    scale: f64,
+    shapes: &mut Shapes,
+) {
+    let kept: Vec<&ShapeSub> = subs.iter().filter(|s| s.kept()).collect();
+    if kept.is_empty() {
+        return;
+    }
+    let fill = fill && !gs.fill_pattern;
+    if gs.fill_pattern && !stroke {
+        return;
+    }
+    let strokes_visible = stroke && gs.stroke_alpha > 0.0;
+    let visible = strokes_visible || (fill && gs.fill_alpha > 0.0);
+    if strokes_visible {
+        for sub in &kept {
+            for &(a, z) in &sub.lines {
+                shape_line(a, z, &gs.clips, &mut shapes.lines);
+            }
+            if sub.closed {
+                shape_line(sub.cur, sub.start, &gs.clips, &mut shapes.lines);
+            }
+        }
+    }
+    if visible {
+        let pts: Vec<(f64, f64)> = kept.iter().flat_map(|s| s.pts.iter().copied()).collect();
+        if let Some((l, b, r, t)) = bbox_of(&pts) {
+            let pad = if strokes_visible {
+                (gs.line_width * scale).max(0.0) * 0.5
+            } else {
+                0.0
+            };
+            if let Some(bbox) = clipped([l - pad, b - pad, r + pad, t + pad], &gs.clips) {
+                shapes.boxes.push(bbox);
+            }
+        }
+    }
+}
+
+/// `get_connected_shape_bounding_boxes`: each box in turn (unless already
+/// taken) grows by every untaken box its growing union touches, until none
+/// does — docling-parse's greedy pass, so a component finished early keeps a
+/// box a later one would also have reached.
+fn connected_boxes(boxes: &[[f64; 4]]) -> Vec<[f64; 4]> {
+    let touches =
+        |a: [f64; 4], b: [f64; 4]| a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+    let mut taken = vec![false; boxes.len()];
+    let mut out = Vec::new();
+    for i in 0..boxes.len() {
+        if taken[i] {
+            continue;
+        }
+        taken[i] = true;
+        let mut component = boxes[i];
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for j in 0..boxes.len() {
+                if !taken[j] && touches(component, boxes[j]) {
+                    let b = boxes[j];
+                    component = [
+                        component[0].min(b[0]),
+                        component[1].min(b[1]),
+                        component[2].max(b[2]),
+                        component[3].max(b[3]),
+                    ];
+                    taken[j] = true;
+                    changed = true;
+                }
+            }
+        }
+        out.push(component);
+    }
+    out
 }
 
 /// One piece of a path under construction, page space (see `run_content`).
@@ -4379,6 +4792,74 @@ mod base14_fonts {
     /// text in colour over it, shifted up and left by a fraction of a point.
     /// pdfium's text page reads the heading once and so does the line cell
     /// here (docling-parse reads `Safety instructions Safety instructions`).
+    /// #1092: docling-parse's view of a page's shapes — a stroked straight
+    /// rule is a shape line and a shape box, a thin filled box only a box, a
+    /// curve or a diagonal no line, a path outside the clip nothing, and a
+    /// fill in an unresolved Pattern space nothing at all. In the cells'
+    /// frame: top-left, on the 595 × 842 test page.
+    #[test]
+    fn the_page_shapes_follow_docling_parse() {
+        let f1 = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>";
+        let shapes = |content: &[u8]| {
+            let pdf = pdf_with_content(f1, content);
+            super::PageTextParser::open(&pdf)
+                .expect("opens")
+                .cells(0)
+                .shapes
+        };
+        let s = shapes(b"2 w 72 400 m 540 400 l S\n");
+        assert_eq!(s.lines, vec![[72.0, 442.0, 540.0, 442.0]]);
+        // The stroke's half width pads the box.
+        assert_eq!(s.boxes, vec![[71.0, 441.0, 541.0, 443.0]]);
+
+        let s = shapes(b"72 300 468 1 re f\n");
+        assert!(s.lines.is_empty(), "a fill strokes no line");
+        assert_eq!(s.boxes, vec![[72.0, 541.0, 540.0, 542.0]]);
+
+        // A stroked rectangle: four edges, `h`'s closing one included.
+        let s = shapes(b"100 100 200 50 re S\n");
+        assert_eq!(s.lines.len(), 4);
+
+        let s = shapes(b"72 400 m 100 450 l 200 300 300 500 400 400 c S\n");
+        assert!(s.lines.is_empty(), "neither a diagonal nor a curve");
+        assert_eq!(s.boxes.len(), 1);
+
+        let s = shapes(b"q 0 0 300 842 re W n 72 400 m 540 400 l S 400 100 m 400 700 l S Q\n");
+        assert_eq!(s.lines, vec![[72.0, 442.0, 300.0, 442.0]], "cut to the clip");
+        assert_eq!(s.boxes.len(), 1, "the vertical rule is clipped away");
+
+        let s = shapes(b"/Pattern cs /P0 scn 72 300 468 1 re f\n");
+        assert!(s.lines.is_empty() && s.boxes.is_empty());
+
+        // Two touching boxes merge into one component.
+        let s = shapes(b"72 300 100 1 re f 172 300 100 1 re f 400 600 10 10 re f\n");
+        assert_eq!(s.boxes, vec![[72.0, 541.0, 272.0, 542.0], [400.0, 232.0, 410.0, 242.0]]);
+    }
+
+    /// A transparent stroke or fill is no shape (`CA` / `ca` 0).
+    #[test]
+    fn transparent_paths_are_no_shapes() {
+        let rule = |closed| super::ShapeSub {
+            start: (0.0, 0.0),
+            cur: (100.0, 0.0),
+            pts: vec![(0.0, 0.0), (100.0, 0.0)],
+            lines: vec![((0.0, 0.0), (100.0, 0.0))],
+            closed,
+        };
+        let gs = |stroke_alpha, fill_alpha| super::ShapeGs {
+            stroke_alpha,
+            fill_alpha,
+            ..super::ShapeGs::INIT
+        };
+        let mut shapes = super::Shapes::default();
+        super::record_shape(&[rule(false)], true, false, &gs(0.0, 1.0), 1.0, &mut shapes);
+        assert_eq!(shapes, super::Shapes::default());
+        super::record_shape(&[rule(true)], false, true, &gs(1.0, 0.0), 1.0, &mut shapes);
+        assert_eq!(shapes, super::Shapes::default());
+        super::record_shape(&[rule(false)], true, false, &gs(0.5, 0.0), 1.0, &mut shapes);
+        assert_eq!(shapes.lines.len(), 1);
+    }
+
     /// Text that really repeats sits an advance apart or more and stays: a
     /// word set twice, a doubled letter, the same words on the next line.
     #[test]

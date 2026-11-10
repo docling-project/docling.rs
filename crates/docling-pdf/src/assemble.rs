@@ -1227,6 +1227,7 @@ fn order_with_containers<T: Clone>(
     cids: &[usize],
     page_w: f32,
     page_h: f32,
+    separators: &[crate::reading_order::Separator],
     reg: impl Fn(&T) -> &Region,
 ) {
     let is_container = |r: &Region| matches!(r.label, "form" | "key_value_region");
@@ -1234,7 +1235,7 @@ fn order_with_containers<T: Clone>(
         .filter(|&i| is_container(reg(&items[i])))
         .collect();
     if containers.is_empty() {
-        order_regions(items, cids, page_w, page_h, reg);
+        order_regions(items, cids, page_w, page_h, separators, reg);
         return;
     }
     // Parent container per item (containers never nest in each other here —
@@ -1281,14 +1282,16 @@ fn order_with_containers<T: Clone>(
         top.push((i, r));
     }
     let top_cids: Vec<usize> = top.iter().map(|(i, _)| cids[*i]).collect();
-    order_regions(&mut top, &top_cids, page_w, page_h, |it| &it.1);
+    order_regions(&mut top, &top_cids, page_w, page_h, separators, |it| &it.1);
     let mut out: Vec<T> = Vec::with_capacity(items.len());
     for (i, _) in top {
         if is_container(reg(&items[i])) {
             let kid_idx: Vec<usize> = (0..items.len()).filter(|&k| parent[k] == Some(i)).collect();
             let mut kids: Vec<T> = kid_idx.iter().map(|&k| items[k].clone()).collect();
             let kid_cids: Vec<usize> = kid_idx.iter().map(|&k| cids[k]).collect();
-            order_regions(&mut kids, &kid_cids, page_w, page_h, &reg);
+            // A container's children are ordered without the page's
+            // separators, as upstream (`page_separators if parent_ref is None`).
+            order_regions(&mut kids, &kid_cids, page_w, page_h, &[], &reg);
             out.push(items[i].clone());
             out.extend(kids);
         } else {
@@ -1318,6 +1321,7 @@ fn order_regions<T: Clone>(
     cids: &[usize],
     page_w: f32,
     page_h: f32,
+    separators: &[crate::reading_order::Separator],
     reg: impl Fn(&T) -> &Region,
 ) {
     let boxes: Vec<(f32, f32, f32, f32)> = items
@@ -1339,7 +1343,7 @@ fn order_regions<T: Clone>(
         .iter()
         .map(|it| matches!(reg(it).label, "table" | "picture" | "code"))
         .collect();
-    let order = crate::reading_order::order_page(
+    let order = crate::reading_order::order_page_with_separators(
         &boxes,
         cids,
         &is_header,
@@ -1347,8 +1351,49 @@ fn order_regions<T: Clone>(
         &is_graphic,
         page_w,
         page_h,
+        separators,
     );
     *items = order.iter().map(|&i| items[i].clone()).collect();
+}
+
+/// The page's reading-order separators (docling#4276, #1092): its rules
+/// ([`PdfPage::shapes`]) against its top-level regions — docling's page
+/// elements, each structural when it holds text or is a graphic (a form or
+/// key-value container holds no text of its own upstream). Empty when
+/// `DOCLING_RS_PDF_ORDER_SEPARATORS` is off (docling's
+/// `use_reading_order_separators`, on by default).
+fn page_separators(page: &PdfPage, regions: &[Region]) -> Vec<crate::reading_order::Separator> {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let enabled = *ENABLED.get_or_init(|| {
+        docling_core::env::nonempty("DOCLING_RS_PDF_ORDER_SEPARATORS").is_none()
+            || docling_core::env::flag("DOCLING_RS_PDF_ORDER_SEPARATORS")
+    });
+    let shapes = &page.shapes;
+    if !enabled || (shapes.lines.is_empty() && shapes.boxes.is_empty()) {
+        return Vec::new();
+    }
+    let h = page.height;
+    let bl = |[l, t, r, b]: [f32; 4]| [l, h - b, r, h - t];
+    let texts = region_texts_exclusive(regions, &page.cells);
+    let elements: Vec<crate::reading_order::SeparatorContext> = regions
+        .iter()
+        .zip(&texts)
+        .map(|(r, text)| {
+            let graphic = matches!(r.label, "table" | "picture" | "code");
+            let container = matches!(r.label, "form" | "key_value_region");
+            crate::reading_order::SeparatorContext {
+                l: r.l,
+                b: h - r.b,
+                r: r.r,
+                t: h - r.t,
+                has_text: !graphic && !container && !text.trim().is_empty(),
+                graphic,
+            }
+        })
+        .collect();
+    let lines: Vec<[f32; 4]> = shapes.lines.iter().map(|&b| bl(b)).collect();
+    let boxes: Vec<[f32; 4]> = shapes.boxes.iter().map(|&b| bl(b)).collect();
+    crate::reading_order::build_separators(page.width, h, &elements, &lines, &boxes)
 }
 
 /// docling's assembly order of a page's clusters (`LayoutPostprocessor`'s
@@ -3572,7 +3617,15 @@ pub fn assemble_page(
             )
         })
         .collect();
-    order_with_containers(&mut items, &cids, page.width, page.height, |it| &it.0);
+    let separators = page_separators(page, &top_regions);
+    order_with_containers(
+        &mut items,
+        &cids,
+        page.width,
+        page.height,
+        &separators,
+        |it| &it.0,
+    );
     // Float a margin page number to the front of reading order (docling parity:
     // right_to_left_02's bottom `11` is its first item). Stable, so everything
     // else keeps its order; no-op on pages without such a region.
@@ -5219,6 +5272,7 @@ mod tests {
             code_cells: Vec::new(),
             checkboxes: Vec::new(),
             bitmaps: Vec::new(),
+            shapes: Default::default(),
             // "LinkedIn | GitHub | Credly" = 26 chars over x 100..360.
             word_cells: vec![cell(
                 "LinkedIn | GitHub | Credly",
@@ -6028,7 +6082,7 @@ mod tests {
             reg("text", 50.0, 450.0, 550.0, 470.0),  // 6 outro
         ];
         let cids = super::cluster_cids(&items, &[]);
-        super::order_with_containers(&mut items, &cids, 600.0, 800.0, |r| r);
+        super::order_with_containers(&mut items, &cids, 600.0, 800.0, &[], |r| r);
         let order: Vec<(&str, f32)> = items.iter().map(|r| (r.label, r.t)).collect();
         // The form block (container, then its children top-down) is one unit.
         let form_pos = order.iter().position(|(l, _)| *l == "form").unwrap();
@@ -6050,7 +6104,7 @@ mod tests {
             .cloned()
             .collect();
         let cids = super::cluster_cids(&flat, &[]);
-        super::order_regions(&mut flat, &cids, 600.0, 800.0, |r| r);
+        super::order_regions(&mut flat, &cids, 600.0, 800.0, &[], |r| r);
         assert_ne!(
             flat.iter().map(|r| r.t).collect::<Vec<_>>(),
             order
@@ -6188,7 +6242,7 @@ mod tests {
     fn ordered_texts(regions: &[Region], cells: &[TextCell]) -> Vec<String> {
         let mut items: Vec<Region> = regions.to_vec();
         let cids = super::cluster_cids(&items, cells);
-        super::order_regions(&mut items, &cids, 500.0, 700.0, |r| r);
+        super::order_regions(&mut items, &cids, 500.0, 700.0, &[], |r| r);
         super::region_texts_exclusive(&items, cells)
             .into_iter()
             .map(|t| t.chars().take(9).collect())

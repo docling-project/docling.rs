@@ -54,6 +54,12 @@ pub struct PdfPage {
     /// programmatic text (a scan with a typed-in value). Empty without a text
     /// layer (an OCR page is OCR'd whole anyway).
     pub bitmaps: Vec<[f32; 4]>,
+    /// The page's vector shapes (`[l, t, r, b]`, page points, the cells'
+    /// frame) for the reading-order separators (#1092): stroked axis-aligned
+    /// segments and the boxes of connected painted paths, docling-parse's
+    /// `get_shape_lines` / `get_connected_shape_bounding_boxes`. Empty
+    /// without a text layer.
+    pub shapes: crate::textparse::PageShapes,
     /// The rendered page bitmap. Present whenever pixels are available at all
     /// (`ocr-prep` ⊂ `ml`): the native pipeline renders it with pdfium, the
     /// browser pipeline receives it from the host canvas. Picture regions are
@@ -126,6 +132,7 @@ impl PdfPage {
             word_cells: Vec::new(),
             checkboxes: Vec::new(),
             bitmaps: Vec::new(),
+            shapes: Default::default(),
             #[cfg(feature = "ocr-prep")]
             image: RgbImage::new(0, 0),
             #[cfg(feature = "ocr-prep")]
@@ -1182,6 +1189,7 @@ fn extract_page(
     let (mut cells, mut code_cells, mut word_cells) = (rc.prose, rc.code, rc.words);
     let mut checkboxes = rc.checkboxes;
     let mut bitmaps = rc.bitmaps;
+    let mut shapes = rc.shapes;
     if rotation != 0 {
         for c in cells
             .iter_mut()
@@ -1195,7 +1203,11 @@ fn extract_page(
             let (l, t, r, b) = to_display_frame((c.l, c.t, c.r, c.b), rotation, unrot_w, unrot_h);
             (c.l, c.t, c.r, c.b) = (l, t, r, b);
         }
-        for [l, t, r, b] in &mut bitmaps {
+        for [l, t, r, b] in bitmaps
+            .iter_mut()
+            .chain(shapes.lines.iter_mut())
+            .chain(shapes.boxes.iter_mut())
+        {
             let d = to_display_frame((*l, *t, *r, *b), rotation, unrot_w, unrot_h);
             (*l, *t, *r, *b) = d;
         }
@@ -1381,6 +1393,7 @@ fn extract_page(
         word_cells,
         checkboxes,
         bitmaps,
+        shapes,
         image,
         links,
         rotation: 0,
