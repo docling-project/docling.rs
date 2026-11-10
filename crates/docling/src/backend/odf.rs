@@ -2169,6 +2169,7 @@ fn parse_table_as(table: XmlNode, styles: &Styles, styled_rich: bool) -> Option<
         cells: None,
         caption_parent: Default::default(),
         caption_location: None,
+        document_index: false,
     })
 }
 
@@ -2576,6 +2577,7 @@ pub(crate) fn emit_sheet_regions(
                 caption: None,
                 caption_parent: Default::default(),
                 caption_location: None,
+                document_index: false,
             }));
         }
     }

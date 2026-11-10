@@ -3928,6 +3928,7 @@ impl NodeBuilder {
             caption: None,
             caption_parent: Default::default(),
             caption_location: None,
+            document_index: false,
         }));
         self.last_ilfo = None;
         self.run_base = None;

@@ -3943,6 +3943,9 @@ pub fn assemble_page(
                         // As for pictures: the caption is the table's child.
                         caption_parent: CaptionParent::Item,
                         caption_location,
+                        // docling keeps a TOC region's label on the
+                        // `TableItem` (#1091); the Markdown is a table either way.
+                        document_index: region.label == "document_index",
                     }),
                 ));
             }
@@ -4019,7 +4022,18 @@ pub fn assemble_page(
                     }
                 }
             }
-            // text, caption, footnote → paragraph
+            // A caption no graphic claimed (a paired one is consumed with its
+            // picture/table/code above): docling keeps it in the body as a
+            // `caption` item (#1091), not `text` — the Markdown is the same
+            // line either way.
+            "caption" => nodes.push(located(
+                loc,
+                Node::Caption {
+                    text: md_escape(&text),
+                    href: None,
+                },
+            )),
+            // text, footnote → paragraph
             _ => {
                 // docling parity (`PageAssembleModel._match_hyperlink`): when
                 // link annotations cover ≥ half of the region's box, the
@@ -5385,6 +5399,51 @@ mod tests {
             r,
             b,
         }
+    }
+
+    /// #1091: docling keeps a TOC region's `document_index` label on its
+    /// `TableItem`, and a caption no graphic claims stays in the body as a
+    /// `caption` item (upstream's `redp5110_sampled.json` /
+    /// `2203.01017v2.json`), not `table` / `text`. The Markdown is unchanged.
+    #[test]
+    fn document_index_and_unpaired_caption_keep_their_labels() {
+        let cells = vec![
+            cell("Intro", 20.0, 20.0, 60.0, 28.0),
+            cell("1", 160.0, 20.0, 170.0, 28.0),
+            cell("Body text.", 20.0, 60.0, 100.0, 68.0),
+            cell(
+                "Figure 14: Example with multi-line text.",
+                20.0,
+                120.0,
+                180.0,
+                128.0,
+            ),
+        ];
+        let regions = vec![
+            region("document_index", 0.9, 18.0, 18.0, 182.0, 30.0),
+            region("text", 0.9, 18.0, 58.0, 102.0, 70.0),
+            region("caption", 0.9, 18.0, 118.0, 182.0, 130.0),
+        ];
+        let page = PdfPage::from_cells(200.0, 200.0, 2.0, cells);
+        let n = regions.len();
+        let (nodes, _) = super::assemble_page(&page, regions, &vec![None; n], &vec![None; n], None);
+        let mut doc = docling_core::DoclingDocument::new("t");
+        doc.nodes = nodes;
+        let json = doc.export_to_json_value();
+        assert_eq!(json["tables"][0]["label"], "document_index", "{json}");
+        let caption = json["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["text"] == "Figure 14: Example with multi-line text.")
+            .expect("the caption item");
+        assert_eq!(caption["label"], "caption", "{caption}");
+        assert_eq!(caption["parent"]["$ref"], "#/body", "{caption}");
+        let md = doc.export_to_markdown();
+        assert!(
+            md.ends_with("Body text.\n\nFigure 14: Example with multi-line text.\n"),
+            "{md}"
+        );
     }
 
     #[test]

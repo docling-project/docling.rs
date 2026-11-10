@@ -1267,6 +1267,7 @@ fn parse_table(table: XmlNode) -> Option<Table> {
         caption: None,
         caption_parent: Default::default(),
         caption_location: None,
+        document_index: false,
     })
 }
 

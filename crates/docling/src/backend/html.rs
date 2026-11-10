@@ -2639,6 +2639,7 @@ fn parse_table_cells(
         caption: None,
         caption_parent: Default::default(),
         caption_location: None,
+        document_index: false,
     })
 }
 

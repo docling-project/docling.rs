@@ -1230,6 +1230,7 @@ impl Parser<'_> {
                 caption: None,
                 caption_parent: Default::default(),
                 caption_location: None,
+                document_index: false,
             };
             let parent = self.current_parent();
             self.tree.add(

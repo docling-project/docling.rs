@@ -2820,7 +2820,9 @@ impl Builder {
             "parent": { "$ref": parent },
             "children": children,
             "content_layer": "body",
-            "label": "table",
+            // docling's `DocItemLabel.DOCUMENT_INDEX` for a table of
+            // contents (#1091), a plain `table` otherwise.
+            "label": if t.document_index { "document_index" } else { "table" },
             "prov": prov,
             "captions": captions,
             "references": [],
@@ -3429,6 +3431,7 @@ mod tests {
             caption: None,
             caption_parent: Default::default(),
             caption_location: None,
+            document_index: false,
         }));
         let v: Value = serde_json::from_str(&doc.export_to_json()).unwrap();
         let data = &v["tables"][0]["data"];
@@ -3868,6 +3871,7 @@ mod tests {
             caption: None,
             caption_parent: Default::default(),
             caption_location: None,
+            document_index: false,
         }));
 
         let v: Value = serde_json::from_str(&doc.export_to_json()).unwrap();

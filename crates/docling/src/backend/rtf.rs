@@ -852,6 +852,7 @@ impl<'a> Parser<'a> {
             caption: None,
             caption_parent: Default::default(),
             caption_location: None,
+            document_index: false,
         }));
         self.prev_was_list = false;
     }

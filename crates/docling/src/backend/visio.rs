@@ -340,6 +340,7 @@ fn render_page(
             caption: None,
             caption_parent: Default::default(),
             caption_location: None,
+            document_index: false,
         }));
     }
     true
@@ -678,6 +679,7 @@ mod tests {
                     caption: None,
                     caption_parent: Default::default(),
                     caption_location: None,
+                    document_index: false,
                 }),
             ]
         );

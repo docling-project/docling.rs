@@ -640,6 +640,7 @@ fn parse_otsl(toks: &[Tok], i: &mut usize, out: &mut Vec<Node>, budget: &mut Bud
         caption: None,
         caption_parent: Default::default(),
         caption_location: None,
+        document_index: false,
     }));
 }
 
