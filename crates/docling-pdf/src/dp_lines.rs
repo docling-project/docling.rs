@@ -1184,7 +1184,8 @@ fn page_draws_spaces(runs: &[Vec<RunCell>]) -> bool {
 
 /// Whether one of the page's space glyphs sits in a gap between two
 /// consecutive glyphs of `run` (its middle inside the gap along the run's
-/// writing direction, most of its height on the line). Such a line draws its
+/// writing direction, most of its height within the band of the two glyphs
+/// beside it). Such a line draws its
 /// word spaces, only not between its letters: LibreOffice sets an Arabic
 /// line's spaces first and then its letters in visual order, so the spaces
 /// fall to the run open before them and this run has none of its own.
@@ -1225,7 +1226,9 @@ fn spaces_drawn_apart(run: &[RunCell], spaces: &[(f64, &Cell)]) -> bool {
         let hi = v.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         (lo, hi)
     };
-    // The open gaps, as (trailing edge, leading edge, the left glyph's band).
+    // The open gaps, as (trailing edge, leading edge, the band of the two
+    // glyphs beside the gap: an Arabic mark's box can be shorter than the
+    // space after it).
     let mut gaps = Vec::new();
     let mut prev = first;
     for c in visible {
@@ -1233,7 +1236,8 @@ fn spaces_drawn_apart(run: &[RunCell], spaces: &[(f64, &Cell)]) -> bool {
         let tail = along(0.5 * (lhs.rx1 + lhs.rx2), 0.5 * (lhs.ry1 + lhs.ry2));
         let head = along(0.5 * (rhs.rx0 + rhs.rx3), 0.5 * (rhs.ry0 + rhs.ry3));
         if head > tail {
-            gaps.push((tail, head, across(lhs)));
+            let ((l0, l1), (r0, r1)) = (across(lhs), across(rhs));
+            gaps.push((tail, head, (l0.min(r0), l1.max(r1))));
         }
         prev = c;
     }
@@ -1833,6 +1837,83 @@ mod tests {
         let (lines, _) = line_and_word_cells_with(&page, 792.0, true, WordGap::Adaptive);
         let texts: Vec<&str> = lines.iter().map(|c| c.text.as_str()).collect();
         assert!(texts.contains(&"نشكرك على شراء"), "{texts:?}");
+    }
+
+    #[test]
+    fn a_lone_word_beside_another_line_s_space_keeps_its_kerning() {
+        // #921's one-word cell on a spaced page, with a space glyph of
+        // another line drawn near it but in none of its gaps: after the
+        // word's end on its own height, or under its kerning gap with half
+        // its height below the line. The word stays whole. The same glyph in
+        // the gap, on the line, makes the line one whose spaces were drawn
+        // apart, and its gap is inferred as docling-parse infers it.
+        let spaced = |y| {
+            set_line(
+                &[
+                    ("Die", 0.0),
+                    (" ", 0.0),
+                    ("Taxonomie", 0.0),
+                    (" ", 0.0),
+                    ("gilt", 0.0),
+                ],
+                y,
+            )
+        };
+        // `Offenlegungspf` ends at 135, `lichten` starts at 135.8.
+        let lone = || set_line(&[("Offenlegungspf", 0.0), ("lichten", 0.8)], 500.0);
+        let space = |l: f32, r: f32, y: f32| Glyph {
+            b: y,
+            t: y + 10.0,
+            lb: y - 2.0,
+            lt: y + 10.0,
+            ..glyph(' ', l, r)
+        };
+        let line_with = |stray: Glyph| {
+            let mut page = spaced(600.0);
+            page.extend(spaced(620.0));
+            page.push(stray);
+            page.extend(lone());
+            let (lines, _) = line_and_word_cells_with(&page, 792.0, true, WordGap::Adaptive);
+            lines
+                .into_iter()
+                .map(|c| c.text)
+                .find(|t| t.starts_with("Offen"))
+                .expect("the lone word's line")
+        };
+        assert_eq!(
+            line_with(space(154.0, 155.7, 500.0)),
+            "Offenlegungspflichten"
+        );
+        assert_eq!(
+            line_with(space(135.0, 135.8, 494.0)),
+            "Offenlegungspflichten"
+        );
+        assert_eq!(
+            line_with(space(135.0, 135.8, 500.0)),
+            "Offenlegungspf lichten"
+        );
+    }
+
+    #[test]
+    fn a_space_drawn_apart_is_judged_on_both_glyphs_beside_it() {
+        // A raised mark's box (104–110) is half the height of the space
+        // after it (98–110): on the mark's band alone the space was not on
+        // the line; with the letter after the gap it is.
+        let mark = Glyph {
+            lb: 104.0,
+            ..glyph('\u{064b}', 100.0, 103.0)
+        };
+        let cells = build_cells(
+            &[
+                mark,
+                glyph('\u{0644}', 105.0, 110.0),
+                glyph(' ', 103.2, 104.8),
+            ],
+            true,
+        );
+        let run: Vec<RunCell> = cells[..2].iter().map(RunCell::new).collect();
+        let spaces = [(0.5 * (cells[2].b_b + cells[2].b_t), &cells[2])];
+        assert!(spaces_drawn_apart(&run, &spaces));
     }
 
     #[test]
