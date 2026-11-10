@@ -3053,6 +3053,10 @@ fn batch_convert_one(
     };
     if bypasses_converter {
         redaction = converter.redact(&mut document).map_err(|e| e.to_string())?;
+        // The document-level settings `convert` ends with: without them a
+        // PDF or image here lost `--compact-tables`, `--picture-alt-text` and
+        // `--metadata`, which the single-file stdout path honours.
+        converter.finish_document(&mut document);
     }
     if let Some(report) = &redaction {
         eprintln!("{}: redacted: {}", item.label(), redaction_summary(report));

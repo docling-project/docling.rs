@@ -15,8 +15,8 @@ Before table
 | Simple cell upper left | Simple cell upper left | Simple cell upper left | Simple cell with bold and italic text | Simple cell with bold and italic text | Simple cell with bold and italic text |
 | A                      | B                      | C                      | Rich cell                             | Rich cell                             | Rich cell                             |
 | Cell 1                 | Cell 2                 | Cell 3                 | A nested table                        | A nested table                        | A nested table                        |
-|                        |                        |                        |                                       | B                                     | C                                     |
-|                        |                        |                        |                                       | Cell 2                                | Cell 3                                |
+|                        |                        | A                      |                                       | B                                     | C                                     |
+|                        |                        |                        |                                       | Cell 1 Cell 2                         | Cell 3                                |
 
 After table with bold, underline, strikethrough, and italic formatting
 
