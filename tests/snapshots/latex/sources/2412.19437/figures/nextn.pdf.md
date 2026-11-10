@@ -16,7 +16,9 @@ Transformer Block ×𝐿𝐿
 
 Transformer Block ×𝐿𝐿 Transformer Block ×𝐿𝐿
 
-Embedding Layer nput Tokens Cross-Entropy Loss MTP Module 1
+Embedding Layer
+
+nput Tokens Cross-Entropy Loss MTP Module 1
 
 (Next 2 Token Prediction)
 
@@ -28,7 +30,9 @@ Shared
 
 Transformer Block
 
-Linear Projection concatenation
+Linear Projection
+
+concatenation
 
 RMSNorm RMSNorm
 
@@ -40,7 +44,9 @@ Output Head
 
 Transformer Block
 
-Linear Projection concatenation
+Linear Projection
+
+concatenation
 
 RMSNorm RMSNorm
 

@@ -42,7 +42,9 @@ unit Standardized Images Encoder BBox Decoder Structure Decoder BBoxes
 
 ...
 
-Structure Tags in OTSL format BBoxes in sync with tag sequence
+Structure Tags
+
+in OTSL format BBoxes in sync with tag sequence
 
 1
 
@@ -68,7 +70,13 @@ NL
 
 C C C NL
 
-BBoxes can be traced back to the original image to extract content
+BBoxes can be
+
+traced back to the
+
+original image to
+
+extract content
 
 1
 

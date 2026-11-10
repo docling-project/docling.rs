@@ -237,7 +237,15 @@ The llncs document class contains several class options that have become obsolet
 
 - The llncs document class changes the formatting of vectors coded with orivec \vec to boldface italics. If you absolutely need the original LATEX design for vectors, i.e. an arrow above the related variable, you can restore it with the orivec option.
 
-envcountsame envcountreset envcountsect openbib oribibl
+envcountsame
+
+envcountreset
+
+envcountsect
+
+openbib
+
+oribibl
 
 - All theorem-like environments share one counter, i.e. Theorem 1, Lemma 2, Corollary 3, etc.
 - All theorem-like environments are numbered per section, i.e. the related counters are reset to 1 in every section.

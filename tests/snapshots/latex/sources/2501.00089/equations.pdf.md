@@ -1,4 +1,6 @@
-Z gas log(NII/H𝛂)
+Z gas
+
+log(NII/H𝛂)
 
 = 8.72
 

@@ -142,9 +142,15 @@ C C C C C C C C C C C C C C NL
 
 C C C C C C C C C C C C C C NL
 
-HTML model shows bounding box drifting
+HTML model shows
 
-OTSL model shows clean bounding box alignment
+bounding box drifting
+
+OTSL model shows
+
+clean bounding box
+
+alignment
 
 E
 

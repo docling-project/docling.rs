@@ -64,7 +64,9 @@ Input Hidden
 
 Cached During Inference
 
-Multi-Head Attention 𝐤𝐤𝑡𝑡𝑅𝑅
+Multi-Head Attention
+
+𝐤𝐤𝑡𝑡𝑅𝑅
 
 concatenate
 

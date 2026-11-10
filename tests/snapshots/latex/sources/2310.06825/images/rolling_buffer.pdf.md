@@ -26,10 +26,24 @@ IS
 
 This
 
-Mistral the cat a sat IS
+Mistral
+
+the cat
+
+a
+
+sat IS
 
 an
 
 IS
 
-example of on Mistral the mat a sat example good on on
+example of
+
+on Mistral the mat
+
+a
+
+sat example good on
+
+on

@@ -1,6 +1,8 @@
 A
 
-Repeating pattern of horizontally merged cells
+Repeating pattern of
+
+horizontally merged cells
 
 <!-- image -->
 
