@@ -2625,7 +2625,14 @@ These are deliberate or unavoidable divergences, not bugs.
     became `Offenlegungspf lichten`, in docling-parse 7.24.1 too. Producers
     are consistent about spaces, so when at least half of a page's lines of
     eight glyphs or more carry one, every line on it keeps the floor (no
-    groundtruth file changes). On such a page a fixed `F` reads like
+    groundtruth file changes). Not a line whose spaces the page draws
+    apart from its letters: LibreOffice sets an Arabic line's spaces first
+    and then its letters in visual order, so the spaces fall to the run
+    before and the line has none of its own. A space glyph sitting in one
+    of the line's gaps tells it from a one-word line, and its gap is
+    inferred as docling-parse infers it — under the floor its word gaps
+    of a third of an advance stayed glued (`علىشراء`). On such a page a
+    fixed `F` reads like
     `adaptive` (0.35 on every line, so the 63 extra EUR-Lex cuts #921's
     reporter saw at 0.10 are gone); `F` applies as given on pages that
     draw no spaces. **Extension: `pdf_keep_typography`.** docling-parse's

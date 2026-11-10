@@ -1182,6 +1182,70 @@ fn page_draws_spaces(runs: &[Vec<RunCell>]) -> bool {
     lines > 0 && 2 * spaced >= lines
 }
 
+/// Whether one of the page's space glyphs sits in a gap between two
+/// consecutive glyphs of `run` (its middle inside the gap along the run's
+/// writing direction, most of its height on the line). Such a line draws its
+/// word spaces, only not between its letters: LibreOffice sets an Arabic
+/// line's spaces first and then its letters in visual order, so the spaces
+/// fall to the run open before them and this run has none of its own.
+/// `spaces` are the page's space cells by the middle of their height.
+fn spaces_drawn_apart(run: &[RunCell], spaces: &[(f64, &Cell)]) -> bool {
+    let mut visible = run.iter().filter(|c| !c.space);
+    let Some(first) = visible.next() else {
+        return false;
+    };
+    // The spaces inside the run's extent; most runs have none.
+    let (mut l, mut r, mut b, mut t) = bounds(first.cell);
+    for c in visible.clone() {
+        let (cl, cr, cb, ct) = bounds(c.cell);
+        (l, r, b, t) = (l.min(cl), r.max(cr), b.min(cb), t.max(ct));
+    }
+    let (lo, hi) = (
+        spaces.partition_point(|&(y, _)| y < b),
+        spaces.partition_point(|&(y, _)| y <= t),
+    );
+    let inside: Vec<&Cell> = spaces[lo..hi]
+        .iter()
+        .map(|&(_, c)| c)
+        .filter(|c| (l..=r).contains(&(0.5 * (c.b_l + c.b_r))))
+        .collect();
+    if inside.is_empty() {
+        return false;
+    }
+    let (ux, uy) = (first.ux, first.uy);
+    let along = |x: f64, y: f64| x * ux + y * uy;
+    let across = |c: &Cell| {
+        let v = [
+            c.rx0 * -uy + c.ry0 * ux,
+            c.rx1 * -uy + c.ry1 * ux,
+            c.rx2 * -uy + c.ry2 * ux,
+            c.rx3 * -uy + c.ry3 * ux,
+        ];
+        let lo = v.iter().copied().fold(f64::INFINITY, f64::min);
+        let hi = v.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        (lo, hi)
+    };
+    // The open gaps, as (trailing edge, leading edge, the left glyph's band).
+    let mut gaps = Vec::new();
+    let mut prev = first;
+    for c in visible {
+        let (lhs, rhs) = (prev.cell, c.cell);
+        let tail = along(0.5 * (lhs.rx1 + lhs.rx2), 0.5 * (lhs.ry1 + lhs.ry2));
+        let head = along(0.5 * (rhs.rx0 + rhs.rx3), 0.5 * (rhs.ry0 + rhs.ry3));
+        if head > tail {
+            gaps.push((tail, head, across(lhs)));
+        }
+        prev = c;
+    }
+    inside.iter().any(|c| {
+        let mid = along(0.5 * (c.rx0 + c.rx2), 0.5 * (c.ry0 + c.ry2));
+        let (s0, s1) = across(c);
+        gaps.iter().any(|&(tail, head, (b0, b1))| {
+            tail <= mid && mid <= head && s1.min(b1) - s0.max(b0) > 0.5 * (s1 - s0)
+        })
+    })
+}
+
 /// docling-parse ≥ 7's contraction (`cells.h::contract`) over our char
 /// cells, with the word threshold `gap` picks: the line runs, their words,
 /// and the lines as the words joined by single spaces.
@@ -1210,14 +1274,28 @@ fn contract_runs(cells: &[Cell], gap: WordGap, page_h: f32) -> (Vec<TextCell>, V
 
     let (mut words_out, mut lines_out) = (Vec::new(), Vec::new());
     let page_spaced = page_draws_spaces(&runs);
+    let mut spaces: Vec<(f64, &Cell)> = Vec::new();
+    if page_spaced {
+        spaces.extend(
+            runs.iter()
+                .flatten()
+                .filter(|c| c.space)
+                .map(|c| (0.5 * (c.cell.b_b + c.cell.b_t), c.cell)),
+        );
+        spaces.sort_by(|a, b| a.0.total_cmp(&b.0));
+    }
     for run in &runs {
         // A line on a page whose producer draws its word spaces as glyphs is
         // judged like a line that draws them (below), even when it has none
         // of its own: a lone word in a table cell or a heading carries no
         // space glyph, and its only open gap is kerning — EUR-Lex's
         // `Offenlegungspf|lichten` at 0.22–0.25, cut by the line-local
-        // threshold of 0.18 (docling-parse 7 cuts it too; #921).
-        let has_spaces = page_spaced || run.iter().any(|c| c.space);
+        // threshold of 0.18 (docling-parse 7 cuts it too; #921). Not a line
+        // whose spaces were drawn apart from its letters: it is no lone word,
+        // and like docling-parse we infer its gap — under the cap its word
+        // gaps of a third of an advance stayed glued (`علىشراء`).
+        let has_spaces =
+            run.iter().any(|c| c.space) || (page_spaced && !spaces_drawn_apart(run, &spaces));
         let tracked = tracked_gaps(run);
         // A line that draws its word spaces as glyphs marks its boundaries
         // itself; docling-parse 7 splits an unmarked gap there only above
@@ -1723,6 +1801,38 @@ mod tests {
         };
         assert!(texts(&page).contains(&"Offenlegungspflichten".to_string()));
         assert_eq!(texts(&lone()), ["Offenlegungspf lichten"]);
+    }
+
+    #[test]
+    fn a_line_whose_spaces_are_drawn_before_its_letters_infers_its_gap() {
+        // LibreOffice's Arabic: the line's space glyphs first, then its
+        // letters in visual order, the words 1.7 pt apart (0.34 advances).
+        // The spaces fall to the run before, so the Arabic run has none of
+        // its own; judged as a lone word on a spaced page, the 0.35 cap
+        // glued every word, where docling-parse infers the line's gap.
+        let mut page = set_line(&[("The", 0.0), (" ", 0.0), ("manual", 0.0)], 600.0);
+        page.extend(set_line(
+            &[("For", 0.0), (" ", 0.0), ("safety", 0.0)],
+            620.0,
+        ));
+        let words = ["نشكرك", "على", "شراء"];
+        let (mut spaces, mut letters) = (Vec::new(), Vec::new());
+        let mut x = 100.0f32;
+        for (k, word) in words.iter().rev().enumerate() {
+            if k > 0 {
+                spaces.push(glyph(' ', x, x + 1.7));
+                x += 1.7;
+            }
+            for ch in word.chars().rev() {
+                letters.push(glyph(ch, x, x + 5.0));
+                x += 5.0;
+            }
+        }
+        page.extend(spaces);
+        page.extend(letters);
+        let (lines, _) = line_and_word_cells_with(&page, 792.0, true, WordGap::Adaptive);
+        let texts: Vec<&str> = lines.iter().map(|c| c.text.as_str()).collect();
+        assert!(texts.contains(&"نشكرك على شراء"), "{texts:?}");
     }
 
     #[test]
