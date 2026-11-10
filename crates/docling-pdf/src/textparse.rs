@@ -1980,6 +1980,10 @@ fn drop_shadow_runs(glyphs: &mut Vec<Glyph>) {
     glyphs.retain(|_| it.next().unwrap_or(true));
 }
 
+/// How many marked-content spans may be open for one's `/ActualText` to be
+/// read (see [`apply_actual_text`]); real documents nest a few.
+const MAX_ACTUAL_TEXT_DEPTH: usize = 64;
+
 /// Put a marked-content span's `/ActualText` in place of the glyphs drawn
 /// inside it, as docling-parse does since 7.9 (`apply_actual_text`,
 /// docling-parse#300, on by default; PDF 32000-1 §14.9.4). A writer draws a
@@ -1998,6 +2002,11 @@ fn drop_shadow_runs(glyphs: &mut Vec<Glyph>) {
 /// apply innermost first, so the outer text wins. docling-parse has a cell per
 /// character code; a code whose `/ToUnicode` spells several characters is
 /// several glyphs here, all on the code's pen, and counts as one cell.
+///
+/// Each `EMC` rewrites the glyphs under its span, so a crafted nest of spans
+/// over the same glyphs would cost glyphs × depth: past
+/// [`MAX_ACTUAL_TEXT_DEPTH`] open spans, a span still pairs with its `EMC` but
+/// its `/ActualText` is not read.
 fn apply_actual_text(out: &mut Vec<Glyph>, begin: usize, text: &str) {
     let begin = begin.min(out.len());
     let mut cells: Vec<std::ops::Range<usize>> = Vec::new();
@@ -2021,10 +2030,15 @@ fn apply_actual_text(out: &mut Vec<Glyph>, begin: usize, text: &str) {
         return;
     }
     if chars.len() == cells.len() {
-        for (cell, &ch) in cells.iter().zip(&chars).rev() {
-            out[cell.start].ch = ch;
-            out.drain(cell.start + 1..cell.end);
+        // Each cell's first glyph takes its character, the rest of the cell
+        // goes: one pass, writing behind the cells read.
+        for (w, (cell, &ch)) in cells.iter().zip(&chars).enumerate() {
+            out[begin + w] = Glyph {
+                ch,
+                ..out[cell.start]
+            };
         }
+        out.truncate(begin + cells.len());
         return;
     }
     // The leading edge (quad corners 0 and 3) stays the first cell's; the
@@ -2213,6 +2227,7 @@ fn run_content(
             "BDC" => {
                 let actual = operands
                     .get(1)
+                    .filter(|_| marked.len() < MAX_ACTUAL_TEXT_DEPTH)
                     .and_then(|o| o.as_dict().ok())
                     .and_then(|d| d.get(b"ActualText").ok())
                     .and_then(|o| match o {
@@ -4435,8 +4450,11 @@ mod base14_fonts {
             /Widths[0]/Encoding/WinAnsiEncoding/FontDescriptor<</Type/FontDescriptor\
             /FontName/SynthCaron/Flags 32/FontBBox[-540 -200 0 800]/ItalicAngle 0/Ascent 800\
             /Descent -200/CapHeight 700/StemV 80>>>>";
+        // Code 1 is the `fi` ligature: two glyphs on one pen, one cell.
+        let ligature = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica\
+            /Encoding<</Type/Encoding/BaseEncoding/WinAnsiEncoding/Differences[1/fi]>>>>";
         let text = |content: &str| {
-            let pdf = pdf_with_fonts(&[helvetica, caron], content.as_bytes());
+            let pdf = pdf_with_fonts(&[helvetica, caron, ligature], content.as_bytes());
             super::PageTextParser::open(&pdf)
                 .expect("opens")
                 .cells(0)
@@ -4462,6 +4480,15 @@ mod base14_fonts {
         assert_eq!(
             text("BT /F1 24 Tf 40 50 Td /Span <</ActualText (ab)>> BDC (xy) Tj EMC (z) Tj ET"),
             "abz"
+        );
+        // A cell of two glyphs takes one character.
+        assert_eq!(text("BT /F3 24 Tf 40 50 Td <01> Tj /F1 24 Tf (a) Tj ET"), "fia");
+        assert_eq!(
+            text(
+                "BT /F3 24 Tf 40 50 Td /Span <</ActualText (XY)>> BDC <01> Tj \
+                  /F1 24 Tf (a) Tj EMC (z) Tj ET"
+            ),
+            "XYz"
         );
         // An empty text declares the glyphs not text (a visual line-break
         // hyphen); its advance may still read as a gap.
@@ -4500,6 +4527,47 @@ mod base14_fonts {
             ),
             "AB"
         );
+        // A span nested past the depth limit keeps its glyphs.
+        let nested = |depth: usize| {
+            text(&format!(
+                "BT /F1 24 Tf 40 50 Td {}/Span <</ActualText (z)>> BDC (a) Tj EMC{} ET",
+                "/X BMC ".repeat(depth),
+                " EMC".repeat(depth)
+            ))
+        };
+        assert_eq!(nested(super::MAX_ACTUAL_TEXT_DEPTH - 1), "z");
+        assert_eq!(nested(super::MAX_ACTUAL_TEXT_DEPTH), "a");
+    }
+
+    /// One for one, each character keeps its cell's box, and a cell of
+    /// several glyphs on one pen (a ligature's) becomes its first glyph.
+    #[test]
+    fn actual_text_one_for_one_keeps_each_cells_box() {
+        let glyph = |ch, x: f32, pen: f32| super::Glyph {
+            ch,
+            l: x,
+            b: 0.0,
+            r: x + 5.0,
+            t: 10.0,
+            ll: x,
+            lb: -2.0,
+            lr: x + 5.0,
+            lt: 10.0,
+            font: 0,
+            quad: None,
+            pen: Some([pen, 0.0, 10.0]),
+            math_font: false,
+            invisible: false,
+        };
+        let mut out = vec![
+            glyph('o', 0.0, 0.0),
+            glyph('f', 10.0, 10.0),
+            glyph('i', 15.0, 10.0),
+            glyph('a', 20.0, 20.0),
+        ];
+        super::apply_actual_text(&mut out, 1, "XY");
+        let got: Vec<(char, f32)> = out.iter().map(|g| (g.ch, g.l)).collect();
+        assert_eq!(got, [('o', 0.0), ('X', 10.0), ('Y', 20.0)]);
     }
 
     /// The identity follows docling-parse's precedence: a `/FontDescriptor/FontName`
