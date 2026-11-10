@@ -1849,6 +1849,7 @@ fn page_glyphs_and_inks(
         );
         out.retain(|g| on_page(g, pb.w, pb.h));
         drop_overprinted_spaces(&mut out);
+        drop_shadow_runs(&mut out);
         let (w, h) = (f64::from(pb.w), f64::from(pb.h));
         inks.retain(|ink| match *ink {
             crate::checkbox::Ink::Bitmap { l, b, r, t } => {
@@ -1862,6 +1863,121 @@ fn page_glyphs_and_inks(
         });
     }
     (out, inks, bitmaps)
+}
+
+/// Drop a run of glyphs painted again over itself — a text shadow. A word
+/// processor exports a heading with a shadow effect as the same run drawn
+/// twice: the shadow, then the text over it, shifted by a fraction of a point
+/// (0.5–0.8 pt up and left, black under red, in the manuals that showed it).
+/// docling-parse keeps both copies and reads `Safety instructions Safety
+/// instructions`; pdfium's text page, behind docling's pypdfium2 backend,
+/// drops the second, and the page shows the heading once. A deliberate
+/// divergence (`docs/MIGRATION.md` §4 item 25): a glyph that repeats an
+/// earlier one — same character, font and size, its pen shifted from the
+/// earlier pen by at most 0.15 em on each axis, and by less than the earlier
+/// glyph's step to its own successor — starts a copy when the glyphs after it
+/// repeat the earlier one's successors by the same offset and size, and the
+/// whole stretch that keeps the offset is dropped. Two glyphs at least: a lone
+/// mark stamped twice is left alone, and so is the per-glyph re-stamp the
+/// sanitizer already folds (`dp_lines`, the overprint duplicate). Text that
+/// really repeats sits an advance apart or more — a doubled letter (`ll`,
+/// 0.22 em in Helvetica), a word set twice (`very very`), the same text on
+/// the next line or in the next table cell — and is kept, and so is a run of
+/// one character set tighter than a shadow's shift (dot leaders squeezed by
+/// `Tc`): its glyph two on is farther than the next one. A line stamped two
+/// or three times at a small offset to fake bold reads once the same way. The
+/// original must start within the 1024 glyphs before its copy, so a shadowed
+/// block longer than that is not caught; a shadowed heading is drawn right
+/// after itself. A rotated run, whose pen positions are not compared here, is
+/// left alone.
+fn drop_shadow_runs(glyphs: &mut Vec<Glyph>) {
+    // How far back a copy's original may start.
+    const LOOKBACK: usize = 1024;
+    // The largest shift of a copy, per axis, in ems of the glyph's size.
+    const NEAR_EM: f32 = 0.15;
+    // How much the shift and the size may vary along a copy, in ems.
+    const SAME_EM: f32 = 0.01;
+    let pen = |g: &Glyph| if g.quad.is_none() { g.pen } else { None };
+    let n = glyphs.len();
+    let mut keep = vec![true; n];
+    // The glyphs a copy may start on, by character and font, in stream
+    // order: kept (not part of a copy), upright, sized and not whitespace. A
+    // copy repeats both, so a glyph walks only its own list back through the
+    // window; scanning the whole window nearly doubled a `--text-layer-only`
+    // read of pages without a shadow.
+    let mut earlier: HashMap<(char, u64), Vec<usize>> = HashMap::new();
+    let mut j = 0;
+    while j < n {
+        let b = &glyphs[j];
+        let start = pen(b).filter(|p| p[2] > 0.0 && !b.ch.is_whitespace());
+        let mut copy = 0;
+        if let Some([xj, yj, sj]) = start {
+            let lo = j.saturating_sub(LOOKBACK);
+            let candidates = earlier.entry((b.ch, b.font)).or_default();
+            for &i in candidates.iter().rev().take_while(|&&i| i >= lo) {
+                let Some([xi, yi, si]) = pen(&glyphs[i]) else {
+                    continue;
+                };
+                if (si - sj).abs() > SAME_EM * sj {
+                    continue;
+                }
+                let (dx, dy) = (xj - xi, yj - yi);
+                if dx.abs() > NEAR_EM * sj || dy.abs() > NEAR_EM * sj {
+                    continue;
+                }
+                // A shadow is shifted: the characters one glyph expands to
+                // (a code-like name read as `SM590000`, a decomposed
+                // ligature) share the glyph's pen and are not a copy.
+                if dx.abs() + dy.abs() <= SAME_EM * sj {
+                    continue;
+                }
+                // And it lies over its original, nearer to it than the
+                // original's next glyph is: one character set tighter than
+                // half the largest shift (dot leaders squeezed by `Tc`) meets
+                // its own successors at one offset two glyphs on.
+                if let Some([xn, yn, _]) = glyphs.get(i + 1).and_then(pen) {
+                    let step = (xn - xi).abs().max((yn - yi).abs());
+                    if step > SAME_EM * sj && dx.abs().max(dy.abs()) >= step {
+                        continue;
+                    }
+                }
+                // The copy goes on while each next glyph repeats the
+                // original's next one by the same shift; the original
+                // ends before the copy starts.
+                let mut m = 1;
+                while j + m < n && i + m < j {
+                    let (a, b) = (&glyphs[i + m], &glyphs[j + m]);
+                    let (Some([xa, ya, sa]), Some([xb, yb, sb])) = (pen(a), pen(b)) else {
+                        break;
+                    };
+                    if a.ch != b.ch
+                        || a.font != b.font
+                        || (sa - sb).abs() > SAME_EM * sj
+                        || ((xb - xa) - dx).abs() > SAME_EM * sj
+                        || ((yb - ya) - dy).abs() > SAME_EM * sj
+                    {
+                        break;
+                    }
+                    m += 1;
+                }
+                if m >= 2 {
+                    copy = m;
+                    break;
+                }
+            }
+            if copy == 0 {
+                candidates.push(j);
+            }
+        }
+        if copy > 0 {
+            keep[j..j + copy].iter_mut().for_each(|k| *k = false);
+            j += copy;
+        } else {
+            j += 1;
+        }
+    }
+    let mut it = keep.into_iter();
+    glyphs.retain(|_| it.next().unwrap_or(true));
 }
 
 /// Drop a space glyph the next glyph is drawn over (#992). A typesetter
@@ -4134,6 +4250,71 @@ mod base14_fonts {
             lines(b"BT 0 1 -1 0 300 100 Tm /F1 12 Tf (Nullam mollis) Tj ET\n"),
             ["Nullam mollis"]
         );
+    }
+
+    /// A text shadow: a word processor exports a heading with a shadow
+    /// effect as the same run drawn twice — the shadow in black, then the
+    /// text in colour over it, shifted up and left by a fraction of a point.
+    /// pdfium's text page reads the heading once and so does the line cell
+    /// here (docling-parse reads `Safety instructions Safety instructions`).
+    /// Text that really repeats sits an advance apart or more and stays: a
+    /// word set twice, a doubled letter, the same words on the next line.
+    #[test]
+    fn a_run_drawn_again_over_itself_is_read_once() {
+        let f1 = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold/Encoding/WinAnsiEncoding>>";
+        let lines = |content: &[u8]| {
+            let pdf = pdf_with_content(f1, content);
+            super::PageTextParser::open(&pdf)
+                .expect("opens")
+                .cells(0)
+                .prose
+                .into_iter()
+                .map(|c| c.text)
+                .collect::<Vec<_>>()
+        };
+        // The shadow, then the text 0.5 pt up and left of it, at 18 pt.
+        assert_eq!(
+            lines(
+                b"BT 0 g /F1 18 Tf 1 0 0 1 72 720 Tm (Safety instructions) Tj ET\n\
+                  BT 0.8 0 0 rg /F1 18 Tf 1 0 0 1 71.5 720.5 Tm (Safety instructions) Tj ET\n"
+            ),
+            ["Safety instructions"]
+        );
+        // 0.8 pt at 14 pt, and the line under it untouched.
+        assert_eq!(
+            lines(
+                b"BT /F1 14 Tf 1 0 0 1 72 656 Tm (Maintenance) Tj ET\n\
+                  BT /F1 14 Tf 1 0 0 1 71.2 656.8 Tm (Maintenance) Tj ET\n\
+                  BT /F1 11 Tf 1 0 0 1 72 632 Tm (Clean the filter) Tj ET\n"
+            ),
+            ["Maintenance", "Clean the filter"]
+        );
+        // A word set twice, a doubled letter, the same words a line apart.
+        assert_eq!(
+            lines(b"BT /F1 12 Tf 72 700 Td (very very small) Tj ET\n"),
+            ["very very small"]
+        );
+        assert_eq!(
+            lines(b"BT /F1 12 Tf 72 700 Td (Hello, all) Tj ET\n"),
+            ["Hello, all"]
+        );
+        assert_eq!(
+            lines(b"BT /F1 12 Tf 72 700 Td (Total) Tj 0 -14 Td (Total) Tj ET\n"),
+            ["Total", "Total"]
+        );
+        // Dot leaders squeezed by `Tc` to 0.05, 0.07 and 0.1 em: two dots on,
+        // a dot sits within a shadow's shift and the dots after it repeat by
+        // the same offset, but the next dot is nearer still.
+        for tc in ["-2.28", "-2.08", "-1.78"] {
+            let content = format!(
+                "BT /F1 10 Tf 72 700 Td (Contents) Tj {tc} Tc (..........) Tj 0 Tc ( 5) Tj ET\n"
+            );
+            assert_eq!(
+                lines(content.as_bytes()),
+                ["Contents.......... 5"],
+                "Tc {tc}"
+            );
+        }
     }
 
     /// The identity follows docling-parse's precedence: a `/FontDescriptor/FontName`

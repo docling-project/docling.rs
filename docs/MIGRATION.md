@@ -2713,6 +2713,29 @@ These are deliberate or unavoidable divergences, not bugs.
     docling's 0.5 pt; and the stage runs on the PDF pipeline only, not on
     `text_layer_only` conversions. Off by default, so nothing changes
     unless it is asked for.
+
+25. **A text shadow reads once** (a divergence from docling-parse 7.24.2 on
+    purpose). A word processor exports a heading with a shadow effect as the
+    same run drawn twice — the shadow, then the text over it, shifted by a
+    fraction of a point (0.5–0.8 pt up and left, black under the coloured
+    text, in the equipment manuals that showed it). docling-parse keeps both
+    copies, so docling with its default backend reads `## Safety
+    instructions Safety instructions`; with its pypdfium2 backend it reads
+    `## Safety instructions`, because pdfium's text page drops the second
+    copy, and that is what the page shows. `textparse::drop_shadow_runs`
+    drops a stretch of at least two glyphs that repeats a stretch drawn
+    before it on the page — same characters, font and size — shifted by one
+    offset, of at most 0.15 em on each axis, not zero, and shorter than the
+    step from the first stretch's glyph to its successor. The rule is
+    narrow: text that really repeats sits an advance apart or more (a
+    doubled letter, a word set twice, the same text on the next line or in
+    the next table cell); a run of one character set tighter than the
+    offset (dot leaders squeezed by `Tc`) steps less than it shifts; the
+    characters one glyph expands to share its pen and are not a copy; and
+    the per-glyph re-stamp the sanitizer already folds is untouched. On the
+    corpus: the text layer of every PDF is byte-identical
+    (`--text-layer-only --to json`), so the PDF groundtruth and the
+    snapshots are unchanged too.
 ---
 
 ## 5. Not migrated / out of scope
