@@ -33,7 +33,7 @@ older, pypdfium2-era docling's and the pipeline was scored with OCR on.
 
 ## Current state
 
-**8 / 18 strict** against upstream's current groundtruth — total **242 
+**8 / 18 strict** against upstream's current groundtruth — total **202
 diff lines** (`scripts/conformance/pdf_groundtruth.sh`: `--skip-ocr
 --compact-tables`, docling-parse renderer). The groundtruth was refreshed
 for #921 from docling's `tests/data/pdf/groundtruth` at upstream `dc4693f`
@@ -88,8 +88,8 @@ it converts their text.
 | 2206.01062 | 24 | `mAP@ 0.5-0.95` (docling-parse 7 splits after `@`, we before it), `tildelow10%` (its glyph-name mapping; we read `~10%`); words docling-parse 7 glues and we split (`RELATEDWORK`, `ANNOTATIONCAMPAIGN`, `LoganMarkewich`, `→Document` — the #921 clustering clip) |
 | multi_page | 32 | docling-parse 7 maps the list bullet glyph to `∞` and docling keeps it as text (`- ∞ IBM MT/ST …`); we read a bullet and drop it as the marker |
 | redp5110_sampled | 30 | monospace code docling-parse 7 spaces around punctuation (`EMPLOYEES .`, `( SESSION_USER , 'MGR' )`); a list bullet docling-parse reads as its CID (`r`), we as `�` (the TOC's dot leaders in the page column, 119 → 33, read since docling-ibm-models#185's orphan fallbacks; 33 → 30 since a list runs on past the figure that interrupted it) |
+| table_mislabeled_as_picture | 38 | the survey over-detected as tables; blank cells docling keeps (its checkbox glyphs read as docling's since the `/ActualText` spans they sit in apply, 78 → 38) |
 | table_misidentified_as_form | 46 | the form container's nested table / picture (docling#4064): docling nests them inside the form region and keeps the heading, we flatten the region |
-| table_mislabeled_as_picture | 78 | the survey over-detected as tables; checkbox glyphs (`☐`) and blank cells docling keeps |
 
 Earlier refreshes, for the record: against the docling ≥ 2.123
 groundtruth (docling-parse ≤ 6) this tree went 374 → 346 (#609) → 342
@@ -339,6 +339,7 @@ diff history of each port lives in the git log of these files).
 | docling-parse's page-box filter (#529) | a glyph is kept only when its whole char box (advance × the font's ascent / descent) lies inside the display box — the CropBox, else the MediaBox — edges included: a FrameMaker print slug beside the CropBox or a tiled page's neighbouring text beyond the MediaBox never becomes a cell (it used to be clamped onto the page edge, often to zero width), and a line crossing the edge is cut at the last glyph that fits, as docling-parse cuts it; no corpus page changes | `textparse::on_page` |
 | docling-parse's char rect (`page_cell.h`, #528) | a glyph drawn with a non-upright text matrix — the `0 s -s 0 tx ty Tm` runs landscape `/Rotate 90` pages are built from, 180°/270°, or tilted — keeps its rotated quad, so the corner-distance contraction reads the line in its own reading order and the cell box is the quad's extent (before: zero-width boxes, every such run dropped; 180° read backwards). Upright glyphs keep the plain loose rectangle, so upright output is byte-identical. redp5110's 90° column headers (`*JOBCTL`, `QIBM_DB_SECADM`, …) now reach TableFormer and the table matches the groundtruth cell for cell (180 → 152 diff lines); the ODF-exported presentations — landscape slides drawn onto a portrait page through a 90° `cm` — get their text layer instead of OCR | `textparse::show_text`, `dp_lines::build_cells` |
 | docling-parse `create_word_cells`, the TeX math encodings, the quote-normalization table | word cells are docling-parse's second contraction over the char cells (space glyphs as barriers, erased after); `CMSY*`/`CMMI*` without an `/Encoding` decode by the TeXbook tables; every curly quote → `'` | `dp_lines.rs`, `textparse.rs` |
+| docling-parse's `/ActualText` (7.9, `apply_actual_text`, docling-parse#300) | a marked-content span's `/ActualText` replaces the glyphs drawn inside it, by docling-parse's rules: as many characters as cells one for one, any other count the whole text on the first cell over the union of the span's boxes; an empty text removes the glyphs, a span over graphics only or with a text longer than 8 characters and 4 per cell (`/Alt` in the wrong key) is left alone, a named property list is not resolved, the outer of nested spans wins. Before, the glyphs read through the font: a zero-advance caron at a Latin code as `OresMi` (docling#3783), the Arabic marks of a LibreOffice subset whose `/ToUnicode` skips them as WinAnsi digits and brackets (`منع8ا` for `منعًا`). Groundtruth `table_mislabeled_as_picture` 40 lines fewer (its checkbox glyphs carry their character in an `/ActualText` span over a space); the text layer of 83 of the 85 corpus PDFs is unchanged | `textparse::apply_actual_text` |
 
 **Deliberate deviations** (completeness over the metric; each costs a few
 diff lines and recovers content docling drops):

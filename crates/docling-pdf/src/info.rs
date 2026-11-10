@@ -63,8 +63,8 @@ fn entries(info: &Dictionary, doc: &lopdf::Document) -> Vec<(String, String)> {
 }
 
 /// A PDF text string: UTF-16 with a byte-order mark, UTF-8 when it decodes
-/// as such (writers do), else PDFDocEncoding read as Latin-1.
-fn decode_text(bytes: &[u8]) -> String {
+/// as such (writers do), else PDFDocEncoding.
+pub(crate) fn decode_text(bytes: &[u8]) -> String {
     if bytes.len() >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF {
         let units: Vec<u16> = bytes[2..]
             .chunks_exact(2)
@@ -84,7 +84,32 @@ fn decode_text(bytes: &[u8]) -> String {
     }
     match std::str::from_utf8(bytes) {
         Ok(s) => s.to_string(),
-        Err(_) => bytes.iter().map(|&b| b as char).collect(),
+        Err(_) => bytes.iter().map(|&b| pdf_doc_char(b)).collect(),
+    }
+}
+
+/// PDFDocEncoding (PDF 32000-1 Annex D.2): Latin-1 but for the accents at
+/// 0x18–0x1F and the punctuation, ligatures and letters at 0x80–0xA0. The
+/// undefined 0x7F, 0x9F and 0xAD read as U+FFFD, as qpdf's
+/// `pdf_doc_to_utf8` (docling-parse's reader) maps them.
+fn pdf_doc_char(b: u8) -> char {
+    const LOW: [char; 8] = [
+        '\u{02D8}', '\u{02C7}', '\u{02C6}', '\u{02D9}', '\u{02DD}', '\u{02DB}', '\u{02DA}',
+        '\u{02DC}',
+    ];
+    // 0x7F to 0xA0.
+    const HIGH: [char; 34] = [
+        '\u{FFFD}', '\u{2022}', '\u{2020}', '\u{2021}', '\u{2026}', '\u{2014}', '\u{2013}',
+        '\u{0192}', '\u{2044}', '\u{2039}', '\u{203A}', '\u{2212}', '\u{2030}', '\u{201E}',
+        '\u{201C}', '\u{201D}', '\u{2018}', '\u{2019}', '\u{201A}', '\u{2122}', '\u{FB01}',
+        '\u{FB02}', '\u{0141}', '\u{0152}', '\u{0160}', '\u{0178}', '\u{017D}', '\u{0131}',
+        '\u{0142}', '\u{0153}', '\u{0161}', '\u{017E}', '\u{FFFD}', '\u{20AC}',
+    ];
+    match b {
+        0x18..=0x1F => LOW[usize::from(b - 0x18)],
+        0x7F..=0xA0 => HIGH[usize::from(b - 0x7F)],
+        0xAD => '\u{FFFD}',
+        _ => char::from(b),
     }
 }
 
@@ -158,6 +183,12 @@ mod tests {
     fn text_strings_decode_by_their_marker() {
         assert_eq!(decode_text(b"\xFE\xFF\x00T\x00\xE9"), "Té");
         assert_eq!(decode_text(b"T\xE9"), "Té");
+        // PDFDocEncoding, not Latin-1: quotes, dashes, the `fi` ligature, an
+        // accent, the euro sign; the undefined codes as U+FFFD.
+        assert_eq!(
+            decode_text(b"\x8Dfine\x8E \x84 \x85 \x93 \x19 \xA0 \x7F\x9F\xAD"),
+            "\u{201C}fine\u{201D} \u{2014} \u{2013} \u{FB01} \u{02C7} \u{20AC} \u{FFFD}\u{FFFD}\u{FFFD}"
+        );
         assert_eq!(decode_text("Té".as_bytes()), "Té");
     }
 
