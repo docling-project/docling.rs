@@ -8,10 +8,6 @@ Gradient To FP8
 
 To BF16
 
-Σ
-
-FP32
-
 Fprop
 
 Σ
@@ -19,6 +15,10 @@ Fprop
 FP32
 
 Weight
+
+Σ
+
+FP32
 
 Dgrad To BF16
 
@@ -36,13 +36,13 @@ BF16
 
 To FP8
 
-To FP8
-
 Wgrad
 
 Σ
 
 FP32
+
+To FP8
 
 Master
 

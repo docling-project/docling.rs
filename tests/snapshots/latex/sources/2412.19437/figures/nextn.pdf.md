@@ -1,14 +1,14 @@
-Target Tokens Cross-Entropy Loss Cross-Entropy Loss Cross-Entropy Loss
+Target Tokens Cross-Entropy Loss
 
 Main Model
 
 (Next Token Prediction)
 
-Output Head MTP Module 1
-
-(Next 2 Token Prediction)
-
 Output Head
+
+ℒ𝑀𝑀𝑀𝑀𝑀𝑀𝑀𝑀
+
+Shared
 
 Transformer Block ×𝐿𝐿 Transformer Block ×𝐿𝐿
 
@@ -16,7 +16,27 @@ Transformer Block ×𝐿𝐿
 
 Transformer Block ×𝐿𝐿 Transformer Block ×𝐿𝐿
 
-Embedding Layer Transformer Block Linear Projection concatenation RMSNorm RMSNorm Embedding Layer MTP Module 2
+Embedding Layer
+
+nput Tokens Cross-Entropy Loss MTP Module 1
+
+(Next 2 Token Prediction)
+
+Output Head
+
+ℒMTP 1
+
+Shared
+
+Transformer Block
+
+Linear Projection
+
+concatenation
+
+RMSNorm RMSNorm
+
+Shared Embedding Layer Cross-Entropy Loss MTP Module 2
 
 (Next 3 Token Prediction)
 
@@ -30,22 +50,8 @@ concatenation
 
 RMSNorm RMSNorm
 
-Embedding Layer
-
-nput Tokens
-
-ℒ𝑀𝑀𝑀𝑀𝑀𝑀𝑀𝑀
-
-Shared
-
-Shared
-
-ℒMTP 1
+Shared Embedding Layer
 
 ℒMTP 2
-
-Shared
-
-Shared
 
 ··

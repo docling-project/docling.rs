@@ -1,13 +1,5 @@
 %
 
-70
-
-72
-
-65
-
-60
-
 U
 
 L 55
@@ -16,6 +8,8 @@ M
 
 M
 
+%
+
 50
 
 45
@@ -23,8 +17,6 @@ M
 70
 
 65
-
-%
 
 e 60
 
@@ -38,11 +30,13 @@ W
 
 n
 
-55
+70
 
-50
+72
 
-45
+65
+
+60
 
 70
 
@@ -60,13 +54,19 @@ e
 
 R
 
+55
+
+50
+
+45
+
 7
 
 LLaMA 2
 
 LLaMA 2
 
-Mistral Mistral
+Mistral
 
 13
 
@@ -88,6 +88,8 @@ size 38B (5.4x)
 
 7
 
+Mistral
+
 13
 
 34
@@ -98,9 +100,9 @@ size 38B (5.4x)
 
 Model size (billion parameters)
 
-Model size (billion parameters)
-
 LLaMA 2
+
+Model size (billion parameters)
 
 LLaMA 2
 

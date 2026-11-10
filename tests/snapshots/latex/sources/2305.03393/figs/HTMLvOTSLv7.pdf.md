@@ -36,6 +36,12 @@
 
 A
 
+S
+
+I
+
+R
+
 ST
 
 0.03
@@ -47,6 +53,8 @@ ST
 0.25
 
 0.5
+
+≥ 128
 
 416
 
@@ -67,8 +75,6 @@ ST
 2
 
 12
-
-≥ 128
 
 1
 
@@ -110,9 +116,13 @@ OTSL # tokens: 135
 
 &lt;/table&gt;
 
-≤ μ
+B
 
-C
+D
+
+HTML
+
+≤ μ
 
 C C L L L C L L L L L C L L NL
 
@@ -136,24 +146,14 @@ HTML model shows
 
 bounding box drifting
 
-B
-
-D
-
-HTML
-
 OTSL model shows
 
 clean bounding box
 
 alignment
 
-S
-
-I
-
-R
-
 E
 
 OTSL
+
+C

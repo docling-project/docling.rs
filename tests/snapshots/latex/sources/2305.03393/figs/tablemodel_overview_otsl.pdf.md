@@ -2,39 +2,37 @@ Extracted
 
 Table Images
 
-Names
+Names Amount
 
 1. Item
 
-2. Item
-
-3. Item
-
-4. Item Amount
-
 1000
+
+unit
+
+2. Item
 
 500
 
+unit
+
+3. Item
+
 3500
+
+unit
+
+4. Item
 
 150
 
-unit
-
-unit
-
-unit
-
-unit Standardized Images Encoder BBox Decoder Structure Decoder Structure Tags in OTSL format
+unit Standardized Images Encoder BBox Decoder Structure Decoder BBoxes
 
 1
 
 2
 
 3
-
-BBoxes
 
 [x1, y2, x2, y2]
 
@@ -44,17 +42,17 @@ BBoxes
 
 ...
 
-BBoxes in sync
+Structure Tags
 
-with tag sequence
+in OTSL format BBoxes in sync with tag sequence
 
 1
 
 2
 
-L
-
 C C
+
+L
 
 C C C 3
 
@@ -78,12 +76,12 @@ traced back to the
 
 original image to
 
+extract content
+
 1
+
+2
 
 3
 
-extract content
-
 Structure Tags sequence provide full description of the table structure
-
-2

@@ -32,7 +32,7 @@ the cat
 
 a
 
-IS
+sat IS
 
 an
 
@@ -44,6 +44,6 @@ on Mistral the mat
 
 a
 
-sat sat example good on
+sat example good on
 
 on

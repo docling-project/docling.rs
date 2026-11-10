@@ -46,6 +46,8 @@ Device 2
 
 3
 
+Device 3
+
 4
 
 5
@@ -70,11 +72,11 @@ Device 2
 
 8 9
 
-Device 3
-
 0
 
 1
+
+Device 4
 
 2
 
@@ -106,11 +108,11 @@ Device 3
 
 9
 
-Device 4
-
 0
 
 1
+
+Device 5
 
 2
 
@@ -140,9 +142,9 @@ Device 4
 
 9
 
-Device 5
-
 0
+
+Device 6
 
 1
 
@@ -170,9 +172,9 @@ Device 5
 
 9
 
-Device 6
-
 0
+
+Device 7
 
 1 0 0 2 1 1 3
 
@@ -195,8 +197,6 @@ Device 6
 9
 
 9
-
-Device 7
 
 0 0 0 1 1 1 2 2 2 3
 

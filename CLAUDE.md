@@ -239,6 +239,9 @@ cargo test -p docling-pdf --features pdfium --lib raster:: pdfium_backend::  # t
   what the reader repaired to read it, `pdf_report_repairs` /
   `ConversionResult::pdf_repairs`; `docling_pdf::pdf_repairs` is the same
   check without a conversion),
+  `DOCLING_RS_PDF_ORDER_SEPARATORS` (#1092; on — docling#4276's
+  `use_reading_order_separators`: the page's long thin rules, from the text
+  parser's shape record, divide the reading order; `0` turns them off),
   `DOCLING_CHUNK_TOKENIZER`,
   `DOCLING_RS_DEBUG` (re-enables quiet pipeline diagnostics, e.g. the
   int8→fp32 layout-retry notice), `DOCLING_RS_MAX_XML_DEPTH` (512; XML

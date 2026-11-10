@@ -4421,6 +4421,7 @@ impl Pipeline {
             code_cells: Vec::new(),
             checkboxes: Vec::new(),
             bitmaps: Vec::new(),
+            shapes: Default::default(),
             word_cells: Vec::new(),
             // A standalone image *is* its own scale-1.0 page image, so the
             // layout model sees it through the docling-exact PIL kernel.
