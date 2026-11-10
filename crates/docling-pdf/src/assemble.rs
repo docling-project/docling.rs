@@ -4124,7 +4124,9 @@ fn list_role(n: &Node) -> ListRole {
 /// lists on any other element instead, so there it closes the list. Per
 /// page: a list that runs on from the previous page with no page header or
 /// footer between does not hold back the page's first pictures, as docling's
-/// would.
+/// would. A form area inside a list does not close it upstream, but its
+/// flattened children do here; a graphic's footnote, a node of its own here,
+/// closes it too (upstream it hangs on the graphic).
 fn continue_lists_past_asides(nodes: &mut Vec<Node>, in_container: &[bool]) {
     let mut out = Vec::with_capacity(nodes.len());
     let mut held = Vec::new();
