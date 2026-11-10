@@ -793,7 +793,11 @@ model-level (or by-design) residual each issue closed with:
    line between two predicted rows, redp5110's leaders), and the index
    compression maps both ends of a cell through the surviving ids, so a span
    over an all-empty row or column no longer pushes the grid past the table
-   (docling-ibm-models#123) — and the table crop
+   (docling-ibm-models#123). The fallback keeps text over placing it exactly:
+   where the model predicts four columns for five, as in
+   `odf_presentation_02`, the `Column 4` header is no longer dropped but splits
+   between the two columns it straddles (`Column 3 Column | 4 Column 5`) — and
+   the table crop
    reproduces docling's exact rounding chain (`round(bbox) → ×2 → ×1024/h →
    round`, banker's rounding) — 2203 157→150, redp5110 204→202, everything else
    unchanged. The rest is **model-level**: the OTSL tag stream itself differs

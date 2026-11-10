@@ -7,9 +7,9 @@
 //! picks up "orphan" words (no overlap with any cell — dot leaders in a TOC,
 //! stray page numbers) through row/column banding, an orphan in only one band
 //! snapped to the nearest band on the other axis (docling-ibm-models 4.0.1,
-//! #185). Everything is kept bug-for-bug faithful, including duplicate `good`
-//! cells weighting the column medians and Python's banker's rounding on
-//! orphan depths.
+//! #185; 4.0.2's matcher is the same code). Everything is kept bug-for-bug
+//! faithful, including duplicate `good` cells weighting the column medians and
+//! Python's banker's rounding on orphan depths.
 //!
 //! Coordinates: docling matches in its 2x-scaled page space with the table
 //! bbox rounded to integers *before* scaling (`round(cluster.bbox.l) * scale`);
@@ -17,6 +17,8 @@
 //! rounding) agree.
 
 use std::collections::BTreeMap;
+
+use docling_core::debug_log;
 
 /// docling's `table_cell` dict: an OTSL grid cell with its predicted box in
 /// the matching coordinate space. `colspan_val`/`rowspan_val` are 0 when the
@@ -570,7 +572,8 @@ fn attach_orphan(
 /// their text with them — a TOC line between two predicted rows, a value right
 /// of the predicted columns). The confidence of a snapped word is negative:
 /// `-(distance) - 1`, as upstream. A word in no band at all is still dropped,
-/// and said so on stderr.
+/// and said so under `DOCLING_RS_DEBUG`. Upstream also warns once per snapped
+/// word; that is left out, since the word keeps its text.
 fn pick_orphan_cells(
     tab_rows: usize,
     tab_cols: usize,
@@ -670,7 +673,7 @@ fn pick_orphan_cells(
         .filter(|id| !matches.contains_key(id))
         .count();
     if dropped > 0 {
-        eprintln!(
+        debug_log!(
             "docling-pdf: tableformer: {dropped} of {} pdf cells matched neither a row nor a \
              column band of the {tab_rows}x{tab_cols} grid and were dropped from the table",
             pdf_cells.len()
@@ -805,7 +808,8 @@ mod tests {
         let (m, cells, _) = pick_orphan_cells(2, 2, 3, two_by_two(), &words, Matches::new());
         let (c, confidence) = placed(&cells, &m, 99);
         assert_eq!((c.row_id, c.column_id), (1, 1));
-        assert!(confidence < 0.0);
+        // The word's centre x = 570 is 415 from the column's 155.
+        assert_eq!(confidence, -416.0);
 
         let words = [word(7, [20.0, 32.0, 80.0, 43.0])];
         let (m, cells, _) = pick_orphan_cells(2, 2, 3, two_by_two(), &words, Matches::new());
@@ -830,7 +834,8 @@ mod tests {
         let (m, cells, _) = pick_orphan_cells(2, 1, 1, grid, &words, matched(&[(0, 1)]));
         let (c, confidence) = placed(&cells, &m, 9);
         assert_eq!((c.row_id, c.column_id), (1, 0));
-        assert!(confidence < 0.0);
+        // The word's centre y = 210 is 170 from the row's 40.
+        assert_eq!(confidence, -171.0);
     }
 
     /// `test_orphan_cells_outside_every_band_are_reported` and
