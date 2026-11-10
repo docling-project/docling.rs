@@ -36,6 +36,7 @@
 -  No, it is up to the discretion of each university
 -  Don't know
 -  There are no university-based student law clinics
+28. Are specialized legal aid services provided focusing on specific disadvantaged population groups? If yes, please indicate to whom these services are provided, and whether they are provided by State-funded legal aid, civil society organizations, or both.
 
 | If your country allows legal aid services through university-based student law clinics, what type of legal aid services is a student authorized to undertake? (Please select all that apply)   |
 |------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -50,8 +51,6 @@
 |  They are authorized to provide only those services that a faculty member or practic- ing lawyer supervises                                                                                   |
 |  Don't know                                                                                                                                                                                   |
 |  Other (Please specify) _____________________________________________________                                                                                                                 |
-
-28. Are specialized legal aid services provided focusing on specific disadvantaged population groups? If yes, please indicate to whom these services are provided, and whether they are provided by State-funded legal aid, civil society organizations, or both.
 
 (Please select all that apply)
 
