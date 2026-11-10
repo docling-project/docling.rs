@@ -1607,6 +1607,85 @@ impl DoclingDocument {
         for_each_picture_in_mut(&mut self.nodes, f);
     }
 
+    /// Change the unit the pages are measured in: every length in page units
+    /// — each [`Node::PageInfo`] size, a [`Node::Prov`] box, a first-class
+    /// table cell's box, a script run's box — is multiplied by `sx`
+    /// horizontally and `sy` vertically, and every image's `dpi` (its pixels
+    /// per inch *of the page unit*: a picture crop, a page image) is divided
+    /// by `sx`, so the same pixels still cover the same part of the page. The
+    /// 0–511 `<location>` grid is relative to the page and needs nothing. The
+    /// image input sizes its page from the file's resolution this way once
+    /// the models have run on its pixels (#1093).
+    pub fn rescale_page_units(&mut self, sx: f32, sy: f32) {
+        let scale_box = |b: &mut [f32; 4]| {
+            b[0] *= sx;
+            b[1] *= sy;
+            b[2] *= sx;
+            b[3] *= sy;
+        };
+        let scale_dpi = |img: &mut PictureImage| {
+            img.dpi = (img.dpi as f32 / sx).round().max(1.0) as u32;
+        };
+        fn table(t: &mut Table, scale_box: &dyn Fn(&mut [f32; 4]), walk: &dyn Fn(&mut [Node])) {
+            for cell in t.cells.iter_mut().flatten() {
+                if let Some(b) = cell.bbox.as_mut() {
+                    scale_box(b);
+                }
+            }
+            for row in t.cell_blocks.iter_mut().flatten() {
+                for cell in row {
+                    walk(cell);
+                }
+            }
+        }
+        fn walk(
+            nodes: &mut [Node],
+            sx: f32,
+            sy: f32,
+            scale_box: &dyn Fn(&mut [f32; 4]),
+            scale_dpi: &dyn Fn(&mut PictureImage),
+        ) {
+            let recurse = |n: &mut [Node]| walk(n, sx, sy, scale_box, scale_dpi);
+            for node in nodes {
+                match node {
+                    Node::PageInfo { width, height, .. } => {
+                        *width *= sx;
+                        *height *= sy;
+                    }
+                    Node::Prov { bbox, inner, .. } => {
+                        scale_box(bbox);
+                        recurse(std::slice::from_mut(inner));
+                    }
+                    Node::ScriptText { inner, runs } => {
+                        for run in runs {
+                            for prov in &mut run.prov {
+                                scale_box(&mut prov.bbox);
+                            }
+                        }
+                        recurse(std::slice::from_mut(inner));
+                    }
+                    Node::Located { inner, .. }
+                    | Node::Track { inner, .. }
+                    | Node::Furniture { inner, .. }
+                    | Node::Commented { inner, .. }
+                    | Node::DoclangOnly(inner) => recurse(std::slice::from_mut(inner)),
+                    Node::Group { children, .. } | Node::PictureChildren(children) => {
+                        recurse(children)
+                    }
+                    Node::Table(t) | Node::Chart { table: t, .. } => table(t, scale_box, &recurse),
+                    Node::Picture {
+                        image: Some(img), ..
+                    } => scale_dpi(img),
+                    _ => {}
+                }
+            }
+        }
+        walk(&mut self.nodes, sx, sy, &scale_box, &scale_dpi);
+        for img in self.page_images.values_mut() {
+            scale_dpi(img);
+        }
+    }
+
     /// Convenience: append a heading.
     pub fn add_heading(&mut self, level: u8, text: impl Into<String>) {
         self.push(Node::Heading {
@@ -2050,5 +2129,94 @@ mod table_api_tests {
         assert!(plain.set_cell_bbox(0, 1, [1.0, 2.0, 3.0, 4.0]));
         assert_eq!(plain.cell_bbox(0, 1), Some([1.0, 2.0, 3.0, 4.0]));
         assert_eq!(plain.find_cell_by_bbox([1.5, 2.5, 2.5, 3.5]), Some((0, 1)));
+    }
+}
+
+#[cfg(test)]
+mod rescale_tests {
+    use super::*;
+
+    fn image(dpi: u32) -> PictureImage {
+        PictureImage {
+            mimetype: "image/png".into(),
+            width: 300,
+            height: 150,
+            data: Vec::new(),
+            dpi,
+            display_size: None,
+        }
+    }
+
+    /// #1093: a page measured in pixels re-measured in points — the page size,
+    /// a table cell's box and a script run's box scale per axis, an image's
+    /// pixels per inch of the page grow by the inverse, and the 0–511
+    /// locations, relative to the page, stay.
+    #[test]
+    fn a_page_unit_change_scales_lengths_and_resolutions() {
+        let table = Table {
+            rows: vec![vec!["a".into()]],
+            location: Some([10, 20, 30, 40]),
+            cells: Some(vec![TableCell {
+                text: "a".into(),
+                bbox: Some([100.0, 200.0, 300.0, 400.0]),
+                start_row: 0,
+                start_col: 0,
+                row_span: 1,
+                col_span: 1,
+                column_header: false,
+                row_header: false,
+                row_section: false,
+            }]),
+            ..Table::default()
+        };
+        let mut doc = DoclingDocument::new("scan");
+        doc.push(Node::PageInfo {
+            page_no: 1,
+            width: 1000.0,
+            height: 2000.0,
+        });
+        doc.push(Node::Located {
+            location: [1, 2, 3, 4],
+            inner: Box::new(Node::Table(table)),
+        });
+        doc.push(Node::Group {
+            label: "group".into(),
+            name: None,
+            layer: None,
+            children: vec![Node::Picture {
+                caption: None,
+                caption_href: None,
+                image: Some(image(72)),
+                classification: None,
+                description: None,
+                caption_parent: Default::default(),
+                caption_location: None,
+            }],
+        });
+        doc.page_images.insert(1, image(144));
+
+        doc.rescale_page_units(0.24, 0.5);
+
+        assert!(matches!(
+            doc.nodes[0],
+            Node::PageInfo { width, height, .. } if width == 240.0 && height == 1000.0
+        ));
+        let Node::Located { location, inner } = &doc.nodes[1] else {
+            panic!("located table")
+        };
+        assert_eq!(*location, [1, 2, 3, 4]);
+        let Node::Table(t) = inner.as_ref() else {
+            panic!("table")
+        };
+        assert_eq!(t.location, Some([10, 20, 30, 40]));
+        assert_eq!(
+            t.cells.as_ref().unwrap()[0].bbox,
+            Some([24.0, 100.0, 72.0, 200.0])
+        );
+        let Node::Group { children, .. } = &doc.nodes[2] else {
+            panic!("group")
+        };
+        assert!(matches!(&children[0], Node::Picture { image: Some(i), .. } if i.dpi == 300));
+        assert_eq!(doc.page_images[&1].dpi, 600);
     }
 }

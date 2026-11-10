@@ -1585,6 +1585,9 @@ exact, 389 diff lines**, the rest close — see `PDF_CONFORMANCE.md`. A determin
   - on FUNSD's 199 scanned forms word recall against the annotations (the issue's `funsd_repro.py` scoring, `text_items`) is **0.896**, median 0.933, 29 forms under 0.8 (docling-rs 1.96: 0.613 / 150 under 0.8; Python docling 2.133 with RapidOCR: 0.852 / 39 under 0.8)
   - 0.914 on the nine forms #571 lists against Python's 0.915
 - #571: the orientation probe runs on the detector's boxes with a confidence margin, so no upright form is turned any more (9 of 199 were)
+- #1093: the page is sized from the file's resolution, as docling's `ImageDocumentBackend` sizes it — `pixels × 72 / dpi` points per axis, the resolution read as Pillow's `info["dpi"]` (a PNG `pHYs`, a JPEG's JFIF density else its EXIF, a BMP's pixels per metre, a TIFF's resolution tags), 72 when the file records none or the `(1, 1)` / `(0, 0)` placeholders, the axes swapped when the EXIF orientation turned the frame a quarter. The QR bill (1021 × 1423 px at 300 DPI) is a 245.04 × 341.52 pt page, its JSON boxes docling's; an image without a resolution stays 1 px = 1 pt, as before and as in docling. Picture crops and the page image keep their pixels, their `dpi` rising by the same factor
+  - **deliberate divergence:** docling also feeds its models the image *resampled to that page* — layout at 1 px/pt (245 × 342 px for the bill), OCR at 3 — and at that size its layout model reads the bill as two pictures (two `<!-- image -->` placeholders in its Markdown, the text in their children). The models here keep reading the file's own pixels, as before: only the page unit changes, so the text, the reading order and the Markdown cannot move (the bill reads as text)
+  - a resolution docling rejects (not finite, zero or negative on one axis) fails its conversion; here it reads as 72
 
 #### METS / Google Books
 
@@ -2743,6 +2746,15 @@ These are deliberate or unavoidable divergences, not bugs.
     corpus: the text layer of every PDF is byte-identical
     (`--text-layer-only --to json`), so the PDF groundtruth and the
     snapshots are unchanged too.
+
+26. **An image input's page is sized from its resolution, its models read
+    its pixels** (#1093). docling sizes an image's page `pixels × 72 / dpi`
+    points and feeds its models the image resampled to that page; the page
+    size and the JSON boxes follow docling here, the models keep reading the
+    file's own pixels. A 300-DPI scan resampled to 1 px/pt loses most of its
+    detail — docling's layout model reads the 300-DPI QR bill as two
+    pictures — so the text, the reading order and the Markdown are those of
+    the full-resolution image (the §2 Images entry has the rule).
 ---
 
 ## 5. Not migrated / out of scope
