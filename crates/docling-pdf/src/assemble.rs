@@ -3707,7 +3707,25 @@ pub fn assemble_page(
         }
     }
 
+    // Whether each node comes from a region inside a form or key-value area,
+    // for `continue_lists_past_asides`: filled up to the nodes so far at the
+    // top of every iteration, with the previous region's flag.
+    let in_container: Vec<bool> = regions
+        .iter()
+        .map(|r| {
+            let ra = area(r.l, r.t, r.r, r.b).max(1.0);
+            !matches!(r.label, "form" | "key_value_region")
+                && regions.iter().any(|c| {
+                    matches!(c.label, "form" | "key_value_region")
+                        && inter(r, c.l, c.t, c.r, c.b) / ra > 0.8
+                })
+        })
+        .collect();
+    let mut node_in_container: Vec<bool> = Vec::new();
+    let mut last_in_container = false;
     for (i, region) in regions.iter().enumerate() {
+        node_in_container.resize(nodes.len(), last_in_container);
+        last_in_container = in_container[i];
         if consumed[i] {
             continue;
         }
@@ -4054,6 +4072,8 @@ pub fn assemble_page(
             }
         }
     }
+    node_in_container.resize(nodes.len(), last_in_container);
+    continue_lists_past_asides(&mut nodes, &node_in_container);
     // A `/Rotate`-normalized scanned page (see `pdfium_backend`) was assembled
     // in upright space; rotate the finished geometry back so locations and the
     // page size are display-space, like docling and every viewer report them.
@@ -4061,6 +4081,71 @@ pub fn assemble_page(
         rotate_nodes_to_display(&mut nodes, page.rotation);
     }
     (nodes, links)
+}
+
+/// What a page node does to the list docling is filling while it builds the
+/// document (`current_list` in `ReadingOrderModel`).
+enum ListRole {
+    /// A list item: it opens a list or joins the open one.
+    Item,
+    /// A picture (its children with it), chart, table or code block: docling
+    /// adds it to the parent and leaves the list open.
+    Aside,
+    /// Anything else — a paragraph, heading, formula, caption, footnote, page
+    /// header or footer: docling's text elements, each of which closes the
+    /// list.
+    Closes,
+}
+
+fn list_role(n: &Node) -> ListRole {
+    let n = match n {
+        Node::Located { inner, .. } => inner.as_ref(),
+        other => other,
+    };
+    match n {
+        Node::ListItem { .. } => ListRole::Item,
+        Node::Picture { .. }
+        | Node::PictureChildren(_)
+        | Node::Chart { .. }
+        | Node::Table(_)
+        | Node::Code { .. } => ListRole::Aside,
+        _ => ListRole::Closes,
+    }
+}
+
+/// docling's list continuation (`_readingorder_elements_to_docling_doc`):
+/// only a text element that is not a list item closes the open list, so a
+/// picture, table or code block met between two list items goes into the
+/// parent *after* the list group, and the items after it stay in the same
+/// list — an icon beside a procedure reads after the whole procedure, not
+/// between two of its steps. Lists here are runs of [`Node::ListItem`] the
+/// exports group, so such a node moves past the list items that follow it.
+/// In a form or key-value area (`in_container`, per node) docling splits
+/// lists on any other element instead, so there it closes the list. Per
+/// page: a list that runs on from the previous page with no page header or
+/// footer between does not hold back the page's first pictures, as docling's
+/// would.
+fn continue_lists_past_asides(nodes: &mut Vec<Node>, in_container: &[bool]) {
+    let mut out = Vec::with_capacity(nodes.len());
+    let mut held = Vec::new();
+    let mut open = false;
+    for (n, &contained) in std::mem::take(nodes).into_iter().zip(in_container) {
+        match list_role(&n) {
+            ListRole::Item => {
+                open = true;
+                out.push(n);
+            }
+            ListRole::Aside if open && !contained => held.push(n),
+            ListRole::Aside if !contained => out.push(n),
+            ListRole::Aside | ListRole::Closes => {
+                open = false;
+                out.append(&mut held);
+                out.push(n);
+            }
+        }
+    }
+    out.append(&mut held);
+    *nodes = out;
 }
 
 /// One child of a picture as docling's `ReadingOrderModel._add_child_elements`
@@ -5746,6 +5831,95 @@ mod tests {
             para("epsilon zeta"),
         ];
         assert_stream_eq(&chain, &[1, 2]);
+    }
+
+    fn item(text: &str) -> Node {
+        Node::ListItem {
+            ordered: false,
+            number: 0,
+            first_in_list: false,
+            text: text.into(),
+            level: 0,
+            marker: None,
+            location: None,
+            dclx: None,
+            href: None,
+            layer: None,
+        }
+    }
+
+    fn icon(x: u16) -> Node {
+        super::located(
+            [x, 0, x + 10, 10],
+            Node::Picture {
+                caption: None,
+                caption_href: None,
+                image: None,
+                classification: None,
+                description: None,
+                caption_parent: Default::default(),
+                caption_location: None,
+            },
+        )
+    }
+
+    fn page(no: usize) -> Node {
+        Node::PageInfo {
+            page_no: no,
+            width: 600.0,
+            height: 800.0,
+        }
+    }
+
+    /// docling keeps a list open past a picture, table or code block: the
+    /// icon beside a procedure's second step reads after the procedure, which
+    /// stays one list; a paragraph closes the list and puts the icon down.
+    /// Without an open list nothing moves.
+    #[test]
+    fn a_list_continues_past_a_picture_as_in_docling() {
+        let heading = || Node::Heading {
+            level: 2,
+            text: "Cleaning".into(),
+        };
+        let mut nodes = vec![
+            page(1),
+            heading(),
+            item("Unplug the appliance."),
+            icon(1),
+            item("Wipe the base."),
+            item("Dry it."),
+            para("Then plug it in again."),
+            icon(2),
+            item("Store it."),
+            icon(3),
+        ];
+        let flags = vec![false; nodes.len()];
+        super::continue_lists_past_asides(&mut nodes, &flags);
+        assert_eq!(
+            nodes,
+            vec![
+                page(1),
+                heading(),
+                item("Unplug the appliance."),
+                item("Wipe the base."),
+                item("Dry it."),
+                icon(1),
+                para("Then plug it in again."),
+                icon(2),
+                item("Store it."),
+                icon(3),
+            ]
+        );
+    }
+
+    /// In a form area docling splits a list on any other element: a picture
+    /// or table between two of the area's items stays between them.
+    #[test]
+    fn a_form_area_list_stops_at_a_table() {
+        let mut nodes = vec![page(1), item("22 | first"), icon(1), item("23 | second")];
+        let want = nodes.clone();
+        super::continue_lists_past_asides(&mut nodes, &[false, true, true, true]);
+        assert_eq!(nodes, want);
     }
 
     #[test]
