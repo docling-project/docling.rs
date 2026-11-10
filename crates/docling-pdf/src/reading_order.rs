@@ -24,8 +24,25 @@
 //! wherever the vertical graph happens to reach it. The row test needs the
 //! callers' `cids`; without them (all distinct but non-consecutive) no row
 //! links form, which is the pre-#424 behaviour.
+//!
+//! **Slightly overlapping column neighbours** (docling#4276's link in
+//! `_init_ud_maps`): consecutive text boxes of a column can overlap by a
+//! point or so at their edges, so the upper one is not *strictly* above the
+//! lower one and the vertical pass draws no edge between them — the upper box
+//! then flows into whatever it does reach, often the next column, and the
+//! column reads its paragraphs pairwise swapped. Two `cids`-consecutive
+//! elements, neither a graphic (table, picture, code), whose left edges agree
+//! within 1 % of the page width and whose overlap is at most 0.25 % of the page
+//! height are linked upper→lower. docling#4276's page separators are not part
+//! of this.
 
 const EPS: f32 = 1.0e-3;
+/// How far a lower box's top may reach into the upper box and still read
+/// after it, normalized by page height (`_NEAR_VERTICAL_OVERLAP_THRESHOLD_NORM`).
+const NEAR_VERTICAL_OVERLAP_NORM: f32 = 0.0025;
+/// How far apart the two left edges may be, normalized by page width
+/// (`_LEFT_EDGE_ALIGNMENT_THRESHOLD_NORM`).
+const LEFT_EDGE_ALIGNMENT_NORM: f32 = 0.01;
 /// Horizontal-dilation threshold, normalized by page width
 /// (`_horizontal_dilation_threshold_norm`).
 const DILATION_THRESHOLD_NORM: f32 = 0.15;
@@ -116,10 +133,17 @@ fn init_l2r(elems: &[Bl], cids: &[usize]) -> (Vec<Option<usize>>, Vec<Option<usi
 /// vertical edge whose upper end has a right partner is redirected along the
 /// row to its right-most element — so the row is read through before the
 /// element below it.
+///
+/// Then the slightly-overlapping column neighbours of docling#4276 (see the
+/// module docs): a `cids`-consecutive pair the strict-above test missed.
 fn init_ud(
     elems: &[Bl],
     l2r: &[Option<usize>],
     r2l: &[Option<usize>],
+    cids: &[usize],
+    graphic: &[bool],
+    page_w: f32,
+    page_h: f32,
 ) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
     let n = elems.len();
     let mut up = vec![Vec::new(); n];
@@ -151,6 +175,31 @@ fn init_ud(
             }
             dn[k].push(j);
             up[j].push(k);
+        }
+    }
+    // Consecutive text boxes in a column can overlap slightly at their edges:
+    // keep their source sequence when the strict-above test missed the link.
+    let tolerance = page_h * NEAR_VERTICAL_OVERLAP_NORM;
+    for i in 0..n {
+        if graphic[i] {
+            continue;
+        }
+        let Some(j) = (0..n).find(|&j| cids[j] == cids[i] + 1) else {
+            continue;
+        };
+        if graphic[j] {
+            continue;
+        }
+        let (upper, lower) = (&elems[i], &elems[j]);
+        if (upper.l - lower.l).abs() < page_w * LEFT_EDGE_ALIGNMENT_NORM
+            && upper.b < lower.t
+            && lower.t <= upper.b + tolerance
+            && upper.t > lower.t
+            && upper.b > lower.b
+            && !dn[i].contains(&j)
+        {
+            dn[i].push(j);
+            up[j].push(i);
         }
     }
     (up, dn)
@@ -303,9 +352,9 @@ fn dfs_down(
 }
 
 /// Reading order of one group of page elements (already in bottom-left origin)
-/// with their assembly-order `cids`. Returns the permutation of input indices
-/// in reading order.
-fn predict(orig: &[Bl], cids: &[usize], page_w: f32) -> Vec<usize> {
+/// with their assembly-order `cids` and which are graphics (table, picture,
+/// code). Returns the permutation of input indices in reading order.
+fn predict(orig: &[Bl], cids: &[usize], graphic: &[bool], page_w: f32, page_h: f32) -> Vec<usize> {
     let n = orig.len();
     if n == 0 {
         return Vec::new();
@@ -314,9 +363,9 @@ fn predict(orig: &[Bl], cids: &[usize], page_w: f32) -> Vec<usize> {
     // dilated boxes, but head/child sorting from the original geometry
     // (docling's `_find_heads`/`_sort_ud_maps` take `page_elements`).
     let (l2r, r2l) = init_l2r(orig, cids);
-    let (up0, dn0) = init_ud(orig, &l2r, &r2l);
+    let (up0, dn0) = init_ud(orig, &l2r, &r2l, cids, graphic, page_w, page_h);
     let dil = dilate(orig, &up0, &dn0, page_w);
-    let (up, mut dn) = init_ud(&dil, &l2r, &r2l);
+    let (up, mut dn) = init_ud(&dil, &l2r, &r2l, cids, graphic, page_w, page_h);
 
     let by_geom = |a: usize, b: usize| orig[a].before(&orig[b]);
 
@@ -478,13 +527,16 @@ fn starts_mergeable(t: &str) -> bool {
 /// Order one page's elements (top-left coords) into reading order, returning the
 /// input-index permutation. `cids` are the elements' positions in docling's
 /// assembly order (see [`crate::assemble::cluster_cids`]) — the same-row rule
-/// pairs consecutive ones. `headers`/`footers` are ordered as their own groups
-/// and placed first/last, matching docling's per-page header→body→footer split.
+/// pairs consecutive ones, and so does the slightly-overlapping column link,
+/// which leaves out the `is_graphic` elements (table, picture, code).
+/// `headers`/`footers` are ordered as their own groups and placed first/last,
+/// matching docling's per-page header→body→footer split.
 pub fn order_page(
     boxes: &[(f32, f32, f32, f32)],
     cids: &[usize],
     is_header: &[bool],
     is_footer: &[bool],
+    is_graphic: &[bool],
     page_w: f32,
     page_h: f32,
 ) -> Vec<usize> {
@@ -516,7 +568,8 @@ pub fn order_page(
             })
             .collect();
         let group_cids: Vec<usize> = group.iter().map(|&i| cids[i]).collect();
-        for local in predict(&bl, &group_cids, page_w) {
+        let group_graphic: Vec<bool> = group.iter().map(|&i| is_graphic[i]).collect();
+        for local in predict(&bl, &group_cids, &group_graphic, page_w, page_h) {
             out.push(group[local]);
         }
     }
@@ -545,12 +598,28 @@ mod tests {
     fn a_right_hand_item_reads_before_the_next_row_when_it_follows_in_source_order() {
         let boxes = copyright_rows();
         let flags = vec![false; boxes.len()];
-        let order = order_page(&boxes, &[10, 11, 12, 13], &flags, &flags, 517.6, 666.4);
+        let order = order_page(
+            &boxes,
+            &[10, 11, 12, 13],
+            &flags,
+            &flags,
+            &flags,
+            517.6,
+            666.4,
+        );
         assert_eq!(order, [0, 1, 2, 3]);
         // Not consecutive in assembly order (the LCCN cell came from
         // elsewhere in the stream): no row link, the vertical graph decides —
         // the pre-#424 order, kept for the record.
-        let order = order_page(&boxes, &[10, 20, 11, 12], &flags, &flags, 517.6, 666.4);
+        let order = order_page(
+            &boxes,
+            &[10, 20, 11, 12],
+            &flags,
+            &flags,
+            &flags,
+            517.6,
+            666.4,
+        );
         assert_eq!(order, [0, 2, 3, 1]);
     }
 
@@ -565,8 +634,8 @@ mod tests {
             (36.9, 601.5, 388.4, 609.2),
         ];
         let flags = vec![false; 3];
-        let linked = order_page(&boxes, &[0, 1, 2], &flags, &flags, 517.6, 666.4);
-        let unlinked = order_page(&boxes, &[0, 5, 1], &flags, &flags, 517.6, 666.4);
+        let linked = order_page(&boxes, &[0, 1, 2], &flags, &flags, &flags, 517.6, 666.4);
+        let unlinked = order_page(&boxes, &[0, 5, 1], &flags, &flags, &flags, 517.6, 666.4);
         assert_eq!(linked, unlinked);
         assert_eq!(linked, [0, 1, 2]);
     }
@@ -582,7 +651,7 @@ mod tests {
             .collect();
         let cids: Vec<usize> = (0..boxes.len()).collect();
         let flags = vec![false; boxes.len()];
-        order_page(&boxes, &cids, &flags, &flags, 612.0, H)
+        order_page(&boxes, &cids, &flags, &flags, &flags, 612.0, H)
     }
 
     /// docling#5131 `test_horizontal_dilation_skips_a_widening_that_overlaps_a_neighbour`.
@@ -638,5 +707,57 @@ mod tests {
             (100.0, 400.0, 50.0, 290.0),
         ]);
         assert_eq!(order, [2, 0, 1]);
+    }
+
+    /// docling#4276 `test_consecutive_text_overlapping_slightly_stays_in_sequence`:
+    /// 1 continues 0 in the left column but its top pokes 1 pt into 0, so 0 is
+    /// not strictly above it; without the link, 0 flows into the right column
+    /// (2) first.
+    #[test]
+    fn consecutive_text_overlapping_slightly_stays_in_sequence() {
+        let order = predicted(&[
+            (600.0, 700.0, 40.0, 560.0),
+            (200.0, 601.0, 40.0, 280.0),
+            (500.0, 590.0, 320.0, 560.0),
+        ]);
+        assert_eq!(order, [0, 1, 2]);
+    }
+
+    /// The link is for text: a table that pokes into the box above keeps the
+    /// order the geometry gives, and so does a box whose left edge is not the
+    /// upper one's, or one that reaches more than 0.25 % of the page into it.
+    #[test]
+    fn the_overlap_link_needs_aligned_text_and_a_small_overlap() {
+        const H: f32 = 792.0;
+        let flip = |bl: &[(f32, f32, f32, f32)]| -> Vec<(f32, f32, f32, f32)> {
+            bl.iter()
+                .map(|&(b, t, l, r)| (l, H - t, r, H - b))
+                .collect()
+        };
+        let column = [
+            (600.0, 700.0, 40.0, 560.0),
+            (200.0, 601.0, 40.0, 280.0),
+            (500.0, 590.0, 320.0, 560.0),
+        ];
+        let flags = vec![false; 3];
+        let geometry = order_page(&flip(&column), &[0, 1, 2], &flags, &flags, &flags, 612.0, H);
+        assert_eq!(geometry, [0, 1, 2]);
+        let table = vec![false, true, false];
+        let order = order_page(&flip(&column), &[0, 1, 2], &flags, &flags, &table, 612.0, H);
+        assert_eq!(order, [0, 2, 1]);
+        let shifted = [column[0], (200.0, 601.0, 60.0, 280.0), column[2]];
+        let order = order_page(
+            &flip(&shifted),
+            &[0, 1, 2],
+            &flags,
+            &flags,
+            &flags,
+            612.0,
+            H,
+        );
+        assert_eq!(order, [0, 2, 1]);
+        let deep = [column[0], (200.0, 603.0, 40.0, 280.0), column[2]];
+        let order = order_page(&flip(&deep), &[0, 1, 2], &flags, &flags, &flags, 612.0, H);
+        assert_eq!(order, [0, 2, 1]);
     }
 }
