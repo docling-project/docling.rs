@@ -4825,7 +4825,11 @@ mod base14_fonts {
         assert_eq!(s.boxes.len(), 1);
 
         let s = shapes(b"q 0 0 300 842 re W n 72 400 m 540 400 l S 400 100 m 400 700 l S Q\n");
-        assert_eq!(s.lines, vec![[72.0, 442.0, 300.0, 442.0]], "cut to the clip");
+        assert_eq!(
+            s.lines,
+            vec![[72.0, 442.0, 300.0, 442.0]],
+            "cut to the clip"
+        );
         assert_eq!(s.boxes.len(), 1, "the vertical rule is clipped away");
 
         let s = shapes(b"/Pattern cs /P0 scn 72 300 468 1 re f\n");
@@ -4833,7 +4837,10 @@ mod base14_fonts {
 
         // Two touching boxes merge into one component.
         let s = shapes(b"72 300 100 1 re f 172 300 100 1 re f 400 600 10 10 re f\n");
-        assert_eq!(s.boxes, vec![[72.0, 541.0, 272.0, 542.0], [400.0, 232.0, 410.0, 242.0]]);
+        assert_eq!(
+            s.boxes,
+            vec![[72.0, 541.0, 272.0, 542.0], [400.0, 232.0, 410.0, 242.0]]
+        );
     }
 
     /// A transparent stroke or fill is no shape (`CA` / `ca` 0).
