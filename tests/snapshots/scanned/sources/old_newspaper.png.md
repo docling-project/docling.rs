@@ -40,9 +40,9 @@ FaR LaDy
 
 Winner of 8 Academy Awards!
 
-Treat * the entire family to the happiest entertainment Of all!
-
 <!-- image -->
+
+Treat * the entire family to the happiest entertainment Of all!
 
 ## AUDREYHEBURNREXHARRISONSANLEYHOLOWAY
 
@@ -50,7 +50,7 @@ TECHNCURPAAVFROARBR
 
 GET dUnLOP IMPORT QuAlITY IN THE AMERICAN MADE GOLD SEAL FULL 4 PLY (NOT 2 PLY) CONSTRUCTION - NO THUMP WITH TYREX CORD (NYLON ALSO AVAILABLE) Certified Safe At A SUSTAINED 100 M.P.H. Wholesale Prices to O. U. Students &amp; Faculty on Passenger Car, Sports Car, Radial Ply &amp; Racing Tires
 
-Bill Basinger Bruce Robertson Tom Hill
+Bill Basinger Tom Hill Bruce Robertson
 
 <!-- image -->
 
