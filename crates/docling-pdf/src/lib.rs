@@ -434,7 +434,7 @@ pub fn convert_text_layer_pages_opts(
             )));
         }
     }
-    assemble::merge_continuations(&mut doc.nodes);
+    assemble::merge_continuations(&mut doc.nodes, assemble::Continuations::Lines);
     // Grown a page at a time, the node vector can be up to half spare
     // capacity — hundreds of MB on a long document, held for its lifetime.
     doc.nodes.shrink_to_fit();
@@ -3721,7 +3721,7 @@ impl Pipeline {
                 Ok(())
             },
         )?;
-        assemble::merge_continuations(&mut doc.nodes);
+        assemble::merge_continuations(&mut doc.nodes, assemble::Continuations::Lines);
         self.apply_heading_hierarchy(&mut doc.nodes, Some(bytes));
         self.apply_script_positions(&mut doc.nodes, bytes);
         doc.confidence = Some(docling_core::ConfidenceReport::from_pages(confs));
@@ -3780,7 +3780,7 @@ impl Pipeline {
                 Ok(())
             },
         )?;
-        assemble::merge_continuations(&mut doc.nodes);
+        assemble::merge_continuations(&mut doc.nodes, assemble::Continuations::AcrossPages);
         self.apply_heading_hierarchy(&mut doc.nodes, Some(bytes));
         self.apply_script_positions(&mut doc.nodes, bytes);
         doc.confidence = Some(confidence_report(confs, ocr_cells_by_page));
@@ -3996,7 +3996,7 @@ impl Pipeline {
             confs.insert(idx + 1, conf);
             ocr_cells_by_page.insert(idx + 1, ocr_cells);
         }
-        assemble::merge_continuations(&mut doc.nodes);
+        assemble::merge_continuations(&mut doc.nodes, assemble::Continuations::AcrossPages);
         self.apply_heading_hierarchy(&mut doc.nodes, Some(bytes));
         self.apply_script_positions(&mut doc.nodes, bytes);
         doc.confidence = Some(confidence_report(confs, ocr_cells_by_page));
@@ -4077,7 +4077,7 @@ impl Pipeline {
     where
         F: FnMut(Vec<Node>, Vec<(String, String)>) -> Result<(), PdfError>,
     {
-        let mut asm = assemble::StreamAssembler::new();
+        let mut asm = assemble::StreamAssembler::new(assemble::Continuations::Lines);
         let images = self.images;
         let progress = self.progress.clone();
         let mut done = 0usize;
@@ -4121,7 +4121,7 @@ impl Pipeline {
     where
         F: FnMut(Vec<Node>, Vec<(String, String)>) -> Result<(), PdfError>,
     {
-        let mut asm = assemble::StreamAssembler::new();
+        let mut asm = assemble::StreamAssembler::new(assemble::Continuations::AcrossPages);
         let render_image = !self.no_ocr;
         let bitmap = self.bitmap_render();
         let extract_text = self.extract_text_layer();
@@ -4195,7 +4195,7 @@ impl Pipeline {
         let (res_tx, res_rx) = sync_channel::<Result<(usize, PageOut), PdfError>>(n_workers * 2);
 
         let mut workers = std::mem::take(&mut self.pool);
-        let mut asm = assemble::StreamAssembler::new();
+        let mut asm = assemble::StreamAssembler::new(assemble::Continuations::AcrossPages);
         let mut first_err: Option<PdfError> = None;
         let mut timed_out = false;
         let mut done = 0usize;
@@ -4441,7 +4441,7 @@ impl Pipeline {
                 });
             }
         }
-        assemble::merge_continuations(&mut doc.nodes);
+        assemble::merge_continuations(&mut doc.nodes, assemble::Continuations::AcrossPages);
         // No PDF behind these pages (images, METS): the heading-hierarchy
         // stage degrades to the numbering signal — exactly docling without
         // an outline or parsed pages.

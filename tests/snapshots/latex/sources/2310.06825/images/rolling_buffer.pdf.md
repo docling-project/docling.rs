@@ -26,7 +26,11 @@ IS
 
 This
 
-Mistral the cat a
+Mistral
+
+the cat
+
+a
 
 IS
 
@@ -34,4 +38,12 @@ an
 
 IS
 
-example of on Mistral the mat a sat sat example good on on
+example of
+
+on Mistral the mat
+
+a
+
+sat sat example good on
+
+on

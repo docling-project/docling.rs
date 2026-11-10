@@ -24,11 +24,15 @@ Output Head
 
 Transformer Block
 
-Linear Projection concatenation
+Linear Projection
+
+concatenation
 
 RMSNorm RMSNorm
 
-Embedding Layer nput Tokens
+Embedding Layer
+
+nput Tokens
 
 ℒ𝑀𝑀𝑀𝑀𝑀𝑀𝑀𝑀
 
