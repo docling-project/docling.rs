@@ -1309,8 +1309,9 @@ fn is_skipped(label: &str) -> bool {
 /// Reading-order sort of a page's regions, via the ported rule-based
 /// [`reading_order`](crate::reading_order) predictor (docling's
 /// `ReadingOrderPredictor`): an up/down geometry graph with same-row links
-/// between `cids`-consecutive elements (#424), horizontal dilation and a
-/// depth-first traversal, with `page_header`/`page_footer` ordered as their own
+/// between `cids`-consecutive elements (#424), down links between
+/// `cids`-consecutive text that overlaps slightly (docling#4276), horizontal
+/// dilation and a depth-first traversal, with `page_header`/`page_footer` ordered as their own
 /// groups (first/last) as docling does.
 fn order_regions<T: Clone>(
     items: &mut Vec<T>,
@@ -1334,8 +1335,19 @@ fn order_regions<T: Clone>(
         .iter()
         .map(|it| reg(it).label == "page_footer")
         .collect();
-    let order =
-        crate::reading_order::order_page(&boxes, cids, &is_header, &is_footer, page_w, page_h);
+    let is_graphic: Vec<bool> = items
+        .iter()
+        .map(|it| matches!(reg(it).label, "table" | "picture" | "code"))
+        .collect();
+    let order = crate::reading_order::order_page(
+        &boxes,
+        cids,
+        &is_header,
+        &is_footer,
+        &is_graphic,
+        page_w,
+        page_h,
+    );
     *items = order.iter().map(|&i| items[i].clone()).collect();
 }
 
@@ -5957,10 +5969,19 @@ mod tests {
         super::add_orphan_regions(&mut regions, &cells);
         assert_eq!(regions.len(), 5, "two orphan lines");
         // The defect, for the record: C (top 216) is not strictly below the
-        // orphan at 210.5–221.5, so the graph orders C first.
+        // orphan at 210.5–221.5, so the vertical pass alone orders C first.
+        // The slivers are 1.5 pt, inside the 0.25 % of the page height
+        // docling#4276 lets consecutive text overlap, so its link already
+        // reads each orphan after the box above it, unfitted too.
         assert_eq!(
-            ordered_texts(&regions, &cells).last().map(String::as_str),
-            Some("about pro")
+            ordered_texts(&regions, &cells),
+            [
+                "The missi",
+                "highly ex",
+                "actually ",
+                "about pro",
+                "will be l"
+            ]
         );
 
         super::fit_regions_to_cells(&mut regions, &cells);
