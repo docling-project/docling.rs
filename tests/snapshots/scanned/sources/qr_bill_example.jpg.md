@@ -6,8 +6,8 @@ We are billing you as follows for completion of the assigned activities:
 
 ## Bill no. 3139
 
-| Item Description 1 Garden work   | Item Description 1 Garden work   |
-|----------------------------------|----------------------------------|
+| Item Description 1 Garden work   |
+|----------------------------------|
 
 Yours sincerely,
 

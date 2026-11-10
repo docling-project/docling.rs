@@ -10,11 +10,11 @@ Maecenas mauris lectus, lobortis et purus mattis, blandit dictum tellus. Maecena
 
 ## Table
 
-| Column 1   | Column 2                      | Column 3   | Column 5   |
-|------------|-------------------------------|------------|------------|
-| Row 1      | Row 1                         | Row 1      | Row 1      |
-| Row 2      | Merged cells row 1-3, col 2-3 |            |            |
-| Row 3      | Row 3                         | Row 3      | Row 3      |
+| Column 1   | Column 2                      | Column 3 Column   | 4 Column 5   |
+|------------|-------------------------------|-------------------|--------------|
+| Row 1      | Row 1                         | Row 1             | Row 1        |
+| Row 2      | Merged cells row 1-3, col 2-3 |                   |              |
+| Row 3      | Row 3                         | Row 3             | Row 3        |
 
 ## Photo
 

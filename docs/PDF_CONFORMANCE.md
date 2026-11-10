@@ -33,7 +33,7 @@ older, pypdfium2-era docling's and the pipeline was scored with OCR on.
 
 ## Current state
 
-**8 / 18 strict** against upstream's current groundtruth — total **337
+**8 / 18 strict** against upstream's current groundtruth — total **251
 diff lines** (`scripts/conformance/pdf_groundtruth.sh`: `--skip-ocr
 --compact-tables`, docling-parse renderer). The groundtruth was refreshed
 for #921 from docling's `tests/data/pdf/groundtruth` at upstream `dc4693f`
@@ -87,9 +87,9 @@ it converts their text.
 | normal_4pages | 8 | docling folds the page-number glyph into the heading cluster (`## 들어가며 1`) where we emit it as its own item, and one paragraph docling breaks before its last line (`… 못하` / `고 있는 실정이다.`) |
 | 2206.01062 | 24 | `mAP@ 0.5-0.95` (docling-parse 7 splits after `@`, we before it), `tildelow10%` (its glyph-name mapping; we read `~10%`); words docling-parse 7 glues and we split (`RELATEDWORK`, `ANNOTATIONCAMPAIGN`, `LoganMarkewich`, `→Document` — the #921 clustering clip) |
 | multi_page | 32 | docling-parse 7 maps the list bullet glyph to `∞` and docling keeps it as text (`- ∞ IBM MT/ST …`); we read a bullet and drop it as the marker |
+| redp5110_sampled | 33 | monospace code docling-parse 7 spaces around punctuation (`EMPLOYEES .`, `( SESSION_USER , 'MGR' )`); a list bullet docling-parse reads as its CID (`r`), we as `�` (the TOC's dot leaders in the page column, 119 → 33, read since docling-ibm-models#185's orphan fallbacks) |
 | table_misidentified_as_form | 46 | the form container's nested table / picture (docling#4064): docling nests them inside the form region and keeps the heading, we flatten the region |
 | table_mislabeled_as_picture | 81 | the survey over-detected as tables; checkbox glyphs (`☐`) and blank cells docling keeps |
-| redp5110_sampled | 119 | TOC dot leaders docling keeps as `. . . . . .` in the page column; monospace code docling-parse 7 spaces around punctuation (`EMPLOYEES .`, `( SESSION_USER , 'MGR' )`); a list bullet docling-parse reads as its CID (`r`), we as `�` |
 
 Earlier refreshes, for the record: against the docling ≥ 2.123
 groundtruth (docling-parse ≤ 6) this tree went 374 → 346 (#609) → 342
@@ -787,7 +787,18 @@ model-level (or by-design) residual each issue closed with:
    *matching* half is done: docling's `MatchingPostProcessor` (cell-class-aware
    good/bad IOU split, column-median snapping, adjacent-column de-duplication,
    best-intersection word assignment, row/column-band orphan pickup) is ported
-   in `tf_match.rs` and is the default word→cell matcher, and the table crop
+   in `tf_match.rs` and is the default word→cell matcher — as of
+   docling-ibm-models 4.0.1 (#185): an orphan word in a row band but in no
+   column band goes to the nearest column, one in a column band but in no row
+   band to the nearest row (before, both were dropped with their text: a TOC
+   line between two predicted rows, redp5110's leaders), and the index
+   compression maps both ends of a cell through the surviving ids, so a span
+   over an all-empty row or column no longer pushes the grid past the table
+   (docling-ibm-models#123). The fallback keeps text over placing it exactly:
+   where the model predicts four columns for five, as in
+   `odf_presentation_02`, the `Column 4` header is no longer dropped but splits
+   between the two columns it straddles (`Column 3 Column | 4 Column 5`) — and
+   the table crop
    reproduces docling's exact rounding chain (`round(bbox) → ×2 → ×1024/h →
    round`, banker's rounding) — 2203 157→150, redp5110 204→202, everything else
    unchanged. The rest is **model-level**: the OTSL tag stream itself differs
