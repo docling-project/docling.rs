@@ -4482,7 +4482,10 @@ mod base14_fonts {
             "abz"
         );
         // A cell of two glyphs takes one character.
-        assert_eq!(text("BT /F3 24 Tf 40 50 Td <01> Tj /F1 24 Tf (a) Tj ET"), "fia");
+        assert_eq!(
+            text("BT /F3 24 Tf 40 50 Td <01> Tj /F1 24 Tf (a) Tj ET"),
+            "fia"
+        );
         assert_eq!(
             text(
                 "BT /F3 24 Tf 40 50 Td /Span <</ActualText (XY)>> BDC <01> Tj \
