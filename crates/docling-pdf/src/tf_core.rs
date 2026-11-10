@@ -542,18 +542,6 @@ fn docling_match_rows(
 
     // `_merge_tf_output`: group per (column, row) in ascending-pdf-id order; the
     // first word's table cell fixes the group's offsets and spans.
-    struct Merged {
-        start_row: usize,
-        start_col: usize,
-        row_span: usize,
-        col_span: usize,
-        word_ids: Vec<usize>,
-        /// The matched table cell's bbox, back in page points (the matcher
-        /// runs in docling's ×2 space).
-        bbox: [f32; 4],
-        /// The predicted cell's OTSL tag (header roles for #240).
-        tag: i64,
-    }
     let mut merged: Vec<Merged> = Vec::new();
     let mut key_ix: std::collections::HashMap<(usize, usize), usize> =
         std::collections::HashMap::new();
@@ -589,22 +577,7 @@ fn docling_match_rows(
         return None;
     }
 
-    // `multi_table_predict`'s sort_row_col_indexes: compress the surviving
-    // row/column ids to gap-free indexes.
-    let mut start_cols: Vec<usize> = merged.iter().map(|m| m.start_col).collect();
-    start_cols.sort_unstable();
-    start_cols.dedup();
-    let mut start_rows: Vec<usize> = merged.iter().map(|m| m.start_row).collect();
-    start_rows.sort_unstable();
-    start_rows.dedup();
-    let mut num_rows = 0;
-    let mut num_cols = 0;
-    for m in &mut merged {
-        m.start_col = start_cols.binary_search(&m.start_col).expect("own value");
-        m.start_row = start_rows.binary_search(&m.start_row).expect("own value");
-        num_cols = num_cols.max(m.start_col + m.col_span);
-        num_rows = num_rows.max(m.start_row + m.row_span);
-    }
+    let (num_cols, num_rows) = compress_row_col_indexes(&mut merged);
     if num_rows == 0 || num_cols == 0 {
         return None;
     }
@@ -640,6 +613,52 @@ fn docling_match_rows(
         rows: grid,
         cells: out_cells,
     })
+}
+
+/// One grid cell of [`docling_match_rows`]: the words matched to a table cell
+/// at one (column, row) of the predicted grid.
+struct Merged {
+    start_row: usize,
+    start_col: usize,
+    row_span: usize,
+    col_span: usize,
+    word_ids: Vec<usize>,
+    /// The matched table cell's bbox, back in page points (the matcher
+    /// runs in docling's ×2 space).
+    bbox: [f32; 4],
+    /// The predicted cell's OTSL tag (header roles for #240).
+    tag: i64,
+}
+
+/// `multi_table_predict`'s sort_row_col_indexes (`_compress_row_col_indexes`,
+/// docling-ibm-models#185): renumber the surviving row/column ids to gap-free
+/// indexes, both ends of a cell through the same table of surviving ids. A row
+/// or column whose cells all matched no word has no cell starting there, and
+/// an end computed as start + span would count it, pushing a spanning cell
+/// (and the grid) one row or column past the table (docling-ibm-models#123:
+/// a header over six predicted columns, one of them empty, in a five-column
+/// table). Returns (columns, rows).
+fn compress_row_col_indexes(merged: &mut [Merged]) -> (usize, usize) {
+    let mut start_cols: Vec<usize> = merged.iter().map(|m| m.start_col).collect();
+    start_cols.sort_unstable();
+    start_cols.dedup();
+    let mut start_rows: Vec<usize> = merged.iter().map(|m| m.start_row).collect();
+    start_rows.sort_unstable();
+    start_rows.dedup();
+    let mut num_rows = 0;
+    let mut num_cols = 0;
+    for m in merged {
+        // The end is exclusive: the surviving ids before it (`bisect_left`).
+        let end_col = start_cols.partition_point(|&c| c < m.start_col + m.col_span);
+        let end_row = start_rows.partition_point(|&r| r < m.start_row + m.row_span);
+        m.start_col = start_cols.binary_search(&m.start_col).expect("own value");
+        m.start_row = start_rows.binary_search(&m.start_row).expect("own value");
+        m.col_span = end_col - m.start_col;
+        m.row_span = end_row - m.start_row;
+        num_cols = num_cols.max(end_col);
+        num_rows = num_rows.max(end_row);
+    }
+    (num_cols, num_rows)
 }
 
 /// Append one JSON line per table into `<dir>/tf_match_dump.jsonl` with the
@@ -853,5 +872,65 @@ mod tests {
         assert_eq!((cells[0].colspan, cells[0].rowspan), (2, 1));
         assert_eq!((cells[0].row, cells[0].col), (0, 0));
         assert_eq!((cells[1].row, cells[1].col), (1, 0));
+    }
+
+    fn grid_cell(
+        start_col: usize,
+        start_row: usize,
+        col_span: usize,
+        row_span: usize,
+    ) -> super::Merged {
+        super::Merged {
+            start_row,
+            start_col,
+            row_span,
+            col_span,
+            word_ids: Vec::new(),
+            bbox: [0.0; 4],
+            tag: FCEL,
+        }
+    }
+
+    /// docling-ibm-models' `test_tf_predictor_indexes` (#123, #185): column
+    /// id 4 held only an empty cell the matcher dropped, so the header over
+    /// all six predicted columns spans the five that are left; row id 2 the
+    /// same on the other axis.
+    #[test]
+    fn compressing_indexes_skips_dropped_rows_and_columns() {
+        use super::compress_row_col_indexes as compress;
+        let mut cells = vec![grid_cell(0, 0, 6, 1)];
+        for row in 1..7 {
+            for col in [0, 1, 2, 3, 5] {
+                cells.push(grid_cell(col, row, 1, 1));
+            }
+        }
+        assert_eq!(compress(&mut cells), (5, 7));
+        assert_eq!((cells[0].start_col, cells[0].col_span), (0, 5));
+        assert!(cells.iter().all(|c| c.start_col + c.col_span <= 5));
+
+        let mut cells = vec![
+            grid_cell(0, 0, 1, 4),
+            grid_cell(1, 0, 1, 1),
+            grid_cell(1, 1, 1, 1),
+            grid_cell(1, 3, 1, 1),
+        ];
+        assert_eq!(compress(&mut cells), (2, 3));
+        assert_eq!((cells[0].start_row, cells[0].row_span), (0, 3));
+    }
+
+    /// `test_compress_row_col_indexes_keeps_gap_free_tables_intact`.
+    #[test]
+    fn compressing_indexes_leaves_a_gap_free_table_alone() {
+        for col_span in 1..=3 {
+            for row_span in 1..=3 {
+                let mut cells: Vec<_> = (0..3)
+                    .flat_map(|col| (0..3).map(move |row| grid_cell(col, row, 1, 1)))
+                    .collect();
+                cells[0].col_span = col_span;
+                cells[0].row_span = row_span;
+                assert_eq!(super::compress_row_col_indexes(&mut cells), (3, 3));
+                assert_eq!((cells[0].col_span, cells[0].row_span), (col_span, row_span));
+            }
+        }
     }
 }
