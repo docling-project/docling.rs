@@ -135,7 +135,10 @@ pub fn finish_document(name: &str, pages: Vec<AssembledPage>) -> DoclingDocument
         doc.nodes.extend(nodes);
         doc.links.extend(links);
     }
-    crate::assemble::merge_continuations(&mut doc.nodes);
+    crate::assemble::merge_continuations(
+        &mut doc.nodes,
+        crate::assemble::Continuations::AcrossPages,
+    );
     doc
 }
 

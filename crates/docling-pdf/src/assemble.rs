@@ -3635,7 +3635,7 @@ pub fn assemble_page(
     // docling `ReadingOrderPredictor.predict_merges`: join a text fragment with a
     // following text fragment strictly to its right (an author column that wraps
     // into the next, a paragraph continuing in the next column) into one block —
-    // the intra-page half of docling's reading-order merges (cross-page/vertical
+    // the intra-page half of docling's reading-order merges (cross-page
     // continuations stay with [`merge_continuations`]). Already-consumed regions
     // (paired captions, code labels) are excluded.
     // Exclusive docling cell assignment: computed once for the ordered region
@@ -4391,14 +4391,27 @@ fn strip_wrap_marks(nodes: &mut [Node]) {
     }
 }
 
-pub(crate) fn merge_continuations(nodes: &mut Vec<Node>) {
-    merge_open_paragraphs(nodes);
+/// Which fragments [`merge_continuations`] joins.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Continuations {
+    /// Pages the layout model laid out: docling's `predict_merges`, whose
+    /// same-page half (into the next column) ran per page, so only across a
+    /// page break. Two paragraphs down one column stay two: the layout model
+    /// saw two.
+    AcrossPages,
+    /// The text-layer paths, where each line is a region of its own: the
+    /// merge is what builds their paragraphs, down a column as across pages.
+    Lines,
+}
+
+pub(crate) fn merge_continuations(nodes: &mut Vec<Node>, how: Continuations) {
+    merge_open_paragraphs(nodes, how);
     strip_wrap_marks(nodes);
 }
 
 /// [`merge_continuations`] without the final wrap-mark strip: the streaming
 /// buffer still holds open paragraphs a later page may continue.
-fn merge_open_paragraphs(nodes: &mut Vec<Node>) {
+fn merge_open_paragraphs(nodes: &mut Vec<Node>, how: Continuations) {
     let mut i = 0;
     while i + 1 < nodes.len() {
         let Some(a) = as_paragraph(&nodes[i]) else {
@@ -4423,8 +4436,18 @@ fn merge_open_paragraphs(nodes: &mut Vec<Node>) {
         // own paragraph (an above-the-figure caption that didn't pair), since the
         // body text resumes after the whole figure+caption block.
         let mut j = i + 1;
+        let mut new_page = false;
         while nodes.get(j).is_some_and(is_merge_trailer) {
+            new_page |= matches!(nodes[j], Node::PageInfo { .. });
             j += 1;
+        }
+        // A laid-out page's merges into the next column were made per page
+        // (`predict_merges`); what is left is the page break. It is the
+        // head's page that counts, as in upstream's `elem.page_no` test, so a
+        // chain that crossed one goes on down the new page.
+        if how == Continuations::AcrossPages && !new_page {
+            i += 1;
+            continue;
         }
         // docling's continuation regex allows either case, but its merge runs
         // over the pre-assembly element stream; at node level an uppercase
@@ -4504,12 +4527,14 @@ fn hold_start(nodes: &[Node]) -> usize {
 /// [`merge_continuations`] once over the whole document.
 pub(crate) struct StreamAssembler {
     pending: Vec<Node>,
+    how: Continuations,
 }
 
 impl StreamAssembler {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(how: Continuations) -> Self {
         Self {
             pending: Vec::new(),
+            how,
         }
     }
 
@@ -4517,7 +4542,7 @@ impl StreamAssembler {
     /// now-final prefix to emit (possibly empty).
     pub(crate) fn push(&mut self, mut nodes: Vec<Node>) -> Vec<Node> {
         self.pending.append(&mut nodes);
-        merge_open_paragraphs(&mut self.pending);
+        merge_open_paragraphs(&mut self.pending, self.how);
         let cut = hold_start(&self.pending);
         let tail = self.pending.split_off(cut);
         let mut done = std::mem::replace(&mut self.pending, tail);
@@ -4570,7 +4595,7 @@ mod tests {
     }
     use super::{
         code_region_text, float_running_head, merge_continuations, resolve_link_anchors,
-        StreamAssembler,
+        Continuations, StreamAssembler,
     };
     use crate::layout::Region;
     use crate::pdfium_backend::{LinkAnnot, PdfPage, TextCell};
@@ -5809,10 +5834,14 @@ mod tests {
     /// Run a node sequence through [`StreamAssembler`] with the given page splits
     /// and assert the flushed result equals one-shot [`merge_continuations`].
     fn assert_stream_eq(nodes: &[Node], splits: &[usize]) {
-        let mut want = nodes.to_vec();
-        merge_continuations(&mut want);
+        assert_stream_eq_under(nodes, splits, Continuations::Lines);
+    }
 
-        let mut asm = StreamAssembler::new();
+    fn assert_stream_eq_under(nodes: &[Node], splits: &[usize], how: Continuations) {
+        let mut want = nodes.to_vec();
+        merge_continuations(&mut want, how);
+
+        let mut asm = StreamAssembler::new(how);
         let mut got = Vec::new();
         let mut start = 0;
         for &end in splits {
@@ -5892,6 +5921,44 @@ mod tests {
             para("epsilon zeta"),
         ];
         assert_stream_eq(&chain, &[1, 2]);
+    }
+
+    /// On laid-out pages docling joins two text items only across a page
+    /// break (or into the next column, which `predict_merges` does per
+    /// page): two paragraphs down one column stay two. A chain that crossed
+    /// a break goes on down the new page, since upstream tests the head's
+    /// page.
+    #[test]
+    fn laid_out_paragraphs_merge_only_across_a_page_break() {
+        let merged = |nodes: &[Node]| {
+            let mut nodes = nodes.to_vec();
+            merge_continuations(&mut nodes, Continuations::AcrossPages);
+            nodes
+        };
+        let one_page = [page(1), para("the definition of"), para("lists in scope")];
+        assert_eq!(merged(&one_page), one_page);
+        let two_pages = [
+            page(1),
+            para("the definition of"),
+            page(2),
+            para("lists in scope, as"),
+            para("given above"),
+        ];
+        assert_eq!(
+            merged(&two_pages),
+            [
+                page(1),
+                para("the definition of lists in scope, as given above"),
+                page(2),
+            ]
+        );
+        // Streamed a page at a time, the same.
+        assert_stream_eq_under(&one_page, &[], Continuations::AcrossPages);
+        assert_stream_eq_under(&two_pages, &[2], Continuations::AcrossPages);
+        // The text-layer paths build their paragraphs from lines this way.
+        let mut lines = one_page.to_vec();
+        merge_continuations(&mut lines, Continuations::Lines);
+        assert_eq!(lines, [page(1), para("the definition of lists in scope")]);
     }
 
     fn item(text: &str) -> Node {

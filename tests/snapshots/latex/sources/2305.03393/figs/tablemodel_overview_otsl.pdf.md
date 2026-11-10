@@ -20,7 +20,13 @@ Names
 
 150
 
-unit unit unit unit Standardized Images Encoder BBox Decoder Structure Decoder Structure Tags in OTSL format
+unit
+
+unit
+
+unit
+
+unit Standardized Images Encoder BBox Decoder Structure Decoder Structure Tags in OTSL format
 
 1
 
@@ -38,7 +44,9 @@ BBoxes
 
 ...
 
-BBoxes in sync with tag sequence
+BBoxes in sync
+
+with tag sequence
 
 1
 
@@ -64,7 +72,11 @@ NL
 
 C C C NL
 
-BBoxes can be traced back to the original image to
+BBoxes can be
+
+traced back to the
+
+original image to
 
 1
 

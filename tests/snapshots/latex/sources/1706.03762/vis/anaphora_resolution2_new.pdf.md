@@ -8,19 +8,25 @@ The Law will will never never be be perfect perfect
 
 ,
 
-but but its its application application should should be be just just
+but
+
+but its its application application should should be be just just
 
 -
 
 -
 
-this this is is what we are what we are missing missing
+this
+
+this is is what we are what we are missing missing
 
 ,
 
 ,
 
-in in my my opinion &lt;EOS&gt;
+in
+
+in my my opinion &lt;EOS&gt;
 
 opinion
 
