@@ -949,7 +949,7 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
                 *i += 1;
             }
             Node::Caption { text, href } => {
-                emit_caption(out, depth, text, href.as_deref());
+                emit_standalone_caption(out, depth, text, href.as_deref(), None);
                 *i += 1;
             }
             Node::LabeledText { .. } => {
@@ -1584,6 +1584,33 @@ fn emit_caption(out: &mut Out, depth: i32, text: &str, href: Option<&str>) {
     out.push(depth, format!("<caption>{}</caption>", escape_text(text)));
 }
 
+/// A caption no picture or table hosts (an unpaired PDF caption, #1091; an
+/// HTML `<caption>`/`<figcaption>` outside its host): a `<text>` element, as
+/// docling-core writes a body-level `CAPTION` item — the 0.9 schema allows
+/// `<caption>` only in an element head, so a top-level one fails validation
+/// (#1103). An `href` annotation rides in the head, ahead of the location.
+fn emit_standalone_caption(
+    out: &mut Out,
+    depth: i32,
+    text: &str,
+    href: Option<&str>,
+    location: Option<&[u16; 4]>,
+) {
+    let Some(uri) = href else {
+        emit_text_element(out, depth, "text", "text", text, location);
+        return;
+    };
+    out.push(depth, "<text>".to_string());
+    out.push(depth + 1, format!("<href uri=\"{}\"/>", attr_escape(uri)));
+    if let Some(loc) = location {
+        push_location(out, depth + 1, loc);
+    }
+    if !text.is_empty() {
+        emit_runs(out, depth + 1, inline_runs(text));
+    }
+    out.push(depth, "</text>".to_string());
+}
+
 /// If `text` is a single `[anchor](uri)` Markdown link, return just `anchor`;
 /// otherwise return `text` unchanged. Used when the link's uri rides in a list
 /// item's `<href>` head, so the content keeps only the anchor text.
@@ -1659,6 +1686,10 @@ fn emit_located(out: &mut Out, depth: i32, location: &[u16; 4], inner: &Node) {
         }
         Node::Code { language, text, .. } => {
             emit_code(out, depth, language.as_deref(), text, Some(location));
+        }
+        // An unpaired PDF caption (#1091) keeps its location (#1103).
+        Node::Caption { text, href } => {
+            emit_standalone_caption(out, depth, text, href.as_deref(), Some(location));
         }
         // Other node kinds carry no location today — render them as-is.
         // (Located list items are routed to emit_list by emit_nodes so they
@@ -1990,6 +2021,45 @@ mod tests {
             .iter()
             .map(|n| hay.find(n).unwrap_or_else(|| panic!("{n:?} in:\n{hay}")))
             .collect()
+    }
+
+    /// #1103: a caption no picture or table hosts is a `<text>` — the 0.9
+    /// schema has `<caption>` only in an element head, never top-level — and
+    /// keeps its location, as docling-core writes a body-level caption item.
+    #[test]
+    fn standalone_captions_are_located_text() {
+        let doclang = export_to_doclang(&[
+            Node::Located {
+                location: [54, 205, 247, 308],
+                inner: Box::new(Node::Caption {
+                    text: "Figure 4: Examples".into(),
+                    href: None,
+                }),
+            },
+            Node::Caption {
+                text: "Table 2".into(),
+                href: None,
+            },
+            Node::Caption {
+                text: "Mallard".into(),
+                href: Some("/w/M".into()),
+            },
+        ]);
+        assert!(!doclang.contains("<caption"), "{doclang}");
+        let p = positions(
+            &doclang,
+            &[
+                "<text>",
+                "<location value=\"54\"/>",
+                "<location value=\"308\"/>",
+                "Figure 4: Examples",
+                "</text>",
+                "<text>Table 2</text>",
+                "<href uri=\"/w/M\"/>",
+                "Mallard",
+            ],
+        );
+        assert!(p.windows(2).all(|w| w[0] < w[1]), "{doclang}");
     }
 
     /// #797: the DocLang schema's `element_head` is the location block,
