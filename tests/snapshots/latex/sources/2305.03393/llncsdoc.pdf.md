@@ -135,7 +135,7 @@ From a technical point of view, the llncs document class does not require any sp
 The llncs document class supports some additional special characters:
 
 ```
-\grole yields > \lid yields < < \getsto yields ←→ = \gid yields > =
+\grole yields > < \getsto yields ← \lid yields < = \gid yields > → =
 ```
 
 If you need blackboard bold characters, i.e. for sets of numbers, please load the related AMS-TEXfonts. If for some reason this is not possible you can also use the following commands from the llncs class:

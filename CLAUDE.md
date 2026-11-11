@@ -364,7 +364,7 @@ cargo test -p docling-pdf --features pdfium --lib raster:: pdfium_backend::  # t
   `docs/MIGRATION.md` holds the parity tables with real conformance numbers,
   every extension, and the deliberate divergences from docling — update it
   with behavior changes; `docs/PDF_CONFORMANCE.md` for pipeline/model
-  changes.
+  changes (its numbers), `docs/PERFORMANCE.md` for speed and memory.
 - MSRV 1.92 (1.85 for docling-core), edition 2021; CI lints on the 1.96
   toolchain — `cargo fmt` + clippy clean; comments explain *why*
   (docling parity or a deliberate divergence from it, perf tradeoffs),

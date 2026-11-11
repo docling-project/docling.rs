@@ -90,7 +90,7 @@
 # ecedbe111d15c2dc60bfd4a823cbe80127b58af4.
 #
 # Also fetches the INT8-quantized CPU models when the release hosts them (see
-# docs/PDF_CONFORMANCE.md — ~2.4x faster layout inference at unchanged conformance):
+# docs/PERFORMANCE.md — ~2.4x faster layout inference at unchanged conformance):
 #   .models/layout_heron_int8.onnx
 #   .models/tableformer/decoder_int8.onnx
 #   .models/tableformer/encoder_fp16.onnx   (fp16-weight repack, fp32 compute; #374)
@@ -830,7 +830,7 @@ if [ "$WITH_INT8" = true ]; then
     echo "models publish, build one from the fp32 model this script just fetched:"
     echo "  python scripts/install/quantize_models.py layout"
     echo "(it self-validates and keeps nothing that fails the gates)."
-    echo "See docs/PDF_CONFORMANCE.md."
+    echo "See docs/PERFORMANCE.md."
   fi
 fi
 

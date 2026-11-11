@@ -3,7 +3,7 @@
 A **strangler-fig drop-in** for Python docling's common conversion path,
 backed by the Rust [docling.rs](https://github.com/docling-project/docling.rs) engine:
 same call shape, no torch, ~4× faster PDF conversion at a fraction of the
-memory (see [`docs/PDF_CONFORMANCE.md`](../../docs/PDF_CONFORMANCE.md)).
+memory (see [`docs/PERFORMANCE.md`](../../docs/PERFORMANCE.md)).
 
 ```python
 # was:  from docling.document_converter import DocumentConverter
@@ -904,7 +904,7 @@ it is also why the CI job builds on plain `ubuntu-24.04` instead of the
 manylinux_2_28 container the CPU wheels use (linking there fails on
 `__isoc23_*`). Measured end-to-end on an RTX 3080 Laptop: 1.5–2.1× on
 multi-page digital PDFs, 8.7× on a 1913-page manual (see
-[`PDF_CONFORMANCE.md`](../../docs/PDF_CONFORMANCE.md#measured-on-real-hardware-issue-108)).
+[`PERFORMANCE.md`](../../docs/PERFORMANCE.md#measured-on-real-hardware-issue-108)).
 
 Local build mirroring the CI wheel (order matters — the provider libraries
 must exist *and* sit inside `python/docling_rs/` before the wheel is

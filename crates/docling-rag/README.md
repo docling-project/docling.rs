@@ -299,7 +299,7 @@ and the GPU execution providers `cuda` / `tensorrt` / `directml` / `coreml`.
 
 `--features cuda` puts the whole ingest-and-search path on the GPU where it
 counts: document conversion (the PDF/image ML pipeline — 1.5–8.7× measured,
-see `docs/PDF_CONFORMANCE.md`) and, when `onnx-embed` is also enabled, the
+see `docs/PERFORMANCE.md`) and, when `onnx-embed` is also enabled, the
 local embedder's ONNX session — both route through the same `DOCLING_RS_EP`
 selection as the rest of the stack, so one switch covers everything and a
 build without a usable GPU falls back to CPU per session:
