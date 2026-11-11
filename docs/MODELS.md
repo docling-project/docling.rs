@@ -520,7 +520,7 @@ corpus) and dynamic INT8 of the TableFormer decoder. On CPUs with AVX-512
 VNNI they make layout inference — the dominant PDF cost — **~2.4× faster**
 (~1.4–1.8× end-to-end) at conformance validated as unchanged against the
 corpus groundtruth; the TableFormer output is byte-identical. See
-[`docs/PDF_CONFORMANCE.md`](PDF_CONFORMANCE.md) for the measurements.
+[`docs/PERFORMANCE.md`](PERFORMANCE.md) for the measurements.
 
 **The pipeline uses them automatically** whenever they sit next to the fp32
 files at the default paths (`download_dependencies.sh` fetches them by
@@ -769,7 +769,7 @@ faster on CPU unless you amortize EP init with the warm
 `Pipeline`/`docling-serve`.
 Output is byte-identical to the CPU run on 21 of 22 corpus fixtures (fp32
 GPU kernels aren't bit-exact, one heavy fixture drifts by 2 lines). Details
-+ per-file table: [`PDF_CONFORMANCE.md`](PDF_CONFORMANCE.md#measured-on-real-hardware-issue-108);
++ per-file table: [`PERFORMANCE.md`](PERFORMANCE.md#measured-on-real-hardware-issue-108);
 reproduce with `scripts/test/gpu_benchmark.sh`.
 
 > **Link fails with an undefined `…basic_string…_M_replace_cold` (Ubuntu ≤

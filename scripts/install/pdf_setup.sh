@@ -44,7 +44,7 @@ if [ ! -f .models/tableformer/decoder.onnx ]; then
 fi
 
 # INT8-quantize the layout model + TableFormer decoder for faster CPU
-# inference (validated conformance-neutral — see docs/PDF_CONFORMANCE.md). The
+# inference (validated conformance-neutral — see docs/PERFORMANCE.md). The
 # pipeline prefers the int8 files automatically once they exist; skip building
 # them with DOCLING_RS_FP32=1. Needs onnx onnxruntime sympy pypdfium2 pillow
 # numpy — a missing-deps failure is non-fatal (fp32 keeps working).

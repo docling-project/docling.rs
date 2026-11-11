@@ -30,7 +30,7 @@ match. docling.rs runs the same models from a single binary: PDF 4.3× faster
 than Python docling at under half the RAM, Office and HTML 20–60× faster, and
 tables that survive — cell recall 0.94 where MarkItDown gets 0.31
 ([numbers](#conformance-with-microsoft-markitdown),
-[method](./docs/PDF_CONFORMANCE.md#performance--review--profiling-notes)).
+[method](./docs/PERFORMANCE.md#review--profiling-notes)).
 
 **Coming from [MarkItDown](https://github.com/microsoft/markitdown)?**
 `pip install docling-rs`, swap one import —
@@ -388,7 +388,7 @@ Declarative formats hold 17–28 MB against docling's 750–780 MB (it imports
 torch even for them) and finish 200–890× sooner end to end; the PDF peaks at
 0.46 GB against 2.2 GB and converts 19× faster end to end. Where the time
 goes, and what was measured not to help:
-[`docs/PDF_CONFORMANCE.md`](./docs/PDF_CONFORMANCE.md#where-the-time-goes).
+[`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md#where-the-time-goes).
 
 ## Integration — using docling.rs from your language
 
