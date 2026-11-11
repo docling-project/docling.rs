@@ -2475,6 +2475,213 @@ pub fn split_checkbox_lines(
     regions.extend(appended);
 }
 
+/// Resolve a `text` region that contains other regular regions (#1101).
+///
+/// RT-DETR sometimes proposes one low-score `text` box over several
+/// consecutive paragraphs *and* higher-score boxes over only some of their
+/// lines — on `dotnet-csharp-language-reference` p. 791 the continuation
+/// lines of two paragraphs, so the first line of each sits in the big box
+/// alone. `greedy` keeps all of them (the container is the less confident
+/// one, so it is never the one found "inside"), and cell ownership hands
+/// every line to the highest-score box over it: the container ends up with
+/// the lines no small box covers and emits them as one block — the first
+/// lines of unrelated paragraphs glued together — while the rest reads on
+/// its own (pp. 112 and 522 of the same book, on the current build: a
+/// paragraph's opening lines after its tail). docling's regular
+/// `_remove_overlapping_clusters` would group the boxes (containment > 0.8)
+/// and merge them into the container — reading order right, paragraph
+/// breaks lost; docling 2.108 avoids the case only because its detections
+/// differ.
+///
+/// Here the stack is rebuilt top to bottom from the container's own lines
+/// (grouped into runs between the contained regions) and the contained
+/// regions' fitted boxes. Two neighbours join when the upper one's last line
+/// runs on into the lower one: a line gap under 1.5 line heights, the line
+/// full — starting at the stack's left edge (an indent aside) and at least
+/// 3/4 of its width, or too long for the lower one's first word to have fit
+/// after it (a wrapped line fills the measure; a run-in title, a label or a
+/// centred line does not) — and not ending a sentence
+/// (`.:;!?`), the lower one `text`. A joined group with a contained region grows that
+/// region over the group (two contained regions in one group: the first
+/// takes the group, the other goes); a group of container lines alone
+/// becomes a `text` region of its own. The container itself goes.
+/// Deliberate divergence from docling's merge: the paragraphs survive. Only
+/// a stack is resolved — each contained region at least half the
+/// container's width and no container line beside one — so a box over two
+/// columns or a side-by-side layout is left to cell ownership as before.
+fn split_text_containers(regions: &mut Vec<Region>, cells: &[TextCell]) {
+    type Bx = (f32, f32, f32, f32);
+    let union = |a: Bx, b: Bx| -> Bx { (a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3)) };
+    let owned = assign_cells(regions, cells);
+    // Cells grouped into lines by vertical overlap, top to bottom: each
+    // line's box and its text (cells left to right).
+    let lines_of = |own: &[usize]| -> Vec<(Bx, String)> {
+        let mut own = own.to_vec();
+        own.sort_by(|&a, &b| cells[a].t.total_cmp(&cells[b].t));
+        let mut lines: Vec<(Bx, Vec<usize>)> = Vec::new();
+        for i in own {
+            let c = &cells[i];
+            let mid = 0.5 * (c.t + c.b);
+            match lines.last_mut() {
+                Some((b, members)) if mid >= b.1 && mid <= b.3 => {
+                    *b = union(*b, (c.l, c.t, c.r, c.b));
+                    members.push(i);
+                }
+                _ => lines.push(((c.l, c.t, c.r, c.b), vec![i])),
+            }
+        }
+        lines
+            .into_iter()
+            .map(|(b, mut members)| {
+                members.sort_by(|&a, &b| cells[a].l.total_cmp(&cells[b].l));
+                let text: Vec<&str> = members.iter().map(|&i| cells[i].text.trim()).collect();
+                (b, text.join(" "))
+            })
+            .collect()
+    };
+    let mut drop = vec![false; regions.len()];
+    let mut grow: Vec<(usize, Bx)> = Vec::new();
+    let mut added: Vec<Region> = Vec::new();
+    for ci in 0..regions.len() {
+        let c = &regions[ci];
+        if c.label != "text" || c.score == 0.0 || drop[ci] || owned[ci].is_empty() {
+            continue;
+        }
+        // Contained regulars that own cells, with their lines.
+        let inner: Vec<(usize, Vec<(Bx, String)>)> = (0..regions.len())
+            .filter(|&k| k != ci && !drop[k] && claims_cells(&regions[k]) && !owned[k].is_empty())
+            .filter(|&k| {
+                let r = &regions[k];
+                inter(c, r.l, r.t, r.r, r.b) / area(r.l, r.t, r.r, r.b).max(1.0) > 0.8
+            })
+            .map(|k| (k, lines_of(&owned[k])))
+            .collect();
+        if inner.is_empty() {
+            continue;
+        }
+        let own_lines = lines_of(&owned[ci]);
+        let boxes = |ls: &[(Bx, String)]| ls.iter().map(|l| l.0).reduce(union).expect("lines");
+        let inner_boxes: Vec<Bx> = inner.iter().map(|(_, ls)| boxes(ls)).collect();
+        let stack = inner_boxes.iter().copied().fold(boxes(&own_lines), union);
+        let width = (stack.2 - stack.0).max(1.0);
+        if inner_boxes.iter().any(|b| b.2 - b.0 < 0.5 * width) {
+            continue;
+        }
+        let beside = own_lines.iter().any(|(lb, _)| {
+            let mid = 0.5 * (lb.1 + lb.3);
+            inner_boxes.iter().any(|b| mid > b.1 && mid < b.3)
+        });
+        if beside {
+            continue;
+        }
+        // Segments top to bottom: runs of container lines (`None`) and the
+        // contained regions (`Some(index into inner)`), each with its box,
+        // its first line's top and its last line (box, text).
+        struct Seg {
+            inner: Option<usize>,
+            bx: Bx,
+            label: &'static str,
+            first: (Bx, String),
+            last: (Bx, String),
+        }
+        let mut segs: Vec<Seg> = inner
+            .iter()
+            .enumerate()
+            .map(|(n, (k, ls))| Seg {
+                inner: Some(n),
+                bx: inner_boxes[n],
+                label: regions[*k].label,
+                first: ls[0].clone(),
+                last: ls.last().expect("lines").clone(),
+            })
+            .collect();
+        let mut run: Option<Seg> = None;
+        for (lb, text) in own_lines {
+            let crossed = run
+                .as_ref()
+                .is_some_and(|r| inner_boxes.iter().any(|b| b.1 >= r.last.0 .1 && b.1 < lb.1));
+            if crossed {
+                segs.extend(run.take());
+            }
+            match run.as_mut() {
+                Some(r) => {
+                    r.bx = union(r.bx, lb);
+                    r.last = (lb, text);
+                }
+                None => {
+                    run = Some(Seg {
+                        inner: None,
+                        bx: lb,
+                        label: "text",
+                        first: (lb, text.clone()),
+                        last: (lb, text),
+                    })
+                }
+            }
+        }
+        segs.extend(run);
+        segs.sort_by(|a, b| a.bx.1.total_cmp(&b.bx.1));
+        let runs_on = |upper: &Seg, lower: &Seg| -> bool {
+            let (lb, text) = &upper.last;
+            let line_h = (lb.3 - lb.1).max(1.0);
+            // The lower segment's first word, at its line's mean advance:
+            // a line that wrapped early before a long token
+            // (`System.Runtime.CompilerServices…`) is still full.
+            let (nb, next) = &lower.first;
+            let next_chars = next.chars().count().max(1) as f32;
+            let word = next.split_whitespace().next().unwrap_or("");
+            let word_w = (nb.2 - nb.0) * (word.chars().count() + 1) as f32 / next_chars;
+            // Measured from the stack's left edge (a first-line indent
+            // aside): a centred line — an affiliation over a long e-mail
+            // address — is no wrapped line, however long the next word.
+            let flush_left = lb.0 - stack.0 < 2.0 * line_h;
+            let full = flush_left && (lb.2 - lb.0 >= 0.75 * width || lb.2 + word_w > stack.2);
+            upper.label == "text"
+                && lower.label == "text"
+                && lower.bx.1 - lb.3 < 1.5 * line_h
+                && full
+                && !text.ends_with(['.', ':', ';', '!', '?'])
+        };
+        let mut groups: Vec<Vec<usize>> = Vec::new();
+        for n in 0..segs.len() {
+            match groups.last_mut() {
+                Some(g) if runs_on(&segs[*g.last().expect("group")], &segs[n]) => g.push(n),
+                _ => groups.push(vec![n]),
+            }
+        }
+        drop[ci] = true;
+        for g in groups {
+            let gbox = g.iter().map(|&n| segs[n].bx).reduce(union).expect("group");
+            let mut hosts = g.iter().filter_map(|&n| segs[n].inner.map(|m| inner[m].0));
+            match hosts.next() {
+                Some(k) => {
+                    grow.push((k, gbox));
+                    for other in hosts {
+                        drop[other] = true;
+                    }
+                }
+                None => added.push(Region {
+                    l: gbox.0,
+                    t: gbox.1,
+                    r: gbox.2,
+                    b: gbox.3,
+                    ..regions[ci].clone()
+                }),
+            }
+        }
+    }
+    if !drop.iter().any(|&d| d) {
+        return;
+    }
+    for (k, (l, t, r, b)) in grow {
+        let g = &mut regions[k];
+        (g.l, g.t, g.r, g.b) = (g.l.min(l), g.t.min(t), g.r.max(r), g.b.max(b));
+    }
+    let mut drop = drop.into_iter();
+    regions.retain(|_| !drop.next().expect("aligned"));
+    regions.extend(added);
+}
+
 /// docling's regular-cluster refinement after cell assignment
 /// (`LayoutPostprocessor._process_regular_clusters`, #419), run once the page's
 /// cells are final and before reading order:
@@ -2509,6 +2716,7 @@ pub fn fit_regions_to_cells(regions: &mut Vec<Region>, cells: &[TextCell]) {
     if !cells.iter().any(|c| !c.text.trim().is_empty()) {
         return;
     }
+    split_text_containers(regions, cells);
     for _ in 0..3 {
         let owned = assign_cells(regions, cells);
         let mut fitted: Vec<Region> = Vec::with_capacity(regions.len());
@@ -6314,6 +6522,176 @@ mod tests {
             .into_iter()
             .map(|t| t.chars().take(9).collect())
             .collect()
+    }
+
+    /// #1101 (`dotnet-csharp-language-reference` p. 791): a low-score `text`
+    /// box over three paragraphs, with higher-score boxes over only the
+    /// continuation lines of the first two, used to keep each paragraph's
+    /// first line plus the third paragraph as one block. Each first line now
+    /// joins the paragraph below it and the leftover paragraph is its own.
+    #[test]
+    fn a_text_box_over_paragraph_tails_gives_each_its_first_line() {
+        let line = |text: &str, t: f32| cell(text, 64.0, t, 515.0, t + 10.5);
+        let cells = vec![
+            cell(
+                "CS8091: A constructor cannot be extern",
+                93.0,
+                371.0,
+                471.0,
+                381.0,
+            ),
+            line("Constructors are allowed only in class and", 403.0),
+            line("record struct types. You can't define them.", 423.0),
+            line("Instead, pass parameters by value.", 444.0),
+            line("You can declare extern constructors, however", 476.0),
+            line("constructor calls to call another constructor.", 497.0),
+            line(
+                "In addition, the following warnings can be generated:",
+                529.5,
+            ),
+            cell(
+                "CS0824: Constructor is marked external.",
+                93.0,
+                561.0,
+                300.0,
+                571.0,
+            ),
+        ];
+        let mut regions = vec![
+            region("list_item", 0.9, 92.0, 370.0, 472.0, 382.0),
+            region("text", 0.9, 63.0, 422.0, 516.0, 455.5),
+            region("text", 0.9, 63.0, 496.0, 516.0, 508.5),
+            region("text", 0.6, 63.0, 402.0, 518.0, 541.0),
+            region("list_item", 0.9, 92.0, 560.0, 301.0, 572.0),
+        ];
+        super::fit_regions_to_cells(&mut regions, &cells);
+        let cids = super::cluster_cids(&regions, &cells);
+        super::order_regions(&mut regions, &cids, 595.0, 842.0, &[], |r| r);
+        assert_eq!(
+            super::region_texts_exclusive(&regions, &cells),
+            [
+                "CS8091: A constructor cannot be extern",
+                "Constructors are allowed only in class and record struct types. \
+                 You can't define them. Instead, pass parameters by value.",
+                "You can declare extern constructors, however constructor calls \
+                 to call another constructor.",
+                "In addition, the following warnings can be generated:",
+                "CS0824: Constructor is marked external.",
+            ]
+        );
+
+        // A short line above a contained paragraph (a run-in title) is not
+        // its first line: it stays a block of its own.
+        let cells = vec![
+            cell("Remarks", 64.0, 100.0, 120.0, 110.5),
+            line("The body of the paragraph that the model boxed", 121.0),
+            line("on its own, two lines long.", 142.0),
+            line("A closing paragraph only the big box covers.", 174.0),
+        ];
+        let mut regions = vec![
+            region("text", 0.9, 63.0, 120.0, 516.0, 153.0),
+            region("text", 0.5, 63.0, 99.0, 516.0, 185.0),
+        ];
+        super::fit_regions_to_cells(&mut regions, &cells);
+        let cids = super::cluster_cids(&regions, &cells);
+        super::order_regions(&mut regions, &cids, 595.0, 842.0, &[], |r| r);
+        assert_eq!(
+            super::region_texts_exclusive(&regions, &cells),
+            [
+                "Remarks",
+                "The body of the paragraph that the model boxed on its own, two lines long.",
+                "A closing paragraph only the big box covers.",
+            ]
+        );
+
+        // p. 522's shape: the container holds a paragraph's opening lines,
+        // the contained box its tail — one paragraph again.
+        let cells = vec![
+            line("If none of a switch expression's patterns matches", 100.0),
+            line(
+                "an input value, the runtime throws an exception. It is a",
+                121.0,
+            ),
+            line(
+                "SwitchExpressionException. In most cases, the compiler",
+                142.0,
+            ),
+            line("generates a warning.", 163.0),
+        ];
+        let mut regions = vec![
+            region("text", 0.9, 63.0, 141.0, 516.0, 174.0),
+            region("text", 0.5, 63.0, 99.0, 516.0, 175.0),
+        ];
+        super::fit_regions_to_cells(&mut regions, &cells);
+        assert_eq!(
+            super::region_texts_exclusive(&regions, &cells),
+            [
+                "If none of a switch expression's patterns matches an input value, \
+                 the runtime throws an exception. It is a SwitchExpressionException. \
+                 In most cases, the compiler generates a warning."
+            ]
+        );
+
+        // A line that wrapped early before a long token is still full.
+        let cells = vec![
+            line(
+                "If none of a switch expression's patterns matches an input",
+                100.0,
+            ),
+            cell(
+                "value, the runtime throws an exception, a",
+                64.0,
+                121.0,
+                300.0,
+                131.5,
+            ),
+            line(
+                "System.Runtime.CompilerServices.SwitchExpressionException.",
+                142.0,
+            ),
+        ];
+        let mut regions = vec![
+            region("text", 0.9, 63.0, 120.0, 516.0, 132.0),
+            region("text", 0.5, 63.0, 99.0, 516.0, 154.0),
+        ];
+        super::fit_regions_to_cells(&mut regions, &cells);
+        assert_eq!(regions.len(), 1);
+
+        // Centred lines (2305.03393's affiliation over its e-mail line) are
+        // no paragraph, however long the next line's word.
+        let cells = vec![
+            cell("IBM Research", 260.0, 100.0, 330.0, 110.5),
+            cell(
+                "{mly,ahn,nli,cau,taa}@zurich.ibm.com",
+                200.0,
+                115.0,
+                390.0,
+                125.5,
+            ),
+        ];
+        let mut regions = vec![
+            region("text", 0.9, 199.0, 114.0, 391.0, 126.0),
+            region("text", 0.5, 199.0, 99.0, 391.0, 127.0),
+        ];
+        super::fit_regions_to_cells(&mut regions, &cells);
+        assert_eq!(regions.len(), 2);
+
+        // A box over two side-by-side columns is not a stack: left alone.
+        let cells = vec![
+            cell("left column one", 50.0, 100.0, 250.0, 110.0),
+            cell("left column two", 50.0, 120.0, 250.0, 130.0),
+            cell("right column one", 300.0, 100.0, 500.0, 110.0),
+        ];
+        let mut regions = vec![
+            region("text", 0.9, 49.0, 99.0, 251.0, 131.0),
+            region("text", 0.5, 49.0, 99.0, 501.0, 131.0),
+        ];
+        super::fit_regions_to_cells(&mut regions, &cells);
+        assert_eq!(regions.len(), 2);
+        assert_eq!(
+            super::region_texts_exclusive(&regions, &cells),
+            ["left column one left column two", "right column one"]
+        );
     }
 
     /// #419: fitted to its cells, a model box that cut a line in half no longer
