@@ -833,9 +833,20 @@ fn cid_widths(doc: &Document, fdict: &Dictionary) -> (HashMap<u32, f64>, f64) {
 fn num(o: &Object) -> Option<f64> {
     match o {
         Object::Integer(i) => Some(*i as f64),
-        Object::Real(r) => Some(*r as f64),
+        Object::Real(r) => Some(real(*r)),
         _ => None,
     }
+}
+
+/// lopdf keeps a real as an `f32`; docling-parse reads the same token as a
+/// double. The shortest decimal that round-trips the `f32` is the token the
+/// file wrote (for any real written with the precision `f32` holds), so
+/// `90.144 + 1.44` meets `91.584` here as it does there.
+fn real(r: f32) -> f64 {
+    use std::fmt::Write as _;
+    let mut buf = String::with_capacity(16);
+    let _ = write!(buf, "{r}");
+    buf.parse().unwrap_or(r as f64)
 }
 
 /// Decode a PDF string literal into codes, retaining packed UTF-16 pairs
@@ -2969,7 +2980,9 @@ fn record_shape(
 /// `get_connected_shape_bounding_boxes`: each box in turn (unless already
 /// taken) grows by every untaken box its growing union touches, until none
 /// does — docling-parse's greedy pass, so a component finished early keeps a
-/// box a later one would also have reached.
+/// box a later one would also have reached. Tolerance 0, as docling calls
+/// it: two `re` that meet in the file meet here because [`real`] reads their
+/// operands as the doubles docling-parse reads.
 fn connected_boxes(boxes: &[[f64; 4]]) -> Vec<[f64; 4]> {
     let touches =
         |a: [f64; 4], b: [f64; 4]| a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
@@ -4884,6 +4897,22 @@ mod base14_fonts {
             s.boxes,
             vec![[72.0, 541.0, 272.0, 542.0], [400.0, 232.0, 410.0, 242.0]]
         );
+
+        // A table rule a word processor draws piece by piece, cell borders
+        // and their corner squares: `90.144 + 1.44` is `91.584` in the file
+        // and in docling-parse's doubles, not in lopdf's `f32` reals cast to
+        // `f64`, where every such joint missed by a hair and the rule fell
+        // into pieces: `real` reads the operands as the file wrote them. A
+        // gap the producer left (`147.5 + 159.86` = 307.36, then 307.37)
+        // still parts two components, as in docling-parse.
+        let s = shapes(
+            b"56.64 690.22 33.504 1.44 re f 90.144 690.22 1.44 1.44 re f \
+              91.584 690.22 54.48 1.44 re f 146.06 690.22 1.44 1.44 re f \
+              147.5 690.22 159.86 1.44 re f 307.37 690.22 1.44 1.44 re f \
+              308.81 690.22 50.304 1.44 re f\n",
+        );
+        let spans: Vec<(f32, f32)> = s.boxes.iter().map(|b| (b[0], b[2])).collect();
+        assert_eq!(spans, vec![(56.64, 307.36), (307.37, 359.114)]);
     }
 
     /// A transparent stroke or fill is no shape (`CA` / `ca` 0).
