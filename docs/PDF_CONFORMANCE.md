@@ -378,6 +378,18 @@ diff lines and recovers content docling drops):
   by position (a CV's `Languages` line: `page_footer` 0.88 vs `text` 0.49,
   fp32 and int8 alike), and Markdown drops furniture, so docling loses the
   line (`assemble::reclaim_heading_body_footers`).
+* **A `text` box over smaller paragraph boxes** (#1101): a low-score
+  `text` region containing higher-score `text` boxes that cover only some of
+  its lines (a paragraph's continuation lines, its tail) used to keep the
+  leftover lines — the first lines of unrelated paragraphs — as one block.
+  The stack is rebuilt top to bottom instead: a container line or contained
+  box joins the next one when its last line runs on (line gap < 1.5 line
+  heights, flush left and full — ≥ 3/4 of the width, or the next word would
+  not have fit — and no sentence end), every other run of
+  container lines is a paragraph of its own, and the container goes
+  (`assemble::split_text_containers`). docling's regular
+  `_remove_overlapping_clusters` would merge the whole group into the
+  container — reading order right, paragraph breaks lost.
 * **Runaway TableFormer rows**: a decode that emits `lcel` until `MAX_STEPS`
   without a row break is rejected once a row passes 256 tags and the region
   takes the geometric table path (docling ends at a 1 × 1 table there).
