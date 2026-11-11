@@ -1726,6 +1726,7 @@ fn emit_list(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8
                 first_in_list,
                 location,
                 dclx,
+                split: _,
                 href,
                 layer,
             } if *l == level => {

@@ -1242,6 +1242,7 @@ fn push_text<F: Fn(u8) -> bool>(nodes: &mut Vec<Node>, para: Paragraphs<F>) {
             level: depth as u8,
             marker,
             location: None,
+            split: None,
             dclx: None,
             href: None,
             layer: None,

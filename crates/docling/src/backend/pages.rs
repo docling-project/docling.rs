@@ -629,6 +629,7 @@ impl ListStack {
             level: label.depth.min(u8::MAX as usize) as u8,
             marker: Some(label.marker.clone()),
             location: None,
+            split: None,
             dclx: None,
             href: uniform.and_then(|r| r.link.clone()),
             layer: None,

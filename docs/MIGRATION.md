@@ -1681,6 +1681,14 @@ docling: coordinates round-trip through the DocLang 0–511 grid, so they carry
 a quantization of up to ~page-size/512 (≈1.6 pt on A4); `charspan` always
 starts at 0 (docling.rs does not track sub-item spans).
 
+A PDF **list item** is written as docling's `ListItemMarkerProcessor` leaves
+it (#1111): `orig` with the marker, `text` without it, the `marker` itself
+(`·`, `3.`, `[21]`, `a)`, empty when the item has none) and `enumerated` for
+a numbered marker of any spelling. The Markdown spelling is another matter
+and unchanged — docling-core's serializer prints `- [21] text` — so the node
+carries the JSON's view apart (`Node::ListItem::split`), which only the PDF
+pipeline fills; every other backend's items read `-` or `N.` as before.
+
 Where a picture's or table's **caption item hangs** in the JSON tree follows
 the backend, as it does upstream (#390, `docling_core::CaptionParent`): the
 PDF pipeline parents a layout caption to the picture or table itself (the

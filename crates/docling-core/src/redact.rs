@@ -1228,12 +1228,18 @@ impl<'a> Redactor<'a> {
                 text,
                 marker,
                 dclx,
+                split,
                 href,
                 ..
             } => {
                 self.redact_text(text);
                 self.redact_opt(marker);
                 self.redact_opt(href);
+                if let Some(s) = split.as_mut() {
+                    self.redact_text(&mut s.orig);
+                    self.redact_text(&mut s.text);
+                    self.redact_text(&mut s.marker);
+                }
                 if let Some(d) = dclx.as_mut() {
                     self.redact_text(&mut d.text);
                     self.redact_opt(&mut d.marker);

@@ -2987,6 +2987,7 @@ mod tests {
                     level: 0,
                     marker: None,
                     location: None,
+                    split: None,
                     dclx: None,
                     href: None,
                     layer: None,
