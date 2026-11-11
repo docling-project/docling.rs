@@ -833,9 +833,20 @@ fn cid_widths(doc: &Document, fdict: &Dictionary) -> (HashMap<u32, f64>, f64) {
 fn num(o: &Object) -> Option<f64> {
     match o {
         Object::Integer(i) => Some(*i as f64),
-        Object::Real(r) => Some(*r as f64),
+        Object::Real(r) => Some(real(*r)),
         _ => None,
     }
+}
+
+/// lopdf keeps a real as an `f32`; docling-parse reads the same token as a
+/// double. The shortest decimal that round-trips the `f32` is the token the
+/// file wrote (for any real written with the precision `f32` holds), so
+/// `90.144 + 1.44` meets `91.584` here as it does there.
+fn real(r: f32) -> f64 {
+    use std::fmt::Write as _;
+    let mut buf = String::with_capacity(16);
+    let _ = write!(buf, "{r}");
+    buf.parse().unwrap_or(r as f64)
 }
 
 /// Decode a PDF string literal into codes, retaining packed UTF-16 pairs
@@ -2966,23 +2977,15 @@ fn record_shape(
     }
 }
 
-/// What two shape boxes may miss each other by and still touch, points.
-/// lopdf keeps a real as an `f32`, so `x + w` of one `re` and the `x` of the
-/// next, equal in the file (`90.144 + 1.44` and `91.584`), differ here by up
-/// to a few 1e-5 on a page; docling-parse reads doubles, where they meet.
-/// Well under any gap a producer draws (0.01 pt and up).
-const SHAPE_TOUCH_EPS: f64 = 5.0e-4;
-
 /// `get_connected_shape_bounding_boxes`: each box in turn (unless already
 /// taken) grows by every untaken box its growing union touches, until none
 /// does — docling-parse's greedy pass, so a component finished early keeps a
-/// box a later one would also have reached. Touching is judged within
-/// [`SHAPE_TOUCH_EPS`].
+/// box a later one would also have reached. Tolerance 0, as docling calls
+/// it: two `re` that meet in the file meet here because [`real`] reads their
+/// operands as the doubles docling-parse reads.
 fn connected_boxes(boxes: &[[f64; 4]]) -> Vec<[f64; 4]> {
-    let e = SHAPE_TOUCH_EPS;
-    let touches = |a: [f64; 4], b: [f64; 4]| {
-        a[0] <= b[2] + e && a[2] + e >= b[0] && a[1] <= b[3] + e && a[3] + e >= b[1]
-    };
+    let touches =
+        |a: [f64; 4], b: [f64; 4]| a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
     let mut taken = vec![false; boxes.len()];
     let mut out = Vec::new();
     for i in 0..boxes.len() {
@@ -4854,8 +4857,9 @@ mod base14_fonts {
 
         // A table rule a word processor draws piece by piece, cell borders
         // and their corner squares: `90.144 + 1.44` is `91.584` in the file
-        // and in docling-parse's doubles, not in lopdf's `f32` reals, where
-        // every such joint missed by a hair and the rule fell into pieces. A
+        // and in docling-parse's doubles, not in lopdf's `f32` reals cast to
+        // `f64`, where every such joint missed by a hair and the rule fell
+        // into pieces: `real` reads the operands as the file wrote them. A
         // gap the producer left (`147.5 + 159.86` = 307.36, then 307.37)
         // still parts two components, as in docling-parse.
         let s = shapes(
