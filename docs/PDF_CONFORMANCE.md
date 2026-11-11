@@ -32,15 +32,17 @@ matches the headline below.
 
 ## Current state
 
-**8 / 21 strict** against upstream's groundtruth — **509 diff lines**
-(measured 2026-11-11 on master `a1de8285`; snapshots 101/101 exact). The
-18 files scored before are unchanged at 180 lines; the mirror refresh at
+**9 / 21 strict** against upstream's groundtruth — **497 diff lines**
+(measured 2026-11-11; snapshots 101/101 exact). The mirror refresh at
 docling `a7760ab` added three fixtures — `acroform_sample` (16),
-`elsevier-00` (287), `newspaper-00` (26) — and changed none of the others.
+`elsevier-00` (287), `newspaper-00` (26) — and changed none of the others;
+the 18 files scored before went 180 → 168 with docling-parse's outline
+boxes for a font whose descriptor metrics it rejects (the parity table:
+`2305.03393v1` 8 → exact, `redp5110_sampled` 30 → 26).
 
 Against **live docling 2.150.0** (docling-parse 7.25.0, docling-core
-2.106.0, docling-ibm-models 4.0.4) the 18 upstream fixtures score **5 / 18
-strict, 501 diff lines** (the three `base14_fonts_rot*` files are our own
+2.106.0, docling-ibm-models 4.0.4) the 18 upstream fixtures score **6 / 18
+strict, 489 diff lines** (the three `base14_fonts_rot*` files are our own
 fixtures, not run there). Live docling no longer reproduces upstream's
 committed groundtruth on five files (60 lines): docling-parse 7.25's word
 segmentation (docling-parse#437 — word gaps judged in em, no per-line
@@ -58,17 +60,17 @@ docling regenerates it.
 | amt_handbook_sample | **exact** | **exact** | — |
 | code_and_formula | **exact** | **exact** | — |
 | right_to_left_03 | **exact** | **exact** | — |
+| 2305.03393v1 | **exact** | **exact** | — (the figure file names' underscores: outline boxes, a cell assigned once) |
 | base14_fonts_rot90 / _rot180 / _rot270 | **exact** | — | — (`/Rotate` display-frame normalization, docling#4008; our fixtures, groundtruth = the unrotated upstream file) |
 | right_to_left_01 | 2 | 2 | docling-parse cuts `أيضًا` before its tanween (`أيض ً`); we keep the word |
 | right_to_left_02 | 2 | 2 | one word's place at a line start (`ووف`) |
-| 2305.03393v1 | 8 | 8 | two `\_ \_` items and the spacing of underscores in figure file names (`PMC5406406 \_ 003 \_ 01.png`) |
 | normal_4pages | 8 | 8 | docling folds the page-number glyph into the heading (`## 들어가며 1`), we emit it as its own item; one paragraph docling breaks before its last line |
 | 2203.01017v2 | 12 | 18 | line-end hyphens docling fuses (`im-`/`balance`, `appear-`/`ances`; `column- and` is our #920 divergence), `\|T \|`; the groundtruth's glued author names (`KhurramAzeemHashmi`), which live docling splits like us; live reads the table's check marks `✓`/`✗` (docling-parse#431), we and the groundtruth `3`/`7` |
 | 2206.01062 | 24 | 12 | `tildelow10%` (docling-parse's glyph-name mapping; we read `~10%`), the author block and one paragraph in another place; the groundtruth's glued words (`RELATEDWORK`, `mAP@`) and live's `mAP @ 0.5` vs our `mAP @0.5` |
 | acroform_sample | 16 | 16 | AcroForm widgets: docling's `extract_form_fields` turns the field value (`Ada Lovelace`) and the check boxes (`- [x]` / `- [ ]`) into form items and links the last line; not ported — we read the drawn labels as one paragraph |
 | newspaper-00 | 26 | 24 | line-end hyphens docling fuses (`Subventionier-`/`te`); the groundtruth glues words before a capital (`ChefredaktorinDésiréePomper`), live splits them like us — but where live splits a lowercase word from a following `W` (`unseren Werbekunden`, `im Wettbewerb`) we still glue it (docling-parse#437's em-based gap, not ported yet); `Co-Geschäftsleiterin Hug AG` one block there, two here, and a paragraph docling breaks before its last line |
 | multi_page | 32 | 32 | docling-parse maps the list bullet glyph to `∞` and docling keeps it as text (`- ∞ IBM MT/ST …`); we read a bullet and drop it as the marker |
-| redp5110_sampled | 30 | 32 | monospace code docling-parse spaces around punctuation (`EMPLOYEES .`, `( SESSION_USER , 'MGR' )`); a list bullet docling-parse reads as its CID (`r`), we as `�`; live reads an arrow glyph around `→ HR\_SCHEMA→` we drop |
+| redp5110_sampled | 26 | 28 | monospace code docling-parse spaces around punctuation (`EMPLOYEES .`, `( SESSION_USER , 'MGR' )`); a list bullet docling-parse reads as its CID (`r`), we as `�`; live reads an arrow glyph around `→ HR\_SCHEMA→` we drop |
 | table_mislabeled_as_picture | 24 | 24 | the survey over-detected as tables; blank cells docling keeps |
 | table_misidentified_as_form | 38 | 38 | the form container's nested table / picture (docling#4064): docling nests them in the form region and keeps the heading, we flatten the region |
 | elsevier-00 | 287 | 285 | roughly a third: soft hyphens — docling keeps a line-final U+00AD and a space (`excep­ tionally`, 57 paragraphs), we join the word; a fifth: hyperlinks — docling's `_match_hyperlink` now links every text label, not footnotes only (the journal homepage, ~50 reference entries); the rest: the two-column body's paragraph order (adjacent `Geological importance` / `Educational potential` paragraphs swapped, affiliations one item off), letter-spaced headings (`A B S T R A C T`, which we join), one table's columns |
@@ -212,13 +214,15 @@ the docling-parse-rendered baselines with the two conformance scripts
 
 | model inputs rendered by | snapshots exact (101) | groundtruth (21 files) |
 |---|---|---|
-| docling-parse shim (`DOCLING_RS_RENDERER=docling-parse`, the reference) | 101 | 509 diff lines, 8 strict |
-| **Rust renderer** (the default) | 76 | 639 diff lines, 7 strict |
+| docling-parse shim (`DOCLING_RS_RENDERER=docling-parse`, the reference) | 101 | 497 diff lines, 9 strict |
+| **Rust renderer** (the default) | 75 | 633 diff lines, 7 strict |
 
-The groundtruth gap is in five files: `2203.01017v2` 12 → 52 and
-`redp5110_sampled` 30 → 55 (TableFormer grids), `right_to_left_03`
+The groundtruth gap is in six files: `2203.01017v2` 12 → 52 and
+`redp5110_sampled` 26 → 51 (TableFormer grids), `right_to_left_03`
 exact → 28, `table_mislabeled_as_picture` 24 → 40, `elsevier-00` 287 →
-304; the others move by at most 4 lines.
+304, `2305.03393v1` exact → 6 (Fig. 5's caption box reaches the file
+name's underscores, 0.08 pt clear of it under the shim's render); the
+others move by at most 4 lines.
 
 Heron's borderline labels move with ±1/255 of anti-aliasing, so the
 snapshots that drift are the ML-borderline ones: the matplotlib heat-map
@@ -283,7 +287,7 @@ diff history of each port lives in the git log of these files).
 | full-page picture filter (upstream since 2.15) | a `picture` covering > 90 % of the page is the page, not a figure: dropped before overlap resolution so a whole-page diagram's labels read out as text (an image input without text is an empty document, as docling's is) | `assemble::drop_full_page_pictures` |
 | same-label picture dedup, `_remove_overlapping_clusters(tables, "wrapper")` | a figure detected whole and as sub-panels collapses to the whole box; tables whose boxes overlap (IoU > 0.8 or 80 % containment) keep one survivor (`area_threshold` 2.0, `conf_threshold` 0.2) | `assemble::dedup_pictures`, `remove_overlapping_specials` |
 | `_assign_cells_to_clusters`, `_find_unassigned_cells` | exclusive cell assignment: each non-empty cell goes to the single best-overlapping regular region at > 0.2 intersection-over-self; cells no regular claims become orphan text regions; orphans > 80 % inside a picture or table are that special's children (a picture's are nested under it in the JSON — `Node::PictureChildren` — and left out of the reading order, like upstream's `_set_cluster_children`) | `assemble::add_orphan_regions`, `picture_parents` |
-| `_adjust_cluster_bboxes`, `keep_empty_clusters=False`, the three merge rounds (#419) | once cells are final, every regular region is fitted to its cells' union, an empty regular region is dropped, and orphans inside a fitted box fold in — before TableFormer and the reading order, which never see the raw model boxes | `assemble::fit_regions_to_cells` |
+| `_adjust_cluster_bboxes`, `keep_empty_clusters=False`, the three merge rounds (#419) | once cells are final, every regular region is fitted to its cells' union, an empty regular region is dropped, and orphans inside a fitted box fold in — before TableFormer and the reading order, which never see the raw model boxes. Only into a region whose *raw* box the orphan touches: `_remove_overlapping_clusters` finds partners in `regular_index`, an R-tree built once from the raw clusters and never updated, so an orphan a fitted box grew over but its model box did not reach stays an item of its own, and keeps its cell — a cell is assigned once in docling, so on a tie the orphan beats the grown box (2305.03393's Fig. 5 file-name underscores, `\_` items before the caption) | `assemble::fit_regions_to_cells`, `assign_cells` |
 | OCR'd pages: `_should_prefer_cluster` / `_select_best_cluster_from_group` (union-find over IoU > 0.8 or 80 % containment) | region-scoped OCR recognizes each region's crop, so a paragraph box over its own line boxes would read the ink twice: such groups collapse to one survivor on the group's union box | `assemble::merge_overlapping_regulars` |
 | RapidOCR's crops: the recognizer reads the detector's boxes (#570), warped out of the detector's rotated rectangle (#981) | inside each text/table region the DB detector's boxes (center in the region, taken whole) are the recognizer's line crops — each the quad warped upright (`get_rotate_crop_image`: bicubic, replicated borders; tall crops turned 90°), not its axis-aligned bounding box, which on a scan skewed by 0.6° is a third taller than a 700 px line of 12 px print and squeezed and slanted it into `Baccalaatpoesne accurlatci usgers` (7 of 32 lines on the reporter's scan; 0 in RapidOCR with the identical models); a region the detector saw nothing in, or every region without the model, is split into ink-projection strips (the pre-#570 line source, `DOCLING_RS_OCR_LINES=projection`); RapidOCR's `text_score` (0.5) drops low-confidence lines. FUNSD word recall 0.57 → 0.86 on 30 forms, 0.61 → 0.90 on all 199 (Python docling 2.133: 0.85) with the PP-OCRv6 recognizer (`.models/ocr_rec_v6.onnx`, preferred when present) | `ocr_prep::prep_region_lines_det`, `prep_table_words_det`, `ocr_prep::text_score`, `ocr::resolve_rec_pair` |
 | `_sort_cells` (docling-parse index order), `PageAssembleModel.sanitize_text` (docling#4052) | a region's cells serialize in source order; lines join with a space except after an *attached* dash, which fuses the wrapped word; a detached dash is kept | `assemble::cells_text` |
@@ -305,6 +309,7 @@ diff history of each port lives in the git log of these files).
 | `OcrOptions.scale` = 3 + RapidOCR's `max_side_len` = 2000 on image inputs | a standalone image (its own scale-1.0 page) is read by OCR at 3 px/pt shrunk to a 2000 px longer side — docling's effective resolution (#570; a 754 × 1000 form at 2.0); rendered PDF pages keep the 2.0 px/pt render the baselines are pinned to (docling would read them at 2.52 on Letter — a deliberate divergence, kept for the baselines; `--ocr-scale` overrides either) | `page_ocr_scale` |
 | pdfium's `CPDF_Page` frame, docling#4008 | glyphs, link rects and the page size live in the `CropBox ∩ MediaBox` frame with `/Rotate` applied to the display frame, so a trimmed book page or a rotated digital page lines its cells up with the render | `textparse::page_box`, `pdfium_backend::to_display_frame` |
 | docling-parse's page-box filter (#529) | a glyph is kept only when its whole char box (advance × the font's ascent / descent) lies inside the display box — the CropBox, else the MediaBox — edges included: a FrameMaker print slug beside the CropBox or a tiled page's neighbouring text beyond the MediaBox never becomes a cell (it used to be clamped onto the page edge, often to zero width), and a line crossing the edge is cut at the last glyph that fits, as docling-parse cuts it; no corpus page changes | `textparse::on_page` |
+| docling-parse's invalid font metrics (`init_ascent_and_descent`, `needs_embedded_glyph_bbox`) | a descriptor whose `/Ascent` / `/Descent` do not straddle the baseline (`/Ascent 0 /Descent 0`, a math font's two positive values) gives way to a valid `/FontBBox`, an implausible one (beyond ±8000) to its `/FontBBox` edge, and the font's glyphs are boxed vertically by their embedded outline's control box (FreeType's `FT_Outline_Get_CBox`, through the renderer's font loader; the advance stays the width): an underscore is a 0.4 pt sliver under the baseline, its own line cell, and the words around it are not joined across it (`PMC5406406 \_ 003 \_ 01.png`). Without the renderer (the wasm text layer) the font keeps the `/FontBBox` box. `2305.03393v1` exact, `redp5110_sampled` −4 (a heading in docling's place) | `textparse::font_ascent_descent`, `Font::ink_y`, `LoadedFont::glyph_ink_y` |
 | docling-parse's char rect (`page_cell.h`, #528) | a glyph drawn with a non-upright text matrix — the `0 s -s 0 tx ty Tm` runs landscape `/Rotate 90` pages are built from, 180°/270°, or tilted — keeps its rotated quad, so the corner-distance contraction reads the line in its own reading order and the cell box is the quad's extent (before: zero-width boxes, every such run dropped; 180° read backwards). Upright glyphs keep the plain loose rectangle, so upright output is byte-identical. redp5110's 90° column headers (`*JOBCTL`, `QIBM_DB_SECADM`, …) now reach TableFormer and the table matches the groundtruth cell for cell (180 → 152 diff lines); the ODF-exported presentations — landscape slides drawn onto a portrait page through a 90° `cm` — get their text layer instead of OCR | `textparse::show_text`, `dp_lines::build_cells` |
 | docling-parse `create_word_cells`, the TeX math encodings, the quote-normalization table | word cells are docling-parse's second contraction over the char cells (space glyphs as barriers, erased after); `CMSY*`/`CMMI*` without an `/Encoding` decode by the TeXbook tables; every curly quote → `'` | `dp_lines.rs`, `textparse.rs` |
 | docling-parse's `/ActualText` (7.9, `apply_actual_text`, docling-parse#300) | a marked-content span's `/ActualText` replaces the glyphs drawn inside it, by docling-parse's rules: as many characters as cells one for one, any other count the whole text on the first cell over the union of the span's boxes; an empty text removes the glyphs, a span over graphics only or with a text longer than 8 characters and 4 per cell (`/Alt` in the wrong key) is left alone, a named property list is not resolved, the outer of nested spans wins. Before, the glyphs read through the font: a zero-advance caron at a Latin code as `OresMi` (docling#3783), the Arabic marks of a LibreOffice subset whose `/ToUnicode` skips them as WinAnsi digits and brackets (`منع8ا` for `منعًا`). | `textparse::apply_actual_text` |
@@ -746,8 +751,8 @@ and are closed with these residuals):
 6. **The model-input renderer** (#478). The default build renders with the
    pure-Rust renderer, mean |Δ| ≈ 1 / 255 against docling-parse's — close,
    not identical, so heron's borderline labels move on the ML-borderline
-   fixtures ("The PDF stack" above: 76/101 snapshots exact and 639
-   groundtruth lines against the shim's 101/101 and 509). Closing it means Blend2D's 8-bit coverage values.
+   fixtures ("The PDF stack" above: 75/101 snapshots exact and 633
+   groundtruth lines against the shim's 101/101 and 497). Closing it means Blend2D's 8-bit coverage values.
 
 Performance — the parallelism, the profiling notes, INT8, GPU providers,
 ONNX Runtime upgrades — lives in [`PERFORMANCE.md`](PERFORMANCE.md).

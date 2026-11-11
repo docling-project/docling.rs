@@ -42,7 +42,7 @@ bulk of the porting under review).
 > (a pure-Rust PDF text/metadata parser and page renderer — no native PDF library; the docling-parse renderer plugin is a development oracle — + ONNX
 > layout/TableFormer/OCR + a port of docling-parse's line sanitizer) and is also
 > measured byte-for-byte against upstream's groundtruth and live docling (2.150, docling-parse 7.25.0) —
-> **8 / 21 PDF fixtures exact, 509 diff lines** against the groundtruth, 5 / 18 and 501 against live docling (see `PDF_CONFORMANCE.md`), with a snapshot baseline
+> **9 / 21 PDF fixtures exact, 497 diff lines** against the groundtruth, 6 / 18 and 489 against live docling (see `PDF_CONFORMANCE.md`), with a snapshot baseline
 > guarding against regressions. `cargo test` is green (unit tests + a 159-source
 > output-regression suite).
 
@@ -1535,8 +1535,8 @@ content-type resolution, and image extraction — reused by DOCX/PPTX/XLSX/EPUB.
 
 These run docling's *discriminative* PDF pipeline ported to ONNX. They are now
 measured **byte-for-byte against docling** (the committed PDF groundtruth mirrors
-upstream's; live docling 2.150 differs from it on five files): **8 / 21
-exact, 509 diff lines** against the groundtruth, 5 / 18 and 501 against live docling 2.150, the rest close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
+upstream's; live docling 2.150 differs from it on five files): **9 / 21
+exact, 497 diff lines** against the groundtruth, 6 / 18 and 489 against live docling 2.150, the rest close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
 (`scripts/conformance/pdf_conformance.sh`) still guards against regressions.
 
 #### PDF
@@ -1551,7 +1551,7 @@ exact, 509 diff lines** against the groundtruth, 5 / 18 and 501 against live doc
   - the published Docker images set `=0` with the two packages they install pinned in `DOCLING_RS_FONT_DIRS`
   - `DOCLING_RS_DEBUG=1` names the face each style resolved to
 - mean |Δ| 0.84/255 per channel against the shim over the snapshot corpus
-- on the shim-rendered baselines 76/101 snapshots exact and 639 groundtruth diff lines where the shim itself is 101 / 509
+- on the shim-rendered baselines 75/101 snapshots exact and 633 groundtruth diff lines where the shim itself is 101 / 497
 - Type1C fonts carrying the deprecated CFF `dotsection` operator draw their periods and i-dots, #531
 - pdfium's chain only in a build with the opt-in `pdfium` feature under `DOCLING_RS_RENDERER=pdfium`
 - #419: layout boxes are refitted to the cells they claim, empty ones dropped and contained orphans folded in before the reading order runs, as docling's `LayoutPostprocessor` does
@@ -2247,7 +2247,7 @@ These are deliberate or unavoidable divergences, not bugs.
      dropped (Form-XObject text and glyph-name-only fonts were the two classes it
      surfaced and fixed).
    - Output is measured **byte-for-byte against docling** (PDF_CONFORMANCE.md):
-     **8 / 21 exact, 509 diff lines** against upstream's groundtruth, the rest close. The remaining gaps are
+     **9 / 21 exact, 497 diff lines** against upstream's groundtruth, the rest close. The remaining gaps are
      model-level (TableFormer structure on complex tables, layout
      classification, title-page reading order) plus docling-parse 7's own
      glyph mappings (`∞` for a list bullet, `tildelow` for `~`). The full per-fixture breakdown and the

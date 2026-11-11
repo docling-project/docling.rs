@@ -2231,7 +2231,15 @@ fn assign_cells(regions: &[Region], cells: &[TextCell]) -> Vec<Vec<usize>> {
                 continue;
             }
             let ov = inter(r, c.l, c.t, c.r, c.b) / ca;
-            if ov > 0.2 && best.is_none_or(|(_, b)| ov > b) {
+            // A tie goes to an orphan region (score 0, its box the cells
+            // it was made from) over a model region that only reaches the
+            // cell once fitted: docling assigns a cell once, to the raw
+            // boxes, and an orphan its fitted neighbour did not fold in
+            // ([`fit_regions_to_cells`]) keeps it.
+            let wins = |(bi, b): (usize, f32)| {
+                ov > b || (ov == b && r.score == 0.0 && regions[bi].score != 0.0)
+            };
+            if ov > 0.2 && best.is_none_or(wins) {
                 best = Some((i, ov));
             }
         }
@@ -2746,17 +2754,29 @@ pub fn fit_regions_to_cells(regions: &mut Vec<Region>, cells: &[TextCell]) {
         return;
     }
     split_text_containers(regions, cells);
+    // Each region's box as the model proposed it. docling's merge rounds
+    // find a region's partners in an R-tree built once from the raw
+    // clusters (`regular_index`, never updated): an orphan folds only into a
+    // region whose *raw* box it touches, however far the fitted box has
+    // grown — 2305.03393's Fig. 5 caption fits down over the `_` cells
+    // under its last line (their ink boxes, below the baseline) that its
+    // model box stops short of, and docling keeps them as items of their
+    // own.
+    let mut raw: Vec<(f32, f32, f32, f32)> = regions.iter().map(|r| (r.l, r.t, r.r, r.b)).collect();
     for _ in 0..3 {
         let owned = assign_cells(regions, cells);
         let mut fitted: Vec<Region> = Vec::with_capacity(regions.len());
-        for (r, own) in regions.iter().zip(&owned) {
+        let mut fitted_raw: Vec<(f32, f32, f32, f32)> = Vec::with_capacity(regions.len());
+        for ((r, own), &rb) in regions.iter().zip(&owned).zip(&raw) {
             if !claims_cells(r) {
                 fitted.push(r.clone());
+                fitted_raw.push(rb);
                 continue;
             }
             if own.is_empty() {
                 if r.label == "formula" {
                     fitted.push(r.clone());
+                    fitted_raw.push(rb);
                 }
                 continue;
             }
@@ -2778,6 +2798,7 @@ pub fn fit_regions_to_cells(regions: &mut Vec<Region>, cells: &[TextCell]) {
                 .map(|&i| cells[i].b)
                 .fold(f32::NEG_INFINITY, f32::max);
             fitted.push(f);
+            fitted_raw.push(rb);
         }
         let mut changed = fitted.len() != regions.len();
         // Fold orphans into the regular region whose fitted box holds them.
@@ -2791,6 +2812,10 @@ pub fn fit_regions_to_cells(regions: &mut Vec<Region>, cells: &[TextCell]) {
             let mut best: Option<(usize, f32)> = None;
             for (j, r) in fitted.iter().enumerate() {
                 if j == i || drop[j] || r.score == 0.0 || !claims_cells(r) {
+                    continue;
+                }
+                let (rl, rt, rr, rb) = fitted_raw[j];
+                if rr.min(o.r) < rl.max(o.l) || rb.min(o.b) < rt.max(o.t) {
                     continue;
                 }
                 let ov = inter(r, o.l, o.t, o.r, o.b) / oa;
@@ -2809,9 +2834,12 @@ pub fn fit_regions_to_cells(regions: &mut Vec<Region>, cells: &[TextCell]) {
                 changed = true;
             }
         }
+        let mut keep = drop.iter().map(|&d| !d);
+        fitted_raw.retain(|_| keep.next().expect("aligned"));
         let mut drop = drop.into_iter();
         fitted.retain(|_| !drop.next().expect("aligned"));
         *regions = fitted;
+        raw = fitted_raw;
         if !changed {
             break;
         }
@@ -6854,6 +6882,40 @@ mod tests {
         ));
     }
 
+    /// 2305.03393's Fig. 5 caption: the model box stops 0.08 pt above the
+    /// two `_` cells under its file name (outline-tight boxes below the
+    /// baseline), so they are orphans; a `μ` the box does claim then fits
+    /// it down over them. docling folds an orphan only into a cluster whose
+    /// raw box it touches and never reassigns a cell to a grown box, so the
+    /// underscores stay items of their own; an orphan the raw box reaches
+    /// still folds in.
+    #[test]
+    fn an_orphan_folds_only_into_a_raw_box_it_touches() {
+        let cells = vec![
+            cell("\"PMC2807444", 134.8, 430.3, 193.0, 436.9),
+            cell("_", 193.0, 438.52, 200.2, 438.92),
+            cell("006", 200.2, 430.7, 214.0, 436.9),
+            cell("_", 214.0, 438.52, 221.1, 438.92),
+            cell("00.png\" PubTabNet.", 221.1, 430.3, 304.7, 438.49),
+            cell("μ", 342.6, 430.2, 344.8, 439.72),
+        ];
+        let mut regions = vec![region("caption", 0.96, 134.0, 396.6, 480.4, 438.44)];
+        super::add_orphan_regions(&mut regions, &cells);
+        assert_eq!(regions.len(), 3, "two orphans");
+        super::fit_regions_to_cells(&mut regions, &cells);
+        assert_eq!(regions.len(), 3, "neither folds into the grown caption");
+        assert_eq!(
+            super::region_texts_exclusive(&regions, &cells),
+            ["\"PMC2807444 006 00.png\" PubTabNet. μ", "_", "_"]
+        );
+
+        // A raw box that reaches the orphan takes it in.
+        let mut regions = vec![region("caption", 0.96, 134.0, 396.6, 480.4, 438.6)];
+        super::add_orphan_regions(&mut regions, &cells);
+        super::fit_regions_to_cells(&mut regions, &cells);
+        assert_eq!(regions.len(), 1);
+    }
+
     /// #419: fitted to its cells, a model box that cut a line in half no longer
     /// overlaps the orphan that line became, so the orphan orders where it
     /// reads; unfitted, the same page strands the line after the paragraph.
@@ -6896,15 +6958,17 @@ mod tests {
     }
 
     /// An orphan the fitted paragraph box surrounds (a short middle line the
-    /// narrow model box missed while claiming the lines around it) is folded
-    /// into the paragraph; an empty regular box goes away, a formula stays, a
-    /// picture is never refitted, and a page with no cells is left untouched.
+    /// narrow model box only grazed while claiming the lines around it) is
+    /// folded into the paragraph — the raw box touches it, as docling's
+    /// merge index requires; an empty regular box goes away, a formula stays,
+    /// a picture is never refitted, and a page with no cells is left
+    /// untouched.
     #[test]
     fn fitting_folds_surrounded_orphans_and_drops_empty_regulars() {
         let wide = |text: &str, t: f32| cell(text, 60.0, t, 400.0, t + 11.0);
         let cells = vec![
             wide("first line of the paragraph", 100.0),
-            cell("stray", 250.0, 112.0, 400.0, 123.0), // clear of the narrow box
+            cell("stray", 150.0, 112.0, 400.0, 123.0), // a 0.2 graze: unclaimed
             wide("third line of the paragraph", 124.0),
         ];
         let mut regions = vec![

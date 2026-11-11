@@ -2142,7 +2142,7 @@ impl Worker {
         if env::flag("DOCLING_RS_DEBUG_REGIONS") {
             for r in &regions {
                 eprintln!(
-                    "DBG raw {} {:.2} [{:.0},{:.0},{:.0},{:.0}]",
+                    "DBG raw {} {:.2} [{:.2},{:.2},{:.2},{:.2}]",
                     r.label, r.score, r.l, r.t, r.r, r.b
                 );
             }

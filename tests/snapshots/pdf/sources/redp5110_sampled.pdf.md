@@ -74,9 +74,9 @@ Solution Brief IBM Systems Lab Services and Training
 
 <!-- image -->
 
-## DB2 for i Center of Excellence
-
 Power Services
+
+## DB2 for i Center of Excellence
 
 Expert help to achieve your business requirements
 

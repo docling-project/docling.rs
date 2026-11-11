@@ -113,6 +113,14 @@ struct Font {
     program_encoding: HashMap<u8, char>,
     ascent: f64,
     descent: f64,
+    /// code → its embedded glyph's ink extent `(y_min, y_max)` in 1000-unit
+    /// em, for a font whose descriptor metrics docling-parse rejects
+    /// ([`font_ascent_descent`]'s third value): docling-parse 7.24 boxes such
+    /// a font's glyphs by their outline's control box, so a glyph drawn
+    /// under the baseline — 2305.03393's `_` in `PMC5406406_003_01.png` —
+    /// is a cell of its own, not part of the word. Empty for every other
+    /// font, a glyph with no ink, and a build without the renderer.
+    ink_y: HashMap<u32, (f64, f64)>,
     hash: u64,
     /// Whether the font's docling-parse name marks a math face
     /// ([`is_math_font_name`]) — for the word contraction's local
@@ -384,7 +392,7 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
         type1_program_encoding(doc, fdict)
     };
 
-    let (ascent, descent) = font_ascent_descent(doc, fdict, two_byte);
+    let (ascent, descent, ink_boxes) = font_ascent_descent(doc, fdict, two_byte);
     let sanitizer_name = sanitizer_font_name(doc, fdict, two_byte);
     let mut font = Font {
         two_byte,
@@ -398,6 +406,7 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
         program_encoding,
         ascent,
         descent,
+        ink_y: HashMap::new(),
         hash: hash_name(&sanitizer_name),
         math: is_math_font_name(&sanitizer_name),
         style: crate::font_style::parse_font_style(&String::from_utf8_lossy(
@@ -405,7 +414,39 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
         )),
     };
     font.blank_codes = blank_codes(doc, fdict, &font);
+    if ink_boxes {
+        font.ink_y = ink_extents(doc, fdict, &font);
+    }
     font
+}
+
+/// The ink extents of `font`'s declared codes ([`Font::ink_y`]), read from
+/// its embedded program; nothing past a CID font's first 4096 codes.
+#[cfg(feature = "render")]
+fn ink_extents(doc: &Document, fdict: &Dictionary, font: &Font) -> HashMap<u32, (f64, f64)> {
+    const MAX_CODES: usize = 4096;
+    let loaded = crate::render::font::LoadedFont::load(doc, fdict);
+    if !loaded.has_program() {
+        return HashMap::new();
+    }
+    let mut codes: Vec<u32> = font.widths.keys().copied().collect();
+    if !font.two_byte {
+        codes.extend(0..=255);
+        codes.sort_unstable();
+        codes.dedup();
+    }
+    codes
+        .into_iter()
+        .take(MAX_CODES)
+        .filter_map(|c| Some((c, loaded.glyph_ink_y(c)??)))
+        .collect()
+}
+
+/// Without the renderer there is no program to read: the font keeps its
+/// loose box (docling-parse's own fallback when FreeType resolves no glyph).
+#[cfg(not(feature = "render"))]
+fn ink_extents(_doc: &Document, _fdict: &Dictionary, _font: &Font) -> HashMap<u32, (f64, f64)> {
+    HashMap::new()
 }
 
 /// The codes `font` leaves unmapped whose embedded glyph paints nothing
@@ -703,7 +744,17 @@ fn is_gid_name(name: &[u8]) -> bool {
         && s.as_bytes()[alpha..].iter().all(|b| b.is_ascii_digit())
 }
 
-fn font_ascent_descent(doc: &Document, fdict: &Dictionary, two_byte: bool) -> (f64, f64) {
+/// The font's ascent and descent (1000-unit em) for its loose char boxes,
+/// and whether docling-parse 7.24 rejects its descriptor metrics
+/// (`invalid_vertical_metrics`, `init_ascent_and_descent`) — then it boxes
+/// each glyph by its embedded outline instead ([`Font::ink_y`]):
+///
+/// - an `/Ascent` or `/Descent` beyond ±8000 (`MAX_PLAUSIBLE_VERTICAL_METRIC`)
+///   is ignored for the `/FontBBox` edge, when that is usable;
+/// - metrics that do not straddle the baseline (`descent <= 0 <= ascent`,
+///   `descent < ascent` — `/Ascent 0 /Descent 0`, or a math font's two
+///   positive values) give way to a valid `/FontBBox`.
+fn font_ascent_descent(doc: &Document, fdict: &Dictionary, two_byte: bool) -> (f64, f64, bool) {
     // For Type0, the descriptor lives on the descendant CIDFont.
     let descr_owner = if two_byte {
         fdict
@@ -721,32 +772,53 @@ fn font_ascent_descent(doc: &Document, fdict: &Dictionary, two_byte: bool) -> (f
     let fd = descr_owner
         .and_then(|d| d.get(b"FontDescriptor").ok())
         .and_then(|o| as_dict(doc, o));
-    let asc = fd
-        .and_then(|d| d.get(b"Ascent").ok())
-        .and_then(|o| {
-            o.as_float()
-                .ok()
-                .or_else(|| o.as_i64().ok().map(|i| i as f32))
-        })
-        .unwrap_or(750.0) as f64;
-    let desc = fd
-        .and_then(|d| d.get(b"Descent").ok())
-        .and_then(|o| {
-            o.as_float()
-                .ok()
-                .or_else(|| o.as_i64().ok().map(|i| i as f32))
-        })
-        .unwrap_or(-250.0) as f64;
-    // Some subsetted fonts carry a degenerate FontDescriptor (`/Ascent 0
-    // /Descent 0`) — the real metrics live in the font program. That collapses
-    // the loose box to zero height, so the line cells get zero area and the
-    // layout's region/text assignment drops them (2305's References list lost
-    // every prose line, keeping only the URLs). Fall back to typical text metrics
-    // so the box has height.
-    if asc - desc <= 1.0 {
-        return (750.0, -250.0);
+    let read = |key: &[u8]| fd.and_then(|d| d.get(key).ok()).and_then(num);
+    let plausible = |v: f64| v.is_finite() && v.abs() <= 8000.0;
+    let bbox = fd
+        .and_then(|d| d.get(b"FontBBox").ok())
+        .and_then(|o| deref(doc, o))
+        .and_then(|o| match o {
+            Object::Array(a) if a.len() == 4 => {
+                let v: Vec<f64> = a.iter().filter_map(num).collect();
+                (v.len() == 4).then(|| [v[0], v[1], v[2], v[3]])
+            }
+            _ => None,
+        });
+    let usable = |v: f64| v.abs() > 1e-3 && plausible(v);
+    let mut invalid = false;
+    let asc = match read(b"Ascent") {
+        Some(v) if plausible(v) => v,
+        Some(_) => {
+            invalid = true;
+            bbox.map(|b| b[3]).filter(|&v| usable(v)).unwrap_or(750.0)
+        }
+        None => 750.0,
+    };
+    let desc = match read(b"Descent") {
+        Some(v) if plausible(v) => v,
+        Some(_) => {
+            invalid = true;
+            bbox.map(|b| b[1]).filter(|&v| usable(v)).unwrap_or(-250.0)
+        }
+        None => -250.0,
+    };
+    if !(desc <= 0.0 && asc >= 0.0 && desc < asc) {
+        if let Some(b) = bbox.filter(|b| {
+            b[1] <= 0.0 && b[3] >= 0.0 && b[1] < b[3] && plausible(b[1]) && plausible(b[3])
+        }) {
+            return (b[3], b[1], true);
+        }
     }
-    (asc, desc)
+    // Some subsetted fonts carry a degenerate FontDescriptor (`/Ascent 0
+    // /Descent 0`) and no usable FontBBox either: the real metrics live in
+    // the font program. A zero-height loose box gives the line cells zero
+    // area and the layout's region/text assignment drops them (2305's
+    // References list lost every prose line, keeping only the URLs), so
+    // fall back to typical text metrics.
+    if asc - desc <= 1.0 {
+        return (750.0, -250.0, invalid);
+    }
+    (asc, desc, invalid)
 }
 
 /// The `/BaseFont` name with any `ABCDEF+` subset prefix stripped (#187).
@@ -3125,6 +3197,8 @@ fn show_text(
         // (docling-parse collapses its ascent and descent).
         let (desc, asc) = if blank {
             (0.0, 0.0)
+        } else if let Some(&(lo, hi)) = font.ink_y.get(&code) {
+            (lo / 1000.0, hi / 1000.0)
         } else {
             (font.descent / 1000.0, font.ascent / 1000.0)
         };
@@ -4642,6 +4716,78 @@ mod base14_fonts {
                 .filter(|l| l.contains('\u{FFFD}'))
                 .collect::<Vec<_>>()
         );
+    }
+
+    /// 2305.03393's figure-caption font (`SFRM0900`) declares `/Ascent 0
+    /// /Descent 0`, which docling-parse 7.24 rejects: its glyphs are boxed by
+    /// their outline, so the underscores of `"PMC2807444_006_00.png"` — ink
+    /// under the baseline — are line cells of their own, as docling-parse's
+    /// are (same boxes to 0.01 pt), not part of the file name.
+    #[cfg(feature = "render")]
+    #[test]
+    fn an_invalid_metric_font_is_boxed_by_its_ink() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/data/pdf/sources/2305.03393v1.pdf");
+        let Ok(bytes) = std::fs::read(path) else {
+            return;
+        };
+        let pages = super::pdf_textlines(&bytes);
+        let line = |text: &str| {
+            pages[9]
+                .2
+                .iter()
+                .find(|c| c.text == text)
+                .unwrap_or_else(|| panic!("no `{text}` line cell"))
+                .clone()
+        };
+        let name = line("\"PMC2807444");
+        let under: Vec<_> = pages[9].2.iter().filter(|c| c.text == "_").collect();
+        assert_eq!(under.len(), 2, "two `_` cells");
+        for u in under {
+            assert!(
+                u.t > name.b,
+                "`_` under the digits' ink: {:?} vs {:?}",
+                u,
+                name
+            );
+            assert!(
+                (u.b - u.t - 0.403).abs() < 0.01,
+                "an outline-tight box: {u:?}"
+            );
+        }
+    }
+
+    /// docling-parse's descriptor checks (`init_ascent_and_descent`): metrics
+    /// that do not straddle the baseline give way to a valid `/FontBBox` and
+    /// mark the font for outline boxes; an implausible one is ignored for its
+    /// `/FontBBox` edge; plain metrics are kept.
+    #[test]
+    fn descriptor_metrics_follow_docling_parse() {
+        use lopdf::{dictionary, Object};
+        let font = |asc: Option<i64>, desc: Option<i64>, bbox: bool| {
+            let mut fd = dictionary! { "Type" => "FontDescriptor", "FontName" => "X" };
+            if let Some(a) = asc {
+                fd.set("Ascent", a);
+            }
+            if let Some(d) = desc {
+                fd.set("Descent", d);
+            }
+            if bbox {
+                let b: Vec<Object> = [-196, -322, 1502, 937].map(Object::from).to_vec();
+                fd.set("FontBBox", b);
+            }
+            let f = dictionary! {
+                "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "X",
+                "FontDescriptor" => fd,
+            };
+            super::font_ascent_descent(&lopdf::Document::with_version("1.5"), &f, false)
+        };
+        assert_eq!(font(Some(0), Some(0), true), (937.0, -322.0, true));
+        assert_eq!(font(Some(700), Some(200), true), (937.0, -322.0, true));
+        assert_eq!(font(Some(90000), Some(-250), true), (937.0, -250.0, true));
+        assert_eq!(font(Some(718), Some(-207), true), (718.0, -207.0, false));
+        assert_eq!(font(Some(0), Some(0), false), (750.0, -250.0, false));
+        assert_eq!(font(None, None, true), (750.0, -250.0, false));
     }
 
     /// The page's image placements reach the cells (#999): the scan under

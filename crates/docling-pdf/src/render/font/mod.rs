@@ -608,6 +608,31 @@ impl LoadedFont {
         Some(g.path.is_some())
     }
 
+    /// The vertical extent of `code`'s embedded glyph outline in 1000-unit
+    /// em (`(y_min, y_max)` of its control box, FreeType's
+    /// `FT_Outline_Get_CBox`), as docling-parse 7.24 reads it for a font
+    /// whose descriptor metrics are invalid (`needs_embedded_glyph_bbox`):
+    /// `Some(None)` for a glyph with no ink, `None` without an embedded
+    /// program or when the glyph is not found.
+    pub fn glyph_ink_y(&self, code: u32) -> Option<Option<(f64, f64)>> {
+        if matches!(self.program, Program::None | Program::Fallback { .. }) {
+            return None;
+        }
+        let cid = self.cmap.as_ref().map_or(code, |c| c.cid(code));
+        let g = self.build_glyph(code, cid)?;
+        let Some(path) = g.path else {
+            return Some(None);
+        };
+        let Some(path) = path.transform(self.program_matrix().to_ts()) else {
+            return Some(None);
+        };
+        let b = path.bounds();
+        Some(
+            (b.width() > 0.0 && b.height() > 0.0)
+                .then(|| (f64::from(b.top()) * 1000.0, f64::from(b.bottom()) * 1000.0)),
+        )
+    }
+
     pub fn has_program(&self) -> bool {
         !matches!(self.program, Program::None)
     }
