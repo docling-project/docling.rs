@@ -2507,8 +2507,11 @@ pub fn split_checkbox_lines(
 /// becomes a `text` region of its own. The container itself goes.
 /// Deliberate divergence from docling's merge: the paragraphs survive. Only
 /// a stack is resolved — each contained region at least half the
-/// container's width and no container line beside one — so a box over two
-/// columns or a side-by-side layout is left to cell ownership as before.
+/// container's width or a paragraph's wrapped last line (one line at the
+/// stack's left edge, directly under a full container line, no other
+/// contained region beside it: #1107), and no container line beside one —
+/// so a box over two columns or a side-by-side layout is left to cell
+/// ownership as before.
 fn split_text_containers(regions: &mut Vec<Region>, cells: &[TextCell]) {
     type Bx = (f32, f32, f32, f32);
     let union = |a: Bx, b: Bx| -> Bx { (a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3)) };
@@ -2564,7 +2567,33 @@ fn split_text_containers(regions: &mut Vec<Region>, cells: &[TextCell]) {
         let inner_boxes: Vec<Bx> = inner.iter().map(|(_, ls)| boxes(ls)).collect();
         let stack = inner_boxes.iter().copied().fold(boxes(&own_lines), union);
         let width = (stack.2 - stack.0).max(1.0);
-        if inner_boxes.iter().any(|b| b.2 - b.0 < 0.5 * width) {
+        // A contained box under half the stack's width reads as a column —
+        // unless it is a paragraph's wrapped last line (#1107: `alias; using
+        // definition from 'File Name'`, `assembly` on pp. 1783 / 1820): one
+        // line, at the stack's left edge, directly under a full container
+        // line, with no other contained box beside it. A container line
+        // beside it is still a column (`beside` below).
+        let wrapped_tail = |n: usize| -> bool {
+            let (ls, b) = (&inner[n].1, inner_boxes[n]);
+            let h = (ls[0].0 .3 - ls[0].0 .1).max(1.0);
+            ls.len() == 1
+                && b.0 - stack.0 < 2.0 * h
+                && own_lines.iter().any(|(lb, _)| {
+                    let gap = b.1 - lb.3;
+                    gap > -0.25 * h
+                        && gap < 1.5 * h
+                        && lb.0 - stack.0 < 2.0 * h
+                        && lb.2 - lb.0 >= 0.75 * width
+                })
+                && !inner_boxes
+                    .iter()
+                    .enumerate()
+                    .any(|(m, o)| m != n && o.1 < b.3 && o.3 > b.1)
+        };
+        if (0..inner.len()).any(|n| {
+            let b = inner_boxes[n];
+            b.2 - b.0 < 0.5 * width && !wrapped_tail(n)
+        }) {
             continue;
         }
         let beside = own_lines.iter().any(|(lb, _)| {
@@ -6692,6 +6721,137 @@ mod tests {
             super::region_texts_exclusive(&regions, &cells),
             ["left column one left column two", "right column one"]
         );
+    }
+
+    /// #1107 (`dotnet-csharp-language-reference` pp. 1783, 1820): the same
+    /// container over three paragraphs, but one contained box is the first
+    /// paragraph's short last line — under half the stack's width, which the
+    /// column guard read as a column, so the container kept every first line
+    /// as one block. A one-line box at the stack's left edge, directly under
+    /// a full container line, is a wrapped tail: the stack resolves. A box
+    /// that narrow with another contained box beside it, or not under a
+    /// container line, is still a column.
+    #[test]
+    fn a_contained_short_last_line_is_no_column() {
+        let line = |text: &str, t: f32, r: f32| cell(text, 64.0, t, r, t + 9.0);
+        let page = |tail: &str, tail_r: f32, lines: [&str; 6]| {
+            let cells = vec![
+                line(lines[0], 106.0, 520.0),
+                line(tail, 125.0, tail_r),
+                line(lines[1], 157.0, 520.0),
+                line(lines[2], 176.0, 523.0),
+                line(lines[3], 195.5, 515.0),
+                line(lines[4], 215.0, 300.0),
+                line(lines[5], 245.0, 500.0),
+            ];
+            let regions = vec![
+                region("text", 0.9, 63.0, 124.0, tail_r + 1.0, 135.0),
+                region("text", 0.9, 63.0, 175.0, 524.0, 225.0),
+                region("text", 0.5, 63.0, 105.0, 521.0, 255.0),
+            ];
+            (regions, cells)
+        };
+        let resolve = |(mut regions, cells): (Vec<Region>, Vec<TextCell>)| {
+            super::fit_regions_to_cells(&mut regions, &cells);
+            let cids = super::cluster_cids(&regions, &cells);
+            super::order_regions(&mut regions, &cids, 595.0, 842.0, &[], |r| r);
+            super::region_texts_exclusive(&regions, &cells)
+        };
+
+        // p. 1783: `alias; using definition from 'File Name'`, 202 pt of 459.
+        assert_eq!(
+            resolve(page(
+                "alias; using definition from 'File Name'",
+                266.0,
+                [
+                    "The predefined type 'System.type name' is defined in multiple assemblies in the global",
+                    "This error occurs when a predefined system type such as System.int32 is found in two",
+                    "assemblies. One way this can happen is if you are referencing mscorlib from two",
+                    "different places, such as trying to run the .NET Framework versions 1.0 and 1.1",
+                    "side-byside.",
+                    "The compiler will use the definition from only one of the assemblies.",
+                ],
+            )),
+            [
+                "The predefined type 'System.type name' is defined in multiple assemblies in the \
+                 global alias; using definition from 'File Name'",
+                "This error occurs when a predefined system type such as System.int32 is found in \
+                 two assemblies. One way this can happen is if you are referencing mscorlib from \
+                 two different places, such as trying to run the .NET Framework versions 1.0 and \
+                 1.1 side-byside.",
+                "The compiler will use the definition from only one of the assemblies.",
+            ]
+        );
+
+        // p. 1820: a one-word last line, `assembly`, 49 pt wide.
+        assert_eq!(
+            resolve(page(
+                "assembly",
+                113.0,
+                [
+                    "Added modules must be marked with the CLSCompliant attribute to match the",
+                    "A module that was compiled with the module element of the TargetType compiler",
+                    "option was added to a compilation with AddModule. However, the module's",
+                    "compliance with the Common Language Specification (CLS) does not agree with",
+                    "the CLS state of the current compilation.",
+                    "CLS compliance is indicated with the module attribute.",
+                ],
+            )),
+            [
+                "Added modules must be marked with the CLSCompliant attribute to match the assembly",
+                "A module that was compiled with the module element of the TargetType compiler \
+                 option was added to a compilation with AddModule. However, the module's \
+                 compliance with the Common Language Specification (CLS) does not agree with \
+                 the CLS state of the current compilation.",
+                "CLS compliance is indicated with the module attribute.",
+            ]
+        );
+
+        // Two narrow contained boxes side by side under a full container
+        // line: columns, left to cell ownership.
+        let cells = vec![
+            line(
+                "A full-width lead-in line that spans the whole box and",
+                106.0,
+                520.0,
+            ),
+            cell("left column", 64.0, 125.0, 250.0, 134.0),
+            cell("right column", 300.0, 125.0, 500.0, 134.0),
+        ];
+        let mut regions = vec![
+            region("text", 0.9, 63.0, 124.0, 251.0, 135.0),
+            region("text", 0.9, 299.0, 124.0, 501.0, 135.0),
+            region("text", 0.5, 63.0, 105.0, 521.0, 136.0),
+        ];
+        super::fit_regions_to_cells(&mut regions, &cells);
+        assert_eq!(regions.len(), 3);
+
+        // A short line far below the container line is no wrapped tail: the
+        // container keeps its lines around it, as before.
+        let cells = vec![
+            line(
+                "A full-width lead-in line that spans the whole box and",
+                106.0,
+                520.0,
+            ),
+            line("a short line", 160.0, 200.0),
+            line(
+                "A closing line the container alone covers, also full width.",
+                190.0,
+                520.0,
+            ),
+        ];
+        let mut regions = vec![
+            region("text", 0.9, 63.0, 159.0, 201.0, 170.0),
+            region("text", 0.5, 63.0, 105.0, 521.0, 200.0),
+        ];
+        super::fit_regions_to_cells(&mut regions, &cells);
+        assert_eq!(regions.len(), 2);
+        assert!(super::region_texts_exclusive(&regions, &cells).contains(
+            &"A full-width lead-in line that spans the whole box and \
+                        A closing line the container alone covers, also full width."
+                .to_string()
+        ));
     }
 
     /// #419: fitted to its cells, a model box that cut a line in half no longer
