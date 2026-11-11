@@ -387,7 +387,11 @@ diff lines and recovers content docling drops):
   heights, flush left and full — ≥ 3/4 of the width, or the next word would
   not have fit — and no sentence end), every other run of
   container lines is a paragraph of its own, and the container goes
-  (`assemble::split_text_containers`). docling's regular
+  (`assemble::split_text_containers`). Only a stack is resolved: a
+  contained box under half the width is a column and leaves the container
+  to cell ownership, unless it is a paragraph's wrapped last line — one
+  line at the left edge, directly under a full container line, nothing
+  beside it (#1107, the dotnet reference's pp. 1783 / 1820). docling's regular
   `_remove_overlapping_clusters` would merge the whole group into the
   container — reading order right, paragraph breaks lost.
 * **Runaway TableFormer rows**: a decode that emits `lcel` until `MAX_STEPS`
