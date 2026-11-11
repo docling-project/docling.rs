@@ -2966,13 +2966,23 @@ fn record_shape(
     }
 }
 
+/// What two shape boxes may miss each other by and still touch, points.
+/// lopdf keeps a real as an `f32`, so `x + w` of one `re` and the `x` of the
+/// next, equal in the file (`90.144 + 1.44` and `91.584`), differ here by up
+/// to a few 1e-5 on a page; docling-parse reads doubles, where they meet.
+/// Well under any gap a producer draws (0.01 pt and up).
+const SHAPE_TOUCH_EPS: f64 = 5.0e-4;
+
 /// `get_connected_shape_bounding_boxes`: each box in turn (unless already
 /// taken) grows by every untaken box its growing union touches, until none
 /// does — docling-parse's greedy pass, so a component finished early keeps a
-/// box a later one would also have reached.
+/// box a later one would also have reached. Touching is judged within
+/// [`SHAPE_TOUCH_EPS`].
 fn connected_boxes(boxes: &[[f64; 4]]) -> Vec<[f64; 4]> {
-    let touches =
-        |a: [f64; 4], b: [f64; 4]| a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+    let e = SHAPE_TOUCH_EPS;
+    let touches = |a: [f64; 4], b: [f64; 4]| {
+        a[0] <= b[2] + e && a[2] + e >= b[0] && a[1] <= b[3] + e && a[3] + e >= b[1]
+    };
     let mut taken = vec![false; boxes.len()];
     let mut out = Vec::new();
     for i in 0..boxes.len() {
@@ -4841,6 +4851,21 @@ mod base14_fonts {
             s.boxes,
             vec![[72.0, 541.0, 272.0, 542.0], [400.0, 232.0, 410.0, 242.0]]
         );
+
+        // A table rule a word processor draws piece by piece, cell borders
+        // and their corner squares: `90.144 + 1.44` is `91.584` in the file
+        // and in docling-parse's doubles, not in lopdf's `f32` reals, where
+        // every such joint missed by a hair and the rule fell into pieces. A
+        // gap the producer left (`147.5 + 159.86` = 307.36, then 307.37)
+        // still parts two components, as in docling-parse.
+        let s = shapes(
+            b"56.64 690.22 33.504 1.44 re f 90.144 690.22 1.44 1.44 re f \
+              91.584 690.22 54.48 1.44 re f 146.06 690.22 1.44 1.44 re f \
+              147.5 690.22 159.86 1.44 re f 307.37 690.22 1.44 1.44 re f \
+              308.81 690.22 50.304 1.44 re f\n",
+        );
+        let spans: Vec<(f32, f32)> = s.boxes.iter().map(|b| (b[0], b[2])).collect();
+        assert_eq!(spans, vec![(56.64, 307.36), (307.37, 359.114)]);
     }
 
     /// A transparent stroke or fill is no shape (`CA` / `ca` 0).
