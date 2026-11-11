@@ -3224,6 +3224,19 @@ fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char
         // CFF, which this parser does not read) carries the same mapping;
         // docling-parse decodes it from there.
         tex_math_builtin(fdict).unwrap_or_else(winansi_table)
+    } else if base_name == b"WinAnsiEncoding" {
+        let mut m = winansi_table();
+        // PDF 32000-1:2008 Annex D.2, note 3 to the Latin set: "In
+        // WinAnsiEncoding, all unused codes greater than 40 [octal] map to the
+        // bullet character" — pdfium and pdf.js read them so. ReportLab draws
+        // its default list bullet as `\177` in a non-embedded WinAnsi
+        // Helvetica, which read U+FFFD before (#1102). Only a font that names
+        // WinAnsiEncoding gets them: the no-/Encoding fallback above stands
+        // in for a built-in encoding, where these codes stay undefined.
+        for b in [0x7Fu8, 0x81, 0x8D, 0x8F, 0x90, 0x9D] {
+            m.insert(b, '\u{2022}');
+        }
+        m
     } else {
         winansi_table()
     };
@@ -3728,8 +3741,9 @@ fn winansi_table() -> HashMap<u8, char> {
         // The rest of Windows-1252's 0x80–0x9F row. Left out, the German
         // opening quote `„` (0x84) vanished from the text layer while its
         // closing `“` (0x93) stayed (#922); `€ ‚ ƒ † ‡ ˆ ‰ Š ‹ Œ Ž ˜ ™ š › œ ž Ÿ`
-        // were lost the same way. 0x81/0x8D/0x8F/0x90/0x9D stay unmapped
-        // (PDF's WinAnsi leaves them undefined).
+        // were lost the same way. 0x81/0x8D/0x8F/0x90/0x9D (and 0x7F) are
+        // unused; a font naming WinAnsiEncoding reads them as bullets
+        // (`simple_encoding_table`, #1102).
         (0x80, '\u{20AC}'),
         (0x82, '\u{201A}'),
         (0x83, '\u{0192}'),
@@ -4538,6 +4552,35 @@ mod base14_fonts {
             [0x80, 0x8C, 0xAE, 0xAF, 0xBE, 0xBF, 0xFF].map(|b| table[&b]),
             ['Ä', 'å', 'Æ', 'Ø', 'æ', 'ø', 'ˇ']
         );
+    }
+
+    /// WinAnsiEncoding's unused codes above octal 40 are bullets (PDF
+    /// 32000-1 Annex D.2) — ReportLab's default list bullet is `\177` in a
+    /// non-embedded WinAnsi Helvetica and read U+FFFD (#1102). A font
+    /// without an `/Encoding` keeps them undefined.
+    #[test]
+    fn winansi_unused_codes_are_bullets() {
+        let read = |fontdict: &[u8], text: &[u8]| -> String {
+            cells(&pdf_with_font(fontdict, text))
+                .iter()
+                .map(|c| c.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+        let winansi = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>";
+        assert_eq!(read(winansi, b"\\177 Cut costs"), "\u{2022} Cut costs");
+        for code in [0x7Fu8, 0x81, 0x8D, 0x8F, 0x90, 0x9D] {
+            assert_eq!(
+                read(winansi, &[b'x', code, b'x']),
+                "x\u{2022}x",
+                "{code:#x}"
+            );
+        }
+        let dict = b"<</Type/Font/Subtype/TrueType/BaseFont/Arial\
+                     /Encoding<</Type/Encoding/BaseEncoding/WinAnsiEncoding>>>>";
+        assert_eq!(read(dict, b"\\177 Cut costs"), "\u{2022} Cut costs");
+        let bare = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>";
+        assert!(!read(bare, b"x\\177x").contains('\u{2022}'));
     }
 
     /// Unmapped glyphs read U+FFFD (#1003, docling#5070): a ToUnicode NUL —
