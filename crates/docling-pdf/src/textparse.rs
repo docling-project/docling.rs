@@ -341,6 +341,22 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
             reconcile_stale_tounicode(&mut to_unicode, &diffs);
         }
     }
+    let sanitizer_name = sanitizer_font_name(doc, fdict, two_byte);
+    // Symbol / ZapfDingbats mapped into the private-use "symbol charset"
+    // (`U+F000` + byte): docling-parse 7.25 reads the glyph's text through
+    // the face's own encoding instead (docling-parse#431, #1113 — redp5110's
+    // `U+F0AE` is `→`, a Word bullet `U+F0B7` is `•`).
+    let raw_base = fdict.get(b"BaseFont").ok().and_then(|o| o.as_name().ok());
+    let names: Vec<&[u8]> = std::iter::once(sanitizer_name.as_slice())
+        .chain(raw_base)
+        .collect();
+    if let Some(face) = crate::symbol_fonts::symbol_face(&names) {
+        for value in to_unicode.values_mut() {
+            if let Some(ch) = crate::symbol_fonts::fold_private_use(face, value) {
+                *value = ch.to_string();
+            }
+        }
+    }
 
     let cid_fallback = if two_byte {
         cid_fallback(doc, fdict)
@@ -393,7 +409,6 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
     };
 
     let (ascent, descent, ink_boxes) = font_ascent_descent(doc, fdict, two_byte);
-    let sanitizer_name = sanitizer_font_name(doc, fdict, two_byte);
     let mut font = Font {
         two_byte,
         to_unicode,
@@ -4801,6 +4816,30 @@ mod base14_fonts {
         assert_eq!(font(Some(718), Some(-207), true), (718.0, -207.0, false));
         assert_eq!(font(Some(0), Some(0), false), (750.0, -250.0, false));
         assert_eq!(font(None, None, true), (750.0, -250.0, false));
+    }
+
+    /// redp5110 p. 14 draws its navigation arrows in `SymbolMT`, whose
+    /// `/ToUnicode` maps them into the private-use symbol charset
+    /// (`U+F0AE`): read through Symbol's encoding they are `→`, as
+    /// docling-parse 7.25 reads them (#1113).
+    #[test]
+    fn symbol_private_use_values_read_as_the_glyphs() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/data/pdf/sources/redp5110_sampled.pdf");
+        let Ok(bytes) = std::fs::read(path) else {
+            return;
+        };
+        let lines: Vec<String> = super::pdf_textlines(&bytes)
+            .into_iter()
+            .flat_map(|(_, _, c)| c)
+            .map(|c| c.text)
+            .collect();
+        assert!(
+            lines.iter().any(|l| l.ends_with("click Schemas → HR_SCHEMA→")),
+            "{:?}",
+            lines.iter().filter(|l| l.contains("Schemas")).collect::<Vec<_>>()
+        );
+        assert!(lines.iter().all(|l| !l.contains('\u{F0AE}')));
     }
 
     /// The page's image placements reach the cells (#999): the scan under
