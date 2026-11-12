@@ -811,13 +811,23 @@ fn type1_program_encoding(doc: &Document, fdict: &Dictionary) -> HashMap<u8, cha
 /// font program but carries no text (docling-parse#238), so it is unmapped.
 fn unknown_name_text(name: &str) -> Option<String> {
     let stem = name.rsplit_once('.').map_or(name, |(s, _)| s);
-    let lower = stem.to_ascii_lowercase();
-    let index = ["gid", "glyph", "g", "cid", "index"].iter().any(|p| {
+    (!is_index_name(stem)).then(|| stem.to_string())
+}
+
+/// docling-parse's index-style glyph name, `(gid|glyph|g|cid|index)` then
+/// hexadecimal digits, case-insensitive (`re_gid`): `/gid00043`, `/g43`,
+/// `/cid43`, `/index43` from the subset generators, and since docling-parse
+/// 7.25 (#389 in docling-parse#431, #1113) Skia/PDF's `g%X` — `/g15C`,
+/// `/gA1` from Chrome's print-to-PDF and Notion exports, which read as
+/// their base encoding's letters before. The name points into the font
+/// program and carries no text.
+fn is_index_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    ["gid", "glyph", "g", "cid", "index"].iter().any(|p| {
         lower
             .strip_prefix(p)
-            .is_some_and(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
-    });
-    (!index).then(|| stem.to_string())
+            .is_some_and(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_hexdigit()))
+    })
 }
 
 /// A glyph name that is a synthetic placeholder, not a real Adobe name:
@@ -833,12 +843,8 @@ fn is_gid_name(name: &[u8]) -> bool {
     if s.starts_with("afii") || s.starts_with("uni") {
         return false;
     }
-    for prefix in ["g", "G", "cid", "CID", "glyph", "index"] {
-        if let Some(rest) = s.strip_prefix(prefix) {
-            if !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()) {
-                return true;
-            }
-        }
+    if is_index_name(s) {
+        return true;
     }
     // Short alpha prefix (≤3 letters) followed by a run of ≥3 digits — synthetic
     // code names like `SM590000`, distinct from real Adobe names (whole words or
@@ -5063,12 +5069,21 @@ mod base14_fonts {
     }
 
     /// Which unknown glyph names are text and which are bare indexes
-    /// (docling-parse 7.24's `resolve_unknown_name`).
+    /// (docling-parse's `resolve_unknown_name`; Skia's hexadecimal `g%X`
+    /// since 7.25, #1113).
     #[test]
     fn unknown_glyph_names_follow_docling_parse() {
-        for name in ["g115", "gid00043", "Glyph7", "cid42", "index9", "g3.alt"] {
+        for name in [
+            "g115", "gid00043", "Glyph7", "cid42", "index9", "g3.alt", "g15C", "gA1", "G1F",
+        ] {
             assert_eq!(super::unknown_name_text(name), None, "{name}");
+            assert!(
+                super::is_gid_name(name.split('.').next().unwrap().as_bytes()),
+                "{name}"
+            );
         }
+        assert!(!super::is_gid_name(b"glyphs"), "not hexadecimal");
+        assert!(!super::is_gid_name(b"uni0041"));
         assert_eq!(
             super::unknown_name_text("SM590000").as_deref(),
             Some("SM590000")
