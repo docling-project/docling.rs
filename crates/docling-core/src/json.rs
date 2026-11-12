@@ -2749,6 +2749,7 @@ impl Builder {
             number,
             text,
             location,
+            split,
             ..
         } = node
         else {
@@ -2756,13 +2757,27 @@ impl Builder {
         };
         self.adopt_loc(*location);
         let self_ref = format!("#/texts/{}", self.texts.len());
-        let raw = unescape_text(text);
-        let prov = self.take_prov(raw.chars().count());
-        let marker = if *ordered {
-            format!("{number}.")
-        } else {
-            "-".to_string()
+        // A page pipeline's item (PDF) is written as docling's
+        // `ListItemMarkerProcessor` leaves it: `orig` with the marker, `text`
+        // without, the marker itself, `enumerated` for any numbered one.
+        let (orig, raw, enumerated, marker) = match split.as_deref() {
+            Some(s) => (
+                s.orig.clone(),
+                s.text.clone(),
+                s.enumerated,
+                s.marker.clone(),
+            ),
+            None => {
+                let raw = unescape_text(text);
+                let marker = if *ordered {
+                    format!("{number}.")
+                } else {
+                    "-".to_string()
+                };
+                (raw.clone(), raw, *ordered, marker)
+            }
         };
+        let prov = self.take_prov(orig.chars().count());
         self.texts.push(Item::json(json!({
             "self_ref": self_ref,
             "parent": { "$ref": parent },
@@ -2770,9 +2785,9 @@ impl Builder {
             "content_layer": "body",
             "label": "list_item",
             "prov": prov,
-            "orig": raw,
+            "orig": orig,
             "text": raw,
-            "enumerated": ordered,
+            "enumerated": enumerated,
             "marker": marker,
         })));
         self_ref
@@ -3845,6 +3860,7 @@ mod tests {
             level: 0,
             marker: None,
             location: None,
+            split: None,
             dclx: None,
             href: None,
             layer: None,
@@ -3857,6 +3873,7 @@ mod tests {
             level: 0,
             marker: None,
             location: None,
+            split: None,
             dclx: None,
             href: None,
             layer: None,
@@ -4861,6 +4878,7 @@ mod tests {
                 level: 0,
                 marker: None,
                 location: None,
+                split: None,
                 dclx: None,
                 href: None,
                 layer: None,

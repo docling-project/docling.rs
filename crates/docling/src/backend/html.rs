@@ -1261,6 +1261,7 @@ fn walk_list(
                 marker: list_style_marker(li.value())
                     .or_else(|| has_start.then(|| format!("{number}."))),
                 location: None,
+                split: None,
                 dclx: None,
                 href: first_href(li),
                 layer: None,
@@ -1505,6 +1506,7 @@ fn walk_dl(
                         level,
                         marker: None,
                         location: None,
+                        split: None,
                         dclx: None,
                         href: first_href(c),
                         layer: None,
@@ -1555,6 +1557,7 @@ fn walk_dd(
             level,
             marker: None,
             location: None,
+            split: None,
             dclx: None,
             href: first_href(dd),
             layer: None,

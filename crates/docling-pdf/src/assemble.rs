@@ -5,7 +5,9 @@
 //! assigned to its best-containing region, regions are ordered in reading order
 //! (two-column aware), and each becomes a typed node by its layout label.
 
-use docling_core::{CaptionParent, ListItemDclx, Node, PictureClass, PictureImage, Table};
+use docling_core::{
+    CaptionParent, ListItemDclx, ListItemSplit, Node, PictureClass, PictureImage, Table,
+};
 #[cfg(any(feature = "ml", feature = "ocr-prep"))]
 use image::RgbImage;
 
@@ -1684,7 +1686,24 @@ fn list_item_node(text: &str, loc: [u16; 4], first_in_list: bool) -> Node {
         })
         .trim_start();
     let split = split_list_marker(text).or_else(|| split_list_marker(stripped));
-    let bullet = |text: String, marker: &str| Node::ListItem {
+    // The JSON's view of the item, whatever its Markdown spelling below:
+    // docling's `orig` (the text the match ran on), `marker`, `text` and
+    // `enumerated`. An item that matches no marker has an empty one there.
+    let json = |orig: &str, marker: &str, body: &str, enumerated: bool| {
+        Some(Box::new(ListItemSplit {
+            orig: orig.to_string(),
+            marker: marker.to_string(),
+            text: body.to_string(),
+            enumerated,
+        }))
+    };
+    // The text the marker was found in: `text`, else `stripped`.
+    let matched = if split_list_marker(text).is_some() {
+        text
+    } else {
+        stripped
+    };
+    let bullet = |text: String, marker: &str, split| Node::ListItem {
         ordered: false,
         number: 0,
         first_in_list,
@@ -1694,6 +1713,7 @@ fn list_item_node(text: &str, loc: [u16; 4], first_in_list: bool) -> Node {
         // (`<ldiv><marker>·</marker></ldiv>`); Markdown prints its own `-`.
         marker: Some(marker.to_string()),
         location: Some(loc),
+        split,
         dclx: None,
         href: None,
         layer: None,
@@ -1715,6 +1735,7 @@ fn list_item_node(text: &str, loc: [u16; 4], first_in_list: bool) -> Node {
                 level: 0,
                 marker: Some(marker.to_string()),
                 location: Some(loc),
+                split: json(matched, marker, body, true),
                 dclx: None,
                 href: None,
                 layer: None,
@@ -1734,6 +1755,7 @@ fn list_item_node(text: &str, loc: [u16; 4], first_in_list: bool) -> Node {
                 level: 0,
                 marker: None,
                 location: Some(loc),
+                split: json(matched, marker, body, true),
                 dclx: Some(ListItemDclx {
                     ordered: false,
                     marker: Some(marker.to_string()),
@@ -1744,8 +1766,14 @@ fn list_item_node(text: &str, loc: [u16; 4], first_in_list: bool) -> Node {
                 layer: None,
             }
         }
-        Some((marker, body, false)) => bullet(body.to_string(), marker),
-        None => bullet(stripped.to_string(), "·"),
+        Some((marker, body, false)) => {
+            bullet(body.to_string(), marker, json(matched, marker, body, false))
+        }
+        None => bullet(
+            stripped.to_string(),
+            "·",
+            json(stripped, "", stripped, false),
+        ),
     }
 }
 
@@ -6051,6 +6079,60 @@ mod tests {
         assert!(!md.contains("(1) (1)") && !md.contains("[21] [21]"), "{md}");
     }
 
+    /// The JSON carries a PDF list item as docling's `ListItemMarkerProcessor`
+    /// leaves it, whatever the Markdown spelling: `orig` with the marker,
+    /// `text` without it, the marker itself, and `enumerated` for a numbered
+    /// marker of any shape (#1111: `[21]` was written as a `-` bullet whose
+    /// text held it, and an `N.` or bullet item lost the marker from `orig`).
+    /// An item that matches no marker has an empty one.
+    #[test]
+    fn json_list_items_carry_the_marker_split() {
+        let loc = [0, 0, 100, 10];
+        let mut doc = docling_core::DoclingDocument::new("t");
+        doc.nodes = [
+            "[21] Peng Zhang",
+            "a) Option",
+            "3. Third",
+            "· Bullet",
+            "Plain <item>",
+            "•Glued",
+        ]
+        .iter()
+        .enumerate()
+        .map(|(i, t)| super::list_item_node(t, loc, i == 0))
+        .collect();
+        let json = doc.export_to_json_value();
+        let got: Vec<(&str, &str, &str, bool)> = json["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| {
+                (
+                    t["orig"].as_str().unwrap(),
+                    t["text"].as_str().unwrap(),
+                    t["marker"].as_str().unwrap(),
+                    t["enumerated"].as_bool().unwrap(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                ("[21] Peng Zhang", "Peng Zhang", "[21]", true),
+                ("a) Option", "Option", "a)", true),
+                ("3. Third", "Third", "3.", true),
+                ("· Bullet", "Bullet", "·", false),
+                ("Plain <item>", "Plain <item>", "", false),
+                ("Glued", "Glued", "", false),
+            ]
+        );
+        // The Markdown is what it was.
+        let md = doc.export_to_markdown();
+        for line in ["- [21] Peng Zhang", "- a) Option", "3. Third", "- Bullet"] {
+            assert!(md.lines().any(|l| l == line), "missing {line:?} in:\n{md}");
+        }
+    }
+
     #[test]
     fn code_language_label_above_code_is_detected() {
         // A bare "XML" token directly above a code box is a language label; a real
@@ -6289,6 +6371,7 @@ mod tests {
             level: 0,
             marker: None,
             location: None,
+            split: None,
             dclx: None,
             href: None,
             layer: None,

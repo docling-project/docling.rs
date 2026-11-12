@@ -764,6 +764,7 @@ impl Parser<'_> {
             level: depth,
             marker: explicit.map(|_| marker_text.clone()),
             location: None,
+            split: None,
             dclx: None,
             href: None,
             layer: None,
