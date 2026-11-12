@@ -2280,6 +2280,24 @@ pub(crate) fn strip_checkbox_glyph(text: &str) -> &str {
     }
 }
 
+/// Whether `sq` is a frame around text of its own rather than a checkbox: a
+/// cell of letters or digits centred inside it — a drawing's numbered
+/// callout, a key cap. A lone `x` or `v`, either case, is the tick typed into
+/// a form's box and leaves it a checkbox; `✓ ✔ ✗ ✘` are no letters to begin
+/// with (ZapfDingbats' `4` and `8` arrive as those since #1113).
+fn frames_text(sq: &crate::checkbox::CheckBox, cells: &[TextCell]) -> bool {
+    cells.iter().any(|c| {
+        let (cx, cy) = ((c.l + c.r) / 2.0, (c.t + c.b) / 2.0);
+        let text = c.text.trim();
+        cx > sq.l
+            && cx < sq.r
+            && cy > sq.t
+            && cy < sq.b
+            && text.chars().any(char::is_alphanumeric)
+            && !matches!(text, "x" | "X" | "v" | "V")
+    })
+}
+
 /// Give every checklist line its own checkbox region (#609). The layout
 /// model often reads a checklist as one `text` (or `list_item`) block — on
 /// the reporter's ReportLab page all four options are one region, which then
@@ -2307,8 +2325,9 @@ pub(crate) fn strip_checkbox_glyph(text: &str) -> &str {
 /// follows its first line's mark when it has one — the glyph or the square
 /// is what the page says, the model's label a guess from the pixels (it read
 /// a `☑ Bread` line as unselected). A square that frames a letter or a digit
-/// (the numbered callout of a drawing, beside its legend) is no checkbox. With
-/// neither on the page this is a no-op.
+/// (the numbered callout of a drawing, beside its legend) is no checkbox,
+/// unless that text is a tick someone typed into the box ([`frames_text`]).
+/// With neither on the page this is a no-op.
 pub fn split_checkbox_lines(
     regions: &mut Vec<Region>,
     cells: &[TextCell],
@@ -2323,21 +2342,11 @@ pub fn split_checkbox_lines(
         return;
     }
     let owned = assign_cells(regions, cells);
-    // A square with a letter or a digit set inside it is a frame around that
-    // text — a figure's callout number, a key cap — and marks no line.
-    let mut used: Vec<bool> = boxes
-        .iter()
-        .map(|sq| {
-            cells.iter().any(|c| {
-                let (cx, cy) = ((c.l + c.r) / 2.0, (c.t + c.b) / 2.0);
-                cx > sq.l
-                    && cx < sq.r
-                    && cy > sq.t
-                    && cy < sq.b
-                    && c.text.chars().any(char::is_alphanumeric)
-            })
-        })
-        .collect();
+    let mut used = vec![false; boxes.len()];
+    // Whether each square frames text of its own, asked only of a square
+    // that faces a line: a page of comb fields or a calendar grid has
+    // hundreds of squares and none in front of a line.
+    let mut frame: Vec<Option<bool>> = vec![None; boxes.len()];
     let mut appended: Vec<Region> = Vec::new();
     for (i, mine) in owned.iter().enumerate() {
         let region = regions[i].clone();
@@ -2394,6 +2403,7 @@ pub fn split_checkbox_lines(
                         && mid <= b + 2.0
                         && gap >= -1.0
                         && gap <= (1.5 * side).max(6.0)
+                        && !*frame[k].get_or_insert_with(|| frames_text(sq, cells))
                 })
                 .min_by(|a, b| (l - a.1.r).total_cmp(&(l - b.1.r)))
                 .map(|(k, _)| k);
@@ -7096,6 +7106,31 @@ mod tests {
         let mut regions = block();
         super::split_checkbox_lines(&mut regions, &with_callout, &[sq(109.0, false)]);
         assert_eq!(shape(&regions), shape(&block()));
+        // A tick typed into the box is no callout: the square still marks
+        // its line, as it does with nothing inside. (The region starts at
+        // the labels here; a tick the region owns opens the line itself and
+        // the square, now around the line's start, marks nothing.)
+        let labels = || vec![region("text", 0.6, 118.0, 90.0, 200.0, 170.0)];
+        for tick in ["X", "x", "v", "V", "\u{2714}"] {
+            let mut ticked = cells.clone();
+            ticked.push(cell(tick, 103.0, 110.0, 109.0, 120.0));
+            let mut regions = labels();
+            super::split_checkbox_lines(&mut regions, &ticked, &[sq(109.0, true)]);
+            let texts = super::region_texts_exclusive(&regions, &ticked);
+            let got: Vec<(&str, &str)> = regions
+                .iter()
+                .zip(&texts)
+                .map(|(r, t)| (r.label, t.as_str()))
+                .collect();
+            assert_eq!(got[1].0, "checkbox_selected", "{tick}: {got:?}");
+            assert!(got[1].1.starts_with("First option"), "{tick}: {got:?}");
+        }
+        // The same square around two letters is a frame again.
+        let mut framed = cells.clone();
+        framed.push(cell("Xa", 103.0, 110.0, 109.0, 120.0));
+        let mut regions = labels();
+        super::split_checkbox_lines(&mut regions, &framed, &[sq(109.0, true)]);
+        assert_eq!(shape(&regions), shape(&labels()));
     }
 
     /// #609: a ballot-box glyph opening a line marks a checkbox item like a
