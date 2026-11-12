@@ -414,6 +414,18 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
             // Codes the table misses still advance a typical width instead of
             // stacking at x=0 (the failure mode this whole branch fixes).
             default_width = 500.0;
+        } else if let Some(face) = crate::symbol_fonts::symbol_face(&[base_font_name(fdict)
+            .as_deref()
+            .unwrap_or_default()])
+        {
+            // The two symbol faces are no std14 text faces: their AFM
+            // advances by code, as docling-parse's base font reads them.
+            for code in 0..=255u8 {
+                if let Some(w) = crate::symbol_fonts::face_width(face, code) {
+                    widths.insert(u32::from(code), w);
+                }
+            }
+            default_width = 500.0;
         }
     }
     let fallback_names = if two_byte {
@@ -3413,8 +3425,21 @@ fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char
             .unwrap_or_default(),
         _ => Vec::new(),
     };
+    let face = || {
+        let font_name = sanitizer_font_name(doc, fdict, false);
+        let base = fdict.get(b"BaseFont").ok().and_then(|o| o.as_name().ok());
+        let names: Vec<&[u8]> = std::iter::once(font_name.as_slice()).chain(base).collect();
+        crate::symbol_fonts::symbol_face(&names)
+    };
     let mut m = if base_name == b"MacRomanEncoding" {
         macroman_table()
+    } else if let Some(face) = base_name.is_empty().then(face).flatten() {
+        // A font matched to Symbol or ZapfDingbats that names no encoding:
+        // the face's own (docling-parse's base-font AFM, a "FontSpecific"
+        // scheme), never the Latin tables — a non-embedded ZapfDingbats'
+        // `l` is `●` (docling-parse#431, #1113). An embedded program's
+        // builtin encoding still comes first ([`Font::builtin`]).
+        crate::symbol_fonts::face_table(face)
     } else if base_name.is_empty() {
         // No PDF /Encoding at all: the font's *built-in* encoding applies. For
         // the standard TeX math fonts that is their fixed TeX layout — falling
@@ -5136,6 +5161,36 @@ mod base14_fonts {
         let text: String = cs.iter().map(|c| c.text.as_str()).collect();
         assert!(text.contains("Mystery"), "text still decodes: {cs:?}");
     }
+    /// A non-embedded ZapfDingbats or Symbol that names no encoding reads
+    /// through the face's own (docling-parse's base-font AFM; its
+    /// `annots_01`: `l` is `●`, #1113) and advances by its AFM widths — no
+    /// Latin letters, no zero-width cells.
+    #[test]
+    fn non_embedded_symbol_faces_read_through_their_encoding() {
+        let dingbats = pdf_with_font(
+            b"<</Type/Font/Subtype/Type1/BaseFont/ZapfDingbats/Name/F3>>",
+            b"l",
+        );
+        let cs = cells(&dingbats);
+        assert_eq!(cs.len(), 1, "{cs:?}");
+        assert_eq!(cs[0].text, "●");
+        assert!(
+            (cs[0].r - cs[0].l - 791.0 * 12.0 / 1000.0).abs() < 0.1,
+            "{cs:?}"
+        );
+        let symbol = pdf_with_font(b"<</Type/Font/Subtype/Type1/BaseFont/Symbol>>", b"abg");
+        let text: String = cells(&symbol).iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(text, "αβγ");
+        // A declared encoding keeps its table (multi_page's `•`, a
+        // deliberate divergence from docling-parse's FontSpecific reading).
+        let declared = pdf_with_font(
+            b"<</Type/Font/Subtype/Type1/BaseFont/Symbol/Encoding/WinAnsiEncoding>>",
+            b"a",
+        );
+        let text: String = cells(&declared).iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(text, "a");
+    }
+
     /// #728: one face bound under two resource keys — `/F1` Helvetica in
     /// WinAnsi, `/F2` the same Helvetica re-encoded so code 0x81 is the `fi`
     /// glyph — with every fi-word drawn in `/F2` right after an `/F1` run.
