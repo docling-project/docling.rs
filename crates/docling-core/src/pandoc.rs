@@ -1827,10 +1827,25 @@ impl<'a> Serializer<'a> {
         if self.excluded(item) {
             return Vec::new();
         }
-        match item.get("data") {
-            Some(data) => self.table_from_data(data, caption).into_iter().collect(),
-            None => Vec::new(),
+        let caption_blocks = caption[1].clone();
+        if let Some(table) = item
+            .get("data")
+            .and_then(|data| self.table_from_data(data, caption))
+        {
+            return vec![table];
         }
+        // A table without a grid has nothing a Pandoc `Table` can hold (no
+        // column to specify) — a PDF table pasted as an image, converted
+        // without OCR (#1114). Its caption is still text: a paragraph, the
+        // line docling's Markdown prints for such a table.
+        caption_blocks
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|b| b.get("c").and_then(Value::as_array))
+            .filter(|inlines| !inlines.is_empty())
+            .map(|inlines| ast::para(inlines.clone()))
+            .collect()
     }
 
     fn picture(&mut self, item: &'a Value) -> Vec<Value> {
@@ -2838,6 +2853,39 @@ mod tests {
         assert_eq!(b[2]["c"][0], ast::str_("☒"));
         assert_eq!(b[3]["t"], "Div");
         assert_eq!(b[3]["c"][0][1], json!(["docling-reference"]));
+    }
+
+    /// A table with no grid (#1114: a PDF table pasted as an image, converted
+    /// without OCR) is no Pandoc `Table`, but its caption is still text.
+    #[test]
+    fn an_empty_table_leaves_its_caption_as_a_paragraph() {
+        let j = doc(
+            &["#/tables/0"],
+            json!([text(0, "caption", "Table 1: Ducks", json!({}))]),
+            json!([]),
+            json!([{"self_ref": "#/tables/0", "children": [{"$ref": "#/texts/0"}], "label": "table",
+                    "captions": [{"$ref": "#/texts/0"}],
+                    "data": {"num_rows": 0, "num_cols": 0, "table_cells": []}}]),
+        );
+        assert_eq!(
+            blocks(&j),
+            vec![ast::para(vec![
+                ast::str_("Table"),
+                ast::space(),
+                ast::str_("1:"),
+                ast::space(),
+                ast::str_("Ducks")
+            ])]
+        );
+        // Without a caption it is nothing.
+        let j = doc(
+            &["#/tables/0"],
+            json!([]),
+            json!([]),
+            json!([{"self_ref": "#/tables/0", "children": [], "label": "table", "captions": [],
+                    "data": {"num_rows": 0, "num_cols": 0, "table_cells": []}}]),
+        );
+        assert!(blocks(&j).is_empty());
     }
 
     #[test]

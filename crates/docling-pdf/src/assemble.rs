@@ -4145,7 +4145,15 @@ pub fn assemble_page(
         }
         let mut text = region_texts[i].clone();
         text.push_str(&merge_suffix[i]);
-        if text.is_empty() {
+        // A region that claimed no text is nothing to emit — except a table:
+        // docling keeps every table cluster as a `TableItem`, cells or not
+        // (a wrapper cluster is exempt from `keep_empty_clusters`), and a
+        // table without text is the common case of one pasted as an image
+        // on a page converted without OCR (#1114). Skipped here, it took
+        // the caption [`pair_graphic_captions`] had already handed it along:
+        // the caption's own slot is consumed, so its text — real text-layer
+        // text — vanished from every export.
+        if text.is_empty() && !is_table_like(region.label) {
             continue;
         }
         match region.label {
@@ -4190,23 +4198,36 @@ pub fn assemble_page(
                 // the public model, and the DocLang structure overlay derives
                 // from them so DCLX emits real span/header tokens. The
                 // geometric fallback has no per-cell records.
-                let (mut rows, cells, structure) = match table_rows[i].clone().map(normalize_grid) {
-                    Some(grid) => {
-                        let nrows = grid.rows.len();
-                        let ncols = grid.rows.first().map_or(0, Vec::len);
-                        let structure = structure_from_cells(&grid.cells, nrows, ncols);
-                        (grid.rows, Some(grid.cells), Some(structure))
-                    }
-                    None => {
-                        let rows = reconstruct_table(region, &page.cells);
-                        let rows = if rows.iter().any(|r| r.len() > 1) {
-                            rows
-                        } else {
-                            vec![vec![text.clone()]]
-                        };
-                        (rows, None, None)
-                    }
-                };
+                // A table no word landed in is docling's empty table: with
+                // nothing to match, TableFormer's structure yields no cell
+                // (`tf_predictor.predict` builds its responses from the
+                // word→cell matches, so `num_rows` = `num_cols` = 0) — not
+                // the predicted grid of blank cells, which would print as a
+                // block of empty pipes. It keeps its place, its box and its
+                // caption.
+                let blank = text.is_empty()
+                    && table_rows[i]
+                        .as_ref()
+                        .is_none_or(|g| g.rows.iter().flatten().all(|c| c.trim().is_empty()));
+                let (mut rows, cells, structure) =
+                    match table_rows[i].clone().filter(|_| !blank).map(normalize_grid) {
+                        _ if blank => (Vec::new(), None, None),
+                        Some(grid) => {
+                            let nrows = grid.rows.len();
+                            let ncols = grid.rows.first().map_or(0, Vec::len);
+                            let structure = structure_from_cells(&grid.cells, nrows, ncols);
+                            (grid.rows, Some(grid.cells), Some(structure))
+                        }
+                        None => {
+                            let rows = reconstruct_table(region, &page.cells);
+                            let rows = if rows.iter().any(|r| r.len() > 1) {
+                                rows
+                            } else {
+                                vec![vec![text.clone()]]
+                            };
+                            (rows, None, None)
+                        }
+                    };
                 // The paired caption (#265) rides on the table — docling's
                 // TableItem.captions ref; Markdown prints it above the grid,
                 // the JSON export emits the $ref, DocLang the <caption>.
@@ -5524,6 +5545,123 @@ mod tests {
             "only one column"
         ]])));
         assert!(!super::geometric_table_is_reliable(&[]));
+    }
+
+    /// #1114: a table pasted as an image has no text-layer cell, and the page
+    /// is converted without OCR. The caption above it is ordinary text, and
+    /// the caption matcher hands it to the table — which the emit loop then
+    /// skipped for having no text, so the caption went with it. docling keeps
+    /// the table as an empty `TableItem` (no rows: TableFormer's structure
+    /// matched no word) carrying its caption; so does the port, whether
+    /// TableFormer predicted a grid of blank cells or nothing at all. A
+    /// table with text is untouched, and a text-less paragraph box is still
+    /// nothing to emit.
+    #[test]
+    fn a_table_without_text_keeps_its_place_and_its_caption() {
+        let caption_text = "Table 1 - Decision matrix for risk insurance";
+        let cells = vec![
+            cell(
+                "Think about the consequences before you act.",
+                57.0,
+                560.0,
+                407.0,
+                572.0,
+            ),
+            cell(caption_text, 192.0, 631.0, 403.0, 643.0),
+        ];
+        let regions = || {
+            vec![
+                region("text", 0.9, 57.0, 559.0, 408.0, 573.0),
+                region("caption", 0.88, 192.0, 631.0, 403.0, 643.0),
+                region("table", 0.98, 59.0, 654.0, 560.0, 785.0),
+                // A paragraph box over nothing: no item.
+                region("text", 0.9, 57.0, 300.0, 400.0, 320.0),
+            ]
+        };
+        // TableFormer's 4 × 4 structure over the picture of a table: every
+        // cell blank.
+        let blank_grid = super::TableGrid {
+            rows: vec![vec![String::new(); 4]; 4],
+            cells: (0..16)
+                .map(|i| docling_core::TableCell {
+                    text: String::new(),
+                    bbox: Some([60.0, 655.0, 185.0, 687.0]),
+                    start_row: i / 4,
+                    start_col: i % 4,
+                    row_span: 1,
+                    col_span: 1,
+                    column_header: i < 4,
+                    row_header: false,
+                    row_section: false,
+                })
+                .collect(),
+        };
+        for grid in [Some(blank_grid), None] {
+            let page = PdfPage::from_cells(595.0, 842.0, 2.0, cells.clone());
+            let (nodes, _) = super::assemble_page(
+                &page,
+                regions(),
+                &[None, None, grid, None],
+                &[None, None, None, None],
+                None,
+            );
+            let tables: Vec<&docling_core::Table> = nodes
+                .iter()
+                .filter_map(|n| match n {
+                    Node::Located { inner, .. } => match &**inner {
+                        Node::Table(t) => Some(t),
+                        _ => None,
+                    },
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(tables.len(), 1, "the table is an item: {nodes:?}");
+            let table = tables[0];
+            assert!(table.rows.is_empty(), "no rows: {:?}", table.rows);
+            assert!(table.cells.as_ref().is_none_or(Vec::is_empty));
+            assert_eq!(table.caption.as_deref(), Some(caption_text));
+            assert!(table.caption_location.is_some());
+
+            let mut doc = docling_core::DoclingDocument::new("t");
+            doc.nodes = nodes;
+            let md = doc.export_to_markdown();
+            assert_eq!(
+                md.trim(),
+                format!("Think about the consequences before you act.\n\n{caption_text}"),
+                "the caption prints, the empty grid does not"
+            );
+            let json = doc.export_to_json_value();
+            let t = &json["tables"][0];
+            assert_eq!(t["data"]["num_rows"], 0);
+            assert_eq!(t["data"]["num_cols"], 0);
+            assert_eq!(t["data"]["table_cells"].as_array().map(Vec::len), Some(0));
+            assert_eq!(t["captions"].as_array().map(Vec::len), Some(1));
+            let caption = json["texts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|x| x["label"] == "caption")
+                .expect("a caption item");
+            assert_eq!(caption["text"], caption_text);
+            assert_eq!(caption["parent"]["$ref"], "#/tables/0");
+        }
+
+        // A table with words keeps its grid.
+        let mut cells = cells;
+        cells.push(cell("Factors", 70.0, 660.0, 120.0, 672.0));
+        cells.push(cell("Insurance", 330.0, 660.0, 400.0, 672.0));
+        let page = PdfPage::from_cells(595.0, 842.0, 2.0, cells);
+        let (nodes, _) = super::assemble_page(
+            &page,
+            regions(),
+            &[None, None, None, None],
+            &[None, None, None, None],
+            None,
+        );
+        let mut doc = docling_core::DoclingDocument::new("t");
+        doc.nodes = nodes;
+        let md = doc.export_to_markdown();
+        assert!(md.contains("Factors") && md.contains(caption_text), "{md}");
     }
 
     /// A `picture` region is cropped out of the rendered page, whatever built
