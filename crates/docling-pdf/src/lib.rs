@@ -85,6 +85,7 @@ pub mod raster;
 pub mod render;
 mod script_position;
 mod std14;
+mod symbol_fonts;
 #[cfg(feature = "ml")]
 mod table_tokens;
 #[cfg(feature = "ml")]
