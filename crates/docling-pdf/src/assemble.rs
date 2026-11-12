@@ -2306,7 +2306,9 @@ pub(crate) fn strip_checkbox_glyph(text: &str) -> &str {
 /// region the model already labelled a checkbox is not split, but its state
 /// follows its first line's mark when it has one — the glyph or the square
 /// is what the page says, the model's label a guess from the pixels (it read
-/// a `☑ Bread` line as unselected). With neither on the page this is a no-op.
+/// a `☑ Bread` line as unselected). A square that frames a letter or a digit
+/// (the numbered callout of a drawing, beside its legend) is no checkbox. With
+/// neither on the page this is a no-op.
 pub fn split_checkbox_lines(
     regions: &mut Vec<Region>,
     cells: &[TextCell],
@@ -2321,7 +2323,21 @@ pub fn split_checkbox_lines(
         return;
     }
     let owned = assign_cells(regions, cells);
-    let mut used = vec![false; boxes.len()];
+    // A square with a letter or a digit set inside it is a frame around that
+    // text — a figure's callout number, a key cap — and marks no line.
+    let mut used: Vec<bool> = boxes
+        .iter()
+        .map(|sq| {
+            cells.iter().any(|c| {
+                let (cx, cy) = ((c.l + c.r) / 2.0, (c.t + c.b) / 2.0);
+                cx > sq.l
+                    && cx < sq.r
+                    && cy > sq.t
+                    && cy < sq.b
+                    && c.text.chars().any(char::is_alphanumeric)
+            })
+        })
+        .collect();
     let mut appended: Vec<Region> = Vec::new();
     for (i, mine) in owned.iter().enumerate() {
         let region = regions[i].clone();
@@ -7073,6 +7089,13 @@ mod tests {
             super::split_checkbox_lines(&mut regions, &cells, &[far]);
             assert_eq!(shape(&regions), shape(&block()));
         }
+        // A square around a digit of its own — a drawing's callout, set
+        // beside the legend line it happens to face — is a frame, not a box.
+        let mut with_callout = cells.clone();
+        with_callout.push(cell("3", 103.0, 110.0, 109.0, 120.0));
+        let mut regions = block();
+        super::split_checkbox_lines(&mut regions, &with_callout, &[sq(109.0, false)]);
+        assert_eq!(shape(&regions), shape(&block()));
     }
 
     /// #609: a ballot-box glyph opening a line marks a checkbox item like a

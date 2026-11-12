@@ -2029,7 +2029,8 @@ pointed at the wrong item).
   block — marked by a **drawn** square in front of it (a stroked `re`, or
   four stroked edges as ReportLab draws them, 5–24 pt, unfilled or filled
   white; `checkbox.rs` finds them in the text parser's path walk, ink inside
-  checks it, a colour-filled square is a legend swatch and does not count)
+  checks it, a colour-filled square is a legend swatch and one framing a
+  letter or a digit a drawing's callout, and neither counts)
   or by a **ballot-box glyph** it opens with (`☐ □ ▢ ◻ ❏ ❐ ❑ ❒` unchecked,
   `☑ ☒ ⊠ ⌧ ▣ 🗹 🗷 🗵` checked; a line with two, `☐ Yes ☐ No`, stays text). The
   glyph leaves the label, and on a region the model did label a checkbox the
