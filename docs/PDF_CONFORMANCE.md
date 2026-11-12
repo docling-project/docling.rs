@@ -67,8 +67,8 @@ when docling regenerates it.
 | right_to_left_03 | **exact** | **exact** | — |
 | 2305.03393v1 | **exact** | **exact** | — (the figure file names' underscores: outline boxes, a cell assigned once) |
 | base14_fonts_rot90 / _rot180 / _rot270 | **exact** | — | — (`/Rotate` display-frame normalization, docling#4008; our fixtures, groundtruth = the unrotated upstream file) |
-| right_to_left_01 | 2 | 2 | docling-parse cuts `أيضًا` before its tanween (`أيض ً`); we keep the word |
-| right_to_left_02 | 2 | 2 | one word's place at a line start (`ووف`) |
+| right_to_left_01 | 2 | 2 | docling-parse cuts `أيضًا` before its tanween (`أيض ً`); we keep the word. `DOCLING_RS_PDF_ZERO_ADVANCE_RUN=1` cuts it as docling-parse does, and the file is then exact |
+| right_to_left_02 | 2 | 2 | one word's place at a line start (`ووف`), the same cut: exact under `DOCLING_RS_PDF_ZERO_ADVANCE_RUN=1` |
 | normal_4pages | 8 | 8 | docling folds the page-number glyph into the heading (`## 들어가며 1`), we emit it as its own item; one paragraph docling breaks before its last line |
 | 2203.01017v2 | 24 | 6 | line-end hyphens docling fuses (`im-`/`balance`, `appear-`/`ances`; `column- and` is our #920 divergence), `\|T \|`; the groundtruth's glued author names (`KhurramAzeemHashmi`) and its `3`/`7` for the table's check marks (docling-parse 7.24), which live docling reads like us — `Khurram Azeem Hashmi`, `✓`/`✗` (#1113) |
 | 2206.01062 | 24 | 12 | `tildelow10%` (docling-parse's glyph-name mapping; we read `~10%`), the author block and one paragraph in another place; the groundtruth's glued words (`RELATEDWORK`, `mAP@`) and live's `mAP @ 0.5` vs our `mAP @0.5` |
