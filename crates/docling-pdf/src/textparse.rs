@@ -111,6 +111,16 @@ struct Font {
     /// used only as a last resort for glyphs the base encoding leaves unmapped
     /// (standard TeX math fonts: `λ`, `≤`, …).
     program_encoding: HashMap<u8, char>,
+    /// A symbolic simple font without a declared base encoding: the text of
+    /// each code its embedded program's builtin encoding resolves
+    /// (docling-parse 7.25, #1113 — 2203.01017's `Dingbats` check marks are
+    /// `a19` / `a23`, `✓` / `✗`, not the `3` / `7` the Latin tables read).
+    /// It outranks every encoding table but a `/Differences` entry
+    /// ([`Font::diff_codes`]); empty for every other font and in a build
+    /// without the renderer.
+    builtin: HashMap<u8, String>,
+    /// The codes `/Differences` names.
+    diff_codes: HashSet<u8>,
     ascent: f64,
     descent: f64,
     /// code → its embedded glyph's ink extent `(y_min, y_max)` in 1000-unit
@@ -168,6 +178,15 @@ impl Font {
                     Some(text) => (Some(text), w, false),
                     None => unmapped(self),
                 };
+            }
+            // docling-parse 7.25's `get_correct_character`: after
+            // `/Differences` and `/ToUnicode`, a symbolic font's builtin
+            // encoding — "the producer's own statement of what each code
+            // draws" — before any base-font or Latin table.
+            if !self.diff_codes.contains(&(code as u8)) {
+                if let Some(text) = self.builtin.get(&(code as u8)) {
+                    return (Some(decompose_ligatures(text)), w, false);
+                }
             }
             if let Some(enc) = &self.simple_encoding {
                 if let Some(&ch) = enc.get(&(code as u8)) {
@@ -419,6 +438,8 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
         fallback_names,
         blank_codes: HashSet::new(),
         program_encoding,
+        builtin: HashMap::new(),
+        diff_codes: differences_codes(doc, fdict),
         ascent,
         descent,
         ink_y: HashMap::new(),
@@ -429,10 +450,80 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
         )),
     };
     font.blank_codes = blank_codes(doc, fdict, &font);
+    if !two_byte && subtype != b"Type3".as_slice() && uses_builtin_encoding(doc, fdict) {
+        font.builtin = builtin_encoding(doc, fdict, &font);
+    }
     if ink_boxes {
         font.ink_y = ink_extents(doc, fdict, &font);
     }
     font
+}
+
+/// docling-parse 7.25's `uses_builtin_encoding` for a simple, non-Type 3
+/// font: the descriptor flags it symbolic (bit 3) and the PDF declares no
+/// base encoding — no `/Encoding` name, no `/BaseEncoding` in an `/Encoding`
+/// dictionary (a bare `/Differences` overrides only the codes it lists,
+/// 9.6.6.1).
+fn uses_builtin_encoding(doc: &Document, fdict: &Dictionary) -> bool {
+    let symbolic = fdict
+        .get(b"FontDescriptor")
+        .ok()
+        .and_then(|o| as_dict(doc, o))
+        .and_then(|fd| fd.get(b"Flags").ok())
+        .and_then(|o| deref(doc, o))
+        .and_then(num)
+        .is_some_and(|f| (f as i64) & 4 != 0);
+    let declared_base = match fdict.get(b"Encoding").ok().and_then(|o| deref(doc, o)) {
+        Some(Object::Name(_)) => true,
+        Some(Object::Dictionary(d)) => d.get(b"BaseEncoding").is_ok(),
+        _ => false,
+    };
+    symbolic && !declared_base
+}
+
+/// The codes a simple font's `/Differences` names.
+fn differences_codes(doc: &Document, fdict: &Dictionary) -> HashSet<u8> {
+    let mut codes = HashSet::new();
+    let mut code = 0i64;
+    for el in differences_array(doc, fdict).unwrap_or_default() {
+        match el {
+            Object::Integer(i) => code = i,
+            Object::Real(r) => code = r as i64,
+            Object::Name(_) => {
+                if (0..=255).contains(&code) {
+                    codes.insert(code as u8);
+                }
+                code += 1;
+            }
+            _ => {}
+        }
+    }
+    codes
+}
+
+/// [`Font::builtin`]: read from the embedded program only when a declared
+/// code is left to it — not covered by `/ToUnicode` or `/Differences`
+/// (docling-parse reads the program lazily, on the first code that needs it).
+#[cfg(feature = "render")]
+fn builtin_encoding(doc: &Document, fdict: &Dictionary, font: &Font) -> HashMap<u8, String> {
+    let mut codes: Vec<u32> = font.widths.keys().copied().collect();
+    if codes.is_empty() {
+        codes.extend(0..=255);
+    }
+    let needed = codes.iter().any(|&c| {
+        c <= 255 && !font.to_unicode.contains_key(&c) && !font.diff_codes.contains(&(c as u8))
+    });
+    if !needed {
+        return HashMap::new();
+    }
+    crate::render::font::LoadedFont::load(doc, fdict).builtin_encoding_text()
+}
+
+/// Without the renderer there is no program to read: the font keeps the
+/// encoding tables' reading.
+#[cfg(not(feature = "render"))]
+fn builtin_encoding(_doc: &Document, _fdict: &Dictionary, _font: &Font) -> HashMap<u8, String> {
+    HashMap::new()
 }
 
 /// The ink extents of `font`'s declared codes ([`Font::ink_y`]), read from
@@ -3636,6 +3727,63 @@ const AGL_LATIN: &[(&str, char)] = &[
     ("zdotaccent", '\u{017C}'),
 ];
 
+/// docling-parse 7.25's reading text of a PostScript glyph name in a
+/// program's builtin encoding (`builtin_font_encoding::glyph_name_to_utf8`,
+/// #1113): `.notdef` and an index-style name (`g12`, `gid00012`, `cid12`,
+/// `index12`) carry none; a stylistic `.suffix` is dropped; then the glyph
+/// tables (the symbol fonts' names, [`glyph_name_to_char`]'s), a `uniXXXX`
+/// sequence (a ligature's code points), a `uXXXX`–`uXXXXXX` name.
+pub(crate) fn builtin_glyph_text(name: &str) -> Option<String> {
+    if name.is_empty() || name == ".notdef" {
+        return None;
+    }
+    let name = match name.find('.') {
+        Some(dot) if dot > 0 => &name[..dot],
+        _ => name,
+    };
+    let lower = name.to_ascii_lowercase();
+    let index_name = ["gid", "glyph", "g", "cid", "index"].iter().any(|p| {
+        lower
+            .strip_prefix(p)
+            .is_some_and(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
+    });
+    if index_name {
+        return None;
+    }
+    if let Some(c) = crate::symbol_fonts::symbol_glyph_char(name) {
+        return Some(c.to_string());
+    }
+    let hex_points = |hex: &str, width: usize| -> Option<String> {
+        (!hex.is_empty()
+            && hex.len().is_multiple_of(width)
+            && hex.bytes().all(|b| b.is_ascii_hexdigit()))
+        .then(|| {
+            (0..hex.len())
+                .step_by(width)
+                .map(|i| {
+                    u32::from_str_radix(&hex[i..i + width], 16)
+                        .ok()
+                        .and_then(char::from_u32)
+                })
+                .collect::<Option<String>>()
+        })
+        .flatten()
+    };
+    if let Some(hex) = name.strip_prefix("uni") {
+        if let Some(t) = hex_points(hex, 4) {
+            return Some(t);
+        }
+    }
+    if let Some(hex) = name.strip_prefix('u') {
+        if (4..=6).contains(&hex.len()) {
+            if let Some(t) = hex_points(hex, hex.len()) {
+                return Some(t);
+            }
+        }
+    }
+    glyph_name_to_char(name.as_bytes()).map(String::from)
+}
+
 /// Resolve an Adobe glyph name to Unicode: `uniXXXX`, single ASCII letters, the
 /// digit/punctuation names from the Adobe Glyph List, and common typographic
 /// names. A `.suffix` (`one.taboldstyle`, `a.sc`) is stripped and the base name
@@ -4835,11 +4983,55 @@ mod base14_fonts {
             .map(|c| c.text)
             .collect();
         assert!(
-            lines.iter().any(|l| l.ends_with("click Schemas → HR_SCHEMA→")),
+            lines
+                .iter()
+                .any(|l| l.ends_with("click Schemas → HR_SCHEMA→")),
             "{:?}",
-            lines.iter().filter(|l| l.contains("Schemas")).collect::<Vec<_>>()
+            lines
+                .iter()
+                .filter(|l| l.contains("Schemas"))
+                .collect::<Vec<_>>()
         );
         assert!(lines.iter().all(|l| !l.contains('\u{F0AE}')));
+    }
+
+    /// 2203.01017's p. 4 table marks its datasets with an embedded Type 1
+    /// `Dingbats` — symbolic, no `/Encoding`, no `/ToUnicode` — whose
+    /// program encodes code `3` as `/a19` and `7` as `/a23`: `✓` and `✗`
+    /// through the builtin encoding, as docling-parse 7.25 reads them
+    /// (#1113), where the Latin tables read the digits.
+    #[cfg(feature = "render")]
+    #[test]
+    fn a_symbolic_font_reads_through_its_builtin_encoding() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/data/pdf/sources/2203.01017v2.pdf");
+        let Ok(bytes) = std::fs::read(path) else {
+            return;
+        };
+        let pages = super::pdf_textlines(&bytes);
+        let text: Vec<&str> = pages[3].2.iter().map(|c| c.text.as_str()).collect();
+        let page = text.join("\n");
+        assert_eq!(page.matches('✓').count(), 11, "{text:?}");
+        assert_eq!(page.matches('✗').count(), 1, "{text:?}");
+        assert!(text.contains(&"✓ ✗ 145k JPEG"), "{text:?}");
+    }
+
+    /// docling-parse 7.25's `glyph_name_to_utf8`.
+    #[test]
+    fn builtin_glyph_names_read_as_docling_parse() {
+        let t = |n: &str| super::builtin_glyph_text(n);
+        assert_eq!(t("a19").as_deref(), Some("✓"));
+        assert_eq!(t("arrowright").as_deref(), Some("→"));
+        assert_eq!(t("A").as_deref(), Some("A"));
+        assert_eq!(t("one.oldstyle").as_deref(), Some("1"), "suffix dropped");
+        assert_eq!(t("uni00660069").as_deref(), Some("fi"), "a uni sequence");
+        assert_eq!(t("u1F600").as_deref(), Some("😀"));
+        assert_eq!(t("g12"), None, "an index name");
+        assert_eq!(t("GID00012"), None);
+        assert_eq!(t("cid7"), None);
+        assert_eq!(t(".notdef"), None);
+        assert_eq!(t(""), None);
+        assert_eq!(t("nosuchglyphname"), None);
     }
 
     /// The page's image placements reach the cells (#999): the scan under

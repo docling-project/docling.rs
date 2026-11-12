@@ -637,6 +637,107 @@ impl LoadedFont {
         !matches!(self.program, Program::None)
     }
 
+    /// The reading text of every single-byte code the embedded program's
+    /// *builtin* encoding resolves — docling-parse 7.25's
+    /// `builtin_font_encoding::decode` (docling-parse#431, #1113), which a
+    /// symbolic simple font without a declared base encoding reads its
+    /// codes through (PDF 32000-1 9.6.6.2 / 9.6.6.4). A code selects a glyph
+    /// through the program's own charmaps, as FreeType exposes them: a
+    /// Type 1's encoding vector (`StandardEncoding` or its `dup … put`
+    /// array), a CFF's encoding, a TrueType's (3,0) symbol table at
+    /// `0xF000 + code` (then the raw code), then any table the program
+    /// carries. The glyph reads as its PostScript name
+    /// ([`crate::textparse::builtin_glyph_text`]), else as the code point
+    /// its TrueType Unicode table gives it, else — a blank outline — as a
+    /// space; a glyph none of these resolves is left out, so the caller
+    /// falls back as docling-parse does. Empty for a program the PDF does
+    /// not embed.
+    pub fn builtin_encoding_text(&self) -> HashMap<u8, String> {
+        let mut out = HashMap::new();
+        let blank = |g: Option<GlyphPath>| g.is_some_and(|g| g.path.is_none());
+        match &self.program {
+            Program::Type1 { font, .. } => {
+                for (&code, name) in &font.encoding {
+                    if !font.has_glyph(name) {
+                        continue;
+                    }
+                    let text = crate::textparse::builtin_glyph_text(name)
+                        .or_else(|| blank(font.glyph(name)).then(|| " ".to_string()));
+                    if let Some(t) = text {
+                        out.insert(code, t);
+                    }
+                }
+            }
+            Program::Cff { font, names, .. } => {
+                let Some(enc) = cff_font(font).and_then(|cff| cff.encoding()) else {
+                    return out;
+                };
+                let by_gid: HashMap<u16, &str> =
+                    names.iter().map(|(n, &g)| (g, n.as_str())).collect();
+                for code in 0..=255u8 {
+                    let Some(gid) = enc.map(code).filter(|g| g.to_u32() != 0) else {
+                        continue;
+                    };
+                    let text = by_gid
+                        .get(&(gid.to_u32() as u16))
+                        .and_then(|n| crate::textparse::builtin_glyph_text(n))
+                        .or_else(|| blank(outline_glyph(font, gid)).then(|| " ".to_string()));
+                    if let Some(t) = text {
+                        out.insert(code, t);
+                    }
+                }
+            }
+            Program::Sfnt { font, names, .. } => {
+                let cm = font.charmap();
+                let subtables: Vec<Encoding> =
+                    cm.encodings().filter(|e| e.sfnt_ids().is_some()).collect();
+                // FreeType's Unicode charmap of a TrueType program is its
+                // Unicode table, not the (3,0) symbol one.
+                let unicode_of: HashMap<u32, u32> = if cm.unicode_is_symbol() {
+                    HashMap::new()
+                } else {
+                    cm.unicodes().map(|(cp, g)| (g.to_u32(), cp)).collect()
+                };
+                let by_gid: HashMap<u16, &str> =
+                    names.iter().map(|(n, &g)| (g, n.as_str())).collect();
+                for code in 0..=255u8 {
+                    let c = u32::from(code);
+                    let symbol = subtables
+                        .iter()
+                        .filter(|e| e.sfnt_ids() == Some((3, 0)))
+                        .find_map(|e| cm.map_code(*e, 0xF000 + c).or_else(|| cm.map_code(*e, c)));
+                    let any = || {
+                        subtables.iter().find_map(|e| {
+                            cm.map_code(*e, c).or_else(|| cm.map_code(*e, 0xF000 + c))
+                        })
+                    };
+                    let Some(gid) = symbol.or_else(any).filter(|g| g.to_u32() != 0) else {
+                        continue;
+                    };
+                    let name = font
+                        .glyph_name(gid)
+                        .filter(|n| !n.is_synthesized())
+                        .map(|n| n.as_str().to_string())
+                        .or_else(|| by_gid.get(&(gid.to_u32() as u16)).map(|n| n.to_string()));
+                    let text = name
+                        .and_then(|n| crate::textparse::builtin_glyph_text(&n))
+                        .or_else(|| {
+                            unicode_of
+                                .get(&gid.to_u32())
+                                .and_then(|&cp| char::from_u32(cp))
+                                .map(String::from)
+                        })
+                        .or_else(|| blank(outline_glyph(font, gid)).then(|| " ".to_string()));
+                    if let Some(t) = text {
+                        out.insert(code, t);
+                    }
+                }
+            }
+            Program::Fallback { .. } | Program::None => {}
+        }
+        out
+    }
+
     fn program_advance(&self, code: u32, cid: u32) -> Option<f64> {
         let g = self.build_glyph(code, cid)?;
         let (ax, _) = self.program_matrix().apply_vec(g.advance, 0.0);

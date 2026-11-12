@@ -147,6 +147,121 @@ const ZAPF_DINGBATS_TEXT: [(u8, char); 202] = [
     (0xFB, '\u{27BB}'), (0xFC, '\u{27BC}'), (0xFD, '\u{27BD}'), (0xFE, '\u{27BE}'),
 ];
 
+/// docling-parse's text for a glyph name of the two symbol fonts — every
+/// name their AFMs use (`a19` → `✓`, `arrowright` → `→`, `bracerighttp` →
+/// `⎫`), from the same glyph tables as [`face_text`]. The builtin-encoding
+/// reader asks it first ([`crate::textparse::builtin_glyph_text`]): the
+/// ZapfDingbats names are in no other table here, and the delimiter pieces'
+/// Unicode 3.2 rewrite is docling-parse's own.
+pub(crate) fn symbol_glyph_char(name: &str) -> Option<char> {
+    SYMBOL_FONT_GLYPHS
+        .binary_search_by_key(&name, |&(n, _)| n)
+        .ok()
+        .map(|i| SYMBOL_FONT_GLYPHS[i].1)
+}
+
+#[rustfmt::skip]
+const SYMBOL_FONT_GLYPHS: [(&str, char); 390] = [
+    ("Alpha", '\u{0391}'), ("Beta", '\u{0392}'), ("Chi", '\u{03A7}'), ("Delta", '\u{2206}'),
+    ("Epsilon", '\u{0395}'), ("Eta", '\u{0397}'), ("Euro", '\u{20AC}'), ("Gamma", '\u{0393}'),
+    ("Ifraktur", '\u{2111}'), ("Iota", '\u{0399}'), ("Kappa", '\u{039A}'), ("Lambda", '\u{039B}'),
+    ("Mu", '\u{039C}'), ("Nu", '\u{039D}'), ("Omega", '\u{2126}'), ("Omicron", '\u{039F}'),
+    ("Phi", '\u{03A6}'), ("Pi", '\u{03A0}'), ("Psi", '\u{03A8}'), ("Rfraktur", '\u{211C}'),
+    ("Rho", '\u{03A1}'), ("Sigma", '\u{03A3}'), ("Tau", '\u{03A4}'), ("Theta", '\u{0398}'),
+    ("Upsilon", '\u{03A5}'), ("Upsilon1", '\u{03D2}'), ("Xi", '\u{039E}'), ("Zeta", '\u{0396}'),
+    ("a1", '\u{2701}'), ("a10", '\u{2721}'), ("a100", '\u{275E}'), ("a101", '\u{2761}'),
+    ("a102", '\u{2762}'), ("a103", '\u{2763}'), ("a104", '\u{2764}'), ("a105", '\u{2710}'),
+    ("a106", '\u{2765}'), ("a107", '\u{2766}'), ("a108", '\u{2767}'), ("a109", '\u{2660}'),
+    ("a11", '\u{261B}'), ("a110", '\u{2665}'), ("a111", '\u{2666}'), ("a112", '\u{2663}'),
+    ("a117", '\u{2709}'), ("a118", '\u{2708}'), ("a119", '\u{2707}'), ("a12", '\u{261E}'),
+    ("a120", '\u{2460}'), ("a121", '\u{2461}'), ("a122", '\u{2462}'), ("a123", '\u{2463}'),
+    ("a124", '\u{2464}'), ("a125", '\u{2465}'), ("a126", '\u{2466}'), ("a127", '\u{2467}'),
+    ("a128", '\u{2468}'), ("a129", '\u{2469}'), ("a13", '\u{270C}'), ("a130", '\u{2776}'),
+    ("a131", '\u{2777}'), ("a132", '\u{2778}'), ("a133", '\u{2779}'), ("a134", '\u{277A}'),
+    ("a135", '\u{277B}'), ("a136", '\u{277C}'), ("a137", '\u{277D}'), ("a138", '\u{277E}'),
+    ("a139", '\u{277F}'), ("a14", '\u{270D}'), ("a140", '\u{2780}'), ("a141", '\u{2781}'),
+    ("a142", '\u{2782}'), ("a143", '\u{2783}'), ("a144", '\u{2784}'), ("a145", '\u{2785}'),
+    ("a146", '\u{2786}'), ("a147", '\u{2787}'), ("a148", '\u{2788}'), ("a149", '\u{2789}'),
+    ("a15", '\u{270E}'), ("a150", '\u{278A}'), ("a151", '\u{278B}'), ("a152", '\u{278C}'),
+    ("a153", '\u{278D}'), ("a154", '\u{278E}'), ("a155", '\u{278F}'), ("a156", '\u{2790}'),
+    ("a157", '\u{2791}'), ("a158", '\u{2792}'), ("a159", '\u{2793}'), ("a16", '\u{270F}'),
+    ("a160", '\u{2794}'), ("a161", '\u{2192}'), ("a162", '\u{27A3}'), ("a163", '\u{2194}'),
+    ("a164", '\u{2195}'), ("a165", '\u{2799}'), ("a166", '\u{279B}'), ("a167", '\u{279C}'),
+    ("a168", '\u{279D}'), ("a169", '\u{279E}'), ("a17", '\u{2711}'), ("a170", '\u{279F}'),
+    ("a171", '\u{27A0}'), ("a172", '\u{27A1}'), ("a173", '\u{27A2}'), ("a174", '\u{27A4}'),
+    ("a175", '\u{27A5}'), ("a176", '\u{27A6}'), ("a177", '\u{27A7}'), ("a178", '\u{27A8}'),
+    ("a179", '\u{27A9}'), ("a18", '\u{2712}'), ("a180", '\u{27AB}'), ("a181", '\u{27AD}'),
+    ("a182", '\u{27AF}'), ("a183", '\u{27B2}'), ("a184", '\u{27B3}'), ("a185", '\u{27B5}'),
+    ("a186", '\u{27B8}'), ("a187", '\u{27BA}'), ("a188", '\u{27BB}'), ("a189", '\u{27BC}'),
+    ("a19", '\u{2713}'), ("a190", '\u{27BD}'), ("a191", '\u{27BE}'), ("a192", '\u{279A}'),
+    ("a193", '\u{27AA}'), ("a194", '\u{27B6}'), ("a195", '\u{27B9}'), ("a196", '\u{2798}'),
+    ("a197", '\u{27B4}'), ("a198", '\u{27B7}'), ("a199", '\u{27AC}'), ("a2", '\u{2702}'),
+    ("a20", '\u{2714}'), ("a200", '\u{27AE}'), ("a201", '\u{27B1}'), ("a202", '\u{2703}'),
+    ("a203", '\u{2750}'), ("a204", '\u{2752}'), ("a205", '\u{276E}'), ("a206", '\u{2770}'),
+    ("a21", '\u{2715}'), ("a22", '\u{2716}'), ("a23", '\u{2717}'), ("a24", '\u{2718}'),
+    ("a25", '\u{2719}'), ("a26", '\u{271A}'), ("a27", '\u{271B}'), ("a28", '\u{271C}'),
+    ("a29", '\u{2722}'), ("a3", '\u{2704}'), ("a30", '\u{2723}'), ("a31", '\u{2724}'),
+    ("a32", '\u{2725}'), ("a33", '\u{2726}'), ("a34", '\u{2727}'), ("a35", '\u{2605}'),
+    ("a36", '\u{2729}'), ("a37", '\u{272A}'), ("a38", '\u{272B}'), ("a39", '\u{272C}'),
+    ("a4", '\u{260E}'), ("a40", '\u{272D}'), ("a41", '\u{272E}'), ("a42", '\u{272F}'),
+    ("a43", '\u{2730}'), ("a44", '\u{2731}'), ("a45", '\u{2732}'), ("a46", '\u{2733}'),
+    ("a47", '\u{2734}'), ("a48", '\u{2735}'), ("a49", '\u{2736}'), ("a5", '\u{2706}'),
+    ("a50", '\u{2737}'), ("a51", '\u{2738}'), ("a52", '\u{2739}'), ("a53", '\u{273A}'),
+    ("a54", '\u{273B}'), ("a55", '\u{273C}'), ("a56", '\u{273D}'), ("a57", '\u{273E}'),
+    ("a58", '\u{273F}'), ("a59", '\u{2740}'), ("a6", '\u{271D}'), ("a60", '\u{2741}'),
+    ("a61", '\u{2742}'), ("a62", '\u{2743}'), ("a63", '\u{2744}'), ("a64", '\u{2745}'),
+    ("a65", '\u{2746}'), ("a66", '\u{2747}'), ("a67", '\u{2748}'), ("a68", '\u{2749}'),
+    ("a69", '\u{274A}'), ("a7", '\u{271E}'), ("a70", '\u{274B}'), ("a71", '\u{25CF}'),
+    ("a72", '\u{274D}'), ("a73", '\u{25A0}'), ("a74", '\u{274F}'), ("a75", '\u{2751}'),
+    ("a76", '\u{25B2}'), ("a77", '\u{25BC}'), ("a78", '\u{25C6}'), ("a79", '\u{2756}'),
+    ("a8", '\u{271F}'), ("a81", '\u{25D7}'), ("a82", '\u{2758}'), ("a83", '\u{2759}'),
+    ("a84", '\u{275A}'), ("a85", '\u{276F}'), ("a86", '\u{2771}'), ("a87", '\u{2772}'),
+    ("a88", '\u{2773}'), ("a89", '\u{2768}'), ("a9", '\u{2720}'), ("a90", '\u{2769}'),
+    ("a91", '\u{276C}'), ("a92", '\u{276D}'), ("a93", '\u{276A}'), ("a94", '\u{276B}'),
+    ("a95", '\u{2774}'), ("a96", '\u{2775}'), ("a97", '\u{275B}'), ("a98", '\u{275C}'),
+    ("a99", '\u{275D}'), ("aleph", '\u{2135}'), ("alpha", '\u{03B1}'), ("ampersand", '\u{0026}'),
+    ("angle", '\u{2220}'), ("angleleft", '\u{2329}'), ("angleright", '\u{232A}'), ("approxequal", '\u{2248}'),
+    ("arrowboth", '\u{2194}'), ("arrowdblboth", '\u{21D4}'), ("arrowdbldown", '\u{21D3}'), ("arrowdblleft", '\u{21D0}'),
+    ("arrowdblright", '\u{21D2}'), ("arrowdblup", '\u{21D1}'), ("arrowdown", '\u{2193}'), ("arrowhorizex", '\u{23AF}'),
+    ("arrowleft", '\u{2190}'), ("arrowright", '\u{2192}'), ("arrowup", '\u{2191}'), ("arrowvertex", '\u{23D0}'),
+    ("asteriskmath", '\u{2217}'), ("bar", '\u{007C}'), ("beta", '\u{03B2}'), ("braceex", '\u{23AA}'),
+    ("braceleft", '\u{007B}'), ("braceleftbt", '\u{23A9}'), ("braceleftmid", '\u{23A8}'), ("bracelefttp", '\u{23A7}'),
+    ("braceright", '\u{007D}'), ("bracerightbt", '\u{23AD}'), ("bracerightmid", '\u{23AC}'), ("bracerighttp", '\u{23AB}'),
+    ("bracketleft", '\u{005B}'), ("bracketleftbt", '\u{23A3}'), ("bracketleftex", '\u{23A2}'), ("bracketlefttp", '\u{23A1}'),
+    ("bracketright", '\u{005D}'), ("bracketrightbt", '\u{23A6}'), ("bracketrightex", '\u{23A5}'), ("bracketrighttp", '\u{23A4}'),
+    ("bullet", '\u{2022}'), ("carriagereturn", '\u{21B5}'), ("chi", '\u{03C7}'), ("circlemultiply", '\u{2297}'),
+    ("circleplus", '\u{2295}'), ("club", '\u{2663}'), ("colon", '\u{003A}'), ("comma", '\u{002C}'),
+    ("congruent", '\u{2245}'), ("copyrightsans", '\u{F8E9}'), ("copyrightserif", '\u{F6D9}'), ("degree", '\u{00B0}'),
+    ("delta", '\u{03B4}'), ("diamond", '\u{2666}'), ("divide", '\u{00F7}'), ("dotmath", '\u{22C5}'),
+    ("eight", '\u{0038}'), ("element", '\u{2208}'), ("ellipsis", '\u{2026}'), ("emptyset", '\u{2205}'),
+    ("epsilon", '\u{03B5}'), ("equal", '\u{003D}'), ("equivalence", '\u{2261}'), ("eta", '\u{03B7}'),
+    ("exclam", '\u{0021}'), ("existential", '\u{2203}'), ("five", '\u{0035}'), ("florin", '\u{0192}'),
+    ("four", '\u{0034}'), ("fraction", '\u{2044}'), ("gamma", '\u{03B3}'), ("gradient", '\u{2207}'),
+    ("greater", '\u{003E}'), ("greaterequal", '\u{2265}'), ("heart", '\u{2665}'), ("infinity", '\u{221E}'),
+    ("integral", '\u{222B}'), ("integralbt", '\u{2321}'), ("integralex", '\u{23AE}'), ("integraltp", '\u{2320}'),
+    ("intersection", '\u{2229}'), ("iota", '\u{03B9}'), ("kappa", '\u{03BA}'), ("lambda", '\u{03BB}'),
+    ("less", '\u{003C}'), ("lessequal", '\u{2264}'), ("logicaland", '\u{2227}'), ("logicalnot", '\u{00AC}'),
+    ("logicalor", '\u{2228}'), ("lozenge", '\u{25CA}'), ("minus", '\u{2212}'), ("minute", '\u{2032}'),
+    ("mu", '\u{00B5}'), ("multiply", '\u{00D7}'), ("nine", '\u{0039}'), ("notelement", '\u{2209}'),
+    ("notequal", '\u{2260}'), ("notsubset", '\u{2284}'), ("nu", '\u{03BD}'), ("numbersign", '\u{0023}'),
+    ("omega", '\u{03C9}'), ("omega1", '\u{03D6}'), ("omicron", '\u{03BF}'), ("one", '\u{0031}'),
+    ("parenleft", '\u{0028}'), ("parenleftbt", '\u{239D}'), ("parenleftex", '\u{239C}'), ("parenlefttp", '\u{239B}'),
+    ("parenright", '\u{0029}'), ("parenrightbt", '\u{23A0}'), ("parenrightex", '\u{239F}'), ("parenrighttp", '\u{239E}'),
+    ("partialdiff", '\u{2202}'), ("percent", '\u{0025}'), ("period", '\u{002E}'), ("perpendicular", '\u{22A5}'),
+    ("phi", '\u{03C6}'), ("phi1", '\u{03D5}'), ("pi", '\u{03C0}'), ("plus", '\u{002B}'),
+    ("plusminus", '\u{00B1}'), ("product", '\u{220F}'), ("propersubset", '\u{2282}'), ("propersuperset", '\u{2283}'),
+    ("proportional", '\u{221D}'), ("psi", '\u{03C8}'), ("question", '\u{003F}'), ("radical", '\u{221A}'),
+    ("radicalex", '\u{F8E5}'), ("reflexsubset", '\u{2286}'), ("reflexsuperset", '\u{2287}'), ("registersans", '\u{F8E8}'),
+    ("registerserif", '\u{F6DA}'), ("rho", '\u{03C1}'), ("second", '\u{2033}'), ("semicolon", '\u{003B}'),
+    ("seven", '\u{0037}'), ("sigma", '\u{03C3}'), ("sigma1", '\u{03C2}'), ("similar", '\u{223C}'),
+    ("six", '\u{0036}'), ("slash", '\u{002F}'), ("space", '\u{0020}'), ("spade", '\u{2660}'),
+    ("suchthat", '\u{220B}'), ("summation", '\u{2211}'), ("tau", '\u{03C4}'), ("therefore", '\u{2234}'),
+    ("theta", '\u{03B8}'), ("theta1", '\u{03D1}'), ("three", '\u{0033}'), ("trademarksans", '\u{F8EA}'),
+    ("trademarkserif", '\u{F6DB}'), ("two", '\u{0032}'), ("underscore", '\u{005F}'), ("union", '\u{222A}'),
+    ("universal", '\u{2200}'), ("upsilon", '\u{03C5}'), ("weierstrass", '\u{2118}'), ("xi", '\u{03BE}'),
+    ("zero", '\u{0030}'), ("zeta", '\u{03B6}'),
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,6 +271,12 @@ mod tests {
         for t in [&SYMBOL_TEXT[..], &ZAPF_DINGBATS_TEXT[..]] {
             assert!(t.windows(2).all(|w| w[0].0 < w[1].0));
         }
+        assert!(SYMBOL_FONT_GLYPHS.windows(2).all(|w| w[0].0 < w[1].0));
+        assert_eq!(symbol_glyph_char("a19"), Some('✓'));
+        assert_eq!(symbol_glyph_char("a23"), Some('✗'));
+        assert_eq!(symbol_glyph_char("bracerighttp"), Some('⎫'));
+        assert_eq!(symbol_glyph_char("arrowright"), Some('→'));
+        assert_eq!(symbol_glyph_char("nosuchname"), None);
     }
 
     /// The faces docling-parse matches, and the folds the issue lists:
