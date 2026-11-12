@@ -32,7 +32,7 @@ matches the headline below.
 
 ## Current state
 
-**9 / 21 strict** against upstream's groundtruth — **497 diff lines**
+**11 / 21 strict** against upstream's groundtruth — **493 diff lines**
 (measured 2026-11-11; snapshots 101/101 exact). The mirror refresh at
 docling `a7760ab` added three fixtures — `acroform_sample` (16),
 `elsevier-00` (287), `newspaper-00` (26) — and changed none of the others;
@@ -41,8 +41,8 @@ boxes for a font whose descriptor metrics it rejects (the parity table:
 `2305.03393v1` 8 → exact, `redp5110_sampled` 30 → 26).
 
 Against **live docling 2.150.0** (docling-parse 7.25.0, docling-core
-2.106.0, docling-ibm-models 4.0.4) the 18 upstream fixtures score **6 / 18
-strict, 489 diff lines** (the three `base14_fonts_rot*` files are our own
+2.106.0, docling-ibm-models 4.0.4) the 18 upstream fixtures score **8 / 18
+strict, 485 diff lines** (the three `base14_fonts_rot*` files are our own
 fixtures, not run there). Live docling no longer reproduces upstream's
 committed groundtruth on five files (60 lines): docling-parse 7.25's word
 segmentation (docling-parse#437 — word gaps judged in em, no per-line
@@ -62,8 +62,7 @@ docling regenerates it.
 | right_to_left_03 | **exact** | **exact** | — |
 | 2305.03393v1 | **exact** | **exact** | — (the figure file names' underscores: outline boxes, a cell assigned once) |
 | base14_fonts_rot90 / _rot180 / _rot270 | **exact** | — | — (`/Rotate` display-frame normalization, docling#4008; our fixtures, groundtruth = the unrotated upstream file) |
-| right_to_left_01 | 2 | 2 | docling-parse cuts `أيضًا` before its tanween (`أيض ً`); we keep the word |
-| right_to_left_02 | 2 | 2 | one word's place at a line start (`ووف`) |
+| right_to_left_01 / right_to_left_02 | **exact** | **exact** | — (docling-parse starts a line run after a zero-advance glyph, so a word is cut at its tanween: `أيض ً`) |
 | normal_4pages | 8 | 8 | docling folds the page-number glyph into the heading (`## 들어가며 1`), we emit it as its own item; one paragraph docling breaks before its last line |
 | 2203.01017v2 | 12 | 18 | line-end hyphens docling fuses (`im-`/`balance`, `appear-`/`ances`; `column- and` is our #920 divergence), `\|T \|`; the groundtruth's glued author names (`KhurramAzeemHashmi`), which live docling splits like us; live reads the table's check marks `✓`/`✗` (docling-parse#431), we and the groundtruth `3`/`7` |
 | 2206.01062 | 24 | 12 | `tildelow10%` (docling-parse's glyph-name mapping; we read `~10%`), the author block and one paragraph in another place; the groundtruth's glued words (`RELATEDWORK`, `mAP@`) and live's `mAP @ 0.5` vs our `mAP @0.5` |

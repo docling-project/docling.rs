@@ -743,6 +743,12 @@ fn forward_gap(lhs: &RunCell, rhs: &RunCell) -> f64 {
 /// `rhs`'s leading edge — positive for glyphs on one text line.
 fn facing_edge_overlap(lhs: &RunCell, rhs: &RunCell) -> f64 {
     let (l, r) = (lhs.cell, rhs.cell);
+    // docling-parse takes the axis from `lhs`'s bottom edge and gives up on
+    // one of no length: nothing overlaps a zero-advance glyph's trailing
+    // edge, so the glyph after it starts a run.
+    if lhs.advance <= 1e-9 {
+        return 0.0;
+    }
     let (ux, uy) = if l.ltr {
         (lhs.ux, lhs.uy)
     } else {
@@ -1711,6 +1717,34 @@ mod tests {
             );
             assert_eq!(words.len(), 2, "{gap:?}");
         }
+    }
+
+    #[test]
+    fn the_glyph_after_a_zero_advance_one_starts_a_line() {
+        // An Arabic mark drawn before its base, as LibreOffice writes a
+        // cluster: the mark has no advance, so docling-parse finds no
+        // trailing edge for the base to face and starts a run there. The
+        // line of the manual reads `... دائً` and `ما ...` in docling, two
+        // cells; with any advance at all the mark stays inside its line.
+        let line = |mark_advance: f32| {
+            let mut g = Vec::new();
+            let mut x = 100.0f32;
+            for (ch, w) in [
+                ('\u{0627}', 3.0),
+                ('\u{064b}', mark_advance),
+                ('\u{0645}', 6.0),
+                ('\u{0626}', 3.0),
+                ('\u{0627}', 3.0),
+                ('\u{062f}', 5.0),
+            ] {
+                g.push(glyph(ch, x, x + w));
+                x += w;
+            }
+            line_and_word_cells_with(&g, 792.0, true, WordGap::Adaptive).0
+        };
+        let texts = |cells: &[TextCell]| cells.iter().map(|c| c.text.clone()).collect::<Vec<_>>();
+        assert_eq!(line(0.0).len(), 2, "{:?}", texts(&line(0.0)));
+        assert_eq!(line(0.5).len(), 1, "{:?}", texts(&line(0.5)));
     }
 
     #[test]
