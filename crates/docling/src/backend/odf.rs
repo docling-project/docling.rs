@@ -2002,6 +2002,7 @@ fn push_odf_list_item(
         level: depth,
         marker,
         location: None,
+        split: None,
         dclx,
         href: None,
         layer: None,

@@ -211,6 +211,7 @@ fn emit(items: Vec<Item>, doc: &mut DoclingDocument) {
                     level: level as u8,
                     marker: None,
                     location: None,
+                    split: None,
                     dclx: None,
                     href: None,
                     layer: None,

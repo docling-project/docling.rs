@@ -1298,6 +1298,7 @@ fn handle_paragraph_body(
                     // docling's DOCX backend passes the enumeration marker.
                     marker: Some(marker),
                     location: None,
+                    split: None,
                     dclx: None,
                     href: None,
                     layer: None,
@@ -1336,6 +1337,7 @@ fn handle_paragraph_body(
                     level,
                     marker,
                     location: None,
+                    split: None,
                     dclx,
                     href: None,
                     layer: None,
@@ -1378,6 +1380,7 @@ fn handle_paragraph_body(
                 level,
                 marker: None,
                 location: None,
+                split: None,
                 dclx,
                 href: None,
                 layer: None,

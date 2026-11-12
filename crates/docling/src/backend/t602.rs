@@ -241,6 +241,7 @@ fn emit_block(block: Vec<Line>, doc: &mut DoclingDocument) {
             level: 0,
             marker: None,
             location: None,
+            split: None,
             dclx: None,
             href: None,
             layer: None,

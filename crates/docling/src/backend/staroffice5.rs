@@ -297,6 +297,7 @@ fn convert_draw(d: &[u8], name: &str) -> Result<DoclingDocument, ConversionError
                     level: para.depth as u8 - 1,
                     marker: None,
                     location: None,
+                    split: None,
                     dclx: None,
                     href: None,
                     layer: None,

@@ -164,6 +164,14 @@ pub enum Node {
         /// (Markdown shows `- 1.1. x`, DocLang an ordered `<marker>1.1.</marker>`
         /// with clean text) and inline equations/formatting in list items.
         dclx: Option<ListItemDclx>,
+        /// JSON-only: the item as docling's `ListItemMarkerProcessor` leaves
+        /// it on a page pipeline (PDF) — `orig` with the marker, `text`
+        /// without it, the marker itself and whether it enumerates. Markdown
+        /// and DocLang keep reading the fields above, whose spelling follows
+        /// docling-core's serializers (`- [3] text` is a bullet item there).
+        /// `None` for every other backend: the JSON then writes `text` twice
+        /// and `-` or `N.` as before.
+        split: Option<Box<ListItemSplit>>,
         /// The item's hyperlink target, when its content is a link — docling's
         /// HTML backend emits it as an `<href uri=…/>` in the item head, and the
         /// anchor's Markdown link markup is stripped from the rendered content.
@@ -818,6 +826,19 @@ pub struct ListItemDclx {
     pub marker: Option<String>,
     pub text: String,
     pub runs: Vec<InlineRun>,
+}
+
+/// A page pipeline's list item as docling's `ListItemMarkerProcessor`
+/// exports it to JSON (see [`Node::ListItem::split`]): the source text
+/// (`orig`), the `marker` split off its head (empty when it has none), the
+/// `text` left, and `enumerated` for a numbered marker of any spelling (`1.`,
+/// `[1]`, `a)`, `iv.`). Plain text, not Markdown-escaped.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ListItemSplit {
+    pub orig: String,
+    pub marker: String,
+    pub text: String,
+    pub enumerated: bool,
 }
 
 impl Node {

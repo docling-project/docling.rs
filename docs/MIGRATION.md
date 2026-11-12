@@ -42,7 +42,7 @@ bulk of the porting under review).
 > (a pure-Rust PDF text/metadata parser and page renderer — no native PDF library; the docling-parse renderer plugin is a development oracle — + ONNX
 > layout/TableFormer/OCR + a port of docling-parse's line sanitizer) and is also
 > measured byte-for-byte against upstream's groundtruth and live docling (2.150, docling-parse 7.25.0) —
-> **11 / 21 PDF fixtures exact, 493 diff lines** against the groundtruth, 8 / 18 and 485 against live docling (see `PDF_CONFORMANCE.md`), with a snapshot baseline
+> **9 / 21 PDF fixtures exact, 511 diff lines** against the groundtruth, 6 / 18 and 475 against live docling (see `PDF_CONFORMANCE.md`), with a snapshot baseline
 > guarding against regressions. `cargo test` is green (unit tests + a 159-source
 > output-regression suite).
 
@@ -1535,8 +1535,8 @@ content-type resolution, and image extraction — reused by DOCX/PPTX/XLSX/EPUB.
 
 These run docling's *discriminative* PDF pipeline ported to ONNX. They are now
 measured **byte-for-byte against docling** (the committed PDF groundtruth mirrors
-upstream's; live docling 2.150 differs from it on five files): **11 / 21
-exact, 493 diff lines** against the groundtruth, 8 / 18 and 485 against live docling 2.150, the rest close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
+upstream's; live docling 2.150 differs from it on five files): **9 / 21
+exact, 511 diff lines** against the groundtruth, 6 / 18 and 475 against live docling 2.150, the rest close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
 (`scripts/conformance/pdf_conformance.sh`) still guards against regressions.
 
 #### PDF
@@ -1551,7 +1551,7 @@ exact, 493 diff lines** against the groundtruth, 8 / 18 and 485 against live doc
   - the published Docker images set `=0` with the two packages they install pinned in `DOCLING_RS_FONT_DIRS`
   - `DOCLING_RS_DEBUG=1` names the face each style resolved to
 - mean |Δ| 0.84/255 per channel against the shim over the snapshot corpus
-- on the shim-rendered baselines 75/101 snapshots exact and 633 groundtruth diff lines where the shim itself is 101 / 497
+- on the shim-rendered baselines 75/101 snapshots exact and 647 groundtruth diff lines where the shim itself is 101 / 511
 - Type1C fonts carrying the deprecated CFF `dotsection` operator draw their periods and i-dots, #531
 - pdfium's chain only in a build with the opt-in `pdfium` feature under `DOCLING_RS_RENDERER=pdfium`
 - #419: layout boxes are refitted to the cells they claim, empty ones dropped and contained orphans folded in before the reading order runs, as docling's `LayoutPostprocessor` does
@@ -1563,12 +1563,19 @@ exact, 493 diff lines** against the groundtruth, 8 / 18 and 485 against live doc
 - `--ocr-lang en|ch` picks the OCR recognition model (en default — the ch_ conformance model glues Latin words)
 - scanned pages with `/Rotate` are un-rotated to upright before layout/OCR and their geometry mapped back to display coords (all four orientations of `tests/data/scanned/` OCR to the same groundtruth text)
 - table captions attach by reading-order adjacency (docling's `_find_to_captions`, #265) and ride on the table across all exports — Markdown above the grid, JSON `TableItem.captions` refs, DocLang `<caption>`
+  - #1114: a table with no text-layer cell (one pasted as an image, converted without OCR) stays an empty table item and keeps that caption, as in docling; it used to be dropped with the caption it had been paired with
 - the JSON carries page headers/footers as body-parented `page_header`/`page_footer` texts on the furniture layer, as upstream writes them (Markdown still leaves them out)
 - the text inside a picture reaches the JSON as that picture's children (docling's `_add_child_elements`), as upstream writes it (Markdown, like docling's, prints only the caption)
 - text outside the page's display box — the CropBox, else the MediaBox — is dropped glyph by glyph like docling-parse does (#529: a FrameMaker print slug, a tiled page's neighbouring text) instead of being clamped onto the page edge
 - a CJK composite font without ToUnicode is read through Adobe's CID → Unicode table of the collection its `CIDSystemInfo` names (Japan1, GB1, CNS1, Korea1, KR; ISO 32000-1 §9.10.2), as docling-parse does
   - deliberately for every descendant font, `CIDFontType2` included, as docling-parse does
   - some producers name an Adobe collection on a subset TrueType whose CIDs are really glyph ids (`CIDToGIDMap` Identity or absent); without ToUnicode such a font reads as plausible but wrong text, as it does in docling, where docling.rs read nothing before and OCR could step in
+- symbol fonts read as docling-parse 7.25 reads them (#1113, docling-parse#431)
+  - a Symbol / ZapfDingbats `/ToUnicode` into the private-use symbol charset reads through the face's encoding: redp5110's `U+F0AE` is `→`, a Word bullet `U+F0B7` is `•`
+  - a symbolic simple font that declares no base encoding reads through its embedded program's builtin encoding, after `/Differences` and `/ToUnicode`: 2203.01017's `Dingbats` `3` / `7` are `✓` / `✗`
+  - a Symbol / ZapfDingbats font that names no encoding reads through the face's own (a non-embedded ZapfDingbats' `l` is `●`) and, without `/Widths`, advances by the face's AFM widths
+  - Skia's hexadecimal glyph-index names (`/g15C`) read as unmapped, `�`
+  - **deliberate divergence:** a declared encoding keeps its table; docling-parse reads a font matched to Symbol through the face anyway (its FontSpecific scheme), which turns `multi_page`'s MacRoman `SymbolMT` bullet into `- ∞ IBM MT/ST …`
 - #598: a `JPXDecode` (JPEG 2000) image is decoded (`render/jpx.rs`, `hayro-jpeg2000`, within ±1 of OpenJPEG) instead of drawn as a mid-gray placeholder
   - on photo pages the blank rectangle left the layout model unsure of the picture (0.64 instead of 0.99): its box ran over the caption below, which nested inside as `text` and vanished from the Markdown, and two stacked photos split by a caption fused into one
   - decoded, the reporter's NASA pages give docling's result (caption linked and printed, two pictures) at int8 and fp32 alike — `crates/docling/tests/jpx_pictures.rs`
@@ -1680,6 +1687,14 @@ the CLI, serve, and the Python/Node bindings alike. One caveat vs Python
 docling: coordinates round-trip through the DocLang 0–511 grid, so they carry
 a quantization of up to ~page-size/512 (≈1.6 pt on A4); `charspan` always
 starts at 0 (docling.rs does not track sub-item spans).
+
+A PDF **list item** is written as docling's `ListItemMarkerProcessor` leaves
+it (#1111): `orig` with the marker, `text` without it, the `marker` itself
+(`·`, `3.`, `[21]`, `a)`, empty when the item has none) and `enumerated` for
+a numbered marker of any spelling. The Markdown spelling is another matter
+and unchanged — docling-core's serializer prints `- [21] text` — so the node
+carries the JSON's view apart (`Node::ListItem::split`), which only the PDF
+pipeline fills; every other backend's items read `-` or `N.` as before.
 
 Where a picture's or table's **caption item hangs** in the JSON tree follows
 the backend, as it does upstream (#390, `docling_core::CaptionParent`): the
@@ -2247,7 +2262,7 @@ These are deliberate or unavoidable divergences, not bugs.
      dropped (Form-XObject text and glyph-name-only fonts were the two classes it
      surfaced and fixed).
    - Output is measured **byte-for-byte against docling** (PDF_CONFORMANCE.md):
-     **11 / 21 exact, 493 diff lines** against upstream's groundtruth, the rest close. The remaining gaps are
+     **9 / 21 exact, 511 diff lines** against upstream's groundtruth, the rest close. The remaining gaps are
      model-level (TableFormer structure on complex tables, layout
      classification, title-page reading order) plus docling-parse 7's own
      glyph mappings (`∞` for a list bullet, `tildelow` for `~`). The full per-fixture breakdown and the
