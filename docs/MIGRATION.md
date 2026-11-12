@@ -1563,6 +1563,7 @@ exact, 511 diff lines** against the groundtruth, 6 / 18 and 475 against live doc
 - `--ocr-lang en|ch` picks the OCR recognition model (en default — the ch_ conformance model glues Latin words)
 - scanned pages with `/Rotate` are un-rotated to upright before layout/OCR and their geometry mapped back to display coords (all four orientations of `tests/data/scanned/` OCR to the same groundtruth text)
 - table captions attach by reading-order adjacency (docling's `_find_to_captions`, #265) and ride on the table across all exports — Markdown above the grid, JSON `TableItem.captions` refs, DocLang `<caption>`
+  - #1114: a table with no text-layer cell (one pasted as an image, converted without OCR) stays an empty table item and keeps that caption, as in docling; it used to be dropped with the caption it had been paired with
 - the JSON carries page headers/footers as body-parented `page_header`/`page_footer` texts on the furniture layer, as upstream writes them (Markdown still leaves them out)
 - the text inside a picture reaches the JSON as that picture's children (docling's `_add_child_elements`), as upstream writes it (Markdown, like docling's, prints only the caption)
 - text outside the page's display box — the CropBox, else the MediaBox — is dropped glyph by glyph like docling-parse does (#529: a FrameMaker print slug, a tiled page's neighbouring text) instead of being clamped onto the page edge

@@ -83,6 +83,50 @@ fn no_ocr_keeps_layout_and_tables() {
     assert_eq!(alias, md, "no_ocr and skip_ocr are one switch");
 }
 
+/// #1114: a table pasted as an image under a text caption, converted without
+/// OCR. The table region claims no text-layer cell; it used to be dropped,
+/// and the caption the matcher had handed it went with it. docling keeps an
+/// empty `TableItem` with its caption — so the caption prints in the
+/// Markdown, and the JSON has the table (no rows) with the caption as its
+/// child.
+#[test]
+fn a_raster_table_keeps_its_caption_without_ocr() {
+    if !layout_ready_ocr_sabotaged() {
+        eprintln!("skipping: the layout model is not present");
+        return;
+    }
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/raster_table/raster_table_caption.pdf");
+    let doc = DocumentConverter::new()
+        .no_ocr(true)
+        .convert(SourceDocument::from_file(&path).expect("fixture"))
+        .expect("conversion succeeds")
+        .document;
+    let caption = "Table 1: Decision matrix for risk insurance";
+    let md = doc.export_to_markdown();
+    assert!(
+        md.lines().any(|l| l == caption),
+        "the caption is text-layer text and must print:\n{md}"
+    );
+    assert!(!md.contains('|'), "no grid of blank cells:\n{md}");
+    let json = doc.export_to_json_value();
+    let tables = json["tables"].as_array().expect("tables");
+    assert_eq!(tables.len(), 1, "the table stays an item");
+    assert_eq!(tables[0]["data"]["num_rows"], 0);
+    assert_eq!(tables[0]["data"]["num_cols"], 0);
+    // The label rule (`Table 1:` next to a table) makes the line a caption
+    // whatever the layout model called it, and the table owns it.
+    let item = json["texts"]
+        .as_array()
+        .expect("texts")
+        .iter()
+        .find(|t| t["text"] == caption)
+        .expect("the caption item");
+    assert_eq!(item["label"], "caption");
+    assert_eq!(item["parent"]["$ref"], "#/tables/0");
+    assert_eq!(tables[0]["captions"][0]["$ref"], item["self_ref"]);
+}
+
 /// The degradation half of #244: OCR *wanted* (no flag) but the model is
 /// missing — the conversion warns and completes instead of erroring (the
 /// pre-#244 behavior surfaced as a 422 through docling-serve).
