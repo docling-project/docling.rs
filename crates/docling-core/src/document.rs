@@ -1160,6 +1160,26 @@ pub struct Table {
     pub document_index: bool,
 }
 
+/// The name a [`rich_cell_group`] carries, which the JSON export reads.
+pub(crate) const RICH_CELL: &str = "rich_cell";
+
+/// A rich table cell's blocks as docling's `RichTableCell` (#1119): the one
+/// entry of a [`Table::cell_blocks`] cell, wrapping the cell's paragraphs and
+/// pictures in reading order. The JSON export writes it as the table's
+/// `rich_cell_group_<table>_<col>_<row>` group the cell's `ref` points at,
+/// as the DOCX backend's item tree does; DocLang, which has no group
+/// element, renders the blocks in place. [`Table::rows`] keeps the cell's
+/// Markdown text, its pictures as `<!-- image -->` paragraphs, and the
+/// JSON's cell text leaves those out (python-docx's `cell.text`).
+pub fn rich_cell_group(children: Vec<Node>) -> Node {
+    Node::Group {
+        label: "unspecified".into(),
+        name: Some(RICH_CELL.into()),
+        layer: None,
+        children,
+    }
+}
+
 impl Table {
     /// A cell's text at a grid position, `None` outside the grid.
     pub fn cell_text(&self, row: usize, col: usize) -> Option<&str> {

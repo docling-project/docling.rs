@@ -1,0 +1,38 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+\usepackage{graphicx}       % graphics
+\usepackage[normalem]{ulem} % strikethrough
+
+\begin{document}
+
+\section{Pictures in table cells}
+
+A table whose cells hold pictures.
+
+\begin{table}[h]
+\begin{tabular}{|l|l|}
+\hline
+Icon & Meaning \\ \hline
+\begin{figure}[h] % image \end{figure} & A picture alone \\ \hline
+\begin{figure}[h] % image \end{figure}  Note & A picture, then text \\ \hline
+\begin{figure}[h] % image \end{figure}  See & Text, then a picture \\ \hline
+Caution  \begin{figure}[h] % image \end{figure} & A picture in the second paragraph \\ \hline
+\end{tabular}
+\end{table}
+
+After the table.
+
+\begin{figure}[h]
+% image
+\end{figure}
+
+\end{document}

@@ -2851,7 +2851,8 @@ impl Builder {
     }
 
     /// The pictures placed in a table's cells (the XLSX "Place in Cell"
-    /// image, docling#5015): a cell whose blocks are exactly one
+    /// image, docling#5015) and the rich cells of a [`crate::rich_cell_group`]
+    /// (#1119): a cell whose blocks are exactly one
     /// [`Node::Prov`]-wrapped picture is docling's `RichTableCell` over a
     /// picture item — the picture is the table's child, the cell keeps an
     /// empty text and a `ref` to it. Other rich cells (and the PDF
@@ -2875,12 +2876,6 @@ impl Builder {
             in_row.sort_by_key(|&i| data.cells[i].start_col);
             let ragged = t.rows.get(r).map_or(0, Vec::len) != data.num_cols;
             for (c, cell) in row.iter().enumerate() {
-                let [node @ Node::Prov { inner, .. }] = cell.as_slice() else {
-                    continue;
-                };
-                if !matches!(**inner, Node::Picture { .. }) {
-                    continue;
-                }
                 let target = if ragged {
                     in_row.get(c).copied()
                 } else {
@@ -2889,6 +2884,46 @@ impl Builder {
                         .copied()
                         .find(|&i| data.cells[i].start_col == c)
                 };
+                // A `rich_cell_group` (#1119, the DOC backend's picture
+                // cells): the DOCX item tree's `rich_cell_group_<table>_
+                // <col>_<row>` group under the table, holding the cell's
+                // items, and the cell's text without its `<!-- image -->`
+                // paragraphs.
+                if let [Node::Group {
+                    name: Some(name),
+                    children: blocks,
+                    ..
+                }] = cell.as_slice()
+                {
+                    let Some(target) = target.filter(|_| name == crate::document::RICH_CELL) else {
+                        continue;
+                    };
+                    let name = format!("rich_cell_group_{}_{c}_{r}", self.tables.len() + 1);
+                    let group = ref_value(self.add_group(
+                        "unspecified",
+                        Some(&name),
+                        None,
+                        blocks,
+                        self_ref,
+                    ));
+                    children.push(group.clone());
+                    let cell = &mut data.cells[target];
+                    cell.text = cell
+                        .text
+                        .split("\n\n")
+                        .filter(|p| p.trim() != "<!-- image -->")
+                        .collect::<Vec<_>>()
+                        .join("\n\n")
+                        .into();
+                    cell.cell_ref = Some(Box::new(group));
+                    continue;
+                }
+                let [node @ Node::Prov { inner, .. }] = cell.as_slice() else {
+                    continue;
+                };
+                if !matches!(**inner, Node::Picture { .. }) {
+                    continue;
+                }
                 let Some(target) = target else {
                     continue;
                 };

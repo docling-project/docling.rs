@@ -20,7 +20,10 @@
 //! tables (cell/row marks), and embedded pictures — both inline (`0x01`
 //! anchor → `sprmCPicLocation` → PICF in the Data stream) and floating
 //! (`0x08` anchor → PlcfSpa → the drawing's shape → BLIP store, with
-//! delay-stream data in `WordDocument`), decoded via [`officeart`].
+//! delay-stream data in `WordDocument`), decoded via [`officeart`]. A
+//! picture anchored in a table cell makes the cell rich (#1119): its
+//! paragraphs and pictures become [`docling_core::rich_cell_group`] blocks,
+//! the DOCX backend's `rich_cell_group_*` in the JSON.
 //!
 //! The other **stories** (#535) follow the main text in the same CP space —
 //! footnotes (`ccpFtn`), headers/footers (`ccpHdd`), comments, endnotes,
@@ -3453,11 +3456,16 @@ impl ParaAccum {
 /// continue the cell to their left (the OTSL `lcel` overlay the DOCX
 /// backend writes for a `gridSpan`). `None` when a row lacks boundaries for
 /// its cells; the caller then pads the ragged rows.
+///
+/// Generic over the cell payload: the rich-cell blocks (#1119) go through
+/// the same mapping with `repeat` off, landing at each cell's first
+/// position only, as the DOCX backend places a spanned rich cell's.
 #[allow(clippy::type_complexity)]
-fn spanned_rows(
-    rows: &[Vec<String>],
+fn spanned_rows<T: Clone + Default>(
+    rows: &[Vec<T>],
     bounds: &[Option<Vec<i16>>],
-) -> Option<(Vec<Vec<String>>, Vec<Vec<bool>>)> {
+    repeat: bool,
+) -> Option<(Vec<Vec<T>>, Vec<Vec<bool>>)> {
     if bounds.len() != rows.len() {
         return None;
     }
@@ -3477,12 +3485,14 @@ fn spanned_rows(
     let mut cont = Vec::with_capacity(rows.len());
     for (row, b) in rows.iter().zip(bounds) {
         let b = b.as_ref().expect("checked above");
-        let mut out = vec![String::new(); width];
+        let mut out = vec![T::default(); width];
         let mut continues = vec![false; width];
         for (k, text) in row.iter().enumerate() {
             let (first, end) = (col(b[k]), col(b[k + 1]).min(width));
             for c in first..end {
-                out[c] = text.clone();
+                if repeat || c == first {
+                    out[c] = text.clone();
+                }
                 continues[c] = c > first;
             }
         }
@@ -3490,6 +3500,19 @@ fn spanned_rows(
         cont.push(continues);
     }
     Some((grid, cont))
+}
+
+/// An anchored picture's node.
+fn picture_node(image: Option<PictureImage>) -> Node {
+    Node::Picture {
+        caption: None,
+        caption_href: None,
+        image,
+        classification: None,
+        description: None,
+        caption_parent: Default::default(),
+        caption_location: None,
+    }
 }
 
 /// Turns the classified paragraph stream into nodes, assembling table runs.
@@ -3502,6 +3525,16 @@ struct NodeBuilder {
     row_bounds: Vec<Option<Vec<i16>>>,
     cells: Vec<String>,
     cell_text: String,
+    /// The rich-cell blocks of each finished row, parallel to `rows`, of the
+    /// current row, parallel to `cells`, and of the current cell (#1119): a
+    /// cell holding a picture keeps its paragraphs and pictures as blocks —
+    /// the DOCX backend's rich cell — which the JSON writes as docling's
+    /// `rich_cell_group_*` group; any other cell's are empty.
+    row_blocks: Vec<Vec<Vec<Node>>>,
+    cell_blocks: Vec<Vec<Node>>,
+    cell_nodes: Vec<Node>,
+    /// Whether the current cell holds a picture, which makes it rich.
+    cell_has_picture: bool,
     /// The `ilfo` of the most recent list item — a new item starts a new list
     /// (`first_in_list`) when its `ilfo` differs. Empty paragraphs between
     /// items do NOT break a list (docling's DOCX behavior: numbering and
@@ -3556,10 +3589,10 @@ impl NodeBuilder {
         if props.ttp {
             // Row terminator: close the row.
             if !self.cell_text.is_empty() {
-                self.cells.push(std::mem::take(&mut self.cell_text));
+                self.close_cell();
             }
             if !self.cells.is_empty() {
-                self.rows.push(std::mem::take(&mut self.cells));
+                self.close_row();
                 self.row_bounds.push(props.cell_bounds.clone());
             }
             return;
@@ -3584,6 +3617,15 @@ impl NodeBuilder {
         self.in_anld_run = anld_marker.is_some();
         self.last_anld_kind = anld_kind;
         if props.in_table {
+            // Pictures anchored in the cell (#1119) surround the paragraph's
+            // text by anchor position, as a body paragraph's do: a block
+            // each, printed `<!-- image -->` in the cell's text the way the
+            // DOCX backend's rich cell prints them.
+            let (before, after): (Vec<_>, Vec<_>) =
+                pictures.into_iter().partition(|(before, _)| *before);
+            for (_, image) in before {
+                self.cell_picture(image);
+            }
             let text = markdown.trim_end_matches('\u{0007}');
             let text = match &anld_marker {
                 Some((marker, _)) if !text.trim().is_empty() => format!("{marker} {text}"),
@@ -3606,6 +3648,9 @@ impl NodeBuilder {
             }
             if !text.trim().is_empty() {
                 self.cell_prev_list = anld_marker.is_some();
+                self.cell_nodes.push(Node::Paragraph {
+                    text: escape_text(text.trim()),
+                });
             }
             self.cell_text.push_str(&text);
             // A text box anchored in the cell: its paragraphs are more of the
@@ -3616,8 +3661,12 @@ impl NodeBuilder {
                 }
                 self.cell_text.push_str(&text);
             }
+            self.cell_nodes.extend(textboxes.into_iter().flatten());
+            for (_, image) in after {
+                self.cell_picture(image);
+            }
             if mark == '\u{0007}' {
-                self.cells.push(std::mem::take(&mut self.cell_text));
+                self.close_cell();
                 self.cell_prev_list = false;
             }
             return;
@@ -3636,15 +3685,6 @@ impl NodeBuilder {
             self.run_base = None;
         }
 
-        let picture_node = |image: Option<PictureImage>| Node::Picture {
-            caption: None,
-            caption_href: None,
-            image,
-            classification: None,
-            description: None,
-            caption_parent: Default::default(),
-            caption_location: None,
-        };
         // The bookmarks starting here (#852), the destinations of the
         // document's internal links, in front of the paragraph's node — a
         // cell's are not placed (the flat table has no inline anchors).
@@ -3882,17 +3922,19 @@ impl NodeBuilder {
     /// Emit any table under construction.
     fn flush(&mut self, doc: &mut DoclingDocument) {
         if !self.cell_text.is_empty() {
-            self.cells.push(std::mem::take(&mut self.cell_text));
+            self.close_cell();
         }
         if !self.cells.is_empty() {
-            self.rows.push(std::mem::take(&mut self.cells));
+            self.close_row();
         }
         if self.rows.is_empty() {
             return;
         }
         let rows = std::mem::take(&mut self.rows);
         let bounds = std::mem::take(&mut self.row_bounds);
-        let (rows, structure) = match spanned_rows(&rows, &bounds) {
+        let blocks = std::mem::take(&mut self.row_blocks);
+        let any_rich = blocks.iter().flatten().any(|b| !b.is_empty());
+        let (rows, cell_blocks, structure) = match spanned_rows(&rows, &bounds, true) {
             Some((rows, col_continuation)) => {
                 // A span is marked the way the DOCX backend marks a
                 // `gridSpan`, so the JSON carries one spanning cell.
@@ -3909,7 +3951,12 @@ impl NodeBuilder {
                         col_header: Vec::new(),
                     }
                 });
-                (rows, structure)
+                // A spanned cell's blocks sit at its first position only, as
+                // the DOCX backend's do: the continuations are `lcel`s.
+                let cell_blocks = any_rich
+                    .then(|| spanned_rows(&blocks, &bounds, false).map(|(b, _)| b))
+                    .flatten();
+                (rows, cell_blocks, structure)
             }
             None => {
                 // Rectangularize (rows may have ragged cell counts).
@@ -3921,7 +3968,16 @@ impl NodeBuilder {
                         r
                     })
                     .collect();
-                (rows, None)
+                let cell_blocks = any_rich.then(|| {
+                    blocks
+                        .into_iter()
+                        .map(|mut r| {
+                            r.resize(width, Vec::new());
+                            r
+                        })
+                        .collect()
+                });
+                (rows, cell_blocks, None)
             }
         };
         doc.push(Node::Table(Table {
@@ -3929,7 +3985,7 @@ impl NodeBuilder {
             rows,
             location: None,
             structure,
-            cell_blocks: None,
+            cell_blocks,
             cells: None,
             caption: None,
             caption_parent: Default::default(),
@@ -3938,6 +3994,36 @@ impl NodeBuilder {
         }));
         self.last_ilfo = None;
         self.run_base = None;
+    }
+
+    /// A picture anchored in the current cell (#1119): a block of the cell
+    /// and an `<!-- image -->` piece of its text, a paragraph of its own.
+    fn cell_picture(&mut self, image: Option<PictureImage>) {
+        if !self.cell_text.is_empty() {
+            self.cell_text.push_str("\n\n");
+        }
+        self.cell_text.push_str("<!-- image -->");
+        self.cell_prev_list = false;
+        self.cell_nodes.push(picture_node(image));
+        self.cell_has_picture = true;
+    }
+
+    /// Close the current cell: its text, and its blocks when it is rich.
+    fn close_cell(&mut self) {
+        self.cells.push(std::mem::take(&mut self.cell_text));
+        let nodes = std::mem::take(&mut self.cell_nodes);
+        self.cell_blocks
+            .push(if std::mem::take(&mut self.cell_has_picture) {
+                vec![docling_core::rich_cell_group(nodes)]
+            } else {
+                Vec::new()
+            });
+    }
+
+    /// Close the current row.
+    fn close_row(&mut self) {
+        self.rows.push(std::mem::take(&mut self.cells));
+        self.row_blocks.push(std::mem::take(&mut self.cell_blocks));
     }
 
     /// A Word 6/95 autonumber's marker (#700) and number: `-` for a
@@ -4346,6 +4432,117 @@ mod tests {
         assert_eq!(anld_number(2, 4), "iv");
         assert_eq!(anld_number(3, 28), "AB");
         assert_eq!(anld_number(1, 1994), "MCMXCIV");
+    }
+
+    /// #1119: a picture anchored in a table cell makes the cell rich — its
+    /// paragraphs and pictures as blocks in a `rich_cell_group`, printed
+    /// `<!-- image -->` in the cell's text, and a spanned cell's blocks at
+    /// its first position only — where it used to be dropped; a table
+    /// without pictures keeps no blocks at all.
+    #[test]
+    fn a_picture_in_a_table_cell_makes_it_rich() {
+        let stis = vec![StyleDef::NONE; 16];
+        let image = PictureImage {
+            mimetype: "image/png".into(),
+            width: 4,
+            height: 4,
+            data: vec![0x89, b'P', b'N', b'G'],
+            dpi: PictureImage::DEFAULT_DPI,
+            display_size: None,
+        };
+        let cell = ParaProps {
+            in_table: true,
+            ..ParaProps::default()
+        };
+        let row_end = |bounds: Vec<i16>| ParaProps {
+            in_table: true,
+            ttp: true,
+            cell_bounds: Some(bounds),
+            ..ParaProps::default()
+        };
+        let build = |with_picture: bool| {
+            let mut builder = NodeBuilder::new(ListTables::default());
+            let mut doc = DoclingDocument::new("cells");
+            let mut para = |text: &str,
+                            pictures: Vec<(bool, Option<PictureImage>)>,
+                            mark: char,
+                            props: ParaProps,
+                            doc: &mut DoclingDocument| {
+                builder.paragraph(
+                    text.into(),
+                    text.into(),
+                    pictures,
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                    mark,
+                    props,
+                    &stis,
+                    doc,
+                );
+            };
+            para("Icon", Vec::new(), '\u{0007}', cell.clone(), &mut doc);
+            para("Meaning", Vec::new(), '\u{0007}', cell.clone(), &mut doc);
+            para(
+                "",
+                Vec::new(),
+                '\u{0007}',
+                row_end(vec![0, 100, 200]),
+                &mut doc,
+            );
+            let pictures = if with_picture {
+                vec![(true, Some(image.clone()))]
+            } else {
+                Vec::new()
+            };
+            para("Wide", pictures, '\u{0007}', cell.clone(), &mut doc);
+            para("", Vec::new(), '\u{0007}', row_end(vec![0, 200]), &mut doc);
+            para("After", Vec::new(), '\r', ParaProps::default(), &mut doc);
+            doc
+        };
+        let table = |doc: &DoclingDocument| match &doc.nodes[0] {
+            Node::Table(t) => t.clone(),
+            other => panic!("{other:?}"),
+        };
+
+        let plain = table(&build(false));
+        assert!(plain.cell_blocks.is_none(), "{:?}", plain.cell_blocks);
+        assert_eq!(plain.rows[1], ["Wide", "Wide"]);
+
+        let doc = build(true);
+        let t = table(&doc);
+        assert_eq!(
+            t.rows[1],
+            ["<!-- image -->\n\nWide", "<!-- image -->\n\nWide"]
+        );
+        let blocks = t.cell_blocks.as_ref().expect("a rich cell");
+        assert!(blocks[0].iter().all(Vec::is_empty));
+        assert!(blocks[1][1].is_empty(), "the span's continuation");
+        let [Node::Group { children, .. }] = blocks[1][0].as_slice() else {
+            panic!("{:?}", blocks[1][0]);
+        };
+        assert!(matches!(
+            children.as_slice(),
+            [Node::Picture { image: Some(_), .. }, Node::Paragraph { text }] if text == "Wide"
+        ));
+        assert!(doc
+            .export_to_markdown()
+            .contains("| <!-- image -->  Wide |"));
+        let json: serde_json::Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+        let group = &json["groups"][0];
+        assert_eq!(group["name"], "rich_cell_group_1_0_1");
+        assert_eq!(group["parent"]["$ref"], "#/tables/0");
+        assert_eq!(json["pictures"][0]["parent"]["$ref"], "#/groups/0");
+        let wide = json["tables"][0]["data"]["table_cells"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["start_row_offset_idx"] == 1)
+            .unwrap()
+            .clone();
+        assert_eq!(wide["text"], "Wide");
+        assert_eq!(wide["ref"]["$ref"], "#/groups/0");
+        assert_eq!(wide["col_span"], 2);
     }
 
     /// #700: the ticket's fixtures — a numbered and a bulleted list inside
