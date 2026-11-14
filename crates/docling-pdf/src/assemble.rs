@@ -3088,12 +3088,60 @@ fn code_region_text(region: &Region, cells: &[TextCell]) -> String {
     lines.join("\n")
 }
 
-/// Reconstruct a table's grid geometrically from the text cells inside its
-/// region: cluster cells into rows (by vertical centre) and columns (by clustered
-/// left edges), then place each cell. A model-free stand-in for TableFormer that
-/// recovers grid-aligned tables from the precise PDF text layer (it does not
-/// resolve row/column spans).
-pub fn reconstruct_table(region: &Region, cells: &[TextCell]) -> Vec<Vec<String>> {
+/// The height of the line a cell is, for clustering cells into rows and
+/// columns: its box height — unless the box is taller than any line of that
+/// text can be, when it is the line its characters account for.
+///
+/// A cell's box is as tall as the font's ascent and descent say, and some
+/// faces inflate those far past the glyphs — Cambria's regular face declares
+/// 3117 / -2464, so each of its lines sits in a 5.6 em box and overlaps the
+/// four lines around it (#1129). Taken at its word, that height merged three
+/// or four lines of a table cell into one "row" in top-edge order (the
+/// second line ahead of the first, whose bold face has honest metrics) and
+/// would merge columns under 75 pt apart.
+///
+/// Text averages about half an em per character, so [`LINE_PER_ADVANCE`]
+/// mean advances is a normal line's height. A box over [`INFLATED_BOX`]
+/// times that is the font's claim, not a line; every other box — the usual
+/// 1.2-1.4 em — is used exactly as it is, so honest fonts cluster as before.
+fn line_height(c: &TextCell) -> f32 {
+    let box_h = (c.b - c.t).abs();
+    let line = LINE_PER_ADVANCE * c.mean_advance();
+    if box_h > INFLATED_BOX * line {
+        line.max(1.0)
+    } else {
+        box_h.max(1.0)
+    }
+}
+
+/// Where a cell's line starts, for putting cells in reading order: the box
+/// top — or, for an inflated box ([`line_height`]), the top of the line
+/// centred in it. Such a box starts well above its text (Cambria's regular
+/// face: 20 pt), so by box tops the second line of a cell came before a
+/// first line set in a face with honest metrics.
+fn line_top(c: &TextCell) -> f32 {
+    let lh = line_height(c);
+    if lh < (c.b - c.t).abs() {
+        (c.t + c.b) / 2.0 - lh / 2.0
+    } else {
+        c.t
+    }
+}
+
+/// How many mean character advances a line of text is tall: 2.5 of the
+/// ~0.45-0.5 em a Latin face averages is 1.1-1.25 em, a line set solid to
+/// lightly leaded.
+const LINE_PER_ADVANCE: f32 = 2.5;
+
+/// A box this many normal lines tall is an inflated one. An honest box is
+/// 1.2-1.4 em against a normal line of 1.1-1.25 em, so 2 leaves every real
+/// face alone (a cell of nothing but one narrow glyph aside, whose row is
+/// decided by its centre either way); CJK text advances a full em and never
+/// gets here.
+const INFLATED_BOX: f32 = 2.0;
+
+/// The text cells of a table region (the >50 %-inside rule), top line first.
+fn table_line_cells<'a>(region: &Region, cells: &'a [TextCell]) -> Vec<&'a TextCell> {
     let mut inside: Vec<&TextCell> = cells
         .iter()
         .filter(|c| {
@@ -3101,16 +3149,17 @@ pub fn reconstruct_table(region: &Region, cells: &[TextCell]) -> Vec<Vec<String>
             inter(region, c.l, c.t, c.r, c.b) / ca > 0.5
         })
         .collect();
-    if inside.is_empty() {
-        return Vec::new();
-    }
-    inside.sort_by(|a, b| a.t.total_cmp(&b.t));
+    inside.sort_by(|a, b| line_top(a).total_cmp(&line_top(b)));
+    inside
+}
 
-    // Rows: consecutive cells whose vertical centre is within ~0.7 line height.
+/// [`table_line_cells`] clustered into the geometric grid's rows: consecutive
+/// cells whose vertical centre is within ~0.7 line height of the row's first.
+fn table_line_rows<'a>(inside: &[&'a TextCell]) -> Vec<(f32, Vec<&'a TextCell>)> {
     let mut rows: Vec<(f32, Vec<&TextCell>)> = Vec::new();
-    for c in &inside {
+    for c in inside {
         let cyc = (c.t + c.b) / 2.0;
-        let lh = (c.b - c.t).abs().max(1.0);
+        let lh = line_height(c);
         if let Some((ryc, row)) = rows.last_mut() {
             if (cyc - *ryc).abs() < lh * 0.7 {
                 row.push(c);
@@ -3119,10 +3168,59 @@ pub fn reconstruct_table(region: &Region, cells: &[TextCell]) -> Vec<Vec<String>
         }
         rows.push((cyc, vec![c]));
     }
+    rows
+}
+
+/// Do the rows of a table's geometric grid ([`reconstruct_table`]) each sit
+/// on one text line?
+///
+/// The grid has a row per text line, which is the table's row only where a
+/// cell is one line. A table of wrapped cells is columns of text flowing on
+/// their own — a bold heading, a blank line, a different size — and the grid
+/// pairs whichever lines happen to pass within 0.7 of a line of each other:
+/// on #1129's page, ten "rows" of a table that has two, four of them a third
+/// of a line askew. Dense and regular, it passes
+/// [`geometric_table_is_reliable`], which sees only the strings.
+///
+/// The cells of a real row share a baseline, so their centres agree to the
+/// little that different faces' metrics differ; [`ROW_LINE_SLACK`] of a line
+/// is past that. Meaningful on text-layer cells, whose boxes are exact — an
+/// OCR line's box follows its ink and wobbles by more.
+pub fn geometric_rows_share_lines(region: &Region, cells: &[TextCell]) -> bool {
+    let inside = table_line_cells(region, cells);
+    table_line_rows(&inside).iter().all(|(_, row)| {
+        let centres = || row.iter().map(|c| (c.t + c.b) / 2.0);
+        let spread =
+            centres().fold(f32::NEG_INFINITY, f32::max) - centres().fold(f32::INFINITY, f32::min);
+        let line = row
+            .iter()
+            .map(|c| line_height(c))
+            .fold(f32::INFINITY, f32::min);
+        spread <= ROW_LINE_SLACK * line
+    })
+}
+
+/// How far apart, in line heights, the centres of one row's cells may be and
+/// still be one line. Faces of one size on one baseline differ by ~0.05-0.15
+/// (their ascent and descent are not symmetric alike); lines of independent
+/// columns miss each other by anything up to half a line.
+const ROW_LINE_SLACK: f32 = 0.25;
+
+/// Reconstruct a table's grid geometrically from the text cells inside its
+/// region: cluster cells into rows (by vertical centre) and columns (by clustered
+/// left edges), then place each cell. A model-free stand-in for TableFormer that
+/// recovers grid-aligned tables from the precise PDF text layer (it does not
+/// resolve row/column spans).
+pub fn reconstruct_table(region: &Region, cells: &[TextCell]) -> Vec<Vec<String>> {
+    let inside = table_line_cells(region, cells);
+    if inside.is_empty() {
+        return Vec::new();
+    }
+    let rows = table_line_rows(&inside);
 
     // Columns: cluster left edges (merge those within a tolerance).
     let tol = {
-        let mut hs: Vec<f32> = inside.iter().map(|c| (c.b - c.t).abs()).collect();
+        let mut hs: Vec<f32> = inside.iter().map(|c| line_height(c)).collect();
         hs.sort_by(f32::total_cmp);
         hs[hs.len() / 2].max(4.0) * 1.5
     };
@@ -5583,6 +5681,142 @@ mod tests {
             cell("1", 10.0, 98.0, 25.0, 112.0), // big numeral painted last
         ];
         assert_eq!(super::region_text(&region, &numeral), "들어가며 1");
+    }
+
+    /// #1129: the issue page's table, as the text layer hands it over. Its
+    /// headings are Cambria Bold (honest metrics, 12 pt boxes); the body is
+    /// Cambria regular, whose declared ascent and descent put every line in a
+    /// 50 pt box on lines 10.5 pt apart. Rows clustered by those heights held
+    /// three or four lines each, in box-top order — the second body line
+    /// ahead of the heading over it. By the line each cell really is, the
+    /// grid is the table's lines, in order, in their two columns.
+    #[test]
+    fn geometric_table_reads_a_tall_box_font_line_by_line() {
+        let cells = vec![
+            cell("Reagents", 77.6, 374.5, 115.5, 386.6),
+            cell("Supplies and Equipment", 311.4, 374.5, 411.9, 386.6),
+            cell("At each student station:", 77.6, 385.5, 166.2, 397.4),
+            cell(
+                "Resuspended DNA or ethanol precipitates from Part 1*",
+                77.6,
+                377.4,
+                288.0,
+                427.7,
+            ),
+            cell("To be shared by all groups:", 77.6, 420.5, 178.3, 432.5),
+            cell("“Evidence A” DNA*", 77.6, 412.5, 150.6, 462.7),
+            cell("“Evidence B” DNA*", 77.6, 423.0, 150.5, 473.2),
+            cell("Microcentrifuge tube rack", 311.4, 366.9, 411.1, 417.1),
+            cell("3 1.5-mL microcentrifuge tubes", 311.4, 377.4, 437.0, 427.7),
+            cell("Micropipet tips", 311.4, 388.0, 370.2, 438.2),
+            cell(
+                "Beaker or similar container for waste",
+                311.4,
+                398.5,
+                454.5,
+                448.8,
+            ),
+            cell(
+                "Beaker or similar container filled with ice",
+                311.4,
+                409.1,
+                470.6,
+                459.3,
+            ),
+        ];
+        let table = region("table", 0.99, 71.4, 366.0, 539.9, 488.8);
+        let grid = super::reconstruct_table(&table, &cells);
+        let column = |ci: usize| -> Vec<&str> {
+            grid.iter()
+                .map(|r| r[ci].as_str())
+                .filter(|c| !c.is_empty())
+                .collect()
+        };
+        assert_eq!(
+            column(0),
+            [
+                "Reagents",
+                "At each student station:",
+                "Resuspended DNA or ethanol precipitates from Part 1*",
+                "To be shared by all groups:",
+                "“Evidence A” DNA*",
+                "“Evidence B” DNA*",
+            ],
+            "{grid:?}"
+        );
+        assert_eq!(
+            column(1),
+            [
+                "Supplies and Equipment",
+                "Microcentrifuge tube rack",
+                "3 1.5-mL microcentrifuge tubes",
+                "Micropipet tips",
+                "Beaker or similar container for waste",
+                "Beaker or similar container filled with ice",
+            ],
+            "{grid:?}"
+        );
+        assert_eq!(grid[0], ["Reagents", "Supplies and Equipment"]);
+
+        // An honest box is used as it is: the line it claims is the line.
+        let honest = cell("Supplies and Equipment", 311.4, 374.5, 411.9, 386.6);
+        assert_eq!(super::line_height(&honest), 386.6 - 374.5);
+        assert_eq!(super::line_top(&honest), 374.5);
+
+        // That grid is a row per line of a table that has two rows, and it is
+        // dense enough to pass for reliable. Its rows give it away: the two
+        // columns' lines run at their own pace, and the pairs are askew.
+        assert!(super::geometric_table_is_reliable(&grid), "{grid:?}");
+        assert!(!super::geometric_rows_share_lines(&table, &cells));
+    }
+
+    /// The other side of [`super::geometric_rows_share_lines`]: a table whose
+    /// rows are lines — every cell of a row on one baseline, the label in a
+    /// bold face whose box is a little taller than the values' — is what the
+    /// geometric grid reads exactly, and stays off TableFormer.
+    #[test]
+    fn rows_on_one_line_are_trusted() {
+        let mut cells = Vec::new();
+        for (i, (label, a, b)) in [
+            ("Model", "Simple", "Complex"),
+            ("Tabula", "78.0", "57.8"),
+            ("Camelot", "80.0", "66.0"),
+            ("TableFormer", "95.4", "90.1"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let y = 100.0 + 14.0 * i as f32;
+            // Bold label: a 12.1 pt box; regular values: 11.2 pt, centred
+            // half a point lower.
+            cells.push(cell(
+                label,
+                60.0,
+                y,
+                60.0 + 5.0 * label.len() as f32,
+                y + 12.1,
+            ));
+            cells.push(cell(
+                a,
+                160.0,
+                y + 0.9,
+                160.0 + 5.0 * a.len() as f32,
+                y + 12.1,
+            ));
+            cells.push(cell(
+                b,
+                230.0,
+                y + 0.9,
+                230.0 + 5.0 * b.len() as f32,
+                y + 12.1,
+            ));
+        }
+        let table = region("table", 0.99, 55.0, 95.0, 290.0, 160.0);
+        let grid = super::reconstruct_table(&table, &cells);
+        assert_eq!(grid.len(), 4, "{grid:?}");
+        assert_eq!(grid[3], ["TableFormer", "95.4", "90.1"]);
+        assert!(super::geometric_table_is_reliable(&grid));
+        assert!(super::geometric_rows_share_lines(&table, &cells));
     }
 
     /// The geometric-reliability gate, on the two shapes it has to tell apart.

@@ -23,6 +23,17 @@ pub struct TextCell {
     pub b: f32,
 }
 
+impl TextCell {
+    /// The cell's width per character: the scale of what it draws. Its
+    /// height is the font's claim instead — ascent plus descent, which some
+    /// faces inflate far past the glyphs (#1129: Cambria's regular face
+    /// declares 3117 / -2464, a 5.6 em box around every line) — so a rule
+    /// about lines that has to hold on such a font measures against this.
+    pub(crate) fn mean_advance(&self) -> f32 {
+        (self.r - self.l).abs() / self.text.trim().chars().count().max(1) as f32
+    }
+}
+
 /// Pixels-per-point used to render page images. Layout is scale-invariant (it
 /// scales normalized boxes by the page point size), but OCR benefits from the
 /// extra resolution.

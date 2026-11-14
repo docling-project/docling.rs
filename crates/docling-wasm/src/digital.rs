@@ -22,7 +22,9 @@
 //! const markdown = conv.finish("bill.pdf", "md", "embedded");
 //! ```
 
-use docling_pdf::assemble::{add_orphan_regions, geometric_table_is_reliable, reconstruct_table};
+use docling_pdf::assemble::{
+    add_orphan_regions, geometric_rows_share_lines, geometric_table_is_reliable, reconstruct_table,
+};
 use docling_pdf::layout::{decode_layout, layout_input, Region};
 use docling_pdf::ocr_prep::{dict_chars, prep_region_lines};
 use docling_pdf::pdfium_backend::{PdfPage, TextCell};
@@ -266,10 +268,15 @@ impl DigitalConverter {
             }
             // Same bargain as the scanned path: TableFormer costs seconds per
             // region, so skip it wherever the free geometric reconstruction is
-            // already dense and well-formed.
+            // already dense and well-formed — and, the text layer's boxes
+            // being exact, wherever its rows each sit on one text line. A
+            // table of wrapped cells does not (#1129): its grid is a row per
+            // line, dense and wrong, and only the model sees the two rows.
             let geometric = reconstruct_table(r, &page.cells);
+            let trusted = geometric_table_is_reliable(&geometric)
+                && geometric_rows_share_lines(r, &page.cells);
             match tf {
-                Some(tf) if !geometric_table_is_reliable(&geometric) => {
+                Some(tf) if !trusted => {
                     table_rows.push(
                         crate::tableformer::predict_table_rows(
                             tf,
