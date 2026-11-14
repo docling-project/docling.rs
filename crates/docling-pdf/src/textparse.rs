@@ -716,7 +716,26 @@ fn differences_array(doc: &Document, fdict: &Dictionary) -> Option<Vec<Object>> 
 /// `/Differences` name resolves to something else, is that stale copy: the
 /// name wins. A CMap that disagrees any other way is left alone — ToUnicode
 /// is the producer's word on what the glyph means.
+///
+/// The name also wins over a ToUnicode value that says nothing (#1121):
+/// docling-parse's `has_to_unicode` discards an empty value and a single
+/// NUL, U+FFFD or Unicode noncharacter for a code `/Differences` names, and
+/// resolves the name instead. A figure embedded in 1503.04203 re-encodes
+/// its TeX glyphs to code 33 with `/Differences [33 /minus]` and a CMap
+/// `<21> <0000>` — the glyph's old code written as its Unicode — so
+/// `Q = −1/2` read `Q = � 12` and `√Δ²` read `p�2`.
 fn reconcile_stale_tounicode(to_unicode: &mut HashMap<u32, String>, diffs: &[Object]) {
+    let says_nothing = |value: &str| {
+        let mut chars = value.chars();
+        match (chars.next(), chars.next()) {
+            (None, _) => true,
+            (Some(c), None) => {
+                let cp = c as u32;
+                cp == 0 || cp == 0xFFFD || (0xFDD0..=0xFDEF).contains(&cp) || cp & 0xFFFE == 0xFFFE
+            }
+            _ => false,
+        }
+    };
     let mut code = 0u8;
     for el in diffs {
         match el {
@@ -724,8 +743,9 @@ fn reconcile_stale_tounicode(to_unicode: &mut HashMap<u32, String>, diffs: &[Obj
             Object::Name(name) => {
                 if let Some(ch) = glyph_name_to_char(name) {
                     let identity = (code as char).to_string();
-                    if ch.to_string() != identity
-                        && to_unicode.get(&u32::from(code)) == Some(&identity)
+                    let current = to_unicode.get(&u32::from(code));
+                    if (ch.to_string() != identity && current == Some(&identity))
+                        || current.is_some_and(|v| says_nothing(v))
                     {
                         to_unicode.insert(u32::from(code), ch.to_string());
                     }
@@ -3821,10 +3841,14 @@ pub(crate) fn builtin_glyph_text(name: &str) -> Option<String> {
 /// retried — docling renders these as the base character.
 pub(crate) fn glyph_name_to_char(name: &[u8]) -> Option<char> {
     let s = std::str::from_utf8(name).ok()?;
-    if let Some(hex) = s.strip_prefix("uni") {
-        if let Ok(cp) = u32::from_str_radix(hex.get(0..4)?, 16) {
-            return char::from_u32(cp);
-        }
+    // `uniXXXX`. A name that merely starts with `uni` (`union`) goes on to
+    // the tables: it used to end here, unresolved, for want of four digits.
+    if let Some(cp) = s
+        .strip_prefix("uni")
+        .and_then(|hex| hex.get(0..4))
+        .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+    {
+        return char::from_u32(cp);
     }
     // Single ASCII letter names (`A`, `m`) map to themselves.
     if s.len() == 1 {
@@ -3980,6 +4004,18 @@ pub(crate) fn glyph_name_to_char(name: &[u8]) -> Option<char> {
         _ => {
             if let Ok(i) = AGL_LATIN.binary_search_by_key(&s, |(n, _)| n) {
                 return Some(AGL_LATIN[i].1);
+            }
+            // The math names the arms above leave out (#1121): the TeX math
+            // fonts' own (`parenleftbig`, `radicalbig`, `integraldisplay`,
+            // `prime`), then the Symbol font's — Glyph List names such as
+            // `universal`, `existential`, `arrowup`, which a Latin Modern
+            // math font's `/Differences` uses. The arms above keep their
+            // readings where docling-parse's lists differ (`Delta` is the
+            // Greek letter here, the Glyph List's `∆` increment sign there).
+            if let Some(ch) =
+                crate::glyph_names::lookup(s).or_else(|| crate::symbol_fonts::symbol_glyph_char(s))
+            {
+                return Some(ch);
             }
             // Strip an AGL `.suffix` (oldstyle/small-cap variant) and retry.
             if let Some((base, _)) = s.split_once('.') {
@@ -4157,6 +4193,68 @@ mod glyph_names {
         assert_eq!(tu.get(&34).map(String::as_str), Some("x"));
         assert_eq!(tu.get(&35), None);
         assert_eq!(tu.get(&65), None);
+    }
+
+    /// #1121: a ToUnicode value that says nothing — empty, a NUL, U+FFFD, a
+    /// noncharacter — yields to the `/Differences` name (docling-parse's
+    /// `has_to_unicode`). 1503.04203's embedded figure maps its re-encoded
+    /// TeX glyphs to `<0000>`: `/minus` and `/Delta` at code 33. A value that
+    /// says something stays, and so does one whose name does not resolve.
+    #[test]
+    fn a_tounicode_value_that_says_nothing_yields_to_differences() {
+        use lopdf::Object;
+        use std::collections::HashMap;
+        let name = |n: &str| Object::Name(n.as_bytes().to_vec());
+        let mut tu: HashMap<u32, String> = HashMap::new();
+        tu.insert(33, "\u{0}".into());
+        tu.insert(34, "\u{FFFD}".into());
+        tu.insert(35, "\u{FFFF}".into());
+        tu.insert(36, String::new());
+        tu.insert(37, "\u{0}".into()); // the name is unknown: left alone
+        tu.insert(38, "\u{0}\u{0}".into()); // not a single code point
+        tu.insert(39, "−".into()); // says something
+        let diffs = vec![
+            Object::Integer(33),
+            name("minus"),
+            name("Delta"),
+            name("radicalbig"),
+            name("parenleftbig"),
+            name("nosuchglyphname"),
+            name("plus"),
+            name("hyphen"),
+        ];
+        super::reconcile_stale_tounicode(&mut tu, &diffs);
+        let got = |c: u32| tu.get(&c).map(String::as_str);
+        assert_eq!(got(33), Some("−"));
+        assert_eq!(got(34), Some("Δ"));
+        assert_eq!(got(35), Some("√"));
+        assert_eq!(got(36), Some("("));
+        assert_eq!(got(37), Some("\u{0}"));
+        assert_eq!(got(38), Some("\u{0}\u{0}"));
+        assert_eq!(got(39), Some("−"));
+    }
+
+    /// #1121: the TeX delimiter and operator names resolve through the glyph
+    /// rules, the Symbol font's Glyph List names through its table; the
+    /// names this resolver already knew keep their reading, and a name that
+    /// only starts with `uni` is no `uniXXXX`.
+    #[test]
+    fn tex_glyph_names_resolve() {
+        let c = |n: &str| super::glyph_name_to_char(n.as_bytes());
+        assert_eq!(c("parenleftbig"), Some('('));
+        assert_eq!(c("parenrightBigg"), Some(')'));
+        assert_eq!(c("integraldisplay"), Some('∫'));
+        assert_eq!(c("trianglerightsld"), Some('▶'));
+        assert_eq!(c("prime"), Some('′'));
+        assert_eq!(c("universal"), Some('∀'));
+        assert_eq!(c("existential"), Some('∃'));
+        assert_eq!(c("arrowup"), Some('↑'));
+        assert_eq!(c("union"), Some('∪'));
+        assert_eq!(c("uni2212"), Some('−'));
+        assert_eq!(c("minus"), Some('−'));
+        assert_eq!(c("Delta"), Some('Δ'), "the Greek letter, not the list's ∆");
+        assert_eq!(c("angbracketleft"), Some('⟨'));
+        assert_eq!(c("nosuchglyphname"), None);
     }
 }
 
@@ -5161,6 +5259,32 @@ mod base14_fonts {
         let text: String = cs.iter().map(|c| c.text.as_str()).collect();
         assert!(text.contains("Mystery"), "text still decodes: {cs:?}");
     }
+
+    /// #1121: a TeX math font names its glyphs at the low char codes —
+    /// `/parenleftbig` at 0, `/parenrightbig` at 1 in Latin Modern's math
+    /// extension font (1805.06723) — with no ToUnicode. The names are not
+    /// Adobe Glyph List names; unresolved, the codes read U+FFFD
+    /// (`rt�A(M)�`). They read as docling-parse reads them, and a font whose
+    /// CMap maps the code to NUL reads its `/Differences` name.
+    #[test]
+    fn tex_math_glyphs_at_low_codes_decode() {
+        let font = b"<</Type/Font/Subtype/Type1/BaseFont/ABCDEF+LMMathExtension10-Regular\
+            /FirstChar 0/LastChar 90/Widths[458 458 0 0 0 0 0 0 0 0 0 0 0 0 0 0 597 597 \
+            0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
+            0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 472]\
+            /Encoding<</Type/Encoding/Differences[0/parenleftbig/parenrightbig \
+            16/parenleftBig/parenrightBig 90/integraldisplay]>>>>";
+        let text = |bytes: &[u8]| -> String {
+            cells(&pdf_with_font(font, bytes))
+                .iter()
+                .map(|c| c.text.as_str())
+                .collect()
+        };
+        assert_eq!(text(b"\\000\\001"), "()");
+        assert_eq!(text(b"\\020\\021Z"), "()∫");
+        assert!(!text(b"\\000\\001\\020\\021Z").contains('\u{FFFD}'));
+    }
+
     /// A non-embedded ZapfDingbats or Symbol that names no encoding reads
     /// through the face's own (docling-parse's base-font AFM; its
     /// `annots_01`: `l` is `●`, #1113) and advances by its AFM widths — no
