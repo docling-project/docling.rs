@@ -862,9 +862,19 @@ impl Walker<'_> {
             }
             // An enriched display formula chunks like docling's formula item:
             // the LaTeX is the chunk text.
-            Node::Formula { latex, .. } => {
+            Node::Formula { latex, orig, .. } => {
+                // The item takes its `#/texts/N` slot whatever it prints.
                 let self_ref = self.alloc.text();
-                let body = format!("$${}$$", latex);
+                // An undecoded formula (#1120) chunks as the Markdown
+                // serializer prints it — the placeholder — and one with no
+                // text at all is no chunk.
+                let body = if !latex.is_empty() {
+                    format!("$${}$$", latex)
+                } else if !orig.is_empty() {
+                    crate::markdown::FORMULA_NOT_DECODED.to_string()
+                } else {
+                    return;
+                };
                 self.emit(
                     body.clone(),
                     vec![ChunkItem {

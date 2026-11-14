@@ -1226,9 +1226,18 @@ fn render_item(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
                 code_fence(lang, body)
             });
         }
-        // A CodeFormula-decoded display formula renders as docling's `$$…$$`
-        // (the un-enriched pipeline emits a placeholder paragraph instead).
-        Node::Formula { latex, .. } => blocks.push(format!("$${latex}$$")),
+        // A decoded display formula renders as docling's `$$…$$`. Without
+        // decoded text docling-core's `MarkdownTextSerializer` prints the
+        // placeholder when the item has source text (`orig`: a PDF formula
+        // region converted without formula enrichment, #1120) and nothing
+        // when it has neither.
+        Node::Formula { latex, orig, .. } => {
+            if !latex.is_empty() {
+                blocks.push(format!("$${latex}$$"));
+            } else if !orig.is_empty() {
+                blocks.push(FORMULA_NOT_DECODED.to_string());
+            }
+        }
         Node::Table(table) => {
             // docling renders a table's caption as a text line before the grid.
             // `caption` is already escaped (backend convention), like a paragraph.
@@ -1655,6 +1664,10 @@ fn flatten_header_rows(header_rows: &[Vec<String>], num_cols: usize) -> Vec<Stri
         .collect()
 }
 
+/// docling-core's Markdown for a formula item whose text was never decoded
+/// (a PDF formula region converted without formula enrichment).
+pub(crate) const FORMULA_NOT_DECODED: &str = "<!-- formula-not-decoded -->";
+
 pub(crate) fn render_table(table: &Table, compact: bool) -> String {
     if table.rows.is_empty() {
         return String::new();
@@ -1767,6 +1780,41 @@ fn escape_cell(s: &str) -> String {
 mod tests {
     use super::*;
     use crate::{PictureImage, TableCell, TableStructure};
+
+    /// docling-core's formula Markdown (#1120): `$$…$$` for decoded text, the
+    /// placeholder for an undecoded formula that has source text, nothing
+    /// for one with neither — never an empty `$$$$`. The chunker prints the
+    /// same, and an empty formula still takes its item slot.
+    #[test]
+    fn an_undecoded_formula_prints_the_placeholder() {
+        let formula = |latex: &str, orig: &str| Node::Formula {
+            latex: latex.into(),
+            orig: orig.into(),
+            location: None,
+        };
+        let mut doc = DoclingDocument::new("t");
+        doc.nodes = vec![
+            formula("E = mc^2", "E = mc 2"),
+            formula("", "E = mc 2"),
+            formula("", ""),
+            Node::Paragraph {
+                text: "After.".into(),
+            },
+        ];
+        assert_eq!(
+            doc.export_to_markdown().trim(),
+            "$$E = mc^2$$\n\n<!-- formula-not-decoded -->\n\nAfter."
+        );
+        let chunks: Vec<String> = crate::chunker::HierarchicalChunker
+            .chunk(&doc)
+            .into_iter()
+            .map(|c| c.text)
+            .collect();
+        assert_eq!(
+            chunks,
+            ["$$E = mc^2$$", "<!-- formula-not-decoded -->", "After."]
+        );
+    }
 
     /// #385: where one list ends and the next begins is the backend's call
     /// (`first_in_list`), never the serializer's. An ordered run `1.` → `5.`

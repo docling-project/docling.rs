@@ -538,11 +538,15 @@ fn text_node(
 ) {
     let label = item["label"].as_str().unwrap_or("text");
     // docling does not serialize empty text items (an undecoded formula is the
-    // one exception — it becomes a placeholder comment).
+    // one exception — its Markdown prints a placeholder; the node stays a
+    // formula with its `orig` and place, #1120, so a JSON read back writes
+    // the item it read).
     if item["text"].as_str().unwrap_or("").is_empty() {
         if label == "formula" {
-            doc.push(Node::Paragraph {
-                text: "<!-- formula-not-decoded -->".into(),
+            doc.push(Node::Formula {
+                latex: String::new(),
+                orig: item["orig"].as_str().unwrap_or("").to_string(),
+                location,
             });
         }
         return;
@@ -1227,6 +1231,49 @@ mod tests {
             ))
             .unwrap()
             .export_to_markdown()
+    }
+
+    /// #1120: an undecoded formula item (`text` empty, `orig` the raw glyph
+    /// text) read from docling JSON stays a formula — the Markdown prints the
+    /// placeholder, and a JSON written back has the item with its label,
+    /// `orig` and `prov`, not a `text` item holding the placeholder.
+    #[test]
+    fn an_undecoded_formula_item_survives_a_json_round_trip() {
+        let json = r##"{"schema_name":"DoclingDocument","version":"1.10.0","name":"t",
+          "body":{"self_ref":"#/body","children":[{"$ref":"#/texts/0"},{"$ref":"#/texts/1"}],
+                  "content_layer":"body","name":"_root_","label":"unspecified"},
+          "groups":[],"pictures":[],"tables":[],"key_value_items":[],"form_items":[],
+          "texts":[
+            {"self_ref":"#/texts/0","parent":{"$ref":"#/body"},"children":[],"content_layer":"body",
+             "label":"text","prov":[],"orig":"Before.","text":"Before."},
+            {"self_ref":"#/texts/1","parent":{"$ref":"#/body"},"children":[],"content_layer":"body",
+             "label":"formula","orig":"mf (y) = ∫ U p(y | u)f(u) dµ(u)","text":"",
+             "prov":[{"page_no":1,"bbox":{"l":193.0,"t":416.0,"r":523.0,"b":388.0,
+                      "coord_origin":"BOTTOMLEFT"},"charspan":[0,31]}]}],
+          "pages":{"1":{"size":{"width":612.0,"height":792.0},"page_no":1}}}"##;
+        assert_eq!(md(json).trim(), "Before.\n\n<!-- formula-not-decoded -->");
+        let doc = DoclingJsonBackend
+            .convert(&SourceDocument::from_bytes(
+                "t.json",
+                InputFormat::JsonDocling,
+                json.as_bytes().to_vec(),
+            ))
+            .unwrap();
+        let out = doc.export_to_json_value();
+        let item = out["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["label"] == "formula")
+            .expect("the formula item");
+        assert_eq!(item["text"], "");
+        assert_eq!(item["orig"], "mf (y) = ∫ U p(y | u)f(u) dµ(u)");
+        assert_eq!(item["prov"][0]["page_no"], 1);
+        assert!(out["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|t| !t["text"].as_str().unwrap().contains("formula-not-decoded")));
     }
 
     /// #1009 / #1014: upstream's `table_footnotes_496.json` shape — `cref`
