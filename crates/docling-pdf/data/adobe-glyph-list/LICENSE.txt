@@ -1,0 +1,79 @@
+docling-pdf reads the glyph names of PDF fonts through data that comes from
+Adobe: the Adobe Glyph List in this directory (glyphlist.txt), and tables
+compiled into the crate that are derived from the ITC Zapf Dingbats Glyph
+List and from the Adobe Core 14 AFM files (src/symbol_fonts.rs: the Symbol
+and ZapfDingbats encodings, advance widths and glyph names; src/std14.rs:
+the advance widths of the twelve text faces). Their notices follow.
+
+
+1. Adobe Glyph List, ITC Zapf Dingbats Glyph List
+-------------------------------------------------
+
+Adobe Glyph List (table version 2.0, September 20, 2002):
+
+Copyright 1997, 1998, 2002, 2007, 2010 Adobe Systems Incorporated.
+All rights reserved.
+
+ITC Zapf Dingbats Glyph List (table version 2.0, September 20, 2002):
+
+Copyright 2002, 2010 Adobe Systems Incorporated.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or
+without modification, are permitted provided that the
+following conditions are met:
+
+Redistributions of source code must retain the above
+copyright notice, this list of conditions and the following
+disclaimer.
+
+Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following
+disclaimer in the documentation and/or other materials
+provided with the distribution.
+
+Neither the name of Adobe Systems Incorporated nor the names
+of its contributors may be used to endorse or promote
+products derived from this software without specific prior
+written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+2. Adobe Core 14 AFM files
+--------------------------
+
+Copyright (c) 1985, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1997
+Adobe Systems Incorporated. All Rights Reserved.
+
+Helvetica and Times are trademarks of Linotype-Hell AG and/or its
+subsidiaries. ITC Zapf Dingbats is a registered trademark of
+International Typeface Corporation.
+
+Core 14 AFM Files - ReadMe:
+
+This file and the 14 PostScript(R) AFM files it accompanies may be used,
+copied, and distributed for any purpose and without charge, with or
+without modification, provided that all copyright notices are retained;
+that the AFM files are not distributed without this file; that all
+modifications to this file or any of the AFM files are prominently noted
+in the modified file(s); and that this paragraph is not modified. Adobe
+Systems has no responsibility or obligation to support the use of the AFM
+files.
+
+The AFM files themselves are not distributed with docling-pdf. What is
+distributed are tables derived from them, a modification by the
+docling.rs authors: each character code's glyph name read as a Unicode
+character, and its advance width.

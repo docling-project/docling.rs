@@ -4012,8 +4012,12 @@ pub(crate) fn glyph_name_to_char(name: &[u8]) -> Option<char> {
             // math font's `/Differences` uses. The arms above keep their
             // readings where docling-parse's lists differ (`Delta` is the
             // Greek letter here, the Glyph List's `∆` increment sign there).
-            if let Some(ch) =
-                crate::glyph_names::lookup(s).or_else(|| crate::symbol_fonts::symbol_glyph_char(s))
+            // Last, the Adobe Glyph List in full (the `glyph-list` feature):
+            // every name none of the above reads — the `afii` names of a
+            // Cyrillic, Hebrew or Arabic font, the rest of the symbols.
+            if let Some(ch) = crate::glyph_names::lookup(s)
+                .or_else(|| crate::symbol_fonts::symbol_glyph_char(s))
+                .or_else(|| crate::adobe_glyph_list::lookup(s))
             {
                 return Some(ch);
             }
@@ -5283,6 +5287,24 @@ mod base14_fonts {
         assert_eq!(text(b"\\000\\001"), "()");
         assert_eq!(text(b"\\020\\021Z"), "()∫");
         assert!(!text(b"\\000\\001\\020\\021Z").contains('\u{FFFD}'));
+    }
+
+    /// The Adobe Glyph List in full (the `glyph-list` feature): a Cyrillic
+    /// font re-encoded with `/Differences` and no ToUnicode names its glyphs
+    /// `afii10017`, `afii10018`, …. Unresolved, each read the Latin letter of
+    /// the base encoding at its code — plausible text in the wrong script.
+    #[cfg(feature = "glyph-list")]
+    #[test]
+    fn glyph_list_names_decode_a_reencoded_cyrillic_font() {
+        let font = b"<</Type/Font/Subtype/Type1/BaseFont/ABCDEF+SchoolBookC\
+            /FirstChar 65/LastChar 68/Widths[700 650 650 600]\
+            /Encoding<</Type/Encoding/BaseEncoding/WinAnsiEncoding\
+            /Differences[65/afii10017/afii10018/afii10019/afii10020]>>>>";
+        let text: String = cells(&pdf_with_font(font, b"ABCD"))
+            .iter()
+            .map(|c| c.text.as_str())
+            .collect();
+        assert_eq!(text, "АБВГ");
     }
 
     /// A non-embedded ZapfDingbats or Symbol that names no encoding reads

@@ -166,8 +166,11 @@ jobs:
           strip="${{ matrix.cross && format('{0}-strip', matrix.cross) || 'strip' }}"
           bin="target/${{ matrix.target }}/release/docling-rs"
           "$strip" "$bin"
+          # Adobe's notices for the data compiled in: the CID tables and the
+          # glyph list / AFM-derived tables.
           cp crates/docling-pdf/data/mapping-resources-pdf/LICENSE.txt LICENSE-mapping-resources-pdf.txt
-          tar -czf "docling-rs-$TAG-${{ matrix.target }}.tar.gz" -C "$(dirname "$bin")" docling-rs -C "$PWD" LICENSE-mapping-resources-pdf.txt
+          cp crates/docling-pdf/data/adobe-glyph-list/LICENSE.txt LICENSE-adobe-glyph-list.txt
+          tar -czf "docling-rs-$TAG-${{ matrix.target }}.tar.gz" -C "$(dirname "$bin")" docling-rs -C "$PWD" LICENSE-mapping-resources-pdf.txt LICENSE-adobe-glyph-list.txt
           # FFI: the cdylib + the committed cbindgen header. The staticlib is
           # not shipped (it inlines the whole ONNX runtime; static embedders
           # build from source). A cdylib is `.so` on Linux, `.dylib` on
@@ -182,21 +185,23 @@ jobs:
           lib="target/${{ matrix.target }}/release/$libname"
           $strip "$lib"
           staging=$(mktemp -d)
-          cp "$lib" crates/docling-ffi/include/docling.h LICENSE-mapping-resources-pdf.txt "$staging/"
-          tar -czf "docling-ffi-$TAG-${{ matrix.target }}.tar.gz" -C "$staging" "$libname" docling.h LICENSE-mapping-resources-pdf.txt
+          cp "$lib" crates/docling-ffi/include/docling.h LICENSE-mapping-resources-pdf.txt LICENSE-adobe-glyph-list.txt "$staging/"
+          tar -czf "docling-ffi-$TAG-${{ matrix.target }}.tar.gz" -C "$staging" "$libname" docling.h LICENSE-mapping-resources-pdf.txt LICENSE-adobe-glyph-list.txt
 
       - name: Package (windows)
         if: runner.os == 'Windows' && !matrix.flavor
         shell: bash
         run: |
           cp crates/docling-pdf/data/mapping-resources-pdf/LICENSE.txt LICENSE-mapping-resources-pdf.txt
-          7z a "docling-rs-$TAG-${{ matrix.target }}.zip" "./target/${{ matrix.target }}/release/docling-rs.exe" ./LICENSE-mapping-resources-pdf.txt
+          cp crates/docling-pdf/data/adobe-glyph-list/LICENSE.txt LICENSE-adobe-glyph-list.txt
+          7z a "docling-rs-$TAG-${{ matrix.target }}.zip" "./target/${{ matrix.target }}/release/docling-rs.exe" ./LICENSE-mapping-resources-pdf.txt ./LICENSE-adobe-glyph-list.txt
           # dll + MSVC import library + header.
           7z a "docling-ffi-$TAG-${{ matrix.target }}.zip" \
             "./target/${{ matrix.target }}/release/docling_ffi.dll" \
             "./target/${{ matrix.target }}/release/docling_ffi.dll.lib" \
             "./crates/docling-ffi/include/docling.h" \
-            ./LICENSE-mapping-resources-pdf.txt
+            ./LICENSE-mapping-resources-pdf.txt \
+            ./LICENSE-adobe-glyph-list.txt
 
       # The exe + DirectML.dll, which Windows loads from the exe's directory.
       # ort's copy-dylibs leaves it in the target dir, possibly as a symlink
@@ -211,7 +216,8 @@ jobs:
           staging=$(mktemp -d)
           cp -L "$rel/docling-rs.exe" "$dll" "$staging/"
           cp crates/docling-pdf/data/mapping-resources-pdf/LICENSE.txt "$staging/LICENSE-mapping-resources-pdf.txt"
-          7z a "docling-rs-directml-$TAG-${{ matrix.target }}.zip" "$staging/docling-rs.exe" "$staging/$(basename "$dll")" "$staging/LICENSE-mapping-resources-pdf.txt"
+          cp crates/docling-pdf/data/adobe-glyph-list/LICENSE.txt "$staging/LICENSE-adobe-glyph-list.txt"
+          7z a "docling-rs-directml-$TAG-${{ matrix.target }}.zip" "$staging/docling-rs.exe" "$staging/$(basename "$dll")" "$staging/LICENSE-mapping-resources-pdf.txt" "$staging/LICENSE-adobe-glyph-list.txt"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7

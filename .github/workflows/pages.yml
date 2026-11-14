@@ -82,6 +82,9 @@ jobs:
           cp -r crates/docling-wasm/www/. site/
           # The llmstxt.org summary assistants read, next to the demo.
           cp llms.txt site/
+          # The served wasm carries the tables derived from Adobe's AFM
+          # files (the text-layer parser's Symbol / standard-14 fonts).
+          cp crates/docling-pdf/data/adobe-glyph-list/LICENSE.txt site/LICENSE-adobe-glyph-list.txt
           # Jekyll would swallow paths that start with an underscore.
           touch site/.nojekyll
           ls -la site site/pkg
