@@ -1159,7 +1159,7 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
             }
             // Page markers feed the JSON export only — DocLang stays unchanged
             // (its geometry travels in the <location> tokens).
-            Node::PageInfo { .. } => {
+            Node::PageInfo { .. } | Node::ProvContinuation { .. } => {
                 *i += 1;
             }
             // A link destination (#852) feeds the JSON export only.

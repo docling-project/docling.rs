@@ -1118,6 +1118,7 @@ impl Walker<'_> {
             | Node::Furniture { .. }
             | Node::PageBreak
             | Node::PageInfo { .. }
+            | Node::ProvContinuation { .. }
             | Node::Anchor { .. }
             | Node::DoclangOnly(_) => {}
             // Runs are grouped by `walk`; a stray single item (hand-built

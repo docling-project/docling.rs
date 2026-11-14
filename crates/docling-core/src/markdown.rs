@@ -1151,6 +1151,7 @@ fn render_one(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
         | Node::Track { .. }
         | Node::PageBreak
         | Node::PageInfo { .. }
+        | Node::ProvContinuation { .. }
         | Node::DoclangOnly(_) => {}
         _ if !ctx.layer_visible() => return,
         _ => {}
@@ -1409,7 +1410,7 @@ fn render_item(node: &Node, blocks: &mut Vec<String>, ctx: &mut Ctx) {
         // Page breaks are DocLang-only; docling omits them from Markdown.
         Node::PageBreak => {}
         // Page markers feed the JSON export only.
-        Node::PageInfo { .. } => {}
+        Node::PageInfo { .. } | Node::ProvContinuation { .. } => {}
         // A link destination (#852) feeds the JSON export only.
         Node::Anchor { .. } => {}
         // Runs of adjacent list items are merged by `render`; a stray single

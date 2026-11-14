@@ -488,6 +488,31 @@ pub enum Node {
         /// Page height in PDF points.
         height: f32,
     },
+    /// One more provenance fragment of the last located text item before it
+    /// (#1127): a PDF paragraph the assembler joined across a page break keeps
+    /// the continuation's box this way, as an invisible marker right after the
+    /// joined paragraph; its grid box is on the page `page_skip` page markers
+    /// further on, numbered and sized like every other location there.
+    /// docling's merged `TextItem` lists one `prov` per fragment
+    /// (`ReadingOrderModel`: the first fragment's, then each continuation's
+    /// with its `charspan` into the joined text); the JSON export appends this
+    /// fragment to that item's `prov` once it reaches the fragment's page,
+    /// first ending the entry before it at `prev_end`. Every other serializer
+    /// skips it.
+    ProvContinuation {
+        /// The continuation's box on its page, the 0–511 `<location>` grid.
+        location: [u16; 4],
+        /// Where the fragment before this one ends, in characters of the
+        /// item's (unescaped) text: that entry's `charspan` end.
+        prev_end: usize,
+        /// This fragment's `charspan` in the item's (unescaped) text.
+        span: [usize; 2],
+        /// How many [`Node::PageInfo`] markers follow before the fragment's
+        /// page (1 = the next page). The marker stands right after its item
+        /// — nothing a later pass inserts can come between them — so its page
+        /// is counted rather than implied by position.
+        page_skip: usize,
+    },
     /// A node docling keeps in the document model (and DocLang) but leaves out
     /// of the Markdown and JSON exports — e.g. an ODF *presentation*'s pictures
     /// and charts, which appear in the `.dclx` body but not in its `.md`/`.json`.

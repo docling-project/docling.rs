@@ -55,7 +55,7 @@ pub use document::{
 pub use encryption::EncryptionError;
 #[doc(hidden)]
 pub use html::to_html_with_picture_refs;
-pub use json::code_language_label;
+pub use json::{code_language_label, text_char_len};
 pub use labels::DocItemLabel;
 pub use latex::escape_latex;
 pub use limits::LimitExceeded;

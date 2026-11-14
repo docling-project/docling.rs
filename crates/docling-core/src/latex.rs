@@ -683,6 +683,7 @@ fn render_one(node: &Node, list_level: usize, inline: bool, parts: &mut Vec<Stri
         | Node::PictureChildren(_)
         | Node::PageBreak
         | Node::PageInfo { .. }
+        | Node::ProvContinuation { .. }
         | Node::Anchor { .. } => {}
     }
 }

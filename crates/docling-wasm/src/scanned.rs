@@ -470,7 +470,8 @@ fn nodes_have_text(nodes: &[docling_core::Node]) -> bool {
         Node::Picture { .. }
         | Node::PictureChildren(_)
         | Node::PageBreak
-        | Node::PageInfo { .. } => false,
+        | Node::PageInfo { .. }
+        | Node::ProvContinuation { .. } => false,
         _ => true,
     })
 }
