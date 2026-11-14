@@ -1695,8 +1695,14 @@ so `DoclingDocument.load_from_json(...)` in Python docling-core gets working
 bounding-box highlighting, page attribution and coordinate filtering — from
 the CLI, serve, and the Python/Node bindings alike. One caveat vs Python
 docling: coordinates round-trip through the DocLang 0–511 grid, so they carry
-a quantization of up to ~page-size/512 (≈1.6 pt on A4); `charspan` always
-starts at 0 (docling.rs does not track sub-item spans).
+a quantization of up to ~page-size/512 (≈1.6 pt on A4); `charspan` starts
+at 0 (docling.rs does not track sub-item spans) — except for a paragraph
+joined across a page break (#1127), which, like docling's merged `TextItem`,
+lists one `prov` per fragment: the first page's box with `charspan [0, n]`,
+then each continuation's page and box with its span into the joined text
+(`Node::ProvContinuation`, a marker every other serializer skips). Joins
+into the next column on the same page still keep only the first fragment's
+box.
 
 A PDF **list item** is written as docling's `ListItemMarkerProcessor` leaves
 it (#1111): `orig` with the marker, `text` without it, the `marker` itself

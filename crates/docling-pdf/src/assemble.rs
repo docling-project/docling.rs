@@ -4730,6 +4730,7 @@ fn is_merge_trailer(n: &Node) -> bool {
             n,
             Node::PageFurniture { .. }
                 | Node::PageInfo { .. }
+                | Node::ProvContinuation { .. }
                 | Node::Table(_)
                 | Node::PictureChildren(_)
         )
@@ -4879,9 +4880,54 @@ fn merge_open_paragraphs(nodes: &mut Vec<Node>, how: Continuations) {
                 _ => format!("{a} {b}"),
             };
             // Keep node i's provenance wrapper; docling's merged paragraph keeps
-            // the first fragment's geometry as its primary location.
+            // the first fragment's geometry as its primary location — and, from
+            // a page break on, one more `prov` per further fragment (#1127): a
+            // located continuation leaves a marker right after the paragraph
+            // (behind any from earlier joins) with its box, its page counted in
+            // page markers, and the `charspan`s of the join.
+            let marker = match &nodes[j] {
+                Node::Located { location, .. }
+                    if new_page && matches!(nodes[i], Node::Located { .. }) =>
+                {
+                    // `merged` is the head's text, the join (a space, or
+                    // nothing after a split word), then `b`.
+                    let head = merged.strip_suffix(b.as_str()).unwrap_or(&merged);
+                    let page_skip = nodes[i + 1..j]
+                        .iter()
+                        .filter(|n| matches!(n, Node::PageInfo { .. }))
+                        .count();
+                    Some(Node::ProvContinuation {
+                        location: *location,
+                        prev_end: docling_core::text_char_len(head.trim_end()),
+                        span: [
+                            docling_core::text_char_len(head),
+                            docling_core::text_char_len(&merged),
+                        ],
+                        page_skip,
+                    })
+                }
+                _ => None,
+            };
             nodes[i] = reparagraph(&nodes[i], merged);
             nodes.remove(j);
+            if let Some(marker) = marker {
+                let at = i
+                    + 1
+                    + nodes[i + 1..]
+                        .iter()
+                        .take_while(|n| matches!(n, Node::ProvContinuation { .. }))
+                        .count();
+                // The fragment before ends where this join begins (a split
+                // word's hyphen, counted in its span, is gone now).
+                if let (
+                    Node::ProvContinuation { prev_end, .. },
+                    Some(Node::ProvContinuation { span, .. }),
+                ) = (&marker, nodes.get_mut(at - 1))
+                {
+                    span[1] = *prev_end;
+                }
+                nodes.insert(at, marker);
+            }
             // Re-check i: the merged paragraph may continue further.
         } else {
             i += 1;
@@ -6615,6 +6661,103 @@ mod tests {
         let mut lines = one_page.to_vec();
         merge_continuations(&mut lines, Continuations::Lines);
         assert_eq!(lines, [page(1), para("the definition of lists in scope")]);
+    }
+
+    /// #1127: a paragraph joined across page breaks keeps every fragment's
+    /// box — docling's merged item has one `prov` per page, each with its
+    /// `charspan` into the joined text — and the Markdown is unchanged.
+    #[test]
+    fn cross_page_merge_keeps_each_fragments_prov() {
+        let loc = |y: u16, text: &str| super::located([50, y, 450, y + 40], para(text));
+        let nodes = vec![
+            page(6),
+            loc(400, "As noted in Table 1, a self-attention"),
+            // A figure and its caption at the foot of page 6, looked past.
+            icon(10),
+            para("Figure 2: a diagram"),
+            page(7),
+            loc(20, "layer connects all positions and a separ-"),
+            page(8),
+            loc(30, "able convolution comes last."),
+            loc(100, "A new paragraph."),
+        ];
+        let mut merged = nodes.clone();
+        merge_continuations(&mut merged, Continuations::AcrossPages);
+        let text = "As noted in Table 1, a self-attention layer connects all \
+                    positions and a separable convolution comes last.";
+        assert_eq!(merged[1], loc(400, text));
+        // The markers stand right after the paragraph, in page order.
+        let head = "As noted in Table 1, a self-attention".chars().count();
+        // `separ-` + `able`: the split word joins without a space.
+        let stem = "As noted in Table 1, a self-attention layer connects all positions and a separ"
+            .chars()
+            .count();
+        let total = text.chars().count();
+        assert_eq!(
+            merged[2],
+            Node::ProvContinuation {
+                location: [50, 20, 450, 60],
+                prev_end: head,
+                span: [head + 1, stem],
+                page_skip: 1,
+            }
+        );
+        assert_eq!(
+            merged[3],
+            Node::ProvContinuation {
+                location: [50, 30, 450, 70],
+                prev_end: stem,
+                span: [stem, total],
+                page_skip: 2,
+            }
+        );
+        // Streamed a page at a time, the same.
+        assert_stream_eq_under(&nodes, &[4, 6], Continuations::AcrossPages);
+        assert_stream_eq_under(&nodes, &[5], Continuations::AcrossPages);
+
+        let mut doc = docling_core::DoclingDocument::new("t");
+        doc.nodes = merged.clone();
+        let json = doc.export_to_json_value();
+        let item = &json["texts"][0];
+        assert_eq!(item["text"], text);
+        let prov = item["prov"].as_array().expect("prov");
+        let pages: Vec<_> = prov.iter().map(|p| p["page_no"].clone()).collect();
+        assert_eq!(pages, [6, 7, 8]);
+        let spans: Vec<[u64; 2]> = prov
+            .iter()
+            .map(|p| [0, 1].map(|k| p["charspan"][k].as_u64().unwrap()))
+            .collect();
+        let as_u64 = |v: usize| v as u64;
+        assert_eq!(
+            spans,
+            [
+                [0, as_u64(head)],
+                [as_u64(head) + 1, as_u64(stem)],
+                [as_u64(stem), as_u64(total)]
+            ]
+        );
+        // The continuation's box is on its own page: y 20..60 of 512 on an
+        // 800 pt page, BOTTOMLEFT.
+        assert_eq!(prov[1]["bbox"]["t"], 800.0 - 20.0 * 800.0 / 512.0);
+        assert_eq!(prov[1]["bbox"]["b"], 800.0 - 60.0 * 800.0 / 512.0);
+        // The next paragraph keeps its single prov on page 8.
+        let next = json["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["text"] == "A new paragraph.")
+            .unwrap();
+        assert_eq!(next["prov"].as_array().unwrap().len(), 1);
+        assert_eq!(next["prov"][0]["page_no"], 8);
+
+        // Every other serializer reads the markers as nothing.
+        let mut plain = docling_core::DoclingDocument::new("t");
+        plain.nodes = merged
+            .into_iter()
+            .filter(|n| !matches!(n, Node::ProvContinuation { .. }))
+            .collect();
+        assert_eq!(doc.export_to_markdown(), plain.export_to_markdown());
+        assert_eq!(doc.export_to_doclang(), plain.export_to_doclang());
     }
 
     fn item(text: &str) -> Node {

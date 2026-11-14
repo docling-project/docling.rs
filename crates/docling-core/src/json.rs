@@ -84,6 +84,13 @@ const CODE_LANGUAGES: &[&str] = &[
 /// docling's `CodeLanguageLabel` for a language name (`unknown` when it is
 /// not one docling knows) — the mapping the JSON `code_language` field uses,
 /// for a backend that wants to test a hint before storing it.
+/// The length in characters of a node's Markdown-escaped `text` as the JSON
+/// export writes it (unescaped): the unit of docling's `charspan`. The PDF
+/// assembler counts a joined paragraph's fragments with it (#1127).
+pub fn text_char_len(md: &str) -> usize {
+    unescape_text(md).chars().count()
+}
+
 pub fn code_language_label(lang: &str) -> &'static str {
     code_language(Some(lang))
 }
@@ -1536,6 +1543,23 @@ struct Builder {
     /// once the document is assembled, so their groups and run items come
     /// after every other item.
     pending_scripts: Vec<(String, Vec<crate::ScriptRun>, String)>,
+    /// The last `#/texts/N` index created: the item a following
+    /// [`Node::ProvContinuation`] belongs to (#1127).
+    last_text: Option<usize>,
+    /// [`Node::ProvContinuation`] fragments waiting for their page. The
+    /// marker stands right after its item, before the page it is on.
+    pending_continuations: Vec<PendingContinuation>,
+}
+
+/// A [`Node::ProvContinuation`] the JSON walk met, waiting for its page.
+struct PendingContinuation {
+    /// The `#/texts/N` index of the item it continues.
+    item: usize,
+    /// Page markers still to pass before the fragment's page.
+    skip: usize,
+    location: [u16; 4],
+    prev_end: usize,
+    span: [usize; 2],
 }
 
 impl Builder {
@@ -1605,6 +1629,66 @@ impl Builder {
             ],
             bottom_left: true,
             charspan: [0, char_len],
+        }
+    }
+
+    /// The 0–511 grid box `loc` denormalized against the current page into
+    /// BOTTOMLEFT points, rounded to 2 decimals.
+    fn grid_bbox(&self, [x0, y0, x1, y1]: [u16; 4]) -> [f64; 4] {
+        [
+            round2(x0 as f64 * self.cur_w / 512.0),
+            round2(self.cur_h - y0 as f64 * self.cur_h / 512.0),
+            round2(x1 as f64 * self.cur_w / 512.0),
+            round2(self.cur_h - y1 as f64 * self.cur_h / 512.0),
+        ]
+    }
+
+    /// A page marker passed: every [`Node::ProvContinuation`] fragment on
+    /// this page becomes one more `prov` entry of its item, after the entry
+    /// before it is ended at `prev_end` — docling's merged paragraph, one
+    /// `prov` per fragment, each with its `charspan` into the joined text.
+    fn resolve_continuations(&mut self) {
+        if self.pending_continuations.is_empty() {
+            return;
+        }
+        let pending = std::mem::take(&mut self.pending_continuations);
+        for mut p in pending {
+            if p.skip > 1 {
+                p.skip -= 1;
+                self.pending_continuations.push(p);
+                continue;
+            }
+            let PendingContinuation {
+                item: idx,
+                location: loc,
+                prev_end,
+                span,
+                ..
+            } = p;
+            if self.cur_page == 0 || loc == [0, 0, 0, 0] {
+                continue;
+            }
+            let [l, t, r, b] = self.grid_bbox(loc);
+            let page_no = self.cur_page;
+            let Some(item) = self.texts.get_mut(idx).map(|it| it.value_mut(idx)) else {
+                continue;
+            };
+            // Clamped to the item's text: a later pass (the wrap-mark strip,
+            // redaction) may have shortened it since the assembler counted.
+            let total = item["text"].as_str().map_or(0, |t| t.chars().count());
+            let Some(provs) = item.get_mut("prov").and_then(Value::as_array_mut) else {
+                continue;
+            };
+            // No first fragment to continue: the item has no geometry.
+            let Some(last) = provs.last_mut() else {
+                continue;
+            };
+            last["charspan"][1] = json!(prev_end.min(total));
+            provs.push(json!({
+                "page_no": page_no,
+                "bbox": {"l": l, "t": t, "r": r, "b": b, "coord_origin": "BOTTOMLEFT"},
+                "charspan": [span[0].min(total), span[1].min(total)],
+            }));
         }
     }
 
@@ -2440,6 +2524,25 @@ impl Builder {
             }
             // Page breaks are DocLang-only; docling omits them from the JSON body.
             Node::PageBreak => None,
+            // A continuation fragment of the item just written (#1127): its box
+            // is on a later page, resolved when that page's marker comes.
+            Node::ProvContinuation {
+                location,
+                prev_end,
+                span,
+                page_skip,
+            } => {
+                if let Some(idx) = self.last_text.filter(|_| self.cur_page > 0) {
+                    self.pending_continuations.push(PendingContinuation {
+                        item: idx,
+                        skip: *page_skip,
+                        location: *location,
+                        prev_end: *prev_end,
+                        span: *span,
+                    });
+                }
+                None
+            }
             // The page marker: record the page's number and size for the
             // `pages` map, and denormalize every following location against it.
             Node::PageInfo {
@@ -2453,6 +2556,7 @@ impl Builder {
                 if *page_no > 0 {
                     self.pages.push((*page_no, self.cur_w, self.cur_h));
                 }
+                self.resolve_continuations();
                 None
             }
             // Handled by `add_list` in `walk`.
@@ -2584,6 +2688,7 @@ impl Builder {
         prov: ProvSlot,
     ) -> String {
         let index = self.texts.len();
+        self.last_text = Some(index);
         let self_ref = format!("#/texts/{index}");
         // A [`Node::Track`] item is docling's ASR text item (#614): the
         // segment's words as `text`, its timing as `source` — the `[time: …]`
