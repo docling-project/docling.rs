@@ -348,8 +348,9 @@ jobs:
           npx napi artifacts --dir artifacts
           for dir in npm/*/; do
             cp ../docling-pdf/data/mapping-resources-pdf/LICENSE.txt "${dir}LICENSE-mapping-resources-pdf.txt"
+            cp ../docling-pdf/data/adobe-glyph-list/LICENSE.txt "${dir}LICENSE-adobe-glyph-list.txt"
             node -e 'const f = process.argv[1], p = require(f);
-              p.files.push("LICENSE-mapping-resources-pdf.txt");
+              p.files.push("LICENSE-mapping-resources-pdf.txt", "LICENSE-adobe-glyph-list.txt");
               require("fs").writeFileSync(f, JSON.stringify(p, null, 2) + "\n")' "$PWD/${dir}package.json"
           done
 
@@ -478,6 +479,7 @@ jobs:
                 cuda/release-assets/
           cp docling-rs.linux-x64-gnu.node cuda/release-assets/
           cp ../docling-pdf/data/mapping-resources-pdf/LICENSE.txt cuda/release-assets/LICENSE-mapping-resources-pdf.txt
+          cp ../docling-pdf/data/adobe-glyph-list/LICENSE.txt cuda/release-assets/LICENSE-adobe-glyph-list.txt
           cd cuda/release-assets
           node -e '
             const fs = require("fs"), crypto = require("crypto");

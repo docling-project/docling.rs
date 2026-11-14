@@ -13,7 +13,9 @@
 //! bullets [`crate::assemble`] strips).
 //!
 //! Data: the Adobe Core 14 AFM encodings of `Symbol` and `ZapfDingbats`
-//! (redistributable per Adobe's AFM license), each glyph name read through
+//! (redistributable per Adobe's AFM license — the notice that licence asks
+//! for is section 2 of `data/adobe-glyph-list/LICENSE.txt`, which every
+//! published binary carries), each glyph name read through
 //! docling-parse's glyph tables (the Adobe Glyph List, BSD 3-Clause, and its
 //! `zapfdingbats.txt`, first entry wins: `additional`, `glyphlist`,
 //! `zapfdingbats`, `scripts`, `missing`), with docling-parse's rewrite of the

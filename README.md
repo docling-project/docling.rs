@@ -556,3 +556,14 @@ packages next to the binary, the wheels in their `.dist-info/licenses/`
 `/usr/share/doc/docling.rs/`, and `install.sh` in its prefix. The wasm package
 and demo leave the tables out. A binary you build and redistribute yourself
 with the feature on needs the licence beside it too.
+
+The glyph-name tables are Adobe's as well. The
+[Adobe Glyph List](./crates/docling-pdf/data/adobe-glyph-list/) (BSD-3-Clause)
+is compiled into the native builds by docling-pdf's `glyph-list` feature, and
+the Symbol / ZapfDingbats encodings and standard-14 metrics in
+`symbol_fonts.rs` / `std14.rs` are derived from Adobe's Core 14 AFM files,
+which every build of the PDF text parser contains. One notice,
+[`LICENSE.txt`](./crates/docling-pdf/data/adobe-glyph-list/LICENSE.txt),
+covers both and travels as `LICENSE-adobe-glyph-list.txt` in the same places
+— plus the wasm package and the demo site, which leave the list out but carry
+the AFM-derived tables.

@@ -27,6 +27,10 @@ done
 
 cp crates/docling-wasm/npm/package.json crates/docling-wasm/npm/README.md "$out/"
 cp LICENSE "$out/"
+# The wasm build leaves the Adobe Glyph List and the CID tables out, but the
+# Symbol / ZapfDingbats and standard-14 tables derived from Adobe's AFM files
+# are part of the text-layer parser: their notice ships with the package.
+cp crates/docling-pdf/data/adobe-glyph-list/LICENSE.txt "$out/LICENSE-adobe-glyph-list.txt"
 
 version="$(grep -m1 '^version = ' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
 (cd "$out" && npm version "$version" --no-git-tag-version --allow-same-version >/dev/null)

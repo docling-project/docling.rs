@@ -45,6 +45,7 @@
     "bundler",
     "web",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "LICENSE-adobe-glyph-list.txt"
   ]
 }

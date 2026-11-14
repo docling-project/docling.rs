@@ -35,7 +35,7 @@ preserve-order = ["docling-core/preserve-order"]
 # docling-pdf). resvg rides along so SVG input (#212) can rasterize into the
 # same image pipeline; the non-ML SVG path (direct <text> extraction) needs
 # no deps.
-pdf = ["dep:docling-pdf", "docling-pdf/ml", "docling-pdf/cid-collections", "dep:resvg"]
+pdf = ["dep:docling-pdf", "docling-pdf/ml", "docling-pdf/cid-collections", "docling-pdf/glyph-list", "dep:resvg"]
 # pdfium as an opt-in renderer (`DOCLING_RS_RENDERER=pdfium`, docling's
 # pypdfium2 chain) and the last resort for a file lopdf cannot read — off by
 # default; forwards to docling-pdf's `pdfium` feature.

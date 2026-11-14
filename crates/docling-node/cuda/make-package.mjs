@@ -31,6 +31,10 @@ cpSync(
   join(nodeDir, '..', 'docling-pdf', 'data', 'mapping-resources-pdf', 'LICENSE.txt'),
   join(out, 'LICENSE-mapping-resources-pdf.txt'),
 )
+cpSync(
+  join(nodeDir, '..', 'docling-pdf', 'data', 'adobe-glyph-list', 'LICENSE.txt'),
+  join(out, 'LICENSE-adobe-glyph-list.txt'),
+)
 
 writeFileSync(
   join(out, 'package.json'),

@@ -1577,6 +1577,7 @@ exact, 511 diff lines** against the groundtruth, 6 / 18 and 475 against live doc
 - #1120: a formula region is a `formula` item with or without formula enrichment — `orig` the raw glyph text, `prov` its page and box, `text` empty until decoded; the `<!-- formula-not-decoded -->` placeholder is what the Markdown prints for it, no longer a `text` item without `prov`
 - #1121: TeX math glyphs read as characters where they read `�` or a Latin letter
   - the delimiter and big-operator names of the TeX math fonts resolve by rule, whatever their size (`parenleftbig` … `parenleftBigg` are `(`, `integraldisplay` is `∫`), with a short list for the rest (`prime`, `bardbl`, MSAM's `trianglerightsld` ▶) and the Symbol font's Glyph List names
+  - any other name reads through the Adobe Glyph List, bundled in full (docling-pdf's `glyph-list` feature, on by default, off in the wasm build): a font re-encoded with `afii10017` … reads as Cyrillic, `afii57664` … as Hebrew, where the names read as unmapped before; the list's private-use and control values stay unmapped, except the delimiter pieces, which read as Unicode 3.2's (`bracelefttp` is `⎧`)
   - a `/ToUnicode` value that says nothing (empty, NUL, U+FFFD, a noncharacter) yields to the `/Differences` name, as in docling-parse
   - **deliberate divergences:** `⟨` / `⟩` are the mathematical angle brackets (docling-parse's lists: the CJK `〈` / `〉`), `Delta` the Greek `Δ` (theirs: the increment sign `∆`)
 - symbol fonts read as docling-parse 7.25 reads them (#1113, docling-parse#431)

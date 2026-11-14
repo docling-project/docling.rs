@@ -7,7 +7,9 @@
 //! files fine.
 //!
 //! Data: the Adobe Core 14 AFM metrics (redistributable per Adobe's AFM
-//! license), as tabulated by pdfminer.six's `fontmetrics.py`, re-keyed by the
+//! license — the notice that licence asks for is section 2 of
+//! `data/adobe-glyph-list/LICENSE.txt`, which every published binary
+//! carries), as tabulated by pdfminer.six's `fontmetrics.py`, re-keyed by the
 //! Unicode character each glyph decodes to. Oblique/Italic Helvetica share the
 //! upright widths and the Courier family is fixed-pitch 600, so six tables
 //! cover the twelve text faces; Symbol and ZapfDingbats are excluded (they

@@ -14,6 +14,7 @@
 // build still flags genuinely dead code).
 #![cfg_attr(not(feature = "ml"), allow(dead_code))]
 
+mod adobe_glyph_list;
 // Reading-order assembly. Public under `ocr-prep` so the browser pipeline can
 // reuse the geometric table reconstruction and its reliability gate (#157).
 #[cfg(feature = "ocr-prep")]

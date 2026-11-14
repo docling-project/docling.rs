@@ -268,6 +268,7 @@ RUN tesseract --version \
 ENV DOCLING_RS_SYSTEM_FONTS=0 \
     DOCLING_RS_FONT_DIRS=/usr/share/fonts/truetype/liberation:/usr/share/fonts/truetype/dejavu
 COPY crates/docling-pdf/data/mapping-resources-pdf/LICENSE.txt /usr/share/doc/docling.rs/LICENSE-mapping-resources-pdf.txt
+COPY crates/docling-pdf/data/adobe-glyph-list/LICENSE.txt /usr/share/doc/docling.rs/LICENSE-adobe-glyph-list.txt
 WORKDIR /app
 COPY --from=assets /src/.models ./.models
 
@@ -285,6 +286,7 @@ RUN tesseract --version \
     && timeout 60 tesseract --list-langs 2>&1 | tee /dev/stderr \
        | grep -q '^List of available languages in "/usr/local/share/tessdata/"'
 COPY crates/docling-pdf/data/mapping-resources-pdf/LICENSE.txt /usr/share/doc/docling.rs/LICENSE-mapping-resources-pdf.txt
+COPY crates/docling-pdf/data/adobe-glyph-list/LICENSE.txt /usr/share/doc/docling.rs/LICENSE-adobe-glyph-list.txt
 WORKDIR /app
 COPY --from=assets /src/.models ./.models
 # ONNX Runtime opens its providers by absolute path from the directory of the

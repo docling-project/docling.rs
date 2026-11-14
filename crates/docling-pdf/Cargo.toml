@@ -3,7 +3,8 @@ name = "docling-pdf"
 description = "PDF/image backend for docling.rs: pure-Rust text layer and page renderer + ONNX layout/table/OCR pipeline."
 version.workspace = true
 edition.workspace = true
-# Adobe's CID -> Unicode tables in data/mapping-resources-pdf/ are BSD-3-Clause.
+# Adobe's CID -> Unicode tables in data/mapping-resources-pdf/ and its glyph
+# list in data/adobe-glyph-list/ are BSD-3-Clause.
 license = "MIT AND BSD-3-Clause"
 repository.workspace = true
 homepage.workspace = true
@@ -13,11 +14,17 @@ categories.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["ml", "cid-collections"]
+default = ["ml", "cid-collections", "glyph-list"]
 # Adobe's CID -> Unicode tables for CJK fonts without ToUnicode, which
 # build.rs packs into about 350 KB. The wasm build leaves them out; enable
 # them there with `--features docling-pdf/cid-collections`.
 cid-collections = []
+# The Adobe Glyph List in full (data/adobe-glyph-list/glyphlist.txt, 78 KB):
+# every glyph name a font's /Differences or builtin encoding may use, beyond
+# the Latin, TeX math and Symbol names the text parser reads on its own —
+# the `afii` Cyrillic / Hebrew / Arabic names above all. The wasm build
+# leaves it out; enable it there with `--features docling-pdf/glyph-list`.
+glyph-list = []
 # The full pipeline: the pure-Rust page renderer/raster + ONNX
 # layout/OCR/TableFormer/enrichment. Without it only the pure-Rust text-layer path remains
 # (`convert_text_layer` — lopdf content-stream parsing + the docling-parse
