@@ -703,13 +703,13 @@ impl WordGap {
     }
 }
 
-/// One glyph cell of a line run, with its writing axis precomputed.
 /// The bottom-edge length at or under which a glyph gives no writing axis:
 /// docling-parse's own bound in `facing_edge_overlap`. ([`RunCell::scale`]'s
 /// 1e-6 is its `cell_space_width`'s, a different question — whether the
 /// advance can normalize a gap.)
 const NO_AXIS: f64 = 1e-9;
 
+/// One glyph cell of a line run, with its writing axis precomputed.
 struct RunCell<'a> {
     cell: &'a Cell,
     /// Unit vector along the bottom edge (the writing direction).
@@ -1806,11 +1806,9 @@ mod tests {
 
     #[test]
     fn zero_advance_glyphs_of_other_scripts_stay_in_their_line() {
-        // A decomposed Latin accent (`e` + U+0301, the mark with no advance)
-        // and a line from a font whose `/Widths` are all zero, every glyph
-        // on the one spot: neither breaks the line. Under the knob the line
-        // breaks after the accent, as in docling-parse; the widthless one
-        // stays whole, glyphs on one spot being a local attachment.
+        // A decomposed Latin accent (`e` + U+0301, the mark with no advance):
+        // one line by default; under the knob the line breaks after the
+        // accent, as in docling-parse.
         let accent = set(&[
             ('c', 5.0),
             ('a', 5.0),
@@ -1821,9 +1819,26 @@ mod tests {
         ]);
         assert_eq!(line_texts(&accent, false), ["cafe\u{0301}s"]);
         assert_eq!(line_texts(&accent, true), ["cafe\u{0301}", "s"]);
-        let widthless = set(&[('a', 0.0), ('b', 0.0), ('c', 0.0)]);
-        assert_eq!(line_texts(&widthless, false), ["abc"]);
-        assert_eq!(line_texts(&widthless, true), ["abc"]);
+        // A font whose `/Widths` are all zero, every glyph on the one spot:
+        // `build_cells` already joins them into one cell (glyphs sharing a
+        // box are a decomposed ligature), so the line runs never see a
+        // zero-advance pair and the knob changes nothing.
+        let one_spot = set(&[('a', 0.0), ('b', 0.0), ('c', 0.0)]);
+        assert_eq!(line_texts(&one_spot, false), ["abc"]);
+        assert_eq!(line_texts(&one_spot, true), ["abc"]);
+        // The same widths with the glyphs set apart by `TJ` kerning: each
+        // a cell of no advance, so here the line runs do see the pairs. By
+        // default the x-axis fallback keeps one line (three words: with no
+        // advance, a 3 pt gap is measured against half the glyph height);
+        // under the knob every glyph starts a run, as docling-parse has it —
+        // which is why the knob stays off.
+        let set_apart = vec![
+            glyph('a', 100.0, 100.0),
+            glyph('b', 103.0, 103.0),
+            glyph('c', 106.0, 106.0),
+        ];
+        assert_eq!(line_texts(&set_apart, false), ["a b c"]);
+        assert_eq!(line_texts(&set_apart, true), ["a", "b", "c"]);
     }
 
     #[test]
