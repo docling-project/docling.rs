@@ -79,6 +79,7 @@ pub use repairs::{pdf_repairs, try_pdf_repairs, PdfRepair, RepairInspectError};
 // Embedded images as picture images (#1007, `use_embedded_picture_images`).
 #[cfg(feature = "render")]
 pub mod embedded;
+mod glyph_names;
 #[cfg(feature = "render")]
 pub mod raster;
 #[cfg(feature = "render")]

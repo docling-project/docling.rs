@@ -4342,19 +4342,25 @@ pub fn assemble_page(
                     }),
                 ));
             }
-            // With formula enrichment the CodeFormula model decodes the region
-            // to LaTeX; otherwise docling emits a placeholder comment rather
-            // than the (garbled) raw glyph text.
-            "formula" => match &enrichments[i] {
-                Some(Enrichment::Formula { latex }) => nodes.push(Node::Formula {
-                    latex: latex.clone(),
+            // A formula region is docling's `formula` item either way: `orig`
+            // the raw glyph text, `prov` the region, and `text` the LaTeX the
+            // CodeFormula model decodes it to under formula enrichment —
+            // empty without it (#1120). The `<!-- formula-not-decoded -->`
+            // placeholder is the Markdown serializer's spelling of that
+            // empty text, not the item: emitted here as a bare paragraph it
+            // reached the JSON as a `text` item with no page, no box and no
+            // raw text, which a citation or a chunk could not place.
+            "formula" => {
+                let latex = match &enrichments[i] {
+                    Some(Enrichment::Formula { latex }) => latex.clone(),
+                    _ => String::new(),
+                };
+                nodes.push(Node::Formula {
+                    latex,
                     orig: text.clone(),
                     location: Some(loc),
-                }),
-                _ => nodes.push(Node::Paragraph {
-                    text: "<!-- formula-not-decoded -->".into(),
-                }),
-            },
+                });
+            }
             // Code blocks: use the space-glyph-only grouping (monospace keeps its
             // source spacing) and emit a fenced block, preserving the line breaks
             // and indentation of the source (unlike prose, which reflows). pdfium
@@ -5571,6 +5577,91 @@ mod tests {
             "only one column"
         ]])));
         assert!(!super::geometric_table_is_reliable(&[]));
+    }
+
+    /// #1120: without formula enrichment a formula region is still docling's
+    /// `formula` item — `text` empty, `orig` the raw glyph text, `prov` the
+    /// page and box — and only the Markdown prints the placeholder. It used
+    /// to be a bare placeholder paragraph: a `text` item with no `prov` and
+    /// the raw text gone. With enrichment the item carries the LaTeX, and
+    /// its charspan is still `orig`'s length, as docling stamps it.
+    #[test]
+    fn a_formula_region_is_a_formula_item_with_or_without_enrichment() {
+        let orig = "mf (y) = ∫ U p(y | u)f(u) dµ(u), y ∈ Y , (1)";
+        let cells = vec![
+            cell("An introductory sentence.", 100.0, 380.0, 400.0, 392.0),
+            cell(orig, 193.0, 426.0, 523.0, 453.0),
+        ];
+        let regions = || {
+            vec![
+                region("text", 0.9, 99.0, 379.0, 401.0, 393.0),
+                region("formula", 0.9, 192.0, 425.0, 524.0, 454.0),
+            ]
+        };
+        let convert = |enrichment: Option<super::Enrichment>| {
+            let page = PdfPage::from_cells(612.0, 792.0, 2.0, cells.clone());
+            let (mut nodes, _) =
+                super::assemble_page(&page, regions(), &[None, None], &[None, enrichment], None);
+            // The document-level collector stamps the page number.
+            for n in &mut nodes {
+                if let Node::PageInfo { page_no, .. } = n {
+                    *page_no = 2;
+                }
+            }
+            let mut doc = docling_core::DoclingDocument::new("t");
+            doc.nodes = nodes;
+            doc
+        };
+
+        let doc = convert(None);
+        assert!(
+            doc.nodes.iter().any(|n| matches!(
+                n,
+                Node::Formula { latex, orig: o, location: Some(_) } if latex.is_empty() && o == orig
+            )),
+            "{:?}",
+            doc.nodes
+        );
+        assert_eq!(
+            doc.export_to_markdown().trim(),
+            "An introductory sentence.\n\n<!-- formula-not-decoded -->"
+        );
+        let json = doc.export_to_json_value();
+        let texts = json["texts"].as_array().unwrap();
+        assert!(
+            texts
+                .iter()
+                .all(|t| !t["text"].as_str().unwrap().contains("formula-not-decoded")),
+            "the placeholder is Markdown, not an item's text"
+        );
+        let item = texts.iter().find(|t| t["label"] == "formula").unwrap();
+        assert_eq!(item["text"], "");
+        assert_eq!(item["orig"], orig);
+        let prov = &item["prov"][0];
+        assert_eq!(prov["page_no"], 2);
+        assert_eq!(prov["charspan"][1], orig.chars().count());
+        let bbox = &prov["bbox"];
+        assert_eq!(bbox["coord_origin"], "BOTTOMLEFT");
+        // The region's box on the 0–511 grid: within a point or so.
+        for (key, want) in [("l", 193.0), ("r", 523.0), ("t", 366.0), ("b", 339.0)] {
+            let got = bbox[key].as_f64().unwrap();
+            assert!((got - want).abs() < 2.0, "{key}: {got} vs {want}");
+        }
+
+        let doc = convert(Some(super::Enrichment::Formula {
+            latex: "m_f(y) = \\int_U p(y|u) f(u)\\,d\\mu(u)".into(),
+        }));
+        assert!(doc.export_to_markdown().contains("$$m_f(y) = \\int_U"));
+        let json = doc.export_to_json_value();
+        let item = json["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["label"] == "formula")
+            .unwrap();
+        assert!(item["text"].as_str().unwrap().starts_with("m_f(y)"));
+        assert_eq!(item["orig"], orig);
+        assert_eq!(item["prov"][0]["charspan"][1], orig.chars().count());
     }
 
     /// #1114: a table pasted as an image has no text-layer cell, and the page

@@ -1570,6 +1570,11 @@ exact, 511 diff lines** against the groundtruth, 6 / 18 and 475 against live doc
 - a CJK composite font without ToUnicode is read through Adobe's CID → Unicode table of the collection its `CIDSystemInfo` names (Japan1, GB1, CNS1, Korea1, KR; ISO 32000-1 §9.10.2), as docling-parse does
   - deliberately for every descendant font, `CIDFontType2` included, as docling-parse does
   - some producers name an Adobe collection on a subset TrueType whose CIDs are really glyph ids (`CIDToGIDMap` Identity or absent); without ToUnicode such a font reads as plausible but wrong text, as it does in docling, where docling.rs read nothing before and OCR could step in
+- #1120: a formula region is a `formula` item with or without formula enrichment — `orig` the raw glyph text, `prov` its page and box, `text` empty until decoded; the `<!-- formula-not-decoded -->` placeholder is what the Markdown prints for it, no longer a `text` item without `prov`
+- #1121: TeX math glyphs read as characters where they read `�` or a Latin letter
+  - the delimiter and big-operator names of the TeX math fonts resolve by rule, whatever their size (`parenleftbig` … `parenleftBigg` are `(`, `integraldisplay` is `∫`), with a short list for the rest (`prime`, `bardbl`, MSAM's `trianglerightsld` ▶) and the Symbol font's Glyph List names
+  - a `/ToUnicode` value that says nothing (empty, NUL, U+FFFD, a noncharacter) yields to the `/Differences` name, as in docling-parse
+  - **deliberate divergences:** `⟨` / `⟩` are the mathematical angle brackets (docling-parse's lists: the CJK `〈` / `〉`), `Delta` the Greek `Δ` (theirs: the increment sign `∆`)
 - symbol fonts read as docling-parse 7.25 reads them (#1113, docling-parse#431)
   - a Symbol / ZapfDingbats `/ToUnicode` into the private-use symbol charset reads through the face's encoding: redp5110's `U+F0AE` is `→`, a Word bullet `U+F0B7` is `•`
   - a symbolic simple font that declares no base encoding reads through its embedded program's builtin encoding, after `/Differences` and `/ToUnicode`: 2203.01017's `Dingbats` `3` / `7` are `✓` / `✗`

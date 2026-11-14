@@ -2647,7 +2647,10 @@ impl Builder {
     /// the plain [`Self::add_formula`] above sets both to the same string).
     fn add_formula_item(&mut self, latex: &str, orig: &str, parent: &str) -> String {
         let self_ref = format!("#/texts/{}", self.texts.len());
-        let prov = self.take_prov(latex.chars().count());
+        // docling stamps the provenance when the item is assembled, from the
+        // region's raw text: the charspan is `orig`'s length, decoded or not
+        // (the enriched groundtruth: `text` 19 characters, charspan [0, 11]).
+        let prov = self.take_prov(orig.chars().count());
         self.texts.push(Item::json(json!({
             "self_ref": self_ref,
             "parent": { "$ref": parent },
