@@ -472,9 +472,32 @@ pub(crate) fn line_and_word_cells_with(
     euclidean: bool,
     gap: WordGap,
 ) -> (Vec<TextCell>, Vec<TextCell>) {
+    line_and_word_cells_cut(glyphs, page_h, euclidean, gap, zero_advance_run())
+}
+
+/// `DOCLING_RS_PDF_ZERO_ADVANCE_RUN`: off. On, the glyph after a
+/// zero-advance one starts a line run, as in docling-parse ≥ 7 — its
+/// `facing_edge_overlap` takes the writing axis from the left cell's bottom
+/// edge and returns 0 for one of no length. That cuts an Arabic word at its
+/// tanween and sets the pieces apart (`أيضًا` reads `أيض ً`, its tail a clause
+/// away), and docling's groundtruth has it so: the knob is for comparing
+/// against docling, not for reading. Off, the mark stays in its line.
+fn zero_advance_run() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| docling_core::env::flag("DOCLING_RS_PDF_ZERO_ADVANCE_RUN"))
+}
+
+/// [`line_and_word_cells_with`] with [`zero_advance_run`] as an argument.
+fn line_and_word_cells_cut(
+    glyphs: &[Glyph],
+    page_h: f32,
+    euclidean: bool,
+    gap: WordGap,
+    zero_advance_run: bool,
+) -> (Vec<TextCell>, Vec<TextCell>) {
     let built = build_cells(glyphs, euclidean);
     if gap != WordGap::Legacy {
-        return contract_runs(&built, gap, page_h);
+        return contract_runs(&built, gap, page_h, zero_advance_run);
     }
     let to_text_cell = |c: Cell| {
         let l = c.rx0.min(c.rx1).min(c.rx2).min(c.rx3) as f32;
@@ -680,6 +703,12 @@ impl WordGap {
     }
 }
 
+/// The bottom-edge length at or under which a glyph gives no writing axis:
+/// docling-parse's own bound in `facing_edge_overlap`. ([`RunCell::scale`]'s
+/// 1e-6 is its `cell_space_width`'s, a different question — whether the
+/// advance can normalize a gap.)
+const NO_AXIS: f64 = 1e-9;
+
 /// One glyph cell of a line run, with its writing axis precomputed.
 struct RunCell<'a> {
     cell: &'a Cell,
@@ -696,7 +725,7 @@ impl<'a> RunCell<'a> {
     fn new(cell: &'a Cell) -> Self {
         let (dx, dy) = (cell.rx1 - cell.rx0, cell.ry1 - cell.ry0);
         let advance = dx.hypot(dy);
-        let (ux, uy) = if advance > 1e-9 {
+        let (ux, uy) = if advance > NO_AXIS {
             (dx / advance, dy / advance)
         } else {
             (1.0, 0.0)
@@ -741,8 +770,15 @@ fn forward_gap(lhs: &RunCell, rhs: &RunCell) -> f64 {
 
 /// Overlap, across the writing direction, of `lhs`'s trailing edge and
 /// `rhs`'s leading edge — positive for glyphs on one text line.
-fn facing_edge_overlap(lhs: &RunCell, rhs: &RunCell) -> f64 {
+fn facing_edge_overlap(lhs: &RunCell, rhs: &RunCell, zero_advance_run: bool) -> f64 {
     let (l, r) = (lhs.cell, rhs.cell);
+    // docling-parse takes the axis from `lhs`'s bottom edge and gives up on
+    // one of no length: nothing overlaps a zero-advance glyph's trailing
+    // edge, so the glyph after it starts a run. We do so only when asked
+    // ([`zero_advance_run`]) and otherwise measure along the x axis.
+    if zero_advance_run && lhs.advance <= NO_AXIS {
+        return 0.0;
+    }
     let (ux, uy) = if l.ltr {
         (lhs.ux, lhs.uy)
     } else {
@@ -807,13 +843,13 @@ fn baseline_offset(lhs: &RunCell, rhs: &RunCell) -> (f64, (f64, f64)) {
 /// Whether `rhs` continues `lhs`'s text line (`continues_line`): the same
 /// writing direction, facing edges that overlap across it, and a cursor
 /// move between a step back and four advances forward.
-fn continues_line(lhs: &RunCell, rhs: &RunCell) -> bool {
+fn continues_line(lhs: &RunCell, rhs: &RunCell, zero_advance_run: bool) -> bool {
     if lhs.ux * rhs.ux + lhs.uy * rhs.uy < 0.985 {
         return false;
     }
     let scale = lhs.scale().max(rhs.scale());
     let gap = forward_gap(lhs, rhs);
-    if facing_edge_overlap(lhs, rhs) <= 1e-6 && !is_local_attachment(lhs, rhs) {
+    if facing_edge_overlap(lhs, rhs, zero_advance_run) <= 1e-6 && !is_local_attachment(lhs, rhs) {
         return false;
     }
     -scale <= gap && gap <= 4.0 * scale
@@ -1253,7 +1289,12 @@ fn spaces_drawn_apart(run: &[RunCell], spaces: &[(f64, &Cell)]) -> bool {
 /// docling-parse ≥ 7's contraction (`cells.h::contract`) over our char
 /// cells, with the word threshold `gap` picks: the line runs, their words,
 /// and the lines as the words joined by single spaces.
-fn contract_runs(cells: &[Cell], gap: WordGap, page_h: f32) -> (Vec<TextCell>, Vec<TextCell>) {
+fn contract_runs(
+    cells: &[Cell],
+    gap: WordGap,
+    page_h: f32,
+    zero_advance_run: bool,
+) -> (Vec<TextCell>, Vec<TextCell>) {
     // Line runs, in source order. Explicit spaces belong to the open run as
     // boundary markers and take no part in the geometry test.
     let mut runs: Vec<Vec<RunCell>> = Vec::new();
@@ -1267,7 +1308,7 @@ fn contract_runs(cells: &[Cell], gap: WordGap, page_h: f32) -> (Vec<TextCell>, V
             continue;
         }
         let starts = match runs.last().and_then(|r| r.iter().rev().find(|c| !c.space)) {
-            Some(prev) => !continues_line(prev, &rc),
+            Some(prev) => !continues_line(prev, &rc, zero_advance_run),
             None => runs.is_empty(),
         };
         if starts {
@@ -1711,6 +1752,93 @@ mod tests {
             );
             assert_eq!(words.len(), 2, "{gap:?}");
         }
+    }
+
+    /// The line cells of `glyphs` under the adaptive rule, with
+    /// `DOCLING_RS_PDF_ZERO_ADVANCE_RUN` as given.
+    fn line_texts(glyphs: &[Glyph], zero_advance_run: bool) -> Vec<String> {
+        line_and_word_cells_cut(glyphs, 792.0, true, WordGap::Adaptive, zero_advance_run)
+            .0
+            .into_iter()
+            .map(|c| c.text)
+            .collect()
+    }
+
+    /// Glyphs set one after the other from x = 100, each with its advance.
+    fn set(chars: &[(char, f32)]) -> Vec<Glyph> {
+        let mut x = 100.0f32;
+        chars
+            .iter()
+            .map(|&(ch, w)| {
+                let g = glyph(ch, x, x + w);
+                x += w;
+                g
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_zero_advance_glyph_cuts_the_line_only_when_asked() {
+        // An Arabic mark drawn before its base, as LibreOffice writes a
+        // cluster: the mark has no advance, so docling-parse finds no
+        // trailing edge for the base to face and starts a run there — a
+        // word in two cells, which its line sort then sets apart. We keep
+        // the line, and cut it as docling-parse does under the knob.
+        let line = |mark_advance: f32| {
+            set(&[
+                ('\u{0627}', 3.0),
+                ('\u{064b}', mark_advance),
+                ('\u{0645}', 6.0),
+                ('\u{0626}', 3.0),
+                ('\u{0627}', 3.0),
+                ('\u{062f}', 5.0),
+            ])
+        };
+        let whole = "\u{062f}\u{0627}\u{0626}\u{0645}\u{064b}\u{0627}";
+        assert_eq!(line_texts(&line(0.0), false), [whole]);
+        assert_eq!(
+            line_texts(&line(0.0), true),
+            ["\u{064b}\u{0627}", "\u{062f}\u{0627}\u{0626}\u{0645}"]
+        );
+        // With any advance at all the mark is no cut for either.
+        assert_eq!(line_texts(&line(0.5), true), [whole]);
+    }
+
+    #[test]
+    fn zero_advance_glyphs_of_other_scripts_stay_in_their_line() {
+        // A decomposed Latin accent (`e` + U+0301, the mark with no advance):
+        // one line by default; under the knob the line breaks after the
+        // accent, as in docling-parse.
+        let accent = set(&[
+            ('c', 5.0),
+            ('a', 5.0),
+            ('f', 3.0),
+            ('e', 5.0),
+            ('\u{0301}', 0.0),
+            ('s', 4.0),
+        ]);
+        assert_eq!(line_texts(&accent, false), ["cafe\u{0301}s"]);
+        assert_eq!(line_texts(&accent, true), ["cafe\u{0301}", "s"]);
+        // A font whose `/Widths` are all zero, every glyph on the one spot:
+        // `build_cells` already joins them into one cell (glyphs sharing a
+        // box are a decomposed ligature), so the line runs never see a
+        // zero-advance pair and the knob changes nothing.
+        let one_spot = set(&[('a', 0.0), ('b', 0.0), ('c', 0.0)]);
+        assert_eq!(line_texts(&one_spot, false), ["abc"]);
+        assert_eq!(line_texts(&one_spot, true), ["abc"]);
+        // The same widths with the glyphs set apart by `TJ` kerning: each
+        // a cell of no advance, so here the line runs do see the pairs. By
+        // default the x-axis fallback keeps one line (three words: with no
+        // advance, a 3 pt gap is measured against half the glyph height);
+        // under the knob every glyph starts a run, as docling-parse has it —
+        // which is why the knob stays off.
+        let set_apart = vec![
+            glyph('a', 100.0, 100.0),
+            glyph('b', 103.0, 103.0),
+            glyph('c', 106.0, 106.0),
+        ];
+        assert_eq!(line_texts(&set_apart, false), ["a b c"]);
+        assert_eq!(line_texts(&set_apart, true), ["a", "b", "c"]);
     }
 
     #[test]
