@@ -35,7 +35,7 @@ Before table
 \hline
  Column A & Column B \\ \hline
 Simple cell upper left & Simple cell with \textbf{bold} and \textit{italic} text \\ \hline
-\begin{table}[h] \begin{tabular}{|l|l|l|} \hline A & B & C \\ \hline \textit{Cell 1} & Cell 2 & \textbf{Cell 3} \\ \hline \end{tabular} \end{table} & Rich cell A nested table  \begin{table}[h] \begin{tabular}{|l|l|l|} \hline A & B & C \\ \hline \sout{Cell 1} & \textit{\textbf{Cell 2}} & Cell 3 \\ \hline \end{tabular} \end{table} \\ \hline
+\begin{tabular}{|l|l|l|} \hline A & B & C \\ \hline \textit{Cell 1} & Cell 2 & \textbf{Cell 3} \\ \hline \end{tabular} & Rich cell A nested table  \begin{tabular}{|l|l|l|} \hline A & B & C \\ \hline \sout{Cell 1} & \textit{\textbf{Cell 2}} & Cell 3 \\ \hline \end{tabular} \\ \hline
 \end{tabular}
 \end{table}
 
@@ -47,8 +47,10 @@ After table with \textbf{bold}, underline, \sout{strikethrough}, and \textit{ita
 \begin{tabular}{|l|l|}
 \hline
 Column A & Column B \\ \hline
-Only text & \begin{figure}[h] % image \end{figure} \\ \hline
-Text and picture  \begin{figure}[h] % image \end{figure} &  \\ \hline
+Only text & % image
+ \\ \hline
+Text and picture  % image
+ &  \\ \hline
 \end{tabular}
 \end{table}
 
