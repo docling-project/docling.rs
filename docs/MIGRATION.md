@@ -2399,7 +2399,11 @@ These are deliberate or unavoidable divergences, not bugs.
     programmatic text touches is OCR'd, as docling's
     `_find_pdf_aware_layout_ocr_rects` does for "clusters without any
     visible programmatic text" (the page renders on demand for it; the text
-    detector runs on those regions' crops, not the page, #945). A page
+    detector runs on those regions' crops, not the page, #945; the crops
+    are padded by half a line and overlap where regions touch, so a line
+    two crops both found is kept once — the copy its crop edge did not cut,
+    #1133 — where docling merges the touching cluster rects into one OCR
+    rect before reading them, `_deduplicate_rects`). A page
     whose text layer is that thin (under 2 % of the page and at most 12
     words — a page number, a running header; a figure page's caption is
     more and skips the probe, which costs a full-page text detection) is
