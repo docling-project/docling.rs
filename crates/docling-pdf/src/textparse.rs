@@ -1890,6 +1890,19 @@ fn drop_overpainted_cells(cells: &mut Vec<crate::pdfium_backend::TextCell>) {
             if vo < 0.6 * (a.b - a.t).min(b.b - b.t) {
                 continue;
             }
+            // … and the two sit at one height. The overlap alone says nothing
+            // when the font's vertical metrics are inflated (#1129: a face
+            // whose ascent and descent make every cell 55 pt tall on lines
+            // 11.7 pt apart — each line overlaps the next by four fifths, and
+            // a short line under a long one read as paint: 37 of the page's
+            // 44 lines went, and its table with them). A cell's height is the
+            // font's claim; its width per character is what was drawn, and
+            // lines of prose are never set closer than that, so a shift of
+            // more than half of it is another line, however tall the boxes.
+            let shift = ((a.t + a.b) - (b.t + b.b)).abs() / 2.0;
+            if shift > 0.5 * a.mean_advance().min(b.mean_advance()) {
+                continue;
+            }
             // `a` horizontally inside `b` (with a small tolerance).
             let ho = (a.r.min(b.r) - a.l.max(b.l)).max(0.0);
             if ho >= 0.8 * (a.r - a.l) && (a.r - a.l) <= (b.r - b.l) {
@@ -5818,6 +5831,82 @@ mod overpainted {
         ];
         super::drop_overpainted_cells(&mut cells);
         assert_eq!(cells.len(), 4);
+    }
+
+    /// #1129: Cambria's regular face declares an ascent of 3117 and a descent
+    /// of -2464, so each of its lines sits in a box 5.6 em tall and overlaps
+    /// the next line by four fifths. A short line under a long one was "one
+    /// cell inside another on the same band" — paint — and both went: these
+    /// are the issue page's cells, of whose 44 lines 7 were left. Lines one
+    /// pitch apart are lines; the stacked logo, at one height, still goes.
+    #[test]
+    fn lines_of_a_tall_box_font_are_not_paint() {
+        let mut cells = vec![
+            cell(
+                "17. Carefully pour off the supernatant from both tubes. Invert the",
+                72.0,
+                77.1,
+                514.4,
+                132.7,
+            ),
+            cell(
+                "tubes and tap them gently on the surface of a clean paper towel.",
+                72.0,
+                88.8,
+                453.0,
+                144.4,
+            ),
+            cell("“Evidence A” DNA*", 77.6, 412.5, 150.6, 462.7),
+            cell("“Evidence B” DNA*", 77.6, 423.0, 150.5, 473.2),
+            cell("enzyme mixture*", 77.6, 444.1, 143.9, 494.4),
+            // The same face painting a mark: two glyph runs at one height.
+            cell("\"", 72.7, 600.0, 86.4, 655.6),
+            cell("==", 59.4, 600.0, 99.6, 655.6),
+        ];
+        super::drop_overpainted_cells(&mut cells);
+        let texts: Vec<&str> = cells.iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(texts.len(), 5, "{texts:?}");
+        assert!(
+            !texts.contains(&"==") && !texts.contains(&"\""),
+            "{texts:?}"
+        );
+    }
+
+    /// The same through the parser: a paragraph and its short last line in a
+    /// font whose descriptor declares Cambria's metrics. Every line and every
+    /// word of the text-layer page (the browser's and `convert_text_layer`'s)
+    /// is there; before, the page came back empty.
+    #[test]
+    fn a_tall_box_font_keeps_its_lines_on_the_text_layer_page() {
+        let widths = "500 ".repeat(91);
+        let font = format!(
+            "<</Type/Font/Subtype/TrueType/BaseFont/Cambria/Encoding/WinAnsiEncoding\
+             /FirstChar 32/LastChar 122/Widths[{widths}]\
+             /FontDescriptor<</Type/FontDescriptor/FontName/Cambria/Flags 32\
+             /FontBBox[-1475 -2464 2868 3117]/Ascent 3117/Descent -2464\
+             /CapHeight 667/ItalicAngle 0/StemV 80>>>>"
+        );
+        let content = b"BT /F1 10 Tf 72 700 Td \
+            (Carefully pour off the supernatant from both of the tubes) Tj \
+            0 -12 Td (and tap them gently on the surface of a clean towel) Tj \
+            0 -12 Td (to drain them.) Tj ET\n";
+        let pdf = super::base14_fonts::pdf_with_content(font.as_bytes(), content);
+        let page = super::pdf_text_pages(&pdf).remove(0);
+        assert!(
+            page.cells.iter().all(|c| c.b - c.t > 50.0),
+            "the boxes are the font's 5.6 em: {:?}",
+            page.cells
+        );
+        let lines: Vec<&str> = page.cells.iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(
+            lines,
+            [
+                "Carefully pour off the supernatant from both of the tubes",
+                "and tap them gently on the surface of a clean towel",
+                "to drain them.",
+            ]
+        );
+        assert_eq!(page.word_cells.len(), 24, "{:?}", page.word_cells);
     }
 }
 

@@ -263,6 +263,13 @@ uses; anything else goes to TableFormer. Well-formed tables therefore cost
 nothing extra, and the pages that used to show spurious empty columns still get
 the model.
 
+A digital PDF adds one test (`geometric_rows_share_lines`), which its exact
+text-layer boxes make possible: every row of the grid has to sit on one text
+line. The grid has a row per line, so a table of wrapped cells — two rows of
+five lines each, say — comes out dense, regular and wrong; its "rows" pair
+whichever lines of neighbouring columns pass close to each other, and those
+are visibly askew. Such a table goes to TableFormer too.
+
 Stage 1 recognition wrapper:
 
 ```js
