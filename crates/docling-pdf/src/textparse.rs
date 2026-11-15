@@ -1962,14 +1962,27 @@ fn page_rotation(doc: &Document, pid: lopdf::ObjectId) -> u16 {
     0
 }
 
-/// The effective `/Resources` dictionary for a page (inline or via reference,
-/// falling back to an inherited one from a `/Parent`).
-fn page_res(doc: &Document, page_id: lopdf::ObjectId) -> Option<&Dictionary> {
-    let (inline, ids) = doc.get_page_resources(page_id).ok()?;
-    if let Some(d) = inline {
-        return Some(d);
+/// The effective `/Resources` dictionary for a page: its own (inline or via
+/// reference), else the nearest ancestor's in the page tree — ISO 32000-1
+/// 7.7.3.4 makes `/Resources` inheritable. Walked by hand rather than through
+/// lopdf's `get_page_resources`, which collects an ancestor's `/Resources`
+/// only when it is an indirect reference: an *inline* dictionary on the
+/// `/Pages` node — the R&OS php pdf writer puts the one font there and gives
+/// each page only `/Type`, `/Parent` and `/Contents` (#1130) — was dropped,
+/// every font went missing and the whole text layer read as empty. A
+/// `/Resources` that does not resolve to a dictionary is skipped in favour of
+/// the next ancestor's (pdf.js and poppler read such files the same way).
+pub(crate) fn page_res(doc: &Document, page_id: lopdf::ObjectId) -> Option<&Dictionary> {
+    let mut id = page_id;
+    // The page-tree depth lopdf itself tolerates; also ends a `/Parent` cycle.
+    for _ in 0..32 {
+        let dict = doc.get_object(id).ok()?.as_dict().ok()?;
+        if let Some(res) = dict.get(b"Resources").ok().and_then(|o| as_dict(doc, o)) {
+            return Some(res);
+        }
+        id = dict.get(b"Parent").ok()?.as_reference().ok()?;
     }
-    ids.into_iter().find_map(|id| doc.get_dictionary(id).ok())
+    None
 }
 
 /// Build the code→[`Font`] map for a resources dictionary's `/Font` sub-dict,
@@ -4488,6 +4501,129 @@ mod page_box_frame {
         // Reversed corners normalize.
         let (pb, _) = only_page(&pdf("/MediaBox[500 700 0 0]", 10.0, 10.0));
         assert_eq!((pb.l, pb.b, pb.w, pb.h), (0.0, 0.0, 500.0, 700.0));
+    }
+}
+
+/// #1130: `/Resources` inherited from the page tree (ISO 32000-1 7.7.3.4) —
+/// above all an *inline* dictionary on a `/Pages` node, which lopdf's
+/// `get_page_resources` never returns (it collects an ancestor's only when it
+/// is a reference). The R&OS php pdf writer files in Govdocs1 (448692.pdf)
+/// carry their one font that way; the text layer read as empty and the wasm
+/// `DigitalConverter` refused the file as a scan.
+#[cfg(test)]
+mod inherited_resources {
+    use super::*;
+    use lopdf::dictionary;
+
+    /// Root `/Pages` (holding `root_res` inline and the MediaBox) → an
+    /// intermediate `/Pages` (holding `mid_res`, if any) → one page with only
+    /// `/Type`, `/Parent`, `/Contents` and, optionally, its own resources.
+    fn pdf(root_res: Object, mid_res: Option<Object>, page_res: Option<Object>) -> Vec<u8> {
+        let mut doc = Document::with_version("1.3");
+        let content = doc.add_object(lopdf::Stream::new(
+            Dictionary::new(),
+            b"BT /F1 12 Tf 72 700 Td (Inherited resources) Tj ET".to_vec(),
+        ));
+        let root_id = doc.new_object_id();
+        let mid_id = doc.new_object_id();
+        let mut page = dictionary! {
+            "Type" => "Page",
+            "Parent" => Object::Reference(mid_id),
+            "Contents" => vec![Object::Reference(content)],
+        };
+        if let Some(r) = page_res {
+            page.set("Resources", r);
+        }
+        let page_id = doc.add_object(page);
+        let mut mid = dictionary! {
+            "Type" => "Pages",
+            "Parent" => Object::Reference(root_id),
+            "Kids" => vec![Object::Reference(page_id)],
+            "Count" => 1,
+        };
+        if let Some(r) = mid_res {
+            mid.set("Resources", r);
+        }
+        doc.objects.insert(mid_id, Object::Dictionary(mid));
+        doc.objects.insert(
+            root_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::Reference(mid_id)],
+                "Count" => 1,
+                "Resources" => root_res,
+                "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
+            }),
+        );
+        let catalog = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => Object::Reference(root_id),
+        });
+        doc.trailer.set("Root", Object::Reference(catalog));
+        let mut out = Vec::new();
+        doc.save_to(&mut out).expect("save synthetic PDF");
+        out
+    }
+
+    fn fonts(base: &str) -> Object {
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => dictionary! {
+                "Type" => "Font", "Subtype" => "Type1", "BaseFont" => base,
+            }},
+        })
+    }
+
+    fn page_text(bytes: &[u8]) -> String {
+        let pages = pdf_text_pages(bytes);
+        assert_eq!(pages.len(), 1);
+        pages[0]
+            .cells
+            .iter()
+            .map(|c| c.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    #[test]
+    fn inline_resources_on_an_ancestor_pages_node_are_inherited() {
+        let bytes = pdf(fonts("Helvetica"), None, None);
+        assert_eq!(page_text(&bytes), "Inherited resources");
+    }
+
+    /// The nearest node that sets `/Resources` wins: the page's own over the
+    /// intermediate node's over the root's — and one that does not resolve to
+    /// a dictionary is passed over for the next ancestor's.
+    #[test]
+    fn the_nearest_resources_dictionary_wins() {
+        let doc_of = |b: &[u8]| load_document(b).expect("load");
+        let font_of = |bytes: &[u8]| {
+            let doc = doc_of(bytes);
+            let pid = *doc.get_pages().values().next().unwrap();
+            let res = page_res(&doc, pid).expect("resources");
+            let f1 = res
+                .get(b"Font")
+                .ok()
+                .and_then(|o| o.as_dict().ok())
+                .and_then(|f| f.get(b"F1").ok())
+                .and_then(|o| o.as_dict().ok())
+                .and_then(|f| f.get(b"BaseFont").ok())
+                .and_then(|o| o.as_name().ok())
+                .map(|n| String::from_utf8_lossy(n).into_owned());
+            f1.unwrap_or_default()
+        };
+        assert_eq!(font_of(&pdf(fonts("Root"), None, None)), "Root");
+        assert_eq!(
+            font_of(&pdf(fonts("Root"), Some(fonts("Mid")), None)),
+            "Mid"
+        );
+        assert_eq!(
+            font_of(&pdf(fonts("Root"), Some(fonts("Mid")), Some(fonts("Page")))),
+            "Page"
+        );
+        assert_eq!(
+            font_of(&pdf(fonts("Root"), Some(Object::Null), None)),
+            "Root"
+        );
     }
 }
 

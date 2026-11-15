@@ -173,9 +173,7 @@ pub fn render_page_sized(
 }
 
 fn page_resources(doc: &Document, pid: lopdf::ObjectId) -> Option<&lopdf::Dictionary> {
-    doc.get_page_resources(pid).ok().and_then(|(inline, ids)| {
-        inline.or_else(|| ids.into_iter().find_map(|id| doc.get_dictionary(id).ok()))
-    })
+    crate::textparse::page_res(doc, pid)
 }
 
 /// Premultiplied RGBA over an opaque white canvas → RGB (the alpha is 255
