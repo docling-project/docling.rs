@@ -1545,9 +1545,7 @@ fn render_inner(meta: &PdfMeta, index: usize, width: u32, height: u32) -> Result
     let obj2dev = page_matrix.then(display);
     let device = Rect::new(0, 0, width as i32, height as i32);
 
-    let page_res = doc.get_page_resources(pid).ok().and_then(|(inline, ids)| {
-        inline.or_else(|| ids.into_iter().find_map(|id| doc.get_dictionary(id).ok()))
-    });
+    let page_res = crate::textparse::page_res(doc, pid);
     let ctx = Ctx {
         doc,
         obj2dev,
@@ -2316,9 +2314,7 @@ mod tests {
             for (n, pid) in pages.into_iter().take(3) {
                 println!("=== {rel} p{n}");
                 let content = doc.get_page_content(pid);
-                let res = doc.get_page_resources(pid).ok().and_then(|(inline, ids)| {
-                    inline.or_else(|| ids.into_iter().find_map(|id| doc.get_dictionary(id).ok()))
-                });
+                let res = crate::textparse::page_res(&doc, pid);
                 describe(&doc, res, &content, 0);
             }
         }

@@ -203,9 +203,7 @@ fn ios(a: [f32; 4], b: [f32; 4]) -> f32 {
 }
 
 fn page_resources(doc: &Document, pid: lopdf::ObjectId) -> Option<&Dictionary> {
-    doc.get_page_resources(pid).ok().and_then(|(inline, ids)| {
-        inline.or_else(|| ids.into_iter().find_map(|id| doc.get_dictionary(id).ok()))
-    })
+    crate::textparse::page_res(doc, pid)
 }
 
 fn boxes_overlap(a: Box2, b: Box2) -> bool {

@@ -1586,6 +1586,9 @@ exact, 511 diff lines** against the groundtruth, 6 / 18 and 475 against live doc
   - a Symbol / ZapfDingbats font that names no encoding reads through the face's own (a non-embedded ZapfDingbats' `l` is `●`) and, without `/Widths`, advances by the face's AFM widths
   - Skia's hexadecimal glyph-index names (`/g15C`) read as unmapped, `�`
   - **deliberate divergence:** a declared encoding keeps its table; docling-parse reads a font matched to Symbol through the face anyway (its FontSpecific scheme), which turns `multi_page`'s MacRoman `SymbolMT` bullet into `- ∞ IBM MT/ST …`
+- #1130: a page's `/Resources` is inherited from the nearest page-tree ancestor that sets it, inline or by reference (ISO 32000-1 7.7.3.4)
+  - lopdf's `get_page_resources` returns an ancestor's only when it is a reference, so a `/Pages` node holding the dictionary inline — the R&OS php pdf writer's layout, every page only `/Type`, `/Parent`, `/Contents` — left the pages without fonts: the text layer read as empty, the wasm `DigitalConverter` refused the file as a scan, and the renderer drew no text or XObjects
+  - one walk (`textparse::page_res`) now serves the text parser, the renderer, the raster path and the embedded-image scan; Govdocs1 448692.pdf reads 1097 lines over its 16 pages, as in pdf.js and poppler
 - #598: a `JPXDecode` (JPEG 2000) image is decoded (`render/jpx.rs`, `hayro-jpeg2000`, within ±1 of OpenJPEG) instead of drawn as a mid-gray placeholder
   - on photo pages the blank rectangle left the layout model unsure of the picture (0.64 instead of 0.99): its box ran over the caption below, which nested inside as `text` and vanished from the Markdown, and two stacked photos split by a caption fused into one
   - decoded, the reporter's NASA pages give docling's result (caption linked and printed, two pictures) at int8 and fp32 alike — `crates/docling/tests/jpx_pictures.rs`
