@@ -479,6 +479,87 @@ pub fn sort_boxes(boxes: &mut [DetBox]) {
     }
 }
 
+/// Share of the smaller box's area two boxes from *different* crops must
+/// overlap by to be one line read twice ([`merge_crop_boxes`]). Boxes the
+/// detector returns from one crop never overlap like that — DB's components
+/// are disjoint — so the only source of such a pair is the same pixels seen
+/// through two padded crops.
+const CROP_DUP_OVERLAP: f32 = 0.5;
+
+/// Within this many pixels of a crop side that is not the image's own edge,
+/// a box counts as cut by the crop (its glyphs run on past the crop).
+const CROP_EDGE_PX: f32 = 1.5;
+
+/// One detector crop's `(l, t, r, b)` rectangle in image pixels and the
+/// boxes found in it, already offset to image pixels.
+pub type CropBoxes = ((u32, u32, u32, u32), Vec<DetBox>);
+
+/// The boxes of [`DetModel::detect_regions`]'s per-region crops as one set,
+/// in reading order, with every line two crops both detected kept once
+/// (#1133). The crops are padded by half a line (#945), so a heading that
+/// touches its paragraph lies mostly inside the paragraph's crop too, and
+/// the detector found it there again — with the glyph tops cut off by the
+/// crop edge. Both boxes have their centre inside the heading's region,
+/// both were recognised, and the item read `Opening Hours opemig Hours`.
+/// docling never sees the pair: `_find_pdf_aware_layout_ocr_rects` merges
+/// touching cluster rects into connected components before OCR. We keep
+/// the per-region crops (their sizes are #945's cost budget) and drop the
+/// duplicate instead: of two boxes from different crops overlapping by
+/// [`CROP_DUP_OVERLAP`] of the smaller one, the one its crop cut is
+/// dropped; when neither or both were cut, the smaller (a fragment of the
+/// other) — ties keep the earlier crop's. `crops` pairs each crop's
+/// `(l, t, r, b)` in image pixels with its boxes (already in image pixels);
+/// `(iw, ih)` is the image size, whose own edges cut nothing.
+pub fn merge_crop_boxes(crops: Vec<CropBoxes>, (iw, ih): (u32, u32)) -> Vec<DetBox> {
+    let cut = |rect: (u32, u32, u32, u32), b: &DetBox| {
+        let (l, t, r, bt) = (rect.0 as f32, rect.1 as f32, rect.2 as f32, rect.3 as f32);
+        (rect.0 > 0 && b.l - l <= CROP_EDGE_PX)
+            || (rect.1 > 0 && b.t - t <= CROP_EDGE_PX)
+            || (rect.2 < iw && r - b.r <= CROP_EDGE_PX)
+            || (rect.3 < ih && bt - b.b <= CROP_EDGE_PX)
+    };
+    let area = |b: &DetBox| (b.r - b.l).max(0.0) * (b.b - b.t).max(0.0);
+    // (crop index, cut by its crop, box)
+    let mut all: Vec<(usize, bool, DetBox)> = crops
+        .into_iter()
+        .enumerate()
+        .flat_map(|(i, (rect, boxes))| {
+            boxes
+                .into_iter()
+                .map(move |b| (i, cut(rect, &b), b))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    let mut keep = vec![true; all.len()];
+    for i in 0..all.len() {
+        for j in i + 1..all.len() {
+            if !keep[i] || !keep[j] || all[i].0 == all[j].0 {
+                continue;
+            }
+            let (a, b) = (&all[i].2, &all[j].2);
+            let ow = (a.r.min(b.r) - a.l.max(b.l)).max(0.0);
+            let oh = (a.b.min(b.b) - a.t.max(b.t)).max(0.0);
+            let smaller = area(a).min(area(b));
+            if smaller <= 0.0 || ow * oh < CROP_DUP_OVERLAP * smaller {
+                continue;
+            }
+            let drop_j = match (all[i].1, all[j].1) {
+                (false, true) => true,
+                (true, false) => false,
+                _ => area(b) <= area(a),
+            };
+            keep[if drop_j { j } else { i }] = false;
+        }
+    }
+    let mut out: Vec<DetBox> = all
+        .drain(..)
+        .zip(keep)
+        .filter_map(|((_, _, b), k)| k.then_some(b))
+        .collect();
+    sort_boxes(&mut out);
+    out
+}
+
 /// A candidate enclosing rectangle: its area, corners and shorter side.
 type RectCandidate = (f32, [(f32, f32); 4], f32);
 
@@ -730,8 +811,8 @@ pub use session::DetModel;
 mod session {
     use super::{
         budget_enabled, db_boxes, det_crop_size, det_input_size, det_input_size_capped,
-        line_height_p25, max_side_cap, offset_boxes, prep_det_input_to, scan_budget, sort_boxes,
-        DetBox,
+        line_height_p25, max_side_cap, merge_crop_boxes, offset_boxes, prep_det_input_to,
+        scan_budget, DetBox,
     };
     use image::RgbImage;
     use ort::session::Session;
@@ -833,7 +914,7 @@ mod session {
         ) -> Result<Vec<DetBox>, String> {
             let (iw, ih) = img.dimensions();
             let cap = max_side_cap();
-            let mut all = Vec::new();
+            let mut crops = Vec::with_capacity(rects.len());
             for &(l, t, r, b) in rects {
                 let (r, b) = (r.min(iw), b.min(ih));
                 if r <= l || b <= t {
@@ -843,14 +924,12 @@ mod session {
                     continue;
                 };
                 let crop = image::imageops::crop_imm(img, l, t, r - l, b - t).to_image();
-                all.extend(offset_boxes(
-                    self.detect_at(&crop, size)?,
-                    l as f32,
-                    t as f32,
-                ));
+                let boxes = offset_boxes(self.detect_at(&crop, size)?, l as f32, t as f32);
+                crops.push(((l, t, r, b), boxes));
             }
-            sort_boxes(&mut all);
-            Ok(all)
+            // Padded crops overlap; a line two of them saw is kept once
+            // (#1133).
+            Ok(merge_crop_boxes(crops, (iw, ih)))
         }
 
         /// One detector run over `img` resized to `size`; boxes in `img`
@@ -1116,5 +1195,69 @@ mod tests {
                 (600.0, 197.0)
             ]
         );
+    }
+
+    #[test]
+    fn a_line_two_padded_crops_saw_is_kept_once_unclipped() {
+        // #1133's page at 2 px/pt: the heading region's crop holds the
+        // heading whole; the paragraph's crop is padded up into it and cut
+        // the glyph tops off — the second, shorter box of the same line.
+        let heading_crop = (130, 160, 400, 230);
+        let para_crop = (130, 190, 880, 290);
+        let heading = DetBox::rect(141.0, 180.0, 365.0, 213.0, 0.83);
+        let clipped = DetBox::rect(141.0, 190.0, 365.0, 213.0, 0.71);
+        let lines = [
+            DetBox::rect(141.0, 217.0, 846.0, 245.0, 0.83),
+            DetBox::rect(141.0, 245.0, 815.0, 270.0, 0.77),
+        ];
+        let mut para = vec![clipped];
+        para.extend(lines);
+        let out = merge_crop_boxes(
+            vec![(heading_crop, vec![heading]), (para_crop, para.clone())],
+            (1224, 1584),
+        );
+        let tops: Vec<f32> = out.iter().map(|b| b.t).collect();
+        assert_eq!(tops, vec![180.0, 217.0, 245.0], "{out:?}");
+        // The crop order does not decide which copy survives.
+        let out = merge_crop_boxes(
+            vec![(para_crop, para), (heading_crop, vec![heading])],
+            (1224, 1584),
+        );
+        assert_eq!(out.iter().map(|b| b.t).collect::<Vec<_>>(), tops);
+    }
+
+    #[test]
+    fn distinct_lines_and_one_crops_boxes_are_all_kept() {
+        // Boxes of one crop are never merged, however close; neighbouring
+        // crops' boxes that only graze each other are different lines.
+        let a = (0, 0, 500, 100);
+        let b = (0, 90, 500, 200);
+        let out = merge_crop_boxes(
+            vec![
+                (
+                    a,
+                    vec![
+                        DetBox::rect(10.0, 10.0, 400.0, 40.0, 0.9),
+                        DetBox::rect(10.0, 30.0, 400.0, 60.0, 0.9),
+                    ],
+                ),
+                (b, vec![DetBox::rect(10.0, 85.0, 400.0, 120.0, 0.9)]),
+            ],
+            (500, 200),
+        );
+        assert_eq!(out.len(), 3, "{out:?}");
+        // A duplicate neither crop cut: the fragment (smaller) goes.
+        let out = merge_crop_boxes(
+            vec![
+                (a, vec![DetBox::rect(10.0, 20.0, 400.0, 50.0, 0.9)]),
+                (
+                    (0, 0, 500, 200),
+                    vec![DetBox::rect(10.0, 22.0, 300.0, 50.0, 0.9)],
+                ),
+            ],
+            (500, 200),
+        );
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].r, 400.0);
     }
 }

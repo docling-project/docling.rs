@@ -49,6 +49,7 @@ mod md_upstream;
 mod numbers;
 mod odf_upstream;
 mod options_inventory;
+mod padded_crops;
 mod page_breaks;
 mod pandoc;
 mod partial_text_layer;
