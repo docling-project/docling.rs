@@ -95,7 +95,7 @@ csv = "1.4.0"
 # DjVu input (#434): pure-Rust decoder — hidden text layer + JB2/IW44 raster —
 # MIT, no GPL deps (written from the public spec), so no DjVuLibre binary or
 # subprocess; compiles for wasm too. Default features = `std` only.
-djvu-rs = "0.33"
+djvu-rs = "0.45"
 headless_chrome = { version = "1.0", optional = true }
 # O_EXCL temp file with an unpredictable name for the browser pre-render page
 # (avoids a predictable /tmp path a local attacker could pre-plant a symlink at).
