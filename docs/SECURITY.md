@@ -309,8 +309,32 @@ fields.
 
 ## Known residual
 
-No open vulnerability advisory in either lockfile at this writing: the
-`quick-xml` (RUSTSEC-2026-0194 / -0195) and `zip` 8.x
+One vulnerability advisory is open in the root lockfile and accepted until
+its fix can be taken; the bindings' lockfile (`crates/docling-py`) has none.
+
+- **`libsqlite3-sys` 0.30.1 (RUSTSEC-2026-0459, CVE-2026-119375, medium).**
+  The crate bundles SQLite 3.46.0. SQLite before 3.54.0 can return
+  uninitialized page-cache memory when it opens a database together with a
+  `-wal` file whose page size differs from the database's: a crafted pair of
+  files makes ordinary queries return stale bytes of the process's memory.
+  The vector is local — the process has to open files someone else wrote.
+  - *Where it is linked:* only `docling-rag`'s SQLite store (its `sqlite`
+    feature, through `sqlx`). The converter, the CLI, `docling-serve` and the
+    Python / Node / wasm / C bindings do not link SQLite at all.
+  - *Exposure:* the store opens one file, the operator's `RAG_DATABASE_URL`
+    (`sqlite://data/rag.db` by default), which the process creates itself; no
+    request, upload or ingested document names a database. It takes write
+    access to that directory to plant a crafted pair — keep the store's
+    directory writable by the service account only, or use the Postgres
+    store (a build with the `postgres` feature and
+    `RAG_DATABASE_URL=postgres://…`), which opens no SQLite file.
+  - *Why it is not bumped:* cargo links one `libsqlite3-sys` per build and
+    `sqlx` owns the range — 0.8.6 pins `^0.30.1`, and 0.9.0 (which also needs
+    Rust 1.94, above this workspace's 1.92) stops at `< 0.38.0`. The patched
+    releases are `>= 0.39.0`. The bump follows the first `sqlx` release that
+    admits them; the ignore in `deps-update.yml` is dropped with it.
+
+The `quick-xml` (RUSTSEC-2026-0194 / -0195) and `zip` 8.x
 (RUSTSEC-2026-0367 / -0368 / -0369) residuals of earlier releases are gone —
 `calamine` 0.37 moved to `quick-xml` 0.41 and `zip` 9, and the last
 `quick-xml` 0.38 came through `object_store` 0.12, bumped to 0.14 (#952).
@@ -347,7 +371,7 @@ cargo audit         # known-CVE scan of the dependency tree
 CI runs the same scan weekly over both committed lockfiles (the `audit` job in
 `.github/workflows/deps-update.yml`; an accepted residual advisory goes into
 its `AUDIT_IGNORES` *and* the "Known residual" section above — keep the two
-in sync; the list is empty at this writing). A new finding fails
+in sync; RUSTSEC-2026-0459 is the one entry at this writing). A new finding fails
 that job — the red run is the alarm — and triggers `audit-fix`, which runs
 `cargo audit fix` on both lockfiles and opens a `fix(deps):` PR with the
 semver-compatible bump when one exists; an advisory that needs a new major
