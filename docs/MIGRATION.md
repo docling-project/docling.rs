@@ -1555,7 +1555,7 @@ exact, 450 diff lines** against the groundtruth, 6 / 18 and 414 against live doc
   - the published Docker images set `=0` with the two packages they install pinned in `DOCLING_RS_FONT_DIRS`
   - `DOCLING_RS_DEBUG=1` names the face each style resolved to
 - mean |Δ| 0.84/255 per channel against the shim over the snapshot corpus
-- on the shim-rendered baselines 75/101 snapshots exact and 647 groundtruth diff lines where the shim itself is 101 / 511
+- on the shim-rendered baselines 77/101 snapshots exact and 597 groundtruth diff lines where the shim itself is 101 / 450
 - Type1C fonts carrying the deprecated CFF `dotsection` operator draw their periods and i-dots, #531
 - pdfium's chain only in a build with the opt-in `pdfium` feature under `DOCLING_RS_RENDERER=pdfium`
 - #419: layout boxes are refitted to the cells they claim, empty ones dropped and contained orphans folded in before the reading order runs, as docling's `LayoutPostprocessor` does

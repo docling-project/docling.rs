@@ -218,19 +218,20 @@ Blend2D's bilinear weights are 8-bit — so the shim stays the reference the
 baselines are pinned to and the test gates a regression (worst < 10,
 mean < 2), not identity. What that gap does to the models, scored against
 the docling-parse-rendered baselines with the two conformance scripts
-(2026-11-11):
+(2026-11-17):
 
 | model inputs rendered by | snapshots exact (101) | groundtruth (21 files) |
 |---|---|---|
-| docling-parse shim (`DOCLING_RS_RENDERER=docling-parse`, the reference) | 101 | 511 diff lines, 9 strict |
-| **Rust renderer** (the default) | 75 | 647 diff lines, 7 strict |
+| docling-parse shim (`DOCLING_RS_RENDERER=docling-parse`, the reference) | 101 | 450 diff lines, 9 strict |
+| **Rust renderer** (the default) | 77 | 597 diff lines, 7 strict |
 
-The groundtruth gap is in six files: `2203.01017v2` 24 → 64 and
+The groundtruth gap is in six files: `2203.01017v2` 24 → 66 and
 `redp5110_sampled` 28 → 53 (TableFormer grids), `right_to_left_03`
-exact → 28, `table_mislabeled_as_picture` 24 → 40, `elsevier-00` 287 →
-304, `2305.03393v1` exact → 6 (Fig. 5's caption box reaches the file
-name's underscores, 0.08 pt clear of it under the shim's render); the
-others move by at most 4 lines.
+exact → 28, `table_mislabeled_as_picture` 24 → 40, `elsevier-00` 236 →
+270, `2305.03393v1` exact → 6 (Fig. 5's caption box reaches the file
+name's underscores, 0.08 pt clear of it under the shim's render).
+`table_misidentified_as_form` goes the other way, 28 → 18; the others
+move by at most 4 lines.
 
 Heron's borderline labels move with ±1/255 of anti-aliasing, so the
 snapshots that drift are the ML-borderline ones: the matplotlib heat-map
