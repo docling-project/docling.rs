@@ -1518,6 +1518,12 @@ pub(crate) struct Glyph {
     /// Drawn in an invisible text rendering mode (`Tr` 3 or 7) — an OCR
     /// layer over a scan. Only the script-position stage reads it (#1005).
     pub(crate) invisible: bool,
+    /// Letter-spaced from the glyph before it: the two are letters of one
+    /// word a typesetter set apart with a space glyph between them, which
+    /// the text parser took out (`textparse::drop_letter_spacing_spaces`,
+    /// #1139). The gap is still on the page, so the word contraction is
+    /// told it is no word boundary (`dp_lines::tracked_gaps`).
+    pub(crate) spaced: bool,
 }
 
 impl Glyph {

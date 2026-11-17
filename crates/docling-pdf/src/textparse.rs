@@ -2117,6 +2117,7 @@ fn page_glyphs_and_inks(
         );
         out.retain(|g| on_page(g, pb.w, pb.h));
         drop_overprinted_spaces(&mut out);
+        drop_letter_spacing_spaces(&mut out);
         drop_shadow_runs(&mut out);
         let (w, h) = (f64::from(pb.w), f64::from(pb.h));
         inks.retain(|ink| match *ink {
@@ -2414,6 +2415,189 @@ fn drop_overprinted_spaces(glyphs: &mut Vec<Glyph>) {
         if overprinted(&glyphs[i], &glyphs[i + 1]) {
             keep[i] = false;
         }
+    }
+    let mut it = keep.into_iter();
+    glyphs.retain(|_| it.next().unwrap_or(true));
+}
+
+/// The share of a space's advance its successor may start at and still have
+/// taken part of the space back ([`drop_letter_spacing_spaces`]): a word
+/// space set at its width, or stretched by justification, is at or past 1.
+const TAKEN_BACK_SPACE: f32 = 0.95;
+
+/// How much wider than its letter spacing a letter-spaced line's word spaces
+/// are, at least ([`drop_letter_spacing_spaces`]). EUR-Lex's headings: 3.
+const WORD_OVER_LETTER_SPACING: f32 = 1.5;
+
+/// Points two letter gaps may differ by and still be one letter spacing —
+/// `dp_lines`' tolerance for a tracking set without space glyphs (#921): a
+/// typesetter spaces a word with one cursor move, which rounding blurs.
+fn letter_spacing_tolerance(gap: f32) -> f32 {
+    (0.08 * gap).max(0.25)
+}
+
+/// Drop the space glyphs a typesetter spaces the letters of a word with
+/// (#1139). Arbortext sets a letter-spaced heading (EUR-Lex: `1.1.1. KPI
+/// bezogen auf den Umsatz (Umsatz-KPI)`) as letter, space glyph, letter, and
+/// moves the pen after each space: back by a fifth of its advance inside a
+/// word, forward by one and a half advances between words. On the page that
+/// is tracking — letters 1.7 pt apart, words 5.1 pt apart — but with a space
+/// glyph at every letter the line read `K P I b e z o g e n a u f …`, one
+/// "word" per letter; pdftotext reads the words. docling-parse keeps every
+/// space glyph as a character, so this is a deliberate divergence like
+/// [`drop_overprinted_spaces`] (`docs/MIGRATION.md`), and as narrow:
+///
+/// * a *chain* is a stretch of the stream where single glyphs and space
+///   glyphs alternate on one line — every glyph stands alone between two
+///   spaces, which no run of words does;
+/// * in it, three or more consecutive spaces between letters, each with part
+///   of its advance taken back (the next letter starts before
+///   [`TAKEN_BACK_SPACE`] of it) and all leaving the same gap in points, are
+///   letter spacing — unless the letters are one character repeated (`C C C
+///   C`, a row of tokens);
+/// * every space of the chain that leaves that gap goes with them (the short
+///   words of the heading, `K P I`, `a u f`; its brackets and hyphen), and
+///   the others stay: they are the word spaces;
+/// * those word spaces, and the spaces between the chain and its neighbours,
+///   have to be plainly wider ([`WORD_OVER_LETTER_SPACING`]). A tightened
+///   line sets `x y z` between two words with the same shrunken space on
+///   either side, and kerning pulls a space in before `A`, `V` or `T`:
+///   there the letters are no closer than the words, and the chain is left
+///   as it is drawn.
+///
+/// The letters then stand apart with no space glyph between them, which is
+/// what `dp_lines::tracked_gaps` reads as tracking inside one word.
+fn drop_letter_spacing_spaces(glyphs: &mut Vec<Glyph>) {
+    let boxed =
+        |g: &Glyph| g.quad.is_none() && [g.ll, g.lb, g.lr, g.lt].iter().all(|v| v.is_finite());
+    let same_line = |a: &Glyph, b: &Glyph| b.lb < a.lt && b.lt > a.lb;
+    // `glyphs[i]`, a space, `glyphs[i + 2]`: two glyphs of one line with one
+    // space glyph between them, the second to the right of the first.
+    let link = |i: usize| -> bool {
+        let (Some(a), Some(sp), Some(b)) = (glyphs.get(i), glyphs.get(i + 1), glyphs.get(i + 2))
+        else {
+            return false;
+        };
+        a.ch != ' '
+            && sp.ch == ' '
+            && b.ch != ' '
+            && boxed(a)
+            && boxed(sp)
+            && boxed(b)
+            && sp.lr > sp.ll
+            && same_line(a, sp)
+            && same_line(a, b)
+            && b.ll >= a.lr
+    };
+    // A glyph with another right before or after it on its line, no space
+    // between: part of a word, not a letter standing alone.
+    let in_word_before = |i: usize| {
+        i > 0
+            && glyphs[i - 1].ch != ' '
+            && boxed(&glyphs[i - 1])
+            && same_line(&glyphs[i - 1], &glyphs[i])
+    };
+    let in_word_after = |i: usize| {
+        glyphs
+            .get(i + 1)
+            .is_some_and(|n| n.ch != ' ' && boxed(n) && same_line(n, &glyphs[i]))
+    };
+
+    // The spaces to drop, by index.
+    let mut dropped: Vec<usize> = Vec::new();
+    let mut i = 0;
+    while i < glyphs.len() {
+        if !link(i) {
+            i += 1;
+            continue;
+        }
+        // The chain's glyphs, `first`, `first + 2`, … `last`.
+        let first = i;
+        let mut last = i;
+        while link(last) {
+            last += 2;
+        }
+        i = last + 1;
+        // Space `k` sits between glyphs `first + 2k` and `first + 2k + 2`.
+        let spaces = (last - first) / 2;
+        let gap = |k: usize| glyphs[first + 2 * k + 2].ll - glyphs[first + 2 * k].lr;
+        let taken_back = |k: usize| {
+            let sp = &glyphs[first + 2 * k + 1];
+            glyphs[first + 2 * k + 2].ll - sp.ll <= TAKEN_BACK_SPACE * (sp.lr - sp.ll)
+        };
+        // The chain's end glyphs may belong to the words beside it; the
+        // spaces next to those are what lies between it and its neighbours.
+        let (lo_k, hi_k) = (
+            usize::from(in_word_before(first)),
+            spaces - usize::from(in_word_after(last)),
+        );
+        if hi_k < lo_k + 3 {
+            continue;
+        }
+        let letter = |k: usize| glyphs[first + 2 * k].ch.is_alphabetic();
+
+        // The letter spacings of the chain: a stretch of three or more spaces
+        // between letters, each taken back, all leaving one gap.
+        let mut spacings: Vec<(f32, f32)> = Vec::new();
+        let mut k = lo_k;
+        while k < hi_k {
+            if !(taken_back(k) && letter(k) && letter(k + 1)) {
+                k += 1;
+                continue;
+            }
+            let (mut lo, mut hi) = (gap(k), gap(k));
+            let mut end = k + 1;
+            while end < hi_k
+                && taken_back(end)
+                && letter(end + 1)
+                && hi.max(gap(end)) - lo.min(gap(end)) <= letter_spacing_tolerance(lo)
+            {
+                lo = lo.min(gap(end));
+                hi = hi.max(gap(end));
+                end += 1;
+            }
+            let one_char = (k..=end).all(|j| glyphs[first + 2 * j].ch == glyphs[first + 2 * k].ch);
+            if end - k >= 3 && !one_char {
+                spacings.push((lo, hi));
+            }
+            k = end.max(k + 1);
+        }
+        if spacings.is_empty() {
+            continue;
+        }
+        let spaced = |k: usize| {
+            (lo_k..hi_k).contains(&k)
+                && taken_back(k)
+                && spacings.iter().any(|&(lo, hi)| {
+                    let tol = letter_spacing_tolerance(lo);
+                    gap(k) >= lo - tol && gap(k) <= hi + tol
+                })
+        };
+        // Every other space of the chain, and the two beside it, is a word
+        // space, and a word space is plainly wider than the letter spacing.
+        // Where one is not, the line has no letter spacing to tell from its
+        // word spacing, and stays as it is drawn.
+        let widest = spacings.iter().map(|s| s.1).fold(0.0, f32::max);
+        if (0..spaces).any(|k| !spaced(k) && gap(k) < WORD_OVER_LETTER_SPACING * widest) {
+            continue;
+        }
+        dropped.extend(
+            (lo_k..hi_k)
+                .filter(|&k| spaced(k))
+                .map(|k| first + 2 * k + 1),
+        );
+    }
+    if dropped.is_empty() {
+        return;
+    }
+    let mut keep = vec![true; glyphs.len()];
+    for at in dropped {
+        keep[at] = false;
+        // The letter after it is as far from its neighbour as before: say
+        // that the gap is letter spacing, for a word left alone on its line
+        // cell (a justified heading's `KPI`, `auf`) has no chain of its own
+        // for the word contraction to recognise it by.
+        glyphs[at + 1].spaced = true;
     }
     let mut it = keep.into_iter();
     glyphs.retain(|_| it.next().unwrap_or(true));
@@ -3438,6 +3622,7 @@ fn show_text(
                     pen,
                     math_font: font.math,
                     invisible: false,
+                    spaced: false,
                 });
             }
         }
@@ -5585,6 +5770,123 @@ mod base14_fonts {
         );
     }
 
+    /// One line of 7.5 pt Helvetica set the way Arbortext letter-spaces a
+    /// heading (#1139): every glyph its own string, a space glyph after it,
+    /// and a `TJ` offset after the space — `within` between the letters of a
+    /// word, `between` between words (thousandths of an em, positive pulls
+    /// the next glyph back). The line cells' words, in order.
+    fn letter_spaced(words: &[&str], within: i32, between: i32) -> Vec<String> {
+        letter_spaced_under(crate::dp_lines::WordGap::Adaptive, words, within, between)
+    }
+
+    /// [`letter_spaced`] under the word-gap rule `gap`.
+    fn letter_spaced_under(
+        gap: crate::dp_lines::WordGap,
+        words: &[&str],
+        within: i32,
+        between: i32,
+    ) -> Vec<String> {
+        let f1 = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>";
+        let mut tj = String::new();
+        for (wi, word) in words.iter().enumerate() {
+            for (ci, ch) in word.chars().enumerate() {
+                if wi + ci > 0 {
+                    let offset = if ci == 0 { between } else { within };
+                    tj.push_str(&format!("( ) {offset} "));
+                }
+                match ch {
+                    '(' | ')' => tj.push_str(&format!("(\\{ch}) ")),
+                    _ => tj.push_str(&format!("({ch}) ")),
+                }
+            }
+        }
+        let content = format!("BT /F1 7.5 Tf 1 0 0 1 72 700 Tm [{tj}] TJ ET\n");
+        let pdf = pdf_with_content(f1, content.as_bytes());
+        let mut parser = super::PageTextParser::open(&pdf).expect("opens");
+        parser.set_word_gap(Some(gap));
+        parser
+            .cells(0)
+            .prose
+            .iter()
+            .flat_map(|c| c.text.split(' ').map(str::to_owned).collect::<Vec<_>>())
+            .collect()
+    }
+
+    /// #1139: Arbortext letter-spaces a heading with a space glyph after
+    /// every letter, taking a fifth of the space back inside a word and
+    /// adding one and a half between words (EUR-Lex 02021R2178, Annex I:
+    /// `1.1.1. KPI bezogen auf den Umsatz (Umsatz-KPI)`). The page shows
+    /// tracking, pdftotext reads the words, and so does the line cell —
+    /// where every letter was a word of its own (docling-parse keeps the
+    /// space glyphs). Helvetica's space is 278/1000 em: an offset of 50
+    /// leaves 0.82 of it, -400 makes it 2.44.
+    #[test]
+    fn letters_set_apart_with_space_glyphs_are_one_word() {
+        let heading = ["KPI", "bezogen", "auf", "den", "Umsatz", "(Umsatz-KPI)"];
+        assert_eq!(letter_spaced(&heading, 50, -400), heading);
+        // A justified heading: its words 45 pt apart, each a line cell of
+        // its own. `KPI` and `auf` have no chain of three letter gaps there
+        // for the word contraction to know tracking by — the parser says so
+        // (`Glyph::spaced`).
+        assert_eq!(letter_spaced(&heading, 50, -6000), heading);
+        // One word alone on its line.
+        assert_eq!(letter_spaced(&["INHALT"], 50, 0), ["INHALT"]);
+        // A fixed factor keeps the words too: the gaps are settled before
+        // any threshold is asked.
+        assert_eq!(
+            letter_spaced_under(crate::dp_lines::WordGap::Factor(0.2), &heading, 50, -400),
+            heading
+        );
+        // docling-parse ≤ 6's contraction (`pdf_word_gap=legacy`) knows no
+        // tracking: it cuts at every letter gap, as it does for a tracking
+        // set without space glyphs (#921).
+        let legacy = letter_spaced_under(crate::dp_lines::WordGap::Legacy, &heading, 50, -400);
+        assert_eq!(legacy[..3], ["K", "P", "I"], "{legacy:?}");
+    }
+
+    /// What the rule of #1139 leaves as it is drawn: a line whose letters are
+    /// no closer than its words has no letter spacing to tell from its word
+    /// spacing.
+    #[test]
+    fn single_letters_between_spaces_are_not_always_letter_spacing() {
+        let each = |words: &[&str]| -> Vec<String> {
+            words
+                .iter()
+                .flat_map(|w| w.chars().map(String::from))
+                .collect()
+        };
+        let heading = ["KPI", "bezogen", "auf"];
+        // Spaces at their own width, or stretched: single letters, as set.
+        assert_eq!(letter_spaced(&heading, 0, -400), each(&heading));
+        assert_eq!(letter_spaced(&heading, -100, -400), each(&heading));
+        // Word spaces not plainly wider than the letter spacing (0.82 of a
+        // space against a whole one): no telling which is which.
+        assert_eq!(letter_spaced(&heading, 50, 0), each(&heading));
+        // A tightened line: `a b c d` between two words, every space pulled
+        // in alike — its neighbours are as close as its letters.
+        let f1 = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>";
+        let line = |content: &[u8]| -> Vec<String> {
+            super::PageTextParser::open(&pdf_with_content(f1, content))
+                .expect("opens")
+                .cells(0)
+                .prose
+                .into_iter()
+                .map(|c| c.text)
+                .collect()
+        };
+        assert_eq!(
+            line(
+                b"BT /F1 10 Tf 72 700 Td \
+                  [(von) ( ) 50 (a) ( ) 50 (b) ( ) 50 (c) ( ) 50 (d) ( ) 50 (bis)] TJ ET\n"
+            ),
+            ["von a b c d bis"]
+        );
+        // One character repeated is a row of tokens, and a row of digits is
+        // no word either.
+        assert_eq!(letter_spaced(&["CCCCC"], 50, 0), each(&["CCCCC"]));
+        assert_eq!(letter_spaced(&["12345"], 50, 0), each(&["12345"]));
+    }
+
     /// A text shadow: a word processor exports a heading with a shadow
     /// effect as the same run drawn twice — the shadow in black, then the
     /// text in colour over it, shifted up and left by a fraction of a point.
@@ -5863,6 +6165,7 @@ mod base14_fonts {
             pen: Some([pen, 0.0, 10.0]),
             math_font: false,
             invisible: false,
+            spaced: false,
         };
         let mut out = vec![
             glyph('o', 0.0, 0.0),

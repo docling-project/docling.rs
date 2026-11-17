@@ -60,6 +60,8 @@ struct Cell {
     pen: Option<[f64; 3]>,
     /// The glyph's font is a math face ([`Glyph::math_font`]).
     math_font: bool,
+    /// Letter-spaced from the glyph before it ([`Glyph::spaced`]).
+    spaced: bool,
 }
 
 impl Cell {
@@ -427,6 +429,7 @@ fn build_cells(glyphs: &[Glyph], euclidean: bool) -> Vec<Cell> {
             b_t: (g.lb as f64).max(g.lt as f64),
             pen: g.pen.map(|p| p.map(f64::from)),
             math_font: g.math_font,
+            spaced: g.spaced,
         });
     }
     cells
@@ -966,6 +969,11 @@ fn tracked_gaps(run: &[RunCell]) -> Vec<bool> {
     };
 
     let mut tracked = vec![false; run.len()];
+    // A gap the text parser already settled: the letters were set apart
+    // with a space glyph between them, which it took out (#1139).
+    for g in &gaps {
+        tracked[g.right] = run[g.right].cell.spaced;
+    }
     let mut leader = vec![false; run.len()];
     let mut letter_tracking: Vec<f64> = Vec::new();
     let mut k = 0;
@@ -1459,6 +1467,7 @@ mod tests {
             pen: None,
             math_font: false,
             invisible: false,
+            spaced: false,
         }
     }
 
@@ -1555,6 +1564,7 @@ mod tests {
             pen: None,
             math_font: false,
             invisible: false,
+            spaced: false,
         };
         let mut g = Vec::new();
         let mut run = |text: &str, edges: &[f32], font: u64| {

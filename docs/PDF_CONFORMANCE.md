@@ -344,6 +344,19 @@ diff lines and recovers content docling drops):
   of a rotated run (its loose boxes stack on one edge) stay. The groundtruth
   table is unchanged; one snapshot moves (a LaTeX figure's `𝐤𝑡𝑅 ]}` →
   `𝐤𝑡𝑅]}`).
+* **Letter spacing set with space glyphs** (#1139): Arbortext letter-spaces
+  a heading as letter, space glyph, letter, taking a fifth of each space
+  back inside a word and adding one and a half between words. docling-parse
+  keeps every space glyph as a character (`K P I b e z o g e n a u f …`);
+  the page shows tracking and pdftotext reads `KPI bezogen auf …`. A
+  stretch of single glyphs alternating with space glyphs, in which three or
+  more consecutive spaces between letters are each partly taken back and
+  leave one gap (within 0.25 pt), and whose other spaces are at least
+  1.5 × that gap, loses those spaces (`textparse::drop_letter_spacing_spaces`);
+  the letters after them are marked so the word contraction keeps the gap
+  inside the word (`dp_lines::tracked_gaps`). Spaces at their own width, a
+  uniformly tightened line, one character repeated and rows of digits stay
+  as drawn. The groundtruth table and the snapshots are unchanged.
 * **Text panels** (#157): an *uncaptioned* `picture` that is really a dense,
   wide, multi-line text panel is demoted to per-paragraph `text` regions
   instead of shipping as pixels (`assemble::recover_text_panels`); a
