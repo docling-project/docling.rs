@@ -888,8 +888,9 @@ fn is_gid_name(name: &[u8]) -> bool {
         && s.as_bytes()[alpha..].iter().all(|b| b.is_ascii_digit())
 }
 
-/// The font's ascent and descent (1000-unit em) for its loose char boxes,
-/// and whether docling-parse 7.24 rejects its descriptor metrics
+/// The top and bottom of the font's loose char boxes above the baseline
+/// (1000-unit em) — docling-parse's: the ascent and descent, scaled by
+/// `CapHeight / Ascent` where the descriptor gives a cap height — and whether docling-parse 7.24 rejects its descriptor metrics
 /// (`invalid_vertical_metrics`, `init_ascent_and_descent`) — then it boxes
 /// each glyph by its embedded outline instead ([`Font::ink_y`]):
 ///
@@ -929,6 +930,29 @@ fn font_ascent_descent(doc: &Document, fdict: &Dictionary, two_byte: bool) -> (f
             _ => None,
         });
     let usable = |v: f64| v.abs() > 1e-3 && plausible(v);
+    // docling-parse does not box a glyph between the font's descent and
+    // ascent but between both scaled by `CapHeight / Ascent`
+    // (`pdf_state<TEXT>`: `compute_rect(font_descent*ratio,
+    // font_ascent*ratio, width)`, the ratio taken when it lies in
+    // 0.05..=1): the box tops out at the capitals, and the descent shrinks
+    // in proportion. For most text faces that is a few percent (a
+    // Libertine line cell is 15.3 pt where the unscaled box is 16.0), and
+    // it is what keeps a face with inflated metrics readable: Cambria's
+    // regular face declares `/Ascent 3117 /Descent -2464 /CapHeight 667`,
+    // a 5.6 em box around every line unscaled — each line cell covering
+    // the four lines around it, none of them more than a fifth inside its
+    // own one-line layout region — and 1.19 em scaled (0.667 above the
+    // baseline, 0.527 below). A font without a `/CapHeight` keeps its
+    // metrics as they are (docling-parse reads a standard-14 face's from
+    // its AFM, like the ascent and descent this port defaults).
+    let cap_scaled = |asc: f64, desc: f64| {
+        let ratio = read(b"CapHeight")
+            .filter(|&c| plausible(c))
+            .map(|c| c / asc)
+            .filter(|r| (0.05..=1.0).contains(r))
+            .unwrap_or(1.0);
+        (asc * ratio, desc * ratio)
+    };
     let mut invalid = false;
     let asc = match read(b"Ascent") {
         Some(v) if plausible(v) => v,
@@ -950,7 +974,8 @@ fn font_ascent_descent(doc: &Document, fdict: &Dictionary, two_byte: bool) -> (f
         if let Some(b) = bbox.filter(|b| {
             b[1] <= 0.0 && b[3] >= 0.0 && b[1] < b[3] && plausible(b[1]) && plausible(b[3])
         }) {
-            return (b[3], b[1], true);
+            let (asc, desc) = cap_scaled(b[3], b[1]);
+            return (asc, desc, true);
         }
     }
     // Some subsetted fonts carry a degenerate FontDescriptor (`/Ascent 0
@@ -962,6 +987,7 @@ fn font_ascent_descent(doc: &Document, fdict: &Dictionary, two_byte: bool) -> (f
     if asc - desc <= 1.0 {
         return (750.0, -250.0, invalid);
     }
+    let (asc, desc) = cap_scaled(asc, desc);
     (asc, desc, invalid)
 }
 
@@ -1895,10 +1921,13 @@ fn drop_overpainted_cells(cells: &mut Vec<crate::pdfium_backend::TextCell>) {
             // whose ascent and descent make every cell 55 pt tall on lines
             // 11.7 pt apart — each line overlaps the next by four fifths, and
             // a short line under a long one read as paint: 37 of the page's
-            // 44 lines went, and its table with them). A cell's height is the
-            // font's claim; its width per character is what was drawn, and
-            // lines of prose are never set closer than that, so a shift of
-            // more than half of it is another line, however tall the boxes.
+            // 44 lines went, and its table with them. That face has a cap
+            // height and its boxes are scaled back now,
+            // `font_ascent_descent`; one without is boxed as it claims). A
+            // cell's height is the font's claim; its width per character is
+            // what was drawn, and lines of prose are never set closer than
+            // that, so a shift of more than half of it is another line,
+            // however tall the boxes.
             let shift = ((a.t + a.b) - (b.t + b.b)).abs() / 2.0;
             if shift > 0.5 * a.mean_advance().min(b.mean_advance()) {
                 continue;
@@ -5433,6 +5462,44 @@ mod base14_fonts {
         assert_eq!(font(None, None, true), (750.0, -250.0, false));
     }
 
+    /// docling-parse boxes a glyph between the descent and the ascent scaled
+    /// by `CapHeight / Ascent` (`pdf_state<TEXT>`'s `ratio`, taken in
+    /// 0.05..=1): the box tops out at the capitals. For Arial that is a
+    /// fifth off; for Cambria's regular face, whose descriptor claims 3117 /
+    /// -2464, it is the difference between a 5.6 em box around every line and
+    /// docling-parse's 1.19 em — its line cells on the page of #1129 are
+    /// 11.9 pt tall at 10 pt, and so are ours. A cap height above the ascent
+    /// or next to nothing is no ratio, and a descriptor without one leaves
+    /// the metrics as they are.
+    #[test]
+    fn the_char_box_is_scaled_by_cap_height_over_ascent() {
+        use lopdf::dictionary;
+        let font = |asc: i64, desc: i64, cap: Option<i64>| {
+            let mut fd = dictionary! {
+                "Type" => "FontDescriptor", "FontName" => "X",
+                "Ascent" => asc, "Descent" => desc,
+            };
+            if let Some(c) = cap {
+                fd.set("CapHeight", c);
+            }
+            let f = dictionary! {
+                "Type" => "Font", "Subtype" => "TrueType", "BaseFont" => "X",
+                "FontDescriptor" => fd,
+            };
+            let (a, d, invalid) =
+                super::font_ascent_descent(&lopdf::Document::with_version("1.5"), &f, false);
+            assert!(!invalid);
+            ((a * 10.0).round() / 10.0, (d * 10.0).round() / 10.0)
+        };
+        assert_eq!(font(905, -212, Some(716)), (716.0, -167.7));
+        assert_eq!(font(3117, -2464, Some(667)), (667.0, -527.3));
+        assert_eq!(font(1047, -299, Some(667)), (667.0, -190.5));
+        assert_eq!(font(905, -212, None), (905.0, -212.0));
+        assert_eq!(font(905, -212, Some(1200)), (905.0, -212.0));
+        assert_eq!(font(905, -212, Some(10)), (905.0, -212.0));
+        assert_eq!(font(905, -212, Some(0)), (905.0, -212.0));
+    }
+
     /// redp5110 p. 14 draws its navigation arrows in `SymbolMT`, whose
     /// `/ToUnicode` maps them into the private-use symbol charset
     /// (`U+F0AE`): read through Symbol's encoding they are `→`, as
@@ -6272,12 +6339,13 @@ mod overpainted {
         assert_eq!(cells.len(), 4);
     }
 
-    /// #1129: Cambria's regular face declares an ascent of 3117 and a descent
-    /// of -2464, so each of its lines sits in a box 5.6 em tall and overlaps
-    /// the next line by four fifths. A short line under a long one was "one
-    /// cell inside another on the same band" — paint — and both went: these
-    /// are the issue page's cells, of whose 44 lines 7 were left. Lines one
-    /// pitch apart are lines; the stacked logo, at one height, still goes.
+    /// #1129: a face that declares an ascent of 3117 and a descent of -2464
+    /// (Cambria's regular, read without its cap height) puts each of its
+    /// lines in a box 5.6 em tall that overlaps the next line by four
+    /// fifths. A short line under a long one was "one cell inside another on
+    /// the same band" — paint — and both went: these are the issue page's
+    /// cells, of whose 44 lines 7 were left. Lines one pitch apart are
+    /// lines; the stacked logo, at one height, still goes.
     #[test]
     fn lines_of_a_tall_box_font_are_not_paint() {
         let mut cells = vec![
@@ -6312,9 +6380,12 @@ mod overpainted {
     }
 
     /// The same through the parser: a paragraph and its short last line in a
-    /// font whose descriptor declares Cambria's metrics. Every line and every
-    /// word of the text-layer page (the browser's and `convert_text_layer`'s)
-    /// is there; before, the page came back empty.
+    /// font whose descriptor declares an ascent of 3117 and a descent of
+    /// -2464 and no cap height to scale them by ([`super::font_ascent_descent`]
+    /// — with Cambria's `/CapHeight 667` the boxes are docling-parse's
+    /// 1.19 em and the question does not arise). Every line and every word of
+    /// the text-layer page (the browser's and `convert_text_layer`'s) is
+    /// there; before, the page came back empty.
     #[test]
     fn a_tall_box_font_keeps_its_lines_on_the_text_layer_page() {
         let widths = "500 ".repeat(91);
@@ -6323,7 +6394,7 @@ mod overpainted {
              /FirstChar 32/LastChar 122/Widths[{widths}]\
              /FontDescriptor<</Type/FontDescriptor/FontName/Cambria/Flags 32\
              /FontBBox[-1475 -2464 2868 3117]/Ascent 3117/Descent -2464\
-             /CapHeight 667/ItalicAngle 0/StemV 80>>>>"
+             /ItalicAngle 0/StemV 80>>>>"
         );
         let content = b"BT /F1 10 Tf 72 700 Td \
             (Carefully pour off the supernatant from both of the tubes) Tj \

@@ -1,3 +1,1 @@
-Input
-
 <!-- image -->

@@ -32,8 +32,8 @@ matches the headline below.
 
 ## Current state
 
-**9 / 21 strict** against upstream's groundtruth — **511 diff lines**
-(measured 2026-11-12; snapshots 101/101 exact). The mirror refresh at
+**9 / 21 strict** against upstream's groundtruth — **450 diff lines**
+(measured 2026-11-17; snapshots 101/101 exact). The mirror refresh at
 docling `a7760ab` added three fixtures — `acroform_sample` (16),
 `elsevier-00` (287), `newspaper-00` (26) — and changed none of the others;
 the 18 files scored before went 180 → 168 with docling-parse's outline
@@ -42,11 +42,14 @@ boxes for a font whose descriptor metrics it rejects (the parity table:
 docling-parse 7.25's symbol-font decoding (#1113, the parity table:
 `2203.01017v2` 12 → 24, `redp5110_sampled` 26 → 28) — a move *toward*
 live docling, whose 7.25 reads what the groundtruth, still 7.24, does
-not.
+not. docling-parse's char box — the font's descent and ascent scaled by
+`CapHeight / Ascent`, the parity table — then took the 21 files 511 → 450:
+`elsevier-00` 287 → 236 and `table_misidentified_as_form` 38 → 28, the
+other 19 unmoved.
 
 Against **live docling 2.150.0** (docling-parse 7.25.0, docling-core
 2.106.0, docling-ibm-models 4.0.4) the 18 upstream fixtures score **6 / 18
-strict, 475 diff lines** (the three `base14_fonts_rot*` files are our own
+strict, 414 diff lines** (the three `base14_fonts_rot*` files are our own
 fixtures, not run there). Live docling no longer reproduces upstream's
 committed groundtruth on five files (60 lines): docling-parse 7.25's word
 segmentation (docling-parse#437 — word gaps judged in em, no per-line
@@ -77,8 +80,8 @@ when docling regenerates it.
 | multi_page | 32 | 32 | docling-parse maps the list bullet glyph to `∞` and docling keeps it as text (`- ∞ IBM MT/ST …`); we read a bullet and drop it as the marker |
 | redp5110_sampled | 28 | 26 | monospace code docling-parse spaces around punctuation (`EMPLOYEES .`, `( SESSION_USER , 'MGR' )`); a list bullet docling-parse reads as its CID (`r`), we as `�`; the groundtruth's private-use arrows (`\uF0AE HR\_SCHEMA`), which live docling reads like us — `→ HR\_SCHEMA→` (#1113) |
 | table_mislabeled_as_picture | 24 | 24 | the survey over-detected as tables; blank cells docling keeps |
-| table_misidentified_as_form | 38 | 38 | the form container's nested table / picture (docling#4064): docling nests them in the form region and keeps the heading, we flatten the region |
-| elsevier-00 | 287 | 285 | roughly a third: soft hyphens — docling keeps a line-final U+00AD and a space (`excep­ tionally`, 57 paragraphs), we join the word; a fifth: hyperlinks — docling's `_match_hyperlink` now links every text label, not footnotes only (the journal homepage, ~50 reference entries); the rest: the two-column body's paragraph order (adjacent `Geological importance` / `Educational potential` paragraphs swapped, affiliations one item off), letter-spaced headings (`A B S T R A C T`, which we join), one table's columns |
+| table_misidentified_as_form | 28 | 28 | the form container's nested table / picture (docling#4064): docling nests them in the form region and keeps the heading, we flatten the region |
+| elsevier-00 | 236 | 234 | roughly a third: soft hyphens — docling keeps a line-final U+00AD and a space (`excep­ tionally`, 57 paragraphs), we join the word; a fifth: hyperlinks — docling's `_match_hyperlink` now links every text label, not footnotes only (the journal homepage, ~50 reference entries); the rest: the two-column body's paragraph order (adjacent `Geological importance` / `Educational potential` paragraphs swapped, affiliations one item off), letter-spaced headings (`A B S T R A C T`, which we join), one table's columns |
 
 The two Korean pages `skipped_1page` / `skipped_2pages` carry no Markdown
 groundtruth and are not scored: docling keeps them out of its end-to-end
@@ -215,19 +218,20 @@ Blend2D's bilinear weights are 8-bit — so the shim stays the reference the
 baselines are pinned to and the test gates a regression (worst < 10,
 mean < 2), not identity. What that gap does to the models, scored against
 the docling-parse-rendered baselines with the two conformance scripts
-(2026-11-11):
+(2026-11-17):
 
 | model inputs rendered by | snapshots exact (101) | groundtruth (21 files) |
 |---|---|---|
-| docling-parse shim (`DOCLING_RS_RENDERER=docling-parse`, the reference) | 101 | 511 diff lines, 9 strict |
-| **Rust renderer** (the default) | 75 | 647 diff lines, 7 strict |
+| docling-parse shim (`DOCLING_RS_RENDERER=docling-parse`, the reference) | 101 | 450 diff lines, 9 strict |
+| **Rust renderer** (the default) | 77 | 597 diff lines, 7 strict |
 
-The groundtruth gap is in six files: `2203.01017v2` 24 → 64 and
+The groundtruth gap is in six files: `2203.01017v2` 24 → 66 and
 `redp5110_sampled` 28 → 53 (TableFormer grids), `right_to_left_03`
-exact → 28, `table_mislabeled_as_picture` 24 → 40, `elsevier-00` 287 →
-304, `2305.03393v1` exact → 6 (Fig. 5's caption box reaches the file
-name's underscores, 0.08 pt clear of it under the shim's render); the
-others move by at most 4 lines.
+exact → 28, `table_mislabeled_as_picture` 24 → 40, `elsevier-00` 236 →
+270, `2305.03393v1` exact → 6 (Fig. 5's caption box reaches the file
+name's underscores, 0.08 pt clear of it under the shim's render).
+`table_misidentified_as_form` goes the other way, 28 → 18; the others
+move by at most 4 lines.
 
 Heron's borderline labels move with ±1/255 of anti-aliasing, so the
 snapshots that drift are the ML-borderline ones: the matplotlib heat-map
@@ -318,6 +322,7 @@ diff history of each port lives in the git log of these files).
 | docling-parse's page-box filter (#529) | a glyph is kept only when its whole char box (advance × the font's ascent / descent) lies inside the display box — the CropBox, else the MediaBox — edges included: a FrameMaker print slug beside the CropBox or a tiled page's neighbouring text beyond the MediaBox never becomes a cell (it used to be clamped onto the page edge, often to zero width), and a line crossing the edge is cut at the last glyph that fits, as docling-parse cuts it; no corpus page changes | `textparse::on_page` |
 | TeX math-font glyph names, and a `/ToUnicode` value that says nothing (#1121) | docling-parse reads a glyph name through its glyph lists; the names Computer Modern, Latin Modern and the AMS fonts use are not Adobe Glyph List names, and with no ToUnicode a code below 0x20 read U+FFFD (`rt�A(M)�`: `parenleftbig` / `parenrightbig` at codes 0 and 1) and one above it the Latin letter at its code (`Z` for `integraldisplay`, `0` for `prime`, `I` for MSAM's `trianglerightsld`). They resolve by rule — a delimiter in any of its four sizes (`big` … `Bigg`) and a big operator in `text` or `display` size read as the base character — plus a short list (the extensible pieces, CMSY / CMMI / AMS symbols, the spacing accents and marks the Latin table lacked) and the Symbol font's Glyph List names (`universal`, `existential`, `arrowup`). For a code `/Differences` names, a `/ToUnicode` value that is empty or a single NUL, U+FFFD or noncharacter yields to the name (`has_to_unicode`): a figure embedded in 1503.04203 maps its re-encoded glyphs to `<0000>` (`Q = � 12` for `Q = − 1/2`). A name that merely starts with `uni` (`union`) is no longer taken for a `uniXXXX`. Deliberate divergences: `⟨` / `⟩` are the mathematical brackets where docling-parse's lists give the CJK ones, `Delta` the Greek letter where they give the `∆` increment sign. Every other name falls through to the Adobe Glyph List in full (4,282 names — the `afii` Cyrillic, Hebrew and Arabic names, the remaining symbols), compiled in by docling-pdf's `glyph-list` feature and left out of the wasm build; its legacy private-use delimiter pieces read as Unicode 3.2's, its other private-use and control values as unmapped, and its BSD-3-Clause notice ships with every binary as `LICENSE-adobe-glyph-list.txt`. Not taken: lcdf-typetools' `texglyphlist`, which states no license. The three papers of the two issues: 81 line cells with U+FFFD → 0; the corpus snapshots and groundtruth unchanged | `glyph_names.rs`, `adobe_glyph_list.rs`, `textparse::glyph_name_to_char`, `reconcile_stale_tounicode` |
 | docling-parse 7.25's font decoding (docling-parse#431) — #1113 | four of its rules. A Symbol / ZapfDingbats `/ToUnicode` into the private-use symbol charset (one code point in `U+F020..=U+F0FF` the face encodes) reads through the face's encoding (`fold_symbol_font_private_use`: redp5110's `U+F0AE` is `→`, a Word bullet `U+F0B7` is `•`); the face is docling-parse's base-font match, the descriptor's font name, then `/BaseFont`, by the face name it contains (`SymbolMT`, `OpenSymbol`; Wingdings keeps its codes). A symbolic simple font that declares no base encoding reads through its embedded program's builtin encoding — after `/Differences` and `/ToUnicode`, before every Latin table (`uses_builtin_encoding`, `builtin_font_encoding`: a Type 1's encoding vector, a CFF's encoding, a TrueType's (3,0) table at `0xF000 + code`; the glyph by its PostScript name, else its TrueType Unicode code point, else, blank, a space): 2203.01017's `Dingbats` `3` / `7` are `/a19` / `/a23`, `✓` / `✗`. A Symbol / ZapfDingbats font that names no encoding reads through the face's own (a non-embedded ZapfDingbats' `l` is `●`), with the face's AFM advances when it ships no `/Widths`. Skia's hexadecimal index names (`/g15C`) are unmapped. The glyph tables are docling-parse's (the Glyph List, `zapfdingbats.txt`, the legacy delimiter pieces rewritten to Unicode 3.2's: `bracerighttp` is `⎫`). Not ported: a symbolic code no table resolves as a glyph marker; a declared encoding read through the face anyway (the FontSpecific scheme — `multi_page`'s `∞`, a deliberate divergence). Against live docling 2.150, 489 → 475 lines; only `2203.01017v2` and `redp5110_sampled` move | `symbol_fonts.rs`, `textparse::parse_font` / `decode_code` / `builtin_glyph_text`, `LoadedFont::builtin_encoding_text` |
+| docling-parse's char box (`pdf_state<TEXT>`: `compute_rect(font_descent*ratio, font_ascent*ratio, width)`) | a glyph is boxed between the font's descent and ascent **scaled by `CapHeight / Ascent`** (the ratio taken in 0.05..=1; a descriptor without a `/CapHeight` keeps its metrics), so the box tops out at the capitals. A few percent of a line for most faces (a Libertine line cell: 15.3 pt, 16.0 unscaled); for Cambria's regular face — `/Ascent 3117 /Descent -2464 /CapHeight 667` — 1.19 em instead of 5.6 em, without which no line cell is more than a fifth inside its own layout region and the page's lines go to the wrong ones. The line cells of that page match docling-parse's to 0.1 pt and its Markdown docling's byte for byte. On the corpus: groundtruth 511 → 450 (`elsevier-00` −51, `table_misidentified_as_form` −10), and 17 snapshots moved — scored against docling 2.150's own output for those files, 1,023 → 653 diff lines: 11 closer (five now byte-identical, among them a figure title docling reads `nput-Input Layer5`, its first glyph's box crossing the page edge), 4 as far, 2 a little further (`llncsdoc` 38 → 42, the `equations` figure 4 → 6) | `textparse::font_ascent_descent` |
 | docling-parse's invalid font metrics (`init_ascent_and_descent`, `needs_embedded_glyph_bbox`) | a descriptor whose `/Ascent` / `/Descent` do not straddle the baseline (`/Ascent 0 /Descent 0`, a math font's two positive values) gives way to a valid `/FontBBox`, an implausible one (beyond ±8000) to its `/FontBBox` edge, and the font's glyphs are boxed vertically by their embedded outline's control box (FreeType's `FT_Outline_Get_CBox`, through the renderer's font loader; the advance stays the width): an underscore is a 0.4 pt sliver under the baseline, its own line cell, and the words around it are not joined across it (`PMC5406406 \_ 003 \_ 01.png`). Without the renderer (the wasm text layer) the font keeps the `/FontBBox` box. `2305.03393v1` exact, `redp5110_sampled` −4 (a heading in docling's place) | `textparse::font_ascent_descent`, `Font::ink_y`, `LoadedFont::glyph_ink_y` |
 | docling-parse's char rect (`page_cell.h`, #528) | a glyph drawn with a non-upright text matrix — the `0 s -s 0 tx ty Tm` runs landscape `/Rotate 90` pages are built from, 180°/270°, or tilted — keeps its rotated quad, so the corner-distance contraction reads the line in its own reading order and the cell box is the quad's extent (before: zero-width boxes, every such run dropped; 180° read backwards). Upright glyphs keep the plain loose rectangle, so upright output is byte-identical. redp5110's 90° column headers (`*JOBCTL`, `QIBM_DB_SECADM`, …) now reach TableFormer and the table matches the groundtruth cell for cell (180 → 152 diff lines); the ODF-exported presentations — landscape slides drawn onto a portrait page through a 90° `cm` — get their text layer instead of OCR | `textparse::show_text`, `dp_lines::build_cells` |
 | docling-parse `create_word_cells`, the TeX math encodings, the quote-normalization table | word cells are docling-parse's second contraction over the char cells (space glyphs as barriers, erased after); `CMSY*`/`CMMI*` without an `/Encoding` decode by the TeXbook tables; every curly quote → `'` | `dp_lines.rs`, `textparse.rs` |
