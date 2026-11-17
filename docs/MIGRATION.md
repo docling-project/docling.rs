@@ -2800,6 +2800,36 @@ These are deliberate or unavoidable divergences, not bugs.
     detail — docling's layout model reads the 300-DPI QR bill as two
     pictures — so the text, the reading order and the Markdown are those of
     the full-resolution image (the §2 Images entry has the rule).
+
+27. **Letters set apart with space glyphs read as one word** (#1139, a
+    divergence from docling-parse on purpose, like item 22 (a)). Arbortext
+    letter-spaces a heading as letter, space glyph, letter, and moves the
+    pen after every space: back by a fifth of its advance inside a word,
+    forward by one and a half between words. The page shows tracking —
+    EUR-Lex 02021R2178's `1.1.1. KPI bezogen auf den Umsatz (Umsatz-KPI)`,
+    letters 1.7 pt apart, words 5.1 pt — and pdftotext reads the words;
+    with a space glyph at every letter, which docling-parse keeps as
+    characters, the line read `K P I b e z o g e n a u f …`. Such spaces
+    are dropped from the text layer
+    (`textparse::drop_letter_spacing_spaces`) and the letter after each is
+    marked as letter-spaced, so the word contraction keeps the gap inside
+    the word (`dp_lines::tracked_gaps`) — also where a justified heading
+    leaves `KPI` or `auf` alone on its line cell. The rule is narrow:
+    single glyphs and space glyphs must alternate on one line; three or
+    more consecutive spaces between letters must each have part of their
+    advance taken back (the next letter starts before 0.95 of it) and leave
+    one gap in points (within 0.25 pt), the letters not one character
+    repeated; and every other space of that stretch, and the spaces
+    between it and its neighbours, must be at least 1.5 × that gap. So
+    spaces at their own width or stretched, a tightened line's `von a b c d
+    bis` (its neighbours as close as its letters), `C C C C C` and
+    `1 2 3 4 5` all read as they are drawn. A word space the typesetter
+    set no wider than the letter spacing is gone with it: the same
+    document's `( C a p E x ) ( C a p E x - K P I )` reads
+    `(CapEx)(CapEx-KPI)`, as it does in pdftotext. `pdf_word_gap=legacy`
+    does not use the tracking detection and still splits these letters by
+    their gaps. On the corpus nothing moves: the PDF snapshots and the
+    groundtruth table are unchanged.
 ---
 
 ## 5. Not migrated / out of scope
