@@ -15,5 +15,3 @@ Time ➔
 <!-- image -->
 
 <!-- image -->
-
-Forward chunk Backward chunk

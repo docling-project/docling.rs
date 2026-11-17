@@ -26,9 +26,10 @@ pub struct TextCell {
 impl TextCell {
     /// The cell's width per character: the scale of what it draws. Its
     /// height is the font's claim instead — ascent plus descent, which some
-    /// faces inflate far past the glyphs (#1129: Cambria's regular face
-    /// declares 3117 / -2464, a 5.6 em box around every line) — so a rule
-    /// about lines that has to hold on such a font measures against this.
+    /// faces inflate far past the glyphs (#1129: 3117 / -2464, a 5.6 em box
+    /// around every line, where the descriptor gives no cap height to scale
+    /// them back by, `textparse::font_ascent_descent`) — so a rule about
+    /// lines that has to hold on such a font measures against this.
     pub(crate) fn mean_advance(&self) -> f32 {
         (self.r - self.l).abs() / self.text.trim().chars().count().max(1) as f32
     }

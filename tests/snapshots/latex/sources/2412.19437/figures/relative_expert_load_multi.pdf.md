@@ -11,18 +11,21 @@
 10
 
 - Wikipedia (en)
-- DM Mathematics
 - Github
-- Wikipedia (en) Github
 - DM Mathematics
 - Wikipedia (en)
-- DM Mathematics
 
 Github
 
-- Wikipedia (en)
 - DM Mathematics
+- Wikipedia (en)
+
+Github
+
+- DM Mathematics
+- Wikipedia (en)
 - Github
+- DM Mathematics
 
 ## Aux-Loss-Based Layer 9
 

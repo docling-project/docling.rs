@@ -3093,12 +3093,14 @@ fn code_region_text(region: &Region, cells: &[TextCell]) -> String {
 /// text can be, when it is the line its characters account for.
 ///
 /// A cell's box is as tall as the font's ascent and descent say, and some
-/// faces inflate those far past the glyphs — Cambria's regular face declares
-/// 3117 / -2464, so each of its lines sits in a 5.6 em box and overlaps the
-/// four lines around it (#1129). Taken at its word, that height merged three
-/// or four lines of a table cell into one "row" in top-edge order (the
-/// second line ahead of the first, whose bold face has honest metrics) and
-/// would merge columns under 75 pt apart.
+/// faces inflate those far past the glyphs — 3117 / -2464, each line in a
+/// 5.6 em box that overlaps the four lines around it (#1129). Taken at its
+/// word, that height merged three or four lines of a table cell into one
+/// "row" in top-edge order (the second line ahead of the first, whose bold
+/// face has honest metrics) and would merge columns under 75 pt apart.
+/// (Where the descriptor has a cap height, the parser scales such metrics
+/// back as docling-parse does — the issue's Cambria is a 1.19 em box now,
+/// `textparse::font_ascent_descent` — so this is for the face without one.)
 ///
 /// Text averages about half an em per character, so [`LINE_PER_ADVANCE`]
 /// mean advances is a normal line's height. A box over [`INFLATED_BOX`]
@@ -3116,9 +3118,9 @@ fn line_height(c: &TextCell) -> f32 {
 
 /// Where a cell's line starts, for putting cells in reading order: the box
 /// top — or, for an inflated box ([`line_height`]), the top of the line
-/// centred in it. Such a box starts well above its text (Cambria's regular
-/// face: 20 pt), so by box tops the second line of a cell came before a
-/// first line set in a face with honest metrics.
+/// centred in it. Such a box starts well above its text (#1129's face:
+/// 20 pt), so by box tops the second line of a cell came before a first
+/// line set in a face with honest metrics.
 fn line_top(c: &TextCell) -> f32 {
     let lh = line_height(c);
     if lh < (c.b - c.t).abs() {
@@ -5683,13 +5685,15 @@ mod tests {
         assert_eq!(super::region_text(&region, &numeral), "들어가며 1");
     }
 
-    /// #1129: the issue page's table, as the text layer hands it over. Its
-    /// headings are Cambria Bold (honest metrics, 12 pt boxes); the body is
-    /// Cambria regular, whose declared ascent and descent put every line in a
-    /// 50 pt box on lines 10.5 pt apart. Rows clustered by those heights held
-    /// three or four lines each, in box-top order — the second body line
-    /// ahead of the heading over it. By the line each cell really is, the
-    /// grid is the table's lines, in order, in their two columns.
+    /// #1129: the issue page's table, as the text layer handed it over when
+    /// the font's metrics were taken unscaled (a face without a cap height
+    /// still is). Its headings are Cambria Bold (honest metrics, 12 pt
+    /// boxes); the body is Cambria regular, whose declared ascent and descent
+    /// put every line in a 50 pt box on lines 10.5 pt apart. Rows clustered
+    /// by those heights held three or four lines each, in box-top order —
+    /// the second body line ahead of the heading over it. By the line each
+    /// cell really is, the grid is the table's lines, in order, in their two
+    /// columns.
     #[test]
     fn geometric_table_reads_a_tall_box_font_line_by_line() {
         let cells = vec![

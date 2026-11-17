@@ -1921,10 +1921,13 @@ fn drop_overpainted_cells(cells: &mut Vec<crate::pdfium_backend::TextCell>) {
             // whose ascent and descent make every cell 55 pt tall on lines
             // 11.7 pt apart — each line overlaps the next by four fifths, and
             // a short line under a long one read as paint: 37 of the page's
-            // 44 lines went, and its table with them). A cell's height is the
-            // font's claim; its width per character is what was drawn, and
-            // lines of prose are never set closer than that, so a shift of
-            // more than half of it is another line, however tall the boxes.
+            // 44 lines went, and its table with them. That face has a cap
+            // height and its boxes are scaled back now,
+            // `font_ascent_descent`; one without is boxed as it claims). A
+            // cell's height is the font's claim; its width per character is
+            // what was drawn, and lines of prose are never set closer than
+            // that, so a shift of more than half of it is another line,
+            // however tall the boxes.
             let shift = ((a.t + a.b) - (b.t + b.b)).abs() / 2.0;
             if shift > 0.5 * a.mean_advance().min(b.mean_advance()) {
                 continue;
@@ -6336,12 +6339,13 @@ mod overpainted {
         assert_eq!(cells.len(), 4);
     }
 
-    /// #1129: Cambria's regular face declares an ascent of 3117 and a descent
-    /// of -2464, so each of its lines sits in a box 5.6 em tall and overlaps
-    /// the next line by four fifths. A short line under a long one was "one
-    /// cell inside another on the same band" — paint — and both went: these
-    /// are the issue page's cells, of whose 44 lines 7 were left. Lines one
-    /// pitch apart are lines; the stacked logo, at one height, still goes.
+    /// #1129: a face that declares an ascent of 3117 and a descent of -2464
+    /// (Cambria's regular, read without its cap height) puts each of its
+    /// lines in a box 5.6 em tall that overlaps the next line by four
+    /// fifths. A short line under a long one was "one cell inside another on
+    /// the same band" — paint — and both went: these are the issue page's
+    /// cells, of whose 44 lines 7 were left. Lines one pitch apart are
+    /// lines; the stacked logo, at one height, still goes.
     #[test]
     fn lines_of_a_tall_box_font_are_not_paint() {
         let mut cells = vec![

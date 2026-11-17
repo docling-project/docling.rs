@@ -135,7 +135,7 @@ From a technical point of view, the llncs document class does not require any sp
 The llncs document class supports some additional special characters:
 
 ```
-\grole yields > < \getsto yields ← \lid yields < = \gid yields > → =
+\grole yields > \lid yields < < \getsto yields ← = \gid yields > → =
 ```
 
 If you need blackboard bold characters, i.e. for sets of numbers, please load the related AMS-TEXfonts. If for some reason this is not possible you can also use the following commands from the llncs class:
@@ -157,10 +157,8 @@ Please note that all these characters are only available in math mode.
 
 Several theorem-like environments are predefined in the llncs document class. corollary (env.) definition (env.) lemma (env.) The following environments have a bold run-in heading, while the following text is in italics:
 
-proposition (env.)
-
 ```
-\begin{corollary} <text> \end{corollary} \begin{definition} <text> \end{definition} \begin{lemma} <text> \end{lemma} \begin{proposition} <text> \end{proposition} \begin{theorem} <text> \end{theorem}
+proposition(env.) \begin{corollary} <text> \end{corollary} \begin{definition} <text> \end{definition} \begin{lemma} <text> \end{lemma} \begin{proposition} <text> \end{proposition} \begin{theorem} <text> \end{theorem}
 ```
 
 Other theorem-like environments render the text in roman, while the run-in case (env.) conjecture (env.) heading is bold as well:

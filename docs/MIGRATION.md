@@ -42,7 +42,7 @@ bulk of the porting under review).
 > (a pure-Rust PDF text/metadata parser and page renderer — no native PDF library; the docling-parse renderer plugin is a development oracle — + ONNX
 > layout/TableFormer/OCR + a port of docling-parse's line sanitizer) and is also
 > measured byte-for-byte against upstream's groundtruth and live docling (2.150, docling-parse 7.25.0) —
-> **9 / 21 PDF fixtures exact, 511 diff lines** against the groundtruth, 6 / 18 and 475 against live docling (see `PDF_CONFORMANCE.md`), with a snapshot baseline
+> **9 / 21 PDF fixtures exact, 450 diff lines** against the groundtruth, 6 / 18 and 414 against live docling (see `PDF_CONFORMANCE.md`), with a snapshot baseline
 > guarding against regressions. `cargo test` is green (unit tests + a 159-source
 > output-regression suite).
 
@@ -1540,7 +1540,7 @@ content-type resolution, and image extraction — reused by DOCX/PPTX/XLSX/EPUB.
 These run docling's *discriminative* PDF pipeline ported to ONNX. They are now
 measured **byte-for-byte against docling** (the committed PDF groundtruth mirrors
 upstream's; live docling 2.150 differs from it on five files): **9 / 21
-exact, 511 diff lines** against the groundtruth, 6 / 18 and 475 against live docling 2.150, the rest close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
+exact, 450 diff lines** against the groundtruth, 6 / 18 and 414 against live docling 2.150, the rest close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
 (`scripts/conformance/pdf_conformance.sh`) still guards against regressions.
 
 #### PDF
@@ -1568,7 +1568,11 @@ exact, 511 diff lines** against the groundtruth, 6 / 18 and 475 against live doc
 - scanned pages with `/Rotate` are un-rotated to upright before layout/OCR and their geometry mapped back to display coords (all four orientations of `tests/data/scanned/` OCR to the same groundtruth text)
 - table captions attach by reading-order adjacency (docling's `_find_to_captions`, #265) and ride on the table across all exports — Markdown above the grid, JSON `TableItem.captions` refs, DocLang `<caption>`
   - #1114: a table with no text-layer cell (one pasted as an image, converted without OCR) stays an empty table item and keeps that caption, as in docling; it used to be dropped with the caption it had been paired with
-- #1129: a font that declares far more ascent and descent than its glyphs have — Cambria's regular face, 3117 / -2464, a 5.6 em box around every line, as docling-parse reads it too — no longer loses its text where a rule trusted that height
+- a glyph is boxed as docling-parse boxes it: between the font's descent and ascent scaled by `CapHeight / Ascent` (the ratio taken in 0.05..=1), not between the two as declared
+  - for most faces that is a few percent of a line (a 16.0 pt line cell is docling-parse's 15.3 pt); for a face with inflated metrics it decides whether the page reads: Cambria's regular face declares 3117 / -2464 with a cap height of 667 — a 5.6 em box around every line unscaled, docling-parse's 1.19 em scaled
+  - unscaled, a Cambria page's line cells were 56 pt tall on lines 11.7 pt apart and none was more than a fifth inside its own layout region: lines went to the wrong regions (two numbered steps merged, the next ones out of order, a table column printed again after its table). The page now reads as it does in docling, byte for byte
+  - on the corpus: the groundtruth is closer (`elsevier-00`, `table_misidentified_as_form`), and of the 17 snapshots that moved, 11 are closer to docling's own output, 4 as far, 2 a few lines further (`docs/PDF_CONFORMANCE.md`)
+- #1129: a font that declares far more ascent and descent than its glyphs have — 3117 / -2464, a 5.6 em box around every line — *and no cap height to scale them back by* (the entry above; the issue's Cambria has one, and its boxes are docling-parse's since) no longer loses its text where a rule trusted that height
   - the text-layer page (the browser's `DigitalConverter` and `convert`, `convert_text_layer`) took a short line under a long one for glyphs painted over each other and dropped both: a Cambria page kept 7 of its 44 lines, and its table came back without cells. Lines a line apart are lines, however tall their boxes
   - the geometric table fallback (`--no-table-former`, the browser without TableFormer) clustered such a table's lines three or four to a row, out of order; it reads them line by line, in order. A font with honest metrics clusters exactly as before
   - the browser's `DigitalConverter` hands a table to TableFormer when the geometric grid's rows do not each sit on one text line — a table of wrapped cells, whose row-per-line grid is dense and passed for reliable: the issue's table is the 2 × 2 the native pipeline gives, not ten rows of lines
@@ -2288,7 +2292,7 @@ These are deliberate or unavoidable divergences, not bugs.
      dropped (Form-XObject text and glyph-name-only fonts were the two classes it
      surfaced and fixed).
    - Output is measured **byte-for-byte against docling** (PDF_CONFORMANCE.md):
-     **9 / 21 exact, 511 diff lines** against upstream's groundtruth, the rest close. The remaining gaps are
+     **9 / 21 exact, 450 diff lines** against upstream's groundtruth, the rest close. The remaining gaps are
      model-level (TableFormer structure on complex tables, layout
      classification, title-page reading order) plus docling-parse 7's own
      glyph mappings (`∞` for a list bullet, `tildelow` for `~`). The full per-fixture breakdown and the
