@@ -352,6 +352,45 @@ mod tests {
     /// The bundled 3-page fixture: the text layer comes out as the
     /// blank-line-delimited paragraphs of each page, `--pages` narrows it, and
     /// a corrupt file is a clean error, all in-process (no external binary).
+    /// #1137: a page whose INFO chunk turns it by 90° rasterizes in its
+    /// display orientation. djvu-rs < 0.45 fitted the *unrotated* page into
+    /// the render box, so the OCR fallback got a portrait-shaped bitmap of a
+    /// landscape page (a 192 × 256 page in 300 × 300 → 225 × 300, not
+    /// 300 × 225), squashing the scan before layout and OCR saw it.
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn rotated_page_rasterizes_in_display_orientation() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/data/djvu/sources/sample1.djvu"
+        );
+        let mut bytes = std::fs::read(path).expect("fixture exists");
+        // INFO payload: w(2) h(2) minor major dpi(2) gamma flags — the low
+        // three flag bits are the rotation; 6 = 90° counter-clockwise.
+        let info = bytes
+            .windows(4)
+            .position(|w| w == b"INFO")
+            .expect("INFO chunk");
+        bytes[info + 8 + 9] = 6;
+        let page = parse(&bytes).unwrap();
+        let page = page.page(0).unwrap();
+        assert!(matches!(page.rotation(), Rotation::Ccw90));
+        let (dw, dh) = display_dims(page);
+        assert!(dw > dh, "portrait page turned 90° displays landscape");
+
+        let pngs = rasterize_pages(&bytes, Some((1, 1))).expect("rasterizes");
+        assert_eq!(pngs.len(), 1);
+        let img = image::load_from_memory(&pngs[0].1).expect("png");
+        let (w, h) = (img.width(), img.height());
+        assert_eq!(w, 2500, "longer display side fills the default box");
+        // Same aspect as the display frame, not the unrotated page's.
+        let expected_h = (f64::from(dh) * 2500.0 / f64::from(dw)).round() as u32;
+        assert!(
+            h.abs_diff(expected_h) <= 1,
+            "{w}×{h}, expected 2500×{expected_h}"
+        );
+    }
+
     #[test]
     fn text_layer_of_the_fixture_extracts_in_process() {
         let path = concat!(
