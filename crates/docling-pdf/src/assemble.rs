@@ -572,6 +572,15 @@ pub fn drop_contained_regulars(regions: &mut Vec<Region>) {
     });
 }
 
+/// Python `do_table_structure=False` (`--no-table-former`): layout may still
+/// mark a table, but no structure is recovered. Drop those regions before
+/// [`drop_contained_regulars`] so the words inside them stay text, each with
+/// its own box. The geometric grid is the other case — TableFormer was
+/// requested and its model files are missing — and that path keeps the regions.
+pub fn release_unstructured_tables(regions: &mut Vec<Region>) {
+    regions.retain(|r| !is_table_like(r.label));
+}
+
 /// docling's `_set_cluster_children` for pictures: a regular region (one that
 /// claims cells) whose box is > 80 % inside a picture's box
 /// (`intersection_over_self`) is that picture's child — not a page element
@@ -7969,5 +7978,117 @@ mod tests {
                 "مارس"
             ]
         );
+    }
+
+    /// Python `do_table_structure=False` on a Texas oversize permit
+    /// (`tests/data/tx_osow_anonymized.pdf`, permit 190430960024). The
+    /// company-name section and the reference-bar copies of that name are
+    /// blank. Layout still marked four tables; these are the boxes docling.rs
+    /// 2.84.0 drew, bottom-left page points. With no table structure the words
+    /// stay text, each with its own box. `Axle:` and `Miles` are the words
+    /// those tables used to swallow.
+    #[test]
+    fn tables_off_keeps_permit_words_as_boxed_text() {
+        use crate::layout::Region;
+        use crate::textparse::PageTextParser;
+
+        // (page index, l, top, r, bottom) in a bottom-left origin.
+        const TABLES_BL: [(usize, f32, f32, f32, f32); 4] = [
+            (0, 37.19, 552.56, 352.12, 483.49),
+            (1, 30.21, 304.24, 567.11, 105.25),
+            (2, 29.05, 715.37, 567.11, 106.89),
+            (3, 30.21, 712.08, 567.11, 615.05),
+        ];
+
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/data/tx_osow_anonymized.pdf"
+        ))
+        .expect("anonymized permit");
+        let mut parser = PageTextParser::open(&bytes).expect("permit text layer");
+        assert_eq!(parser.page_count(), 4);
+
+        let mut axle_text = false;
+        let mut miles_text = false;
+        let mut axle_table = false;
+        let mut miles_table = false;
+
+        for page_i in 0..parser.page_count() {
+            let page = parser.text_page(page_i);
+            let h = page.height;
+            let mut regions: Vec<Region> = TABLES_BL
+                .into_iter()
+                .filter(|t| t.0 == page_i)
+                .map(|(_, l, top, r, bottom)| Region {
+                    label: "table",
+                    score: 0.9,
+                    l,
+                    t: h - top,
+                    r,
+                    b: h - bottom,
+                })
+                .collect();
+            // Tables off: drop the table regions, then the same orphan and
+            // containment passes the pipeline runs. The words become text.
+            super::add_orphan_regions(&mut regions, &page.cells);
+            super::release_unstructured_tables(&mut regions);
+            super::drop_contained_regulars(&mut regions);
+            let n = regions.len();
+            let (nodes, _) =
+                super::assemble_page(&page, regions, &vec![None; n], &vec![None; n], None);
+            for node in &nodes {
+                note_permit_words(
+                    node,
+                    false,
+                    &mut axle_text,
+                    &mut miles_text,
+                    &mut axle_table,
+                    &mut miles_table,
+                );
+            }
+        }
+
+        assert!(
+            axle_text && miles_text && !axle_table && !miles_table,
+            "Axle: text={axle_text} table={axle_table}; Miles text={miles_text} table={miles_table}"
+        );
+    }
+
+    fn note_permit_words(
+        node: &docling_core::Node,
+        located: bool,
+        axle_text: &mut bool,
+        miles_text: &mut bool,
+        axle_table: &mut bool,
+        miles_table: &mut bool,
+    ) {
+        match node {
+            docling_core::Node::Located { inner, .. } => {
+                note_permit_words(inner, true, axle_text, miles_text, axle_table, miles_table);
+            }
+            docling_core::Node::Table(table) => {
+                for cell in table.rows.iter().flatten() {
+                    if cell.contains("Axle:") {
+                        *axle_table = true;
+                    }
+                    if cell.contains("Miles") {
+                        *miles_table = true;
+                    }
+                }
+            }
+            docling_core::Node::Paragraph { text }
+            | docling_core::Node::Heading { text, .. }
+            | docling_core::Node::ListItem { text, .. }
+                if located =>
+            {
+                if text.contains("Axle:") {
+                    *axle_text = true;
+                }
+                if text.contains("Miles") {
+                    *miles_text = true;
+                }
+            }
+            _ => {}
+        }
     }
 }

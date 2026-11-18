@@ -1574,7 +1574,7 @@ exact, 450 diff lines** against the groundtruth, 6 / 18 and 414 against live doc
   - on the corpus: the groundtruth is closer (`elsevier-00`, `table_misidentified_as_form`), and of the 17 snapshots that moved, 11 are closer to docling's own output, 4 as far, 2 a few lines further (`docs/PDF_CONFORMANCE.md`)
 - #1129: a font that declares far more ascent and descent than its glyphs have — 3117 / -2464, a 5.6 em box around every line — *and no cap height to scale them back by* (the entry above; the issue's Cambria has one, and its boxes are docling-parse's since) no longer loses its text where a rule trusted that height
   - the text-layer page (the browser's `DigitalConverter` and `convert`, `convert_text_layer`) took a short line under a long one for glyphs painted over each other and dropped both: a Cambria page kept 7 of its 44 lines, and its table came back without cells. Lines a line apart are lines, however tall their boxes
-  - the geometric table fallback (`--no-table-former`, the browser without TableFormer) clustered such a table's lines three or four to a row, out of order; it reads them line by line, in order. A font with honest metrics clusters exactly as before
+  - the geometric table fallback (TableFormer requested but its files missing, and the browser without TableFormer) clustered such a table's lines three or four to a row, out of order; it reads them line by line, in order. A font with honest metrics clusters exactly as before
   - the browser's `DigitalConverter` hands a table to TableFormer when the geometric grid's rows do not each sit on one text line — a table of wrapped cells, whose row-per-line grid is dense and passed for reliable: the issue's table is the 2 × 2 the native pipeline gives, not ten rows of lines
 - the JSON carries page headers/footers as body-parented `page_header`/`page_footer` texts on the furniture layer, as upstream writes them (Markdown still leaves them out)
 - the text inside a picture reaches the JSON as that picture's children (docling's `_add_child_elements`), as upstream writes it (Markdown, like docling's, prints only the caption)
@@ -2377,7 +2377,13 @@ These are deliberate or unavoidable divergences, not bugs.
     `text_layer_only` (`--text-layer-only` — before 2.0, #611, the CLI's
     `--no-ocr`). A missing OCR model also degrades to the `no_ocr` behavior
     with a one-time warning — docling errors there — matching the repo-wide
-    degradation-over-failure convention.
+    degradation-over-failure convention. `no_table_former`
+    (`--no-table-former`, also `--no-tables`, Python `do_table_structure=False`)
+    skips table structure the same way: layout still runs, and a region it
+    marked as a table is not gridded. The words stay text items, each with
+    its own box. The geometric grid remains only when TableFormer was
+    requested and its model files are missing, and in the browser build,
+    which has no TableFormer.
 
 12. **Sparse spreadsheets can skip empty cells** (#271, docling.rs-only
     options, both off by default): `skip_empty_cells` omits empty positions

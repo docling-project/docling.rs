@@ -2164,6 +2164,14 @@ impl Worker {
         assemble::add_orphan_regions(&mut regions, &page.cells);
         // Drop phantom empty low-confidence picture boxes (docling parity).
         assemble::drop_false_pictures(&mut regions, &page.cells, page.width, page.height);
+        // `do_table_structure=False`: no TableFormer and no geometric grid.
+        // `tables` is `None` only then on this path (`no_ocr` returns before
+        // layout). Releasing the table regions first lets the words survive
+        // the containment drop as ordinary text. A missing TableFormer model
+        // keeps `tables` as `Some` and still reconstructs.
+        if self.tables.is_none() {
+            assemble::release_unstructured_tables(&mut regions);
+        }
         // A regular region fully inside a surviving table/index/picture is that
         // special's child (a cell / in-figure label), not a separate block —
         // remove it so it isn't emitted twice (docling parity).
@@ -3182,10 +3190,11 @@ impl Pipeline {
         self
     }
 
-    /// Skip loading and running the TableFormer table-structure model. Table
-    /// regions still get emitted, but reconstructed geometrically from cell
-    /// positions instead of via the ONNX model's predicted structure — faster
-    /// (no model load, no per-table inference) at the cost of table fidelity.
+    /// Skip table structure — docling's `do_table_structure=False`
+    /// (`--no-tables`). Layout still runs. A region it marks as a table is
+    /// not reconstructed: the words stay text items, each with its own box.
+    /// The geometric grid is the other case, when TableFormer was requested
+    /// and its model files are missing.
     /// No effect if a worker is already loaded; set this before the first
     /// conversion.
     pub fn no_table_former(mut self, disable: bool) -> Self {

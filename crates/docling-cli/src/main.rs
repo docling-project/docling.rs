@@ -203,11 +203,12 @@
 //!                      pipe, a log); --progress forces the plain `done/total`
 //!                      counts there. A batch logs its `start:` / `ok:` lines
 //!                      as before and shows the bars between them.
-//!   --no-table-former  skip loading/running the TableFormer table-structure
-//!                      model for PDF/image input; tables fall back to simple
-//!                      geometric reconstruction from cell positions. Faster
-//!                      (no model load, no per-table inference) at the cost of
-//!                      table fidelity — helps most in streaming mode.
+//!   --no-table-former  skip table structure for PDF/image input (docling's
+//!                      `--no-tables`, `do_table_structure=False`). Layout
+//!                      still runs; words in a table region stay text, each
+//!                      with its own box. The geometric grid is only the
+//!                      fallback when TableFormer was requested and its model
+//!                      files are missing.
 //!   --video-frames N|all
 //!                      Max frames sampled from a video input as timestamped
 //!                      pictures (needs the ffmpeg binary; 0 = transcript
@@ -640,8 +641,9 @@ FORMAT OPTIONS
 
 PDF / IMAGE PIPELINE
   --ocr-engine ppocr|tesseract   OCR engine (default: ppocr; tesseract = the system binary)
-  --no-table-former       skip the TableFormer model (geometric tables instead;
-                          docling's --no-tables)
+  --no-table-former       skip table structure (docling's --no-tables,
+                          do_table_structure=False). Words in a layout table
+                          stay text, each with its own box
   --no-ocr                never run OCR, keep layout + tables (docling's --no-ocr;
                           --skip-ocr is the same)
   --text-layer-only       no models at all: the embedded text layer as flat
