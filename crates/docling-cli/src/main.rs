@@ -205,10 +205,10 @@
 //!                      as before and shows the bars between them.
 //!   --no-table-former  skip table structure for PDF/image input (docling's
 //!                      `--no-tables`, `do_table_structure=False`). Layout
-//!                      still runs; words in a table region stay text, each
-//!                      with its own box. The geometric grid is only the
-//!                      fallback when TableFormer was requested and its model
-//!                      files are missing.
+//!                      still runs. docling 2.150 emits an empty table;
+//!                      the words stay text, each with its own box. The
+//!                      geometric grid is only the fallback when TableFormer
+//!                      was requested and its model files are missing.
 //!   --video-frames N|all
 //!                      Max frames sampled from a video input as timestamped
 //!                      pictures (needs the ffmpeg binary; 0 = transcript
@@ -641,9 +641,9 @@ FORMAT OPTIONS
 
 PDF / IMAGE PIPELINE
   --ocr-engine ppocr|tesseract   OCR engine (default: ppocr; tesseract = the system binary)
-  --no-table-former       skip table structure (docling's --no-tables,
-                          do_table_structure=False). Words in a layout table
-                          stay text, each with its own box
+  --no-table-former       skip table structure (docling's --no-tables).
+                          Layout still runs. docling emits an empty table;
+                          the words stay text, each with its own box
   --no-ocr                never run OCR, keep layout + tables (docling's --no-ocr;
                           --skip-ocr is the same)
   --text-layer-only       no models at all: the embedded text layer as flat

@@ -2379,11 +2379,9 @@ These are deliberate or unavoidable divergences, not bugs.
     with a one-time warning — docling errors there — matching the repo-wide
     degradation-over-failure convention. `no_table_former`
     (`--no-table-former`, also `--no-tables`, Python `do_table_structure=False`)
-    skips table structure the same way: layout still runs, and a region it
-    marked as a table is not gridded. The words stay text items, each with
-    its own box. The geometric grid remains only when TableFormer was
-    requested and its model files are missing, and in the browser build,
-    which has no TableFormer.
+    is independent of `do_ocr` the same way, and it does not build a
+    geometric grid. What a layout table becomes is a deliberate divergence
+    from docling 2.150: see §4 item 28.
 
 12. **Sparse spreadsheets can skip empty cells** (#271, docling.rs-only
     options, both off by default): `skip_empty_cells` omits empty positions
@@ -2840,6 +2838,18 @@ These are deliberate or unavoidable divergences, not bugs.
     does not use the tracking detection and still splits these letters by
     their gaps. On the corpus nothing moves: the PDF snapshots and the
     groundtruth table are unchanged.
+
+28. **Tables off keeps the words** (`--no-table-former`, `--no-tables`,
+    `do_table_structure=False`). docling 2.150's `PageAssembleModel` still
+    emits an empty table (`text=""`, no cells) for a region the layout
+    model marked as a table. This port drops that region after OCR and
+    emits the words as text items, each with its own box. An empty table
+    does not keep them, and the geometric grid swallows them. The grid
+    remains when TableFormer was requested and its model files are
+    missing, and in the browser build, which has no TableFormer. On a
+    scanned page the table region stays through OCR, so the table-crop
+    words exist before the region is dropped. Without the text detector,
+    releasing the region first loses them.
 ---
 
 ## 5. Not migrated / out of scope

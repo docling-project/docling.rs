@@ -2164,14 +2164,6 @@ impl Worker {
         assemble::add_orphan_regions(&mut regions, &page.cells);
         // Drop phantom empty low-confidence picture boxes (docling parity).
         assemble::drop_false_pictures(&mut regions, &page.cells, page.width, page.height);
-        // `do_table_structure=False`: no TableFormer and no geometric grid.
-        // `tables` is `None` only then on this path (`no_ocr` returns before
-        // layout). Releasing the table regions first lets the words survive
-        // the containment drop as ordinary text. A missing TableFormer model
-        // keeps `tables` as `Some` and still reconstructs.
-        if self.tables.is_none() {
-            assemble::release_unstructured_tables(&mut regions);
-        }
         // A regular region fully inside a surviving table/index/picture is that
         // special's child (a cell / in-figure label), not a separate block —
         // remove it so it isn't emitted twice (docling parity).
@@ -2542,6 +2534,15 @@ impl Worker {
                 page.cells.extend(words.iter().cloned());
                 page.word_cells.extend(words);
             }
+        }
+        // `do_table_structure=False`: OCR has already read any table crops.
+        // `tables` is `None` only then on this path (`no_ocr` returns before
+        // layout). A scan has no text layer, so dropping the region earlier
+        // loses those words when the text detector is absent. docling emits
+        // an empty table here; the words stay text. A missing TableFormer
+        // model keeps `tables` as `Some` and still reconstructs.
+        if self.tables.is_none() {
+            assemble::release_unstructured_tables_after_ocr(&mut regions, &page.cells);
         }
         // The cells are final: fit every regular region to the cells it
         // claims and fold the orphans it now surrounds (#419), before
@@ -3191,10 +3192,11 @@ impl Pipeline {
     }
 
     /// Skip table structure — docling's `do_table_structure=False`
-    /// (`--no-tables`). Layout still runs. A region it marks as a table is
-    /// not reconstructed: the words stay text items, each with its own box.
-    /// The geometric grid is the other case, when TableFormer was requested
-    /// and its model files are missing.
+    /// (`--no-tables`). Layout still runs. docling 2.150 still emits an
+    /// empty table for that region (`text=""`, no cells). This port drops
+    /// it after OCR and keeps the words as text items, each with its own
+    /// box. The geometric grid is the other case, when TableFormer was
+    /// requested and its model files are missing.
     /// No effect if a worker is already loaded; set this before the first
     /// conversion.
     pub fn no_table_former(mut self, disable: bool) -> Self {
@@ -4982,5 +4984,85 @@ mod bitmap_region_tests {
             }))
             .collect();
         assert!(bitmap_regions(&[line, para], &cells, &[PAGE]).is_empty());
+    }
+}
+
+/// The worker decides tables-off from an empty TableFormer slot. A missing
+/// model is a present slot whose load came back empty, and that path keeps
+/// the table region for the geometric grid.
+#[cfg(all(test, feature = "ml"))]
+mod tables_off_gate {
+    use std::sync::{Arc, Mutex};
+
+    use super::{
+        assemble, layout::Region, pdfium_backend::PdfPage, pdfium_backend::TextCell, DetSlot,
+        EnrichmentOptions, ImageOutput, OcrSlot, TfSlot, Worker,
+    };
+
+    fn worker(tables: Option<super::SharedTables>) -> Worker {
+        Worker {
+            layout: None,
+            ocr: OcrSlot::Unloaded,
+            det: Arc::new(Mutex::new(DetSlot::Missing)),
+            pending_det: Default::default(),
+            intra: 1,
+            tables,
+            classifier: None,
+            code_formula: None,
+            enrich: EnrichmentOptions::default(),
+            no_ocr: false,
+            force_full_page_ocr: false,
+            replace_broken_text_layer: false,
+            no_text_panels: true,
+            // No recognizer in the test. The scanned-page test covers the
+            // cells `ocr_table_words` would have appended before the release.
+            skip_ocr: true,
+            ocr_lang: Default::default(),
+            ocr_engine: Default::default(),
+            tesseract_lang: None,
+            ocr_scale: None,
+            textline_orientation: false,
+            images: ImageOutput::default(),
+        }
+    }
+
+    fn axle_page() -> (PdfPage, Vec<Region>) {
+        let cells = vec![TextCell {
+            text: "Axle:".into(),
+            l: 40.0,
+            t: 100.0,
+            r: 90.0,
+            b: 112.0,
+        }];
+        let regions = vec![Region {
+            label: "table",
+            score: 0.9,
+            l: 30.0,
+            t: 90.0,
+            r: 220.0,
+            b: 180.0,
+        }];
+        (PdfPage::from_cells(600.0, 800.0, 1.0, cells), regions)
+    }
+
+    #[test]
+    fn tables_off_drops_the_table_region() {
+        let (mut page, regions) = axle_page();
+        let prepared = worker(None).prepare_page(0, &mut page, regions).unwrap();
+        assert!(prepared
+            .regions
+            .iter()
+            .all(|r| !assemble::is_table_like(r.label)));
+        assert!(prepared.regions.iter().any(|r| r.label == "text"));
+    }
+
+    #[test]
+    fn missing_tableformer_keeps_the_table_region() {
+        let (mut page, regions) = axle_page();
+        let tables = Arc::new(Mutex::new(TfSlot::Missing));
+        let prepared = worker(Some(tables))
+            .prepare_page(0, &mut page, regions)
+            .unwrap();
+        assert!(prepared.regions.iter().any(|r| r.label == "table"));
     }
 }

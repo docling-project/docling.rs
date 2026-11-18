@@ -940,7 +940,11 @@ components:
         no_table_former:
           type: boolean
           default: false
-          description: PDF/image — geometric table reconstruction instead of the TableFormer model.
+          description: >-
+            PDF/image — skip table structure (`do_table_structure=False`).
+            docling 2.150 emits an empty table; the words stay text, each
+            with its own box. The geometric grid is the fallback when
+            TableFormer was requested and its model files are missing.
         no_text_panels:
           type: boolean
           default: false

@@ -65,7 +65,7 @@ everywhere. The ones most conversions reach for:
 |---|---|---|
 | `pages` | `--pages A-B` | PDF page window (#80) |
 | `no_ocr` · `text_layer_only` · `force_full_page_ocr` · `replace_broken_text_layer` | `--no-ocr` · `--text-layer-only[=auto]` · `--force-full-page-ocr` · `--replace-broken-text-layer` | never OCR, layout and tables kept · the text layer alone, no ML (`auto`: per document — the text layer when it carries the document, the pipeline with OCR when it does not) · OCR every page even with a text layer · OCR only the pages whose text layer is broken (#1006) |
-| `no_table_former` | `--no-table-former` | skip table structure; table words stay text (`do_table_structure=False`) |
+| `no_table_former` | `--no-table-former` | skip table structure; table words stay text. docling 2.150 emits an empty table instead (`do_table_structure=False`) |
 | `ocr_lang` · `ocr_engine` | `--ocr-lang` · `--ocr-engine` | `en` / `ch` / BCP-47; `ppocr` or `tesseract` (#460) |
 | `heading_hierarchy` | `--heading-hierarchy` | infer PDF heading levels (#302) |
 | `script_positions` | `--script-positions` | mark PDF superscripts and subscripts as `formatting.script` runs (#1005) |
@@ -300,7 +300,7 @@ and defaults in [`docs/OPTIONS.md`](../../docs/OPTIONS.md):
   pipeline — OCR included — when it does not (a scan, or a vestigial layer
   of a few typed-in form fields); `TextLayerOnly::Auto` in the API. `--no-ocr` (docling's `--no-ocr` since 2.0, #611) keeps layout
   and TableFormer but never runs OCR; `--no-table-former` keeps OCR and
-  layout, and leaves a table region's words as text. `--force-full-page-ocr` is the
+  layout. docling 2.150 emits an empty table; the words stay text. `--force-full-page-ocr` is the
   opposite: OCR every page from its render even when a text layer exists
   (for layers that lie — broken encodings, garbage subset fonts).
 - `--heading-hierarchy` (#302, docling's `HeadingHierarchyModel`): infers

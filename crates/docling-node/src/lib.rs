@@ -196,8 +196,8 @@ pub struct ConverterOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf_password: Option<String>,
     /// Skip table structure (the CLI's `--no-table-former`, docling's
-    /// `do_table_structure=False`, #577). Words in a layout table stay
-    /// text, each with its own box. Default `false`.
+    /// `do_table_structure=False`, #577). docling 2.150 emits an empty
+    /// table; the words stay text, each with its own box. Default `false`.
     pub no_table_former: Option<bool>,
     /// OCR every PDF page even when it carries an embedded text layer
     /// (docling's `force_full_page_ocr`) — for text layers that exist but lie.
@@ -560,8 +560,8 @@ pub struct ConvertOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf_password: Option<String>,
     /// Skip table structure (the CLI's `--no-table-former`, docling's
-    /// `do_table_structure=False`, #577). Words in a layout table stay
-    /// text, each with its own box. Default `false`.
+    /// `do_table_structure=False`, #577). docling 2.150 emits an empty
+    /// table; the words stay text, each with its own box. Default `false`.
     pub no_table_former: Option<bool>,
     /// OCR every PDF page even when it carries a text layer (docling's
     /// `force_full_page_ocr`). Default `false`.
