@@ -3,8 +3,9 @@
 //! on the JS side; region refinement, region-cropped OCR, geometric table
 //! reconstruction and reading-order assembly in Rust — the same code as the
 //! native pipeline (`docling_pdf::{layout, ocr_prep, scanned}`). TableFormer
-//! and the enrichment models are stage 3; table regions fall back to the
-//! geometric reconstruction the native `--no-table-former` flag uses. Picture
+//! and the enrichment models are stage 3; this build has no TableFormer, so
+//! table regions take the geometric reconstruction. The native
+//! `--no-table-former` flag does not: it leaves those words as text. Picture
 //! regions are cropped out of the page bitmap, like the native pipeline, so
 //! `images = "embedded"` inlines real figure bytes.
 //!

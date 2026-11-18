@@ -194,7 +194,8 @@ pub struct ConvertOptions {
     pub force_full_page_ocr: Option<bool>,
     /// OCR only the pages whose text layer is broken (#1006).
     pub replace_broken_text_layer: Option<bool>,
-    /// Skip TableFormer (geometric tables instead).
+    /// Skip table structure (`do_table_structure=False`). docling 2.150
+    /// emits an empty table; the words stay text, each with its own box.
     pub no_table_former: Option<bool>,
     /// Disable the text-panel heuristic (#173).
     pub no_text_panels: Option<bool>,

@@ -572,6 +572,31 @@ pub fn drop_contained_regulars(regions: &mut Vec<Region>) {
     });
 }
 
+/// Drop layout `table` / `document_index` regions. docling 2.150 with
+/// `do_table_structure=False` still emits an empty table
+/// (`PageAssembleModel`, `text=""`, no cells). This port drops the region
+/// instead and keeps the words as text — a deliberate divergence. The
+/// geometric grid is the other case, TableFormer requested and its files
+/// missing, and that path keeps the regions.
+pub fn release_unstructured_tables(regions: &mut Vec<Region>) {
+    regions.retain(|r| !is_table_like(r.label));
+}
+
+/// [`release_unstructured_tables`] once OCR has read the page: drop the table
+/// regions, give their words — which nothing claims any more — orphan text
+/// regions, and re-run the containment drop. On a digital page the words are
+/// the text layer's; on a scan, the `ocr_table_words` crops OCR made while
+/// the table regions still existed. Releasing before that crop loses a scan's
+/// table text when the text detector model is absent.
+pub fn release_unstructured_tables_after_ocr(regions: &mut Vec<Region>, cells: &[TextCell]) {
+    if !regions.iter().any(|r| is_table_like(r.label)) {
+        return;
+    }
+    release_unstructured_tables(regions);
+    add_orphan_regions(regions, cells);
+    drop_contained_regulars(regions);
+}
+
 /// docling's `_set_cluster_children` for pictures: a regular region (one that
 /// claims cells) whose box is > 80 % inside a picture's box
 /// (`intersection_over_self`) is that picture's child — not a page element
@@ -7969,5 +7994,168 @@ mod tests {
                 "مارس"
             ]
         );
+    }
+
+    /// Tables off, on a Texas oversize permit whose company name, permit
+    /// number, US DOT number, plate, and route have been blanked
+    /// (`tests/data/tx_osow_anonymized.pdf`). Layout still marked four
+    /// tables; these are the boxes docling.rs 2.84.0 drew, bottom-left page
+    /// points. docling emits an empty table. This port keeps `Axle:` and
+    /// `Miles` as text. Those are the words the grid used to swallow.
+    #[test]
+    fn tables_off_keeps_permit_words_as_boxed_text() {
+        use crate::layout::Region;
+        use crate::textparse::PageTextParser;
+
+        // (page index, l, top, r, bottom) in a bottom-left origin.
+        const TABLES_BL: [(usize, f32, f32, f32, f32); 4] = [
+            (0, 37.19, 552.56, 352.12, 483.49),
+            (1, 30.21, 304.24, 567.11, 105.25),
+            (2, 29.05, 715.37, 567.11, 106.89),
+            (3, 30.21, 712.08, 567.11, 615.05),
+        ];
+
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/data/tx_osow_anonymized.pdf"
+        ))
+        .expect("anonymized permit");
+        let mut parser = PageTextParser::open(&bytes).expect("permit text layer");
+        assert_eq!(parser.page_count(), 4);
+
+        let mut axle_text = false;
+        let mut miles_text = false;
+        let mut axle_table = false;
+        let mut miles_table = false;
+
+        for page_i in 0..parser.page_count() {
+            let page = parser.text_page(page_i);
+            let h = page.height;
+            let mut regions: Vec<Region> = TABLES_BL
+                .into_iter()
+                .filter(|t| t.0 == page_i)
+                .map(|(_, l, top, r, bottom)| Region {
+                    label: "table",
+                    score: 0.9,
+                    l,
+                    t: h - top,
+                    r,
+                    b: h - bottom,
+                })
+                .collect();
+            // Tables off, after OCR: the text layer is already in `page.cells`.
+            // The same helper the pipeline calls once the table crops exist.
+            super::release_unstructured_tables_after_ocr(&mut regions, &page.cells);
+            let n = regions.len();
+            let (nodes, _) =
+                super::assemble_page(&page, regions, &vec![None; n], &vec![None; n], None);
+            for node in &nodes {
+                note_permit_words(
+                    node,
+                    false,
+                    &mut axle_text,
+                    &mut miles_text,
+                    &mut axle_table,
+                    &mut miles_table,
+                );
+            }
+        }
+
+        assert!(
+            axle_text && miles_text && !axle_table && !miles_table,
+            "Axle: text={axle_text} table={axle_table}; Miles text={miles_text} table={miles_table}"
+        );
+    }
+
+    /// A scan has no text layer. OCR reads the table crop while the region
+    /// still exists and appends those cells. Releasing the region first drops
+    /// the crop, and without the text detector the words are gone.
+    #[test]
+    fn tables_off_keeps_scanned_table_words_as_text() {
+        use crate::layout::Region;
+        use crate::pdfium_backend::{PdfPage, TextCell};
+
+        let cells = vec![TextCell {
+            text: "Axle:".into(),
+            l: 40.0,
+            t: 100.0,
+            r: 90.0,
+            b: 112.0,
+        }];
+        let mut regions = vec![Region {
+            label: "table",
+            score: 0.9,
+            l: 30.0,
+            t: 90.0,
+            r: 220.0,
+            b: 180.0,
+        }];
+        assert!(
+            regions.iter().any(|r| r.label == "table"),
+            "the table region has to survive until OCR has read its crop"
+        );
+        super::release_unstructured_tables_after_ocr(&mut regions, &cells);
+        assert!(regions
+            .iter()
+            .all(|r| r.label != "table" && r.label != "document_index"));
+        let page = PdfPage::from_cells(600.0, 800.0, 1.0, cells);
+        let n = regions.len();
+        let (nodes, _) = super::assemble_page(&page, regions, &vec![None; n], &vec![None; n], None);
+        let mut axle_text = false;
+        let mut axle_table = false;
+        let mut miles_text = false;
+        let mut miles_table = false;
+        for node in &nodes {
+            note_permit_words(
+                node,
+                false,
+                &mut axle_text,
+                &mut miles_text,
+                &mut axle_table,
+                &mut miles_table,
+            );
+        }
+        assert!(
+            axle_text && !axle_table,
+            "scanned Axle: text={axle_text} table={axle_table}"
+        );
+    }
+
+    fn note_permit_words(
+        node: &docling_core::Node,
+        located: bool,
+        axle_text: &mut bool,
+        miles_text: &mut bool,
+        axle_table: &mut bool,
+        miles_table: &mut bool,
+    ) {
+        match node {
+            docling_core::Node::Located { inner, .. } => {
+                note_permit_words(inner, true, axle_text, miles_text, axle_table, miles_table);
+            }
+            docling_core::Node::Table(table) => {
+                for cell in table.rows.iter().flatten() {
+                    if cell.contains("Axle:") {
+                        *axle_table = true;
+                    }
+                    if cell.contains("Miles") {
+                        *miles_table = true;
+                    }
+                }
+            }
+            docling_core::Node::Paragraph { text }
+            | docling_core::Node::Heading { text, .. }
+            | docling_core::Node::ListItem { text, .. }
+                if located =>
+            {
+                if text.contains("Axle:") {
+                    *axle_text = true;
+                }
+                if text.contains("Miles") {
+                    *miles_text = true;
+                }
+            }
+            _ => {}
+        }
     }
 }
