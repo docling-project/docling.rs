@@ -44,6 +44,7 @@ pub mod layout;
 mod mets;
 #[cfg(feature = "ner")]
 pub mod ner;
+mod numbering_lexicon;
 #[cfg(feature = "ml")]
 mod ocr;
 #[cfg(feature = "ml")]

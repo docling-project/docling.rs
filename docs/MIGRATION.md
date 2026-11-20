@@ -2564,7 +2564,18 @@ These are deliberate or unavoidable divergences, not bugs.
     carry no style signal (docling reads OCR cell heights), and enabling
     the stage buffers a streaming Markdown conversion into one chunk (the
     stage needs the whole assembled document; streamed output stays
-    byte-identical to buffered).
+    byte-identical to buffered). The keyword markers are docling#5474's
+    `KeywordLexicon` (#1145): the built-in English words merged with
+    `numbering_keywords` (family → words; a new family ranks by
+    `numbering_schemes`, a built-in word listed there moves to that family)
+    and `numbering_number_words`, matched NFC-normalized and
+    case-insensitively, longest first (`Capítulo II`, `ROZDZIAŁ I`,
+    `Art.5`); bookmark matching strips the added markers too. The Rust
+    library honours the sub-options (`DocumentConverter::heading_hierarchy_options`,
+    validated as docling validates them); the CLI, serve and the bindings
+    set the switch alone, with the default sub-options — the Python
+    facade's `HeadingHierarchyOptions` accepts the fields so docling code
+    constructs unchanged.
 
 18. **Image outputs** (#518–#520): docling's `images_scale` and
     `generate_page_images` act on every surface (`--images-scale` /

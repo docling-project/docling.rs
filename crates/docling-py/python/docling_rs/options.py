@@ -140,6 +140,11 @@ class HeadingHierarchyOptions:
     max_level: int = 6
     bookmark_match_threshold: float = 0.8
     numbering_schemes: Optional[list] = None
+    # docling#5474 (#1145): keyword markers of other languages
+    # (family -> words) and extra number words; accepted like the fields
+    # above, honoured by the Rust library's `heading_hierarchy_options`.
+    numbering_keywords: dict = field(default_factory=dict)
+    numbering_number_words: list = field(default_factory=list)
 
 
 @dataclass
