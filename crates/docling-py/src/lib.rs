@@ -1016,7 +1016,11 @@ impl PyDocumentConverter {
     /// `base_url` is the URL the bytes were fetched from (#681): relative
     /// image references resolve against it, and a YouTube watch URL turns
     /// the page into its title, metadata and caption transcript.
-    #[pyo3(signature = (name, data, page_range = None, format = None, base_url = None, media_type = None, progress_callback = None, document_index = 1))]
+    /// `source_uri` names where the bytes live on disk — a path or a `file:`
+    /// URI (docling's `source_uri`, docling#5017) — so local figures and
+    /// images next to the original resolve under `image_sources="local"`;
+    /// the file need not exist, and `file:///` is refused with a warning.
+    #[pyo3(signature = (name, data, page_range = None, format = None, base_url = None, media_type = None, progress_callback = None, document_index = 1, source_uri = None))]
     #[allow(clippy::too_many_arguments)]
     fn convert_bytes(
         &self,
@@ -1029,6 +1033,7 @@ impl PyDocumentConverter {
         media_type: Option<String>,
         progress_callback: Option<Py<PyAny>>,
         document_index: usize,
+        source_uri: Option<String>,
     ) -> PyResult<PyNativeResult> {
         let page_range = check_page_range(page_range)?;
         let bytes = data.as_bytes().to_vec();
@@ -1054,6 +1059,10 @@ impl PyDocumentConverter {
         };
         let source = match base_url {
             Some(url) => source.with_base_url(url),
+            None => source,
+        };
+        let source = match source_uri {
+            Some(uri) => source.with_source_uri(&uri),
             None => source,
         };
         self.convert_source(py, source, page_range, progress_callback, document_index)

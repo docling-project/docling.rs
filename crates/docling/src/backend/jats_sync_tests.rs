@@ -403,3 +403,54 @@ fn author_footnotes_share_furniture_with_article_statements() {
     assert_eq!(body_fn["label"], "footnote");
     assert_eq!(body_fn["content_layer"], "body");
 }
+
+/// docling#5017 (`test_stream_loads_local_figure`): bytes plus the `file:`
+/// URI (or path) of where they live — the file itself absent — resolve a
+/// local figure under `image_sources=local`; a root-only `file:///` names no
+/// directory, and without the opt-in nothing is read.
+#[test]
+fn in_memory_source_names_its_local_location() {
+    use crate::backend::images::{ImagePolicy, ImageSources};
+    let root = std::env::temp_dir().join(format!("docling-jats-uri-{}", std::process::id()));
+    let dir = root.join("space 中文");
+    std::fs::create_dir_all(&dir).unwrap();
+    image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(7, 5, image::Rgb([0, 255, 0])))
+        .save_with_format(dir.join("figure.png"), image::ImageFormat::Png)
+        .unwrap();
+    let xml = r#"<article xmlns:xlink="http://www.w3.org/1999/xlink"><front><article-meta><title-group><article-title>Figure test</article-title></title-group></article-meta></front><body><p>Before figure.</p><fig><label>Fig. 1</label><caption><p>Green figure.</p></caption><graphic xlink:href="figure.png"/></fig><p>After figure.</p></body></article>"#;
+    let path = dir.join("article.nxml");
+    // `Path::as_uri`: every byte outside the unreserved set escaped.
+    let encoded: String = path
+        .to_string_lossy()
+        .bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'/' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect();
+    let file_uri = format!("file://{encoded}");
+    let localhost = file_uri.replacen("file:///", "file://LoCaLhOsT/", 1);
+    let image_of = |uri: &str, sources: ImageSources| {
+        let src = SourceDocument::from_bytes("article.nxml", InputFormat::XmlJats, xml.into())
+            .with_source_uri(uri);
+        let doc = JatsBackend {
+            images: ImagePolicy::new(sources),
+        }
+        .convert(&src)
+        .unwrap();
+        doc.nodes.iter().find_map(|n| match n {
+            docling_core::Node::Picture { image, .. } => Some(image.is_some()),
+            _ => None,
+        })
+    };
+    if !cfg!(windows) {
+        for uri in [path.to_string_lossy().as_ref(), &file_uri, &localhost] {
+            assert_eq!(image_of(uri, ImageSources::Local), Some(true), "{uri}");
+            assert_eq!(image_of(uri, ImageSources::None), Some(false), "{uri}");
+        }
+    }
+    assert_eq!(image_of("file:///", ImageSources::Local), Some(false));
+    let _ = std::fs::remove_dir_all(&root);
+}
