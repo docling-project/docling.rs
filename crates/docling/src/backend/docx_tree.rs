@@ -39,11 +39,10 @@ use roxmltree::{Document, Node as XmlNode, NodeId};
 use super::docx::{
     attr, build_enum_marker, caption_numbering_marker, chart_rels, child_elements,
     clean_checkbox_symbols, detect_code_language, footnote_texts, get_list_counter, grid_span,
-    header_footer_parts, heading_labels, hyperlink_target, in_textbox, inherited_outline,
-    is_code_by_font, is_code_style, is_title_style, numbered_heading_text, on_off,
-    paragraph_anchors, part_rels, revision_of, row_cells, row_grid_offsets, row_kept,
-    run_child_text, style_chain_bold, style_numbering, sync_heading_counter, t_text, Ctx,
-    MAX_TABLE_DEPTH,
+    header_footer_parts, heading_labels, hyperlink_target, in_textbox, is_code_by_font,
+    is_code_style, is_title_style, numbered_heading_text, on_off, paragraph_anchors, part_rels,
+    revision_of, row_cells, row_grid_offsets, row_kept, run_child_text, style_chain_bold,
+    style_numbering, sync_heading_counter, t_text, Ctx, MAX_TABLE_DEPTH,
 };
 use super::html_tree::docling_href;
 use super::ooxml::Package;
@@ -1131,7 +1130,7 @@ impl Walker {
         // docling stops at one hop), the outline level inherited likewise.
         let labels = heading_labels(label, name, ctx);
         let is_heading = labels.iter().any(|l| l.to_lowercase().contains("heading"));
-        let outline = inherited_outline(label, ctx)
+        let outline = super::docx::outline_level(p, label, ctx)
             .map(|l| l as i64)
             .filter(|l| (1..=9).contains(l));
         if is_heading {

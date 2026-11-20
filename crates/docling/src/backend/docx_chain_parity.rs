@@ -422,6 +422,16 @@ fn payloads() -> Vec<(&'static str, String)> {
             ),
         ),
         (
+            // #1158 (docling#4129): a paragraph's own outline level makes it
+            // a heading, a numbered one included.
+            "paragraph-outline",
+            format!(
+                r#"<w:p><w:pPr><w:outlineLvl w:val="1"/></w:pPr>{}</w:p><w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr><w:outlineLvl w:val="0"/></w:pPr>{}</w:p>"#,
+                run("outlined heading hotel"),
+                run("numbered outline india"),
+            ),
+        ),
+        (
             "line-break",
             para(&format!(
                 "{}<w:r><w:br/><w:t>after break tango</w:t></w:r>",

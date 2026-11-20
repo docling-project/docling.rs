@@ -41,8 +41,9 @@ pub struct DocxBackend {
     /// in that format after a drawing's picture when its connectors name
     /// their end shapes; Mermaid by default.
     pub extract_diagrams: crate::DiagramFormat,
-    /// A style's `w:outlineLvl` alone makes it a heading (docling#4480's
-    /// `use_outline_level_for_headings`; on by default).
+    /// A `w:outlineLvl` — the paragraph's own, else its style's — alone
+    /// makes it a heading (docling#4480's `use_outline_level_for_headings`;
+    /// on by default).
     pub use_outline_level_for_headings: bool,
 }
 
@@ -673,7 +674,7 @@ pub(super) fn is_heading_paragraph(p: XmlNode, ctx: &Ctx) -> bool {
         .unwrap_or(style_id);
     named_heading_level(style_id, style_name, ctx).is_some()
         || (ctx.outline_headings
-            && inherited_outline(style_id, ctx).is_some_and(|l| (1..=9).contains(&l)))
+            && outline_level(p, style_id, ctx).is_some_and(|l| (1..=9).contains(&l)))
         || is_title_style(style_id, style_name, ctx)
 }
 
@@ -1156,9 +1157,11 @@ fn handle_paragraph_body(
     // style is a named heading, and it alone promotes a localized or custom
     // style ("Nadpis1", "Rubrik 1") the name check can't see. A Title style
     // keeps its own branch (level 1) either way, and outlineLvl 9 is OOXML's
-    // "body text" sentinel, not a heading.
+    // "body text" sentinel, not a heading. The paragraph's own `w:outlineLvl`
+    // comes before its style's (docling#4129, #1158), so a numbered paragraph
+    // carrying one is a numbered heading, not a list item.
     let named = named_heading_level(style_id, &style_name, ctx);
-    let outline = inherited_outline(style_id, ctx).filter(|l| (1..=9).contains(l));
+    let outline = outline_level(p, style_id, ctx).filter(|l| (1..=9).contains(l));
     let level = match (named, outline) {
         (Some(1), _) => Some(1), // Title
         (Some(_), Some(out)) => Some(out + 1),
@@ -1788,6 +1791,21 @@ pub(super) fn inherited_outline(style_id: &str, ctx: &Ctx) -> Option<u8> {
     style_chain(style_id, ctx)
         .into_iter()
         .find_map(|sid| ctx.style_outline.get(sid).copied())
+}
+
+/// The 1-indexed `w:outlineLvl` a paragraph resolves to (docling#4129,
+/// #1158): its own direct `pPr/w:outlineLvl` first, else its style's
+/// ([`inherited_outline`]). A paragraph-level 9 — OOXML's body text, stored
+/// as 10 like the style's — masks the style's level: the callers keep only
+/// 1–9, so such a paragraph is a heading by its style *name* alone.
+pub(super) fn outline_level(p: XmlNode, style_id: &str, ctx: &Ctx) -> Option<u8> {
+    p.children()
+        .find(|n| n.has_tag_name("pPr"))
+        .and_then(|ppr| ppr.children().find(|n| n.has_tag_name("outlineLvl")))
+        .and_then(|n| attr(n, "val"))
+        .and_then(|v| v.parse::<u8>().ok())
+        .map(|l| l.saturating_add(1))
+        .or_else(|| inherited_outline(style_id, ctx))
 }
 
 /// Markdown heading level from a paragraph style, by name — the name path of

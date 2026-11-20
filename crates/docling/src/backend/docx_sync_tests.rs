@@ -208,3 +208,131 @@ fn hyperlink_preserves_external_fragment() {
         assert_eq!(link, want);
     }
 }
+
+/// A paragraph with an optional style, numbering and direct outline level.
+fn outlined(text: &str, style: Option<&str>, num: Option<u32>, outline: Option<u8>) -> String {
+    let style = style.map_or(String::new(), |s| format!(r#"<w:pStyle w:val="{s}"/>"#));
+    let num = num.map_or(String::new(), |n| {
+        format!(r#"<w:numPr><w:ilvl w:val="0"/><w:numId w:val="{n}"/></w:numPr>"#)
+    });
+    let outline = outline.map_or(String::new(), |l| format!(r#"<w:outlineLvl w:val="{l}"/>"#));
+    format!(
+        r#"<w:p><w:pPr>{style}{num}{outline}</w:pPr><w:r><w:t xml:space="preserve">{text}</w:t></w:r></w:p>"#
+    )
+}
+
+const STYLES_REL: &str = r#"<Relationship Id="rIdS" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>"#;
+const NUMBERING_REL: &str = r#"<Relationship Id="rIdN" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>"#;
+
+fn styles() -> (&'static str, String) {
+    (
+        "word/styles.xml",
+        format!(
+            r#"<w:styles xmlns:w="{W}">
+<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:pPr><w:outlineLvl w:val="1"/></w:pPr></w:style>
+<w:style w:type="paragraph" w:styleId="BodyText"><w:name w:val="Body Text"/><w:basedOn w:val="Normal"/></w:style>
+</w:styles>"#
+        ),
+    )
+}
+
+fn markdown_blocks(doc: &docling_core::DoclingDocument) -> Vec<String> {
+    doc.export_to_markdown()
+        .split("\n\n")
+        .map(|b| b.trim().to_string())
+        .filter(|b| !b.is_empty())
+        .collect()
+}
+
+/// docling#4129 (#1158, `test_outline_level_on_the_paragraph_is_detected_without_a_heading_style`).
+#[test]
+fn outline_level_on_the_paragraph_is_detected_without_a_heading_style() {
+    let body = outlined("Larger channel bandwidth", None, None, Some(1)) + &p("Body text.");
+    let doc = convert(docx(&body, STYLES_REL, &[styles()]));
+    assert_eq!(
+        markdown_blocks(&doc),
+        ["### Larger channel bandwidth", "Body text."]
+    );
+    let v = json(&doc);
+    let head = &v["texts"][0];
+    assert_eq!(head["label"], "section_header", "{head}");
+    assert_eq!(head["level"], 2, "{head}");
+    // Through a style with no outline level of its own, too.
+    let body =
+        outlined("Larger channel bandwidth", Some("BodyText"), None, Some(1)) + &p("Body text.");
+    let doc = convert(docx(&body, STYLES_REL, &[styles()]));
+    assert_eq!(
+        markdown_blocks(&doc),
+        ["### Larger channel bandwidth", "Body text."]
+    );
+}
+
+/// docling#4129 (`test_numbered_paragraph_with_outline_level_is_a_heading_not_a_list_item`).
+#[test]
+fn numbered_paragraph_with_outline_level_is_a_heading_not_a_list_item() {
+    let numbering = (
+        "word/numbering.xml",
+        format!(
+            r#"<w:numbering xmlns:w="{W}"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>"#
+        ),
+    );
+    let body = [
+        outlined("Introduction", None, Some(1), Some(0)),
+        p("Body text."),
+        outlined("Discussion", None, Some(1), Some(0)),
+        p("Body text."),
+    ]
+    .concat();
+    let rels = format!("{STYLES_REL}{NUMBERING_REL}");
+    let doc = convert(docx(&body, &rels, &[styles(), numbering]));
+    assert_eq!(
+        markdown_blocks(&doc),
+        [
+            "## 1 Introduction",
+            "Body text.",
+            "## 2 Discussion",
+            "Body text."
+        ]
+    );
+    let v = json(&doc);
+    let headers: Vec<&str> = v["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|t| t["label"] == "section_header")
+        .map(|t| t["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(headers, ["1 Introduction", "2 Discussion"]);
+    assert!(v["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|g| g["label"] != "list"));
+}
+
+/// A paragraph-level 9 (body text) masks the style's outline level: a
+/// heading-named style keeps the level in its name, any other is text; and
+/// `use_outline_level_for_headings = false` keeps a paragraph's level from
+/// promoting a style no name marks a heading.
+#[test]
+fn paragraph_outline_body_text_and_the_option() {
+    let body = outlined("Named", Some("Heading2"), None, Some(9))
+        + &outlined("Plain", Some("BodyText"), None, Some(9));
+    let doc = convert(docx(&body, STYLES_REL, &[styles()]));
+    assert_eq!(markdown_blocks(&doc), ["### Named", "Plain"]);
+
+    let body = outlined("Outlined", Some("BodyText"), None, Some(1));
+    let src = SourceDocument::from_bytes(
+        "t.docx",
+        InputFormat::Docx,
+        docx(&body, STYLES_REL, &[styles()]),
+    );
+    let backend = super::DocxBackend {
+        use_outline_level_for_headings: false,
+        ..Default::default()
+    };
+    let doc = backend.convert(&src).expect("docx converts");
+    assert_eq!(markdown_blocks(&doc), ["Outlined"]);
+    assert_eq!(json(&doc)["texts"][0]["label"], "text");
+}
