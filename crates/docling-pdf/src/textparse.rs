@@ -3767,8 +3767,9 @@ fn show_text(
 }
 
 /// Build a simple font's code→char table from its `/Encoding`: the base
-/// encoding (WinAnsi / MacRoman) plus any `/Differences` overrides (glyph names
-/// resolved through a small Adobe-glyph-name subset).
+/// encoding (WinAnsi / MacRoman / Standard / MacExpert) plus any
+/// `/Differences` overrides (glyph names resolved through the Adobe Glyph
+/// List).
 fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char> {
     let enc = fdict.get(b"Encoding").ok().and_then(|o| deref(doc, o));
     let base_name = match enc {
@@ -3789,6 +3790,10 @@ fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char
     };
     let mut m = if base_name == b"MacRomanEncoding" {
         macroman_table()
+    } else if base_name == b"StandardEncoding" || base_name == b"MacExpertEncoding" {
+        // Read as WinAnsi before #1152: StandardEncoding's `quoteright` /
+        // `quoteleft` / `fi` / `fl` / `AE` codes came out `'`/`` ` ``/`®`/`¯`/`á`.
+        named_table(crate::encodings::by_name(&base_name).unwrap_or_default())
     } else if let Some(face) = base_name.is_empty().then(face).flatten() {
         // A font matched to Symbol or ZapfDingbats that names no encoding:
         // the face's own (docling-parse's base-font AFM, a "FontSpecific"
@@ -3803,7 +3808,18 @@ fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char
         // `∈` as `2` (2203's `{ahn,…}` author line). The font program (often
         // CFF, which this parser does not read) carries the same mapping;
         // docling-parse decodes it from there.
-        tex_math_builtin(fdict).unwrap_or_else(winansi_table)
+        // Otherwise a nonsymbolic Type 1 font's built-in encoding is
+        // StandardEncoding (9.6.6.1; a non-embedded Core 14 Helvetica's, its
+        // AFM's), as pdfium and docling-parse read it (#1152) — a WinAnsi
+        // reading put `®` where the program draws `fi`. A TrueType or
+        // symbolic face without an encoding keeps the WinAnsi stand-in.
+        tex_math_builtin(fdict).unwrap_or_else(|| {
+            if implied_standard_encoding(doc, fdict) {
+                named_table(crate::encodings::STANDARD)
+            } else {
+                winansi_table()
+            }
+        })
     } else if base_name == b"WinAnsiEncoding" {
         let mut m = winansi_table();
         // PDF 32000-1:2008 Annex D.2, note 3 to the Latin set: "In
@@ -3820,6 +3836,29 @@ fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char
     } else {
         winansi_table()
     };
+    // docling-parse#370: a font matched to Symbol or ZapfDingbats that
+    // declares a Latin base encoding reads a code through that encoding only
+    // where the face has the glyph the encoding names there; elsewhere its
+    // own (AFM `FontSpecific`) code applies. Symbol + WinAnsi `a×b` reads
+    // `α×β` — `multiply` is a Symbol glyph, `a` and `b` are not — and
+    // MacRoman's `bullet` stays `•`.
+    if let Some(latin) = crate::encodings::by_name(&base_name) {
+        if let Some(face) = face() {
+            let face_glyphs = match face {
+                crate::symbol_fonts::SymbolFace::Symbol => crate::encodings::SYMBOL,
+                crate::symbol_fonts::SymbolFace::ZapfDingbats => crate::encodings::ZAPF_DINGBATS,
+            };
+            let has = |n: &str| face_glyphs.iter().any(|&(_, g)| g == n);
+            for code in 0..=255u8 {
+                if crate::encodings::lookup(latin, code).is_some_and(has) {
+                    continue;
+                }
+                if let Some(ch) = crate::symbol_fonts::face_text(face, code) {
+                    m.insert(code, ch);
+                }
+            }
+        }
+    }
     // Apply /Differences: `code /glyphname /glyphname ... code ...`.
     if let Some(Object::Dictionary(d)) = enc {
         if let Some(Object::Array(diffs)) = d.get(b"Differences").ok().and_then(|o| deref(doc, o)) {
@@ -3839,6 +3878,32 @@ fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char
         }
     }
     m
+}
+
+/// A code → glyph-name encoding ([`crate::encodings`]) read as text.
+fn named_table(table: &[(u8, &str)]) -> HashMap<u8, char> {
+    table
+        .iter()
+        .filter_map(|&(c, n)| glyph_name_to_char(n.as_bytes()).map(|ch| (c, ch)))
+        .collect()
+}
+
+/// A Type 1 font (`Type1` / `MMType1`) whose descriptor, if any, does not
+/// flag it symbolic: StandardEncoding is its built-in encoding.
+fn implied_standard_encoding(doc: &Document, fdict: &Dictionary) -> bool {
+    let type1 = matches!(
+        fdict.get(b"Subtype").ok().and_then(|o| o.as_name().ok()),
+        Some(b"Type1" | b"MMType1")
+    );
+    let symbolic = fdict
+        .get(b"FontDescriptor")
+        .ok()
+        .and_then(|o| as_dict(doc, o))
+        .and_then(|fd| fd.get(b"Flags").ok())
+        .and_then(|o| deref(doc, o))
+        .and_then(num)
+        .is_some_and(|f| (f as i64) & 4 != 0);
+    type1 && !symbolic
 }
 
 /// The fixed built-in encodings of the standard TeX math fonts (TeXbook
@@ -5903,14 +5968,62 @@ mod base14_fonts {
         let symbol = pdf_with_font(b"<</Type/Font/Subtype/Type1/BaseFont/Symbol>>", b"abg");
         let text: String = cells(&symbol).iter().map(|c| c.text.as_str()).collect();
         assert_eq!(text, "αβγ");
-        // A declared encoding keeps its table (multi_page's `•`, a
-        // deliberate divergence from docling-parse's FontSpecific reading).
-        let declared = pdf_with_font(
-            b"<</Type/Font/Subtype/Type1/BaseFont/Symbol/Encoding/WinAnsiEncoding>>",
-            b"a",
-        );
-        let text: String = cells(&declared).iter().map(|c| c.text.as_str()).collect();
-        assert_eq!(text, "a");
+        let symbol = pdf_with_font(b"<</Type/Font/Subtype/Type1/BaseFont/Symbol>>", b"a\xd7b");
+        let text: String = cells(&symbol).iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(text, "α⋅β");
+    }
+
+    /// docling-parse#370 (#1152): a Symbol face that declares a Latin base
+    /// encoding reads a code through it only where the face has the glyph
+    /// it names — WinAnsi's `multiply` is a Symbol glyph, its `a` and `b`
+    /// are not, so `a×b` reads `α×β`; MacRoman `ab` reads `αβ`, and
+    /// MacRoman's `bullet` (0xA5, multi_page's list bullet) stays `•`.
+    /// docling-parse's `test_symbol_follows_declared_winansi_where_it_has_the_glyph`
+    /// and `test_unit_truetype_macroman.py`'s Symbol cases.
+    #[test]
+    fn a_symbol_face_follows_its_declared_encoding_where_it_has_the_glyph() {
+        let read = |enc: &str, text: &[u8]| -> String {
+            let font = format!("<</Type/Font/Subtype/Type1/BaseFont/Symbol/Encoding/{enc}>>");
+            let pdf = pdf_with_font(font.as_bytes(), text);
+            cells(&pdf).iter().map(|c| c.text.as_str()).collect()
+        };
+        assert_eq!(read("WinAnsiEncoding", b"a\xd7b"), "α×β");
+        assert_eq!(read("MacRomanEncoding", b"ab"), "αβ");
+        assert_eq!(read("MacRomanEncoding", b"\xa5"), "•");
+    }
+
+    /// #1152: StandardEncoding — named, as a `/BaseEncoding`, or implied by
+    /// a nonsymbolic Type 1 with no `/Encoding` — and MacExpertEncoding have
+    /// their own tables; both read as WinAnsi before (`x'`®¯áñ¤Ðy`). The
+    /// cells read pdfium's `x’‘fiflÆæ⁄—y`; docling-parse's `x''fiflÆæ⁄-y` is
+    /// the same after the ASCII folding assembly applies to both.
+    #[test]
+    fn standard_and_mac_expert_encodings_have_their_own_tables() {
+        let read = |font: &[u8], text: &[u8]| -> String {
+            cells(&pdf_with_font(font, text))
+                .iter()
+                .map(|c| c.text.as_str())
+                .collect()
+        };
+        let codes = b"x'`\xae\xaf\xe1\xf1\xa4\xd0y";
+        for font in [
+            b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/StandardEncoding>>".as_slice(),
+            b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>",
+            b"<</Type/Font/Subtype/Type1/BaseFont/Times-Roman/Encoding\
+              <</Type/Encoding/BaseEncoding/StandardEncoding/Differences[200/zero]>>>>",
+        ] {
+            assert_eq!(
+                read(font, codes),
+                "x’‘fiflÆæ⁄—y",
+                "{}",
+                String::from_utf8_lossy(font)
+            );
+        }
+        let expert = b"<</Type/Font/Subtype/Type1/BaseFont/ArialMT/Encoding/MacExpertEncoding>>";
+        assert_eq!(read(expert, b"WX"), "fifl");
+        // A TrueType face without an encoding keeps the WinAnsi stand-in.
+        let tt = b"<</Type/Font/Subtype/TrueType/BaseFont/Helvetica>>";
+        assert_eq!(read(tt, b"x\xe1y"), "xáy");
     }
 
     /// #728: one face bound under two resource keys — `/F1` Helvetica in

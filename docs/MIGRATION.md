@@ -1593,7 +1593,8 @@ exact, 450 diff lines** against the groundtruth, 6 / 18 and 414 against live doc
   - a symbolic simple font that declares no base encoding reads through its embedded program's builtin encoding, after `/Differences` and `/ToUnicode`: 2203.01017's `Dingbats` `3` / `7` are `✓` / `✗`
   - a Symbol / ZapfDingbats font that names no encoding reads through the face's own (a non-embedded ZapfDingbats' `l` is `●`) and, without `/Widths`, advances by the face's AFM widths
   - Skia's hexadecimal glyph-index names (`/g15C`) read as unmapped, `�`
-  - **deliberate divergence:** a declared encoding keeps its table; docling-parse reads a font matched to Symbol through the face anyway (its FontSpecific scheme), which turns `multi_page`'s MacRoman `SymbolMT` bullet into `- ∞ IBM MT/ST …`
+  - a Symbol / ZapfDingbats font that declares a Latin base encoding reads a code through it only where the face has the glyph the encoding names, elsewhere through the face's own (docling-parse 7.26, docling-parse#370, #1152): Symbol + WinAnsi `a×b` is `α×β`, MacRoman `ab` is `αβ`, `multi_page`'s MacRoman `SymbolMT` bullet stays `•`; the renderer draws the same glyphs. docling-parse ≤ 7.25 read every code through the face (its FontSpecific scheme), which turned that bullet into `- ∞ IBM MT/ST …` — the upstream groundtruth still has it
+- StandardEncoding and MacExpertEncoding have their own tables (#1152), and StandardEncoding is the implied base of a nonsymbolic Type 1 font with no `/Encoding` (a non-embedded Core 14 Helvetica's); both read as WinAnsi before, so `x'`®¯y` stood where docling-parse and pdfium read `x’‘ﬁﬂy` (`x''fifly` after the quote folding). A TrueType face without an encoding keeps WinAnsi
 - #1130: a page's `/Resources` is inherited from the nearest page-tree ancestor that sets it, inline or by reference (ISO 32000-1 7.7.3.4)
   - lopdf's `get_page_resources` returns an ancestor's only when it is a reference, so a `/Pages` node holding the dictionary inline — the R&OS php pdf writer's layout, every page only `/Type`, `/Parent`, `/Contents` — left the pages without fonts: the text layer read as empty, the wasm `DigitalConverter` refused the file as a scan, and the renderer drew no text or XObjects
   - one walk (`textparse::page_res`) now serves the text parser, the renderer, the raster path and the embedded-image scan; Govdocs1 448692.pdf reads 1097 lines over its 16 pages, as in pdf.js and poppler
@@ -2295,7 +2296,7 @@ These are deliberate or unavoidable divergences, not bugs.
      **9 / 21 exact, 450 diff lines** against upstream's groundtruth, the rest close. The remaining gaps are
      model-level (TableFormer structure on complex tables, layout
      classification, title-page reading order) plus docling-parse 7's own
-     glyph mappings (`∞` for a list bullet, `tildelow` for `~`). The full per-fixture breakdown and the
+     glyph mappings (`tildelow` for `~`; the groundtruth's `∞` list bullet is docling-parse ≤ 7.25's, see #1152). The full per-fixture breakdown and the
      model-level blockers live in `PDF_CONFORMANCE.md`.
 
 6. **Extracted image bytes are real but not byte-identical.** Cropped/embedded
