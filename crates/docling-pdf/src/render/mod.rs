@@ -144,7 +144,7 @@ impl<'a> Renderer<'a> {
             f64::from(ch) + f64::from(pb.b) * sy,
         );
 
-        let content = doc.get_page_content(pid);
+        let content = crate::textparse::page_content(doc, pid);
         let resources = page_resources(doc, pid);
         let mut interp = content::Interp::new(doc, cw, ch, self.shared.clone(), bitmap_hint)?;
         crate::timing::timed("render.content", || {

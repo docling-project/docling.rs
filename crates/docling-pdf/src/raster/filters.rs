@@ -12,8 +12,6 @@
 //! module exists for, and has no `RunLengthDecode`/`ASCIIHexDecode`/TIFF
 //! predictor.
 
-use std::io::Read;
-
 use lopdf::{Dictionary, Document, Object};
 
 /// A filter left for an image codec, with its `/DecodeParms`.
@@ -127,19 +125,9 @@ pub fn apply(
 }
 
 /// zlib inflate, keeping what a damaged stream yielded before the error — as
-/// pdfium's `FlateModule` (and lopdf) do.
+/// pdfium's `FlateModule` does.
 fn inflate(data: &[u8]) -> Vec<u8> {
-    let mut out = Vec::new();
-    let mut dec = flate2::read::ZlibDecoder::new(data);
-    let mut buf = [0u8; 1 << 16];
-    loop {
-        match dec.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => out.extend_from_slice(&buf[..n]),
-            Err(_) => break,
-        }
-    }
-    out
+    crate::textparse::inflate_prefix(data)
 }
 
 /// PDF LZW: MSB-first codes starting at 9 bits, `EarlyChange` 1 by default.

@@ -1593,7 +1593,9 @@ exact, 450 diff lines** against the groundtruth, 6 / 18 and 414 against live doc
   - a symbolic simple font that declares no base encoding reads through its embedded program's builtin encoding, after `/Differences` and `/ToUnicode`: 2203.01017's `Dingbats` `3` / `7` are `✓` / `✗`
   - a Symbol / ZapfDingbats font that names no encoding reads through the face's own (a non-embedded ZapfDingbats' `l` is `●`) and, without `/Widths`, advances by the face's AFM widths
   - Skia's hexadecimal glyph-index names (`/g15C`) read as unmapped, `�`
-  - **deliberate divergence:** a declared encoding keeps its table; docling-parse reads a font matched to Symbol through the face anyway (its FontSpecific scheme), which turns `multi_page`'s MacRoman `SymbolMT` bullet into `- ∞ IBM MT/ST …`
+  - a Symbol / ZapfDingbats font that declares a Latin base encoding reads a code through it only where the face has the glyph the encoding names, elsewhere through the face's own (docling-parse 7.26, docling-parse#370, #1152): Symbol + WinAnsi `a×b` is `α×β`, MacRoman `ab` is `αβ`, `multi_page`'s MacRoman `SymbolMT` bullet stays `•`; the renderer draws the same glyphs. docling-parse ≤ 7.25 read every code through the face (its FontSpecific scheme), which turned that bullet into `- ∞ IBM MT/ST …` — the upstream groundtruth still has it
+- StandardEncoding and MacExpertEncoding have their own tables (#1152), and StandardEncoding is the implied base of a nonsymbolic Type 1 font with no `/Encoding` (a non-embedded Core 14 Helvetica's); both read as WinAnsi before, so `x'`®¯y` stood where docling-parse and pdfium read `x’‘ﬁﬂy` (`x''fifly` after the quote folding). A TrueType face without an encoding keeps WinAnsi
+- text a producer clips to a table cell stays in its cell (#1150, docling-parse 7.26's clip boundary, docling-parse#443): every glyph carries the clip in force, and a line or word breaks where a clip border cuts a glyph — `AB-1001-XYZ` and `Replacement of the ventilation unit, roof level` in their own columns, where the hidden end of the code ran on into the description (`AB-1001-XYZReplacement …`); clips that cut nothing, or a clip on the overflowing glyph alone, leave the text joined
 - #1130: a page's `/Resources` is inherited from the nearest page-tree ancestor that sets it, inline or by reference (ISO 32000-1 7.7.3.4)
   - lopdf's `get_page_resources` returns an ancestor's only when it is a reference, so a `/Pages` node holding the dictionary inline — the R&OS php pdf writer's layout, every page only `/Type`, `/Parent`, `/Contents` — left the pages without fonts: the text layer read as empty, the wasm `DigitalConverter` refused the file as a scan, and the renderer drew no text or XObjects
   - one walk (`textparse::page_res`) now serves the text parser, the renderer, the raster path and the embedded-image scan; Govdocs1 448692.pdf reads 1097 lines over its 16 pages, as in pdf.js and poppler
@@ -2295,7 +2297,7 @@ These are deliberate or unavoidable divergences, not bugs.
      **9 / 21 exact, 450 diff lines** against upstream's groundtruth, the rest close. The remaining gaps are
      model-level (TableFormer structure on complex tables, layout
      classification, title-page reading order) plus docling-parse 7's own
-     glyph mappings (`∞` for a list bullet, `tildelow` for `~`). The full per-fixture breakdown and the
+     glyph mappings (`tildelow` for `~`; the groundtruth's `∞` list bullet is docling-parse ≤ 7.25's, see #1152). The full per-fixture breakdown and the
      model-level blockers live in `PDF_CONFORMANCE.md`.
 
 6. **Extracted image bytes are real but not byte-identical.** Cropped/embedded
@@ -2777,12 +2779,16 @@ These are deliberate or unavoidable divergences, not bugs.
     `text_layer_only` conversions. Off by default, so nothing changes
     unless it is asked for.
 
-25. **A text shadow reads once** (a divergence from docling-parse 7.24.2 on
-    purpose). A word processor exports a heading with a shadow effect as the
+25. **A text shadow reads once** (a divergence from docling-parse on
+    purpose, for shifts of 0.5 pt and more). A word processor exports a heading with a shadow effect as the
     same run drawn twice — the shadow, then the text over it, shifted by a
     fraction of a point (0.5–0.8 pt up and left, black under the coloured
-    text, in the equipment manuals that showed it). docling-parse keeps both
-    copies, so docling with its default backend reads `## Safety
+    text, in the equipment manuals that showed it). docling-parse 7.26
+    drops a copy within 0.5 pt of its original (docling-parse#367, ported
+    by #1151 — `dp_lines::remove_duplicate_cells` / `overlapping_copies`:
+    exact copies anywhere on the page, near copies on their line within
+    `min(0.5, 0.5 × width)`, a word or line drawn again within `min(0.5,
+    0.1 × its size)`); a shadow shifted further it keeps, so docling with its default backend reads `## Safety
     instructions Safety instructions`; with its pypdfium2 backend it reads
     `## Safety instructions`, because pdfium's text page drops the second
     copy, and that is what the page shows. `textparse::drop_shadow_runs`
@@ -2795,10 +2801,16 @@ These are deliberate or unavoidable divergences, not bugs.
     the next table cell); a run of one character set tighter than the
     offset (dot leaders squeezed by `Tc`) steps less than it shifts; the
     characters one glyph expands to share its pen and are not a copy; and
-    the per-glyph re-stamp the sanitizer already folds is untouched. On the
+    the per-glyph re-stamp the sanitizer already folds is untouched; nor
+    does a copy start on a glyph that continues the one before it on its
+    line (`PAT` drawn 0.3 pt off `BAT` repeats its `AT` at one shift and
+    lost both letters before #1151; docling-parse keeps the word). On the
     corpus: the text layer of every PDF is byte-identical
     (`--text-layer-only --to json`), so the PDF groundtruth and the
-    snapshots are unchanged too.
+    snapshots are unchanged too. The one docling-parse case this still
+    reads differently is a line drawn again 1 pt to its right
+    (`test_unit_overprinted_text.py`'s `shift1pt`): two copies there, one
+    here.
 
 26. **An image input's page is sized from its resolution, its models read
     its pixels** (#1093). docling sizes an image's page `pixels × 72 / dpi`

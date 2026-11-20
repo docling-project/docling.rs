@@ -1525,6 +1525,19 @@ pub(crate) struct Glyph {
     /// #1139). The gap is still on the page, so the word contraction is
     /// told it is no word boundary (`dp_lines::tracked_gaps`).
     pub(crate) spaced: bool,
+    /// The box of the clip in force when the glyph was drawn, `[x0, y0, x1,
+    /// y1]` in the glyph's own frame — the intersection of every `W` / `W*`
+    /// capture's box, saved and restored with `q` / `Q` (docling-parse's
+    /// `clip_bbox`, docling-parse#443, #1150). A glyph fitted into a table
+    /// cell is clipped to it; a clip boundary that cuts a glyph separates
+    /// lines and words (`dp_lines`). `None`: no clip.
+    pub(crate) clip: Option<[f32; 4]>,
+    /// A hash of the glyph's quad at full (`f64`) precision, 0 when
+    /// unknown. docling-parse's exact-overprint pass compares the quads'
+    /// doubles (#1151): a column drawn twice through two matrices that
+    /// differ by 1e-5 pt is two copies there, though the `f32` boxes above
+    /// are equal — `newspaper-00` reads both.
+    pub(crate) exact: u64,
 }
 
 impl Glyph {

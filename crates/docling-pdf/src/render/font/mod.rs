@@ -17,7 +17,7 @@
 
 pub mod cmap;
 pub mod dotsection;
-pub mod encodings;
+pub(crate) use crate::encodings;
 pub mod fallback;
 pub mod type1;
 
@@ -303,6 +303,30 @@ impl LoadedFont {
             if let Some(t) = base_table.or(implicit) {
                 for &(c, n) in t {
                     encoding_names.insert(c, n.to_string());
+                }
+            }
+            // docling-parse#370, as the text parser reads it (#1152): a
+            // non-embedded Symbol / ZapfDingbats that declares a Latin base
+            // encoding draws the face's own glyph wherever that encoding
+            // names one the face lacks — Symbol + WinAnsi `a×b` is `α×β`,
+            // not Latin letters from a text-font fallback.
+            let face = if is_symbol_face {
+                Some(encodings::SYMBOL)
+            } else if is_dingbats {
+                Some(encodings::ZAPF_DINGBATS)
+            } else {
+                None
+            };
+            if let (Some(face), Some(_), Program::None) = (face, base_table, &program) {
+                for code in 0..=255u8 {
+                    let has = encoding_names
+                        .get(&code)
+                        .is_some_and(|n| face.iter().any(|&(_, g)| g == n));
+                    if !has {
+                        if let Some(n) = encodings::lookup(face, code) {
+                            encoding_names.insert(code, n.to_string());
+                        }
+                    }
                 }
             }
             if let Some(Object::Dictionary(d)) = enc {
@@ -1294,6 +1318,22 @@ mod tests {
         let font = LoadedFont::load(&Document::with_version("1.4"), &type0);
         assert_eq!(font.unicode_of(0x0CD4, 0x0CD4), Some('日'));
         assert_eq!(font.unicode_of(0x4507, 0x4507), Some('𢭏'));
+    }
+
+    /// #1152: a non-embedded Symbol declaring WinAnsi draws `a×b` as
+    /// `α×β` — the face's own glyph where WinAnsi names one Symbol lacks.
+    #[test]
+    fn a_symbol_face_draws_its_own_glyph_where_the_declared_encoding_has_none() {
+        let symbol = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Symbol",
+            "Encoding" => "WinAnsiEncoding",
+        };
+        let font = LoadedFont::load(&Document::with_version("1.4"), &symbol);
+        assert_eq!(font.glyph_name(u32::from(b'a')), Some("alpha"));
+        assert_eq!(font.glyph_name(0xD7), Some("multiply"));
+        assert_eq!(font.glyph_name(u32::from(b'b')), Some("beta"));
     }
 
     #[test]

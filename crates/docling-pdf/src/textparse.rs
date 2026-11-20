@@ -426,6 +426,22 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
                 }
             }
             default_width = 500.0;
+        } else {
+            // Any other simple font without `/Widths` (a non-embedded
+            // Georgia, Verdana, Tahoma …; the spec requires `/Widths`
+            // outside the standard 14, but such files exist, #1153) advanced
+            // 0 per glyph, and its zero-width line was dropped with all its
+            // text. docling-parse reads the face's AFM; without one, the
+            // descriptor's `/AvgWidth`, else a typical 500 units, keeps the
+            // text with approximate geometry.
+            default_width = fdict
+                .get(b"FontDescriptor")
+                .ok()
+                .and_then(|o| as_dict(doc, o))
+                .and_then(|d| d.get(b"AvgWidth").ok())
+                .and_then(num)
+                .filter(|w| *w > 0.0)
+                .unwrap_or(500.0);
         }
     }
     let fallback_names = if two_byte {
@@ -1203,6 +1219,86 @@ pub(crate) fn page_box(doc: &Document, page_id: lopdf::ObjectId) -> PageBox {
     }
 }
 
+/// A content stream's decoded bytes — a page's, a Form XObject's or a Type 3
+/// glyph procedure's — keeping what a damaged Flate stream inflates before
+/// its error (#1154). lopdf's decoder loses the output of the read that
+/// failed, so a short stream (all of it one read) comes back empty, and a
+/// stream it cannot decode at all comes back raw from `get_page_content` —
+/// compressed bytes the tokenizer rejects with the rest of the content.
+/// docling-parse (`qpdf_stream_decoder::decode_damaged_stream`, per stream
+/// since docling-parse#451) and pdfium keep the intact prefix; so does this.
+/// `None` only for a Flate stream nothing can be read from.
+pub(crate) fn content_stream_bytes(stream: &lopdf::Stream) -> Option<Vec<u8>> {
+    let predictor = stream
+        .dict
+        .get(b"DecodeParms")
+        .ok()
+        .and_then(|o| o.as_dict().ok())
+        .and_then(|d| d.get(b"Predictor").ok())
+        .and_then(|o| o.as_i64().ok())
+        .unwrap_or(1);
+    let plain_flate = predictor <= 1
+        && matches!(
+            stream.filters().unwrap_or_default().as_slice(),
+            [f] if *f == b"FlateDecode" || *f == b"Fl"
+        );
+    if plain_flate {
+        let out = inflate_prefix(&stream.content);
+        if !out.is_empty() {
+            return Some(out);
+        }
+    }
+    // Everything else — and a Flate stream without a zlib header, which
+    // lopdf retries as raw deflate — as lopdf decodes it.
+    match stream.decompressed_content() {
+        Ok(data) => Some(data),
+        Err(_) if plain_flate => None,
+        // Anything else as lopdf has always handed it over.
+        Err(_) => Some(stream.content.clone()),
+    }
+}
+
+/// zlib inflate up to the first error, keeping everything before it —
+/// pdfium's `FlateModule`. Stepped through `Decompress` because a
+/// `read::ZlibDecoder` drops what the failing read had already inflated.
+pub(crate) fn inflate_prefix(data: &[u8]) -> Vec<u8> {
+    let mut dec = flate2::Decompress::new(true);
+    let mut out = Vec::new();
+    let mut buf = vec![0u8; 1 << 16];
+    loop {
+        let (in_before, out_before) = (dec.total_in(), dec.total_out());
+        let input = &data[(in_before as usize).min(data.len())..];
+        let status = dec.decompress(input, &mut buf, flate2::FlushDecompress::None);
+        let written = (dec.total_out() - out_before) as usize;
+        out.extend_from_slice(&buf[..written]);
+        match status {
+            Ok(flate2::Status::Ok) if written > 0 || dec.total_in() > in_before => {}
+            _ => break,
+        }
+    }
+    out
+}
+
+/// A page's content — every stream of its `/Contents`, decoded by
+/// [`content_stream_bytes`], each followed by a newline as lopdf's
+/// `get_page_content` joins them. An undecodable stream drops out instead of
+/// spilling its raw bytes into the content of the others.
+pub(crate) fn page_content(doc: &Document, page_id: lopdf::ObjectId) -> Vec<u8> {
+    let mut content = Vec::new();
+    for id in doc.get_page_contents(page_id) {
+        if let Some(data) = doc
+            .get_object(id)
+            .and_then(Object::as_stream)
+            .ok()
+            .and_then(content_stream_bytes)
+        {
+            content.extend_from_slice(&data);
+            content.push(b'\n');
+        }
+    }
+    content
+}
+
 /// Page size (width, height) in PDF points — the display box's, like pdfium's
 /// `FPDF_GetPageWidthF/HeightF`.
 fn page_size(doc: &Document, page_id: lopdf::ObjectId) -> (f32, f32) {
@@ -1224,7 +1320,7 @@ pub fn content_diagnosis(bytes: &[u8]) -> String {
     let mut out = String::new();
     let mut caches = DocCaches::default();
     for (n, pid) in pages.into_iter().take(4) {
-        let content_bytes = doc.get_page_content(pid);
+        let content_bytes = page_content(&doc, pid);
         let ops = lopdf::content::Content::decode(&content_bytes)
             .map(|c| c.operations.len())
             .ok();
@@ -1414,7 +1510,7 @@ fn has_page_content(doc: &Document) -> bool {
     doc.get_pages()
         .into_values()
         .take(4)
-        .any(|pid| !doc.get_page_content(pid).is_empty())
+        .any(|pid| !page_content(doc, pid).is_empty())
 }
 
 /// Correct `/Length` values that disagree with where `endstream` actually is.
@@ -2113,9 +2209,9 @@ fn page_glyphs_and_inks(
 ) {
     let mut out = Vec::new();
     let mut inks = Vec::new();
-    // get_page_content returns the assembled content-stream bytes directly
-    // (an empty Vec when the page has none).
-    let content_bytes = doc.get_page_content(page_id);
+    // The assembled content-stream bytes (an empty Vec when the page has
+    // none), damaged Flate streams read as far as they inflate (#1154).
+    let content_bytes = page_content(doc, page_id);
     let Ok(content) = lopdf::content::Content::decode(&content_bytes) else {
         return (out, inks, Vec::new(), PageShapes::default());
     };
@@ -2230,7 +2326,20 @@ fn drop_shadow_runs(glyphs: &mut Vec<Glyph>) {
     let mut j = 0;
     while j < n {
         let b = &glyphs[j];
-        let start = pen(b).filter(|p| p[2] > 0.0 && !b.ch.is_whitespace());
+        // A copy starts where a run starts: not on a glyph that continues
+        // the one drawn just before it (its pen within an em ahead on the
+        // same baseline). `PAT` drawn 0.3 pt off `BAT` repeats its `AT`
+        // at one shift, and lost both letters (#1151); docling-parse keeps
+        // the word, a different text. A shadow's first glyph follows the
+        // original's last one — far ahead of it, or behind.
+        let continues = j > 0
+            && match (pen(b), pen(&glyphs[j - 1])) {
+                (Some([xb, yb, sb]), Some([xp, yp, _])) => {
+                    (yb - yp).abs() <= NEAR_EM * sb && xb > xp && xb - xp <= sb
+                }
+                _ => false,
+            };
+        let start = pen(b).filter(|p| p[2] > 0.0 && !b.ch.is_whitespace() && !continues);
         let mut copy = 0;
         if let Some([xj, yj, sj]) = start {
             let lo = j.saturating_sub(LOOKBACK);
@@ -2881,11 +2990,14 @@ fn run_content(
                     tc = op_f(operands, 1);
                 }
                 if let (Some(f), Some(Object::String(s, _))) = (font, operands.last()) {
+                    let first = out.len();
                     show_text(f, s, fsize, tc, tw, th, trise, &mut tm, ctm, out);
+                    stamp_clip(&mut out[first..], shape_gs.clip_box);
                 }
             }
             "TJ" => {
                 if let (Some(f), Some(Object::Array(arr))) = (font, operands.first()) {
+                    let first = out.len();
                     for el in arr {
                         match el {
                             Object::String(s, _) => {
@@ -2908,6 +3020,7 @@ fn run_content(
                             }
                         }
                     }
+                    stamp_clip(&mut out[first..], shape_gs.clip_box);
                 }
             }
             "m" => {
@@ -3011,14 +3124,14 @@ fn run_content(
                 );
                 // A pending `W` takes effect after the painting operator.
                 if std::mem::take(&mut clip_pending) {
-                    capture_clip(&shape_path, &mut shape_gs.clips);
+                    capture_clip(&shape_path, &mut shape_gs);
                 }
                 shape_path.clear();
             }
             "n" => {
                 path.clear();
                 if std::mem::take(&mut clip_pending) {
-                    capture_clip(&shape_path, &mut shape_gs.clips);
+                    capture_clip(&shape_path, &mut shape_gs);
                 }
                 shape_path.clear();
             }
@@ -3136,7 +3249,7 @@ fn run_content(
                 let form_content = match cached {
                     Some(c) => c,
                     None => {
-                        let Ok(data) = stream.decompressed_content() else {
+                        let Some(data) = content_stream_bytes(stream) else {
                             continue;
                         };
                         let Ok(c) = lopdf::content::Content::decode(&data) else {
@@ -3301,6 +3414,11 @@ struct ShapeGs {
     fill_alpha: f64,
     fill_pattern: bool,
     clips: Vec<[f64; 4]>,
+    /// The clip in force as one box: the intersection of each capture's
+    /// box (the union of its subpaths' points), an empty intersection a
+    /// zero-size box — docling-parse 7.26's `clip_bbox`, which every glyph
+    /// carries (#1150, [`Glyph::clip`]).
+    clip_box: Option<[f64; 4]>,
 }
 
 impl ShapeGs {
@@ -3310,7 +3428,16 @@ impl ShapeGs {
         fill_alpha: 1.0,
         fill_pattern: false,
         clips: Vec::new(),
+        clip_box: None,
     };
+}
+
+/// Give the glyphs a text operator just drew the clip box in force.
+fn stamp_clip(glyphs: &mut [Glyph], clip: Option<[f64; 4]>) {
+    let clip = clip.map(|c| c.map(|v| v as f32));
+    for g in glyphs {
+        g.clip = clip;
+    }
 }
 
 /// docling-parse's `bbox_intersects`: the boxes share area (a degenerate box
@@ -3375,11 +3502,30 @@ fn shape_line(a: (f64, f64), z: (f64, f64), clips: &[[f64; 4]], out: &mut Vec<[f
 /// `capture_pending_clip`: each subpath of the clipping path with a segment
 /// (two points or more) bounds what later operators paint — appended, which
 /// approximates the intersection the spec asks for, as docling-parse does.
-fn capture_clip(subs: &[ShapeSub], clips: &mut Vec<[f64; 4]>) {
+///
+/// The capture's box as a whole — every point of its subpaths — narrows
+/// the clip box ([`ShapeGs::clip_box`], docling-parse's
+/// `intersect_clip_bbox`).
+fn capture_clip(subs: &[ShapeSub], gs: &mut ShapeGs) {
+    let mut group: Option<[f64; 4]> = None;
     for sub in subs.iter().filter(|s| s.pts.len() >= 2) {
         if let Some((l, b, r, t)) = bbox_of(&sub.pts) {
-            clips.push([l, b, r, t]);
+            gs.clips.push([l, b, r, t]);
+            group = Some(match group {
+                None => [l, b, r, t],
+                Some(g) => [g[0].min(l), g[1].min(b), g[2].max(r), g[3].max(t)],
+            });
         }
+    }
+    if let Some(g) = group {
+        gs.clip_box = Some(match gs.clip_box {
+            None => g,
+            Some(c) => {
+                let (x0, y0) = (c[0].max(g[0]), c[1].max(g[1]));
+                // An empty intersection clips everything: a zero-size box.
+                [x0, y0, c[2].min(g[2]).max(x0), c[3].min(g[3]).max(y0)]
+            }
+        });
     }
 }
 
@@ -3602,6 +3748,14 @@ fn show_text(
         let (x1, y1) = trm.apply(w0, desc);
         let (x2, y2) = trm.apply(w0, asc);
         let (x3, y3) = trm.apply(0.0, asc);
+        let exact = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            [x0, y0, x1, y1, x2, y2, x3, y3]
+                .map(f64::to_bits)
+                .hash(&mut h);
+            h.finish()
+        };
         // Upright = the baseline runs left-to-right along +x. Only then is the
         // loose box the rectangle spanned by the baseline's x and the em's y
         // (a synthetic oblique's skew is ignored, as it always was). A rotated
@@ -3652,6 +3806,8 @@ fn show_text(
                     math_font: font.math,
                     invisible: false,
                     spaced: false,
+                    clip: None,
+                    exact,
                 });
             }
         }
@@ -3671,8 +3827,9 @@ fn show_text(
 }
 
 /// Build a simple font's code→char table from its `/Encoding`: the base
-/// encoding (WinAnsi / MacRoman) plus any `/Differences` overrides (glyph names
-/// resolved through a small Adobe-glyph-name subset).
+/// encoding (WinAnsi / MacRoman / Standard / MacExpert) plus any
+/// `/Differences` overrides (glyph names resolved through the Adobe Glyph
+/// List).
 fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char> {
     let enc = fdict.get(b"Encoding").ok().and_then(|o| deref(doc, o));
     let base_name = match enc {
@@ -3693,6 +3850,10 @@ fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char
     };
     let mut m = if base_name == b"MacRomanEncoding" {
         macroman_table()
+    } else if base_name == b"StandardEncoding" || base_name == b"MacExpertEncoding" {
+        // Read as WinAnsi before #1152: StandardEncoding's `quoteright` /
+        // `quoteleft` / `fi` / `fl` / `AE` codes came out `'`/`` ` ``/`®`/`¯`/`á`.
+        named_table(crate::encodings::by_name(&base_name).unwrap_or_default())
     } else if let Some(face) = base_name.is_empty().then(face).flatten() {
         // A font matched to Symbol or ZapfDingbats that names no encoding:
         // the face's own (docling-parse's base-font AFM, a "FontSpecific"
@@ -3707,7 +3868,18 @@ fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char
         // `∈` as `2` (2203's `{ahn,…}` author line). The font program (often
         // CFF, which this parser does not read) carries the same mapping;
         // docling-parse decodes it from there.
-        tex_math_builtin(fdict).unwrap_or_else(winansi_table)
+        // Otherwise a nonsymbolic Type 1 font's built-in encoding is
+        // StandardEncoding (9.6.6.1; a non-embedded Core 14 Helvetica's, its
+        // AFM's), as pdfium and docling-parse read it (#1152) — a WinAnsi
+        // reading put `®` where the program draws `fi`. A TrueType or
+        // symbolic face without an encoding keeps the WinAnsi stand-in.
+        tex_math_builtin(fdict).unwrap_or_else(|| {
+            if implied_standard_encoding(doc, fdict) {
+                named_table(crate::encodings::STANDARD)
+            } else {
+                winansi_table()
+            }
+        })
     } else if base_name == b"WinAnsiEncoding" {
         let mut m = winansi_table();
         // PDF 32000-1:2008 Annex D.2, note 3 to the Latin set: "In
@@ -3724,6 +3896,29 @@ fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char
     } else {
         winansi_table()
     };
+    // docling-parse#370: a font matched to Symbol or ZapfDingbats that
+    // declares a Latin base encoding reads a code through that encoding only
+    // where the face has the glyph the encoding names there; elsewhere its
+    // own (AFM `FontSpecific`) code applies. Symbol + WinAnsi `a×b` reads
+    // `α×β` — `multiply` is a Symbol glyph, `a` and `b` are not — and
+    // MacRoman's `bullet` stays `•`.
+    if let Some(latin) = crate::encodings::by_name(&base_name) {
+        if let Some(face) = face() {
+            let face_glyphs = match face {
+                crate::symbol_fonts::SymbolFace::Symbol => crate::encodings::SYMBOL,
+                crate::symbol_fonts::SymbolFace::ZapfDingbats => crate::encodings::ZAPF_DINGBATS,
+            };
+            let has = |n: &str| face_glyphs.iter().any(|&(_, g)| g == n);
+            for code in 0..=255u8 {
+                if crate::encodings::lookup(latin, code).is_some_and(has) {
+                    continue;
+                }
+                if let Some(ch) = crate::symbol_fonts::face_text(face, code) {
+                    m.insert(code, ch);
+                }
+            }
+        }
+    }
     // Apply /Differences: `code /glyphname /glyphname ... code ...`.
     if let Some(Object::Dictionary(d)) = enc {
         if let Some(Object::Array(diffs)) = d.get(b"Differences").ok().and_then(|o| deref(doc, o)) {
@@ -3743,6 +3938,32 @@ fn simple_encoding_table(doc: &Document, fdict: &Dictionary) -> HashMap<u8, char
         }
     }
     m
+}
+
+/// A code → glyph-name encoding ([`crate::encodings`]) read as text.
+fn named_table(table: &[(u8, &str)]) -> HashMap<u8, char> {
+    table
+        .iter()
+        .filter_map(|&(c, n)| glyph_name_to_char(n.as_bytes()).map(|ch| (c, ch)))
+        .collect()
+}
+
+/// A Type 1 font (`Type1` / `MMType1`) whose descriptor, if any, does not
+/// flag it symbolic: StandardEncoding is its built-in encoding.
+fn implied_standard_encoding(doc: &Document, fdict: &Dictionary) -> bool {
+    let type1 = matches!(
+        fdict.get(b"Subtype").ok().and_then(|o| o.as_name().ok()),
+        Some(b"Type1" | b"MMType1")
+    );
+    let symbolic = fdict
+        .get(b"FontDescriptor")
+        .ok()
+        .and_then(|o| as_dict(doc, o))
+        .and_then(|fd| fd.get(b"Flags").ok())
+        .and_then(|o| deref(doc, o))
+        .and_then(num)
+        .is_some_and(|f| (f as i64) & 4 != 0);
+    type1 && !symbolic
 }
 
 /// The fixed built-in encodings of the standard TeX math fonts (TeXbook
@@ -4551,14 +4772,20 @@ mod page_box_frame {
 
     /// One page whose `/Contents` is an array of separate streams.
     fn pdf_content_streams(contents: &[&[u8]]) -> Vec<u8> {
+        pdf_with_streams(
+            contents
+                .iter()
+                .map(|content| lopdf::Stream::new(Dictionary::new(), content.to_vec()))
+                .collect(),
+        )
+    }
+
+    /// [`pdf_content_streams`] with the streams' dictionaries spelled out.
+    fn pdf_with_streams(contents: Vec<lopdf::Stream>) -> Vec<u8> {
         let mut doc = Document::with_version("1.5");
         let streams = contents
-            .iter()
-            .map(|content| {
-                Object::Reference(
-                    doc.add_object(lopdf::Stream::new(Dictionary::new(), content.to_vec())),
-                )
-            })
+            .into_iter()
+            .map(|stream| Object::Reference(doc.add_object(stream)))
             .collect::<Vec<_>>();
         let font_id = doc.add_object(dictionary! {
             "Type" => "Font",
@@ -4668,6 +4895,41 @@ mod page_box_frame {
             b"BT /F1 14 Tf 40 300 Td (Second stream text) Tj ET",
         ]));
         assert_eq!(text(&glyphs), "Second stream text");
+    }
+
+    /// A FlateDecode stream whose data breaks off mid-way (a truncated or
+    /// corrupted download) — #1154. qpdf and pdfium keep what inflated
+    /// before the damage; lopdf's `decompressed_content` fails and its
+    /// `get_page_content` then spliced the *compressed* bytes into the
+    /// content, which tokenized as garbage. The prefix reads, alone or
+    /// between intact streams.
+    #[test]
+    fn a_damaged_flate_stream_keeps_its_inflated_prefix() {
+        use std::io::Write as _;
+        // A sync-flushed deflate of the text, then bytes that are no valid
+        // deflate block: flate2 fails inside the one read that would have
+        // returned the text, so lopdf's decoder ends up with nothing.
+        let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        z.write_all(b"BT /F1 14 Tf 40 200 Td (Partial) Tj ET\n")
+            .expect("deflate");
+        z.flush().expect("sync flush");
+        let mut data = z.get_ref().clone();
+        data.extend_from_slice(b"\x07garbage\n");
+        let damaged =
+            || lopdf::Stream::new(dictionary! { "Filter" => "FlateDecode" }, data.clone());
+        let plain = |s: &[u8]| lopdf::Stream::new(Dictionary::new(), s.to_vec());
+
+        let (_, alone) = only_page(&pdf_with_streams(vec![damaged()]));
+        assert!(text(&alone).starts_with("Partial"), "{:?}", text(&alone));
+
+        let (_, glyphs) = only_page(&pdf_with_streams(vec![
+            plain(b"BT /F1 14 Tf 40 300 Td (Before) Tj ET"),
+            damaged(),
+            plain(b"BT /F1 14 Tf 40 100 Td (After) Tj ET"),
+        ]));
+        let t = text(&glyphs);
+        assert!(t.starts_with("Before") && t.ends_with("After"), "{t:?}");
+        assert!(t.contains("Partial"), "{t:?}");
     }
 
     /// The containment test is docling-parse's: the whole char box (advance
@@ -5708,6 +5970,44 @@ mod base14_fonts {
         assert_eq!(text, "АБВГ");
     }
 
+    /// #1153: a simple font with no `/Widths` and no embedded program,
+    /// outside the standard-14 names, advanced 0 per glyph and its line was
+    /// dropped. docling-parse reads such faces by their AFM.
+    #[test]
+    fn widthless_fonts_outside_the_core_14_names_keep_their_text() {
+        // #1153: no `/Widths`, no embedded program. The Monotype PostScript
+        // names take the standard-14 metrics they substitute …
+        let line = |base: &str, descriptor: &str| {
+            let font = format!(
+                "<</Type/Font/Subtype/TrueType/BaseFont/{base}/Encoding/WinAnsiEncoding{descriptor}>>"
+            );
+            let cs = cells(&pdf_with_font(font.as_bytes(), b"Hello World"));
+            assert_eq!(cs.len(), 1, "{base}: {cs:?}");
+            assert_eq!(cs[0].text, "Hello World", "{base}");
+            cs[0].r - cs[0].l
+        };
+        // Helvetica's advances at 12 pt: docling-parse's ArialMT line is
+        // 64.2 pt wide (10.0..74.2 at 10 pt scales the same way).
+        let arial = line("ArialMT", "");
+        assert!((arial - line("Arial", "")).abs() < 1e-3, "{arial}");
+        for base in [
+            "TimesNewRomanPSMT",
+            "TimesNewRomanPS-BoldMT",
+            "CourierNewPSMT",
+        ] {
+            line(base, "");
+        }
+        // … any other face a descriptor's `/AvgWidth`, else 500 units.
+        let georgia = line("Georgia", "");
+        assert!((georgia - 11.0 * 6.0).abs() < 0.5, "{georgia}");
+        let avg = line(
+            "Tahoma",
+            "/FontDescriptor<</Type/FontDescriptor/FontName/Tahoma/Flags 32/AvgWidth 400\
+             /FontBBox[0 -200 1000 800]/Ascent 800/Descent -200/CapHeight 700>>",
+        );
+        assert!((avg - 11.0 * 4.8).abs() < 0.5, "{avg}");
+    }
+
     /// A non-embedded ZapfDingbats or Symbol that names no encoding reads
     /// through the face's own (docling-parse's base-font AFM; its
     /// `annots_01`: `l` is `●`, #1113) and advances by its AFM widths — no
@@ -5728,14 +6028,373 @@ mod base14_fonts {
         let symbol = pdf_with_font(b"<</Type/Font/Subtype/Type1/BaseFont/Symbol>>", b"abg");
         let text: String = cells(&symbol).iter().map(|c| c.text.as_str()).collect();
         assert_eq!(text, "αβγ");
-        // A declared encoding keeps its table (multi_page's `•`, a
-        // deliberate divergence from docling-parse's FontSpecific reading).
-        let declared = pdf_with_font(
-            b"<</Type/Font/Subtype/Type1/BaseFont/Symbol/Encoding/WinAnsiEncoding>>",
-            b"a",
+        let symbol = pdf_with_font(b"<</Type/Font/Subtype/Type1/BaseFont/Symbol>>", b"a\xd7b");
+        let text: String = cells(&symbol).iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(text, "α⋅β");
+    }
+
+    /// docling-parse#370 (#1152): a Symbol face that declares a Latin base
+    /// encoding reads a code through it only where the face has the glyph
+    /// it names — WinAnsi's `multiply` is a Symbol glyph, its `a` and `b`
+    /// are not, so `a×b` reads `α×β`; MacRoman `ab` reads `αβ`, and
+    /// MacRoman's `bullet` (0xA5, multi_page's list bullet) stays `•`.
+    /// docling-parse's `test_symbol_follows_declared_winansi_where_it_has_the_glyph`
+    /// and `test_unit_truetype_macroman.py`'s Symbol cases.
+    #[test]
+    fn a_symbol_face_follows_its_declared_encoding_where_it_has_the_glyph() {
+        let read = |enc: &str, text: &[u8]| -> String {
+            let font = format!("<</Type/Font/Subtype/Type1/BaseFont/Symbol/Encoding/{enc}>>");
+            let pdf = pdf_with_font(font.as_bytes(), text);
+            cells(&pdf).iter().map(|c| c.text.as_str()).collect()
+        };
+        assert_eq!(read("WinAnsiEncoding", b"a\xd7b"), "α×β");
+        assert_eq!(read("MacRomanEncoding", b"ab"), "αβ");
+        assert_eq!(read("MacRomanEncoding", b"\xa5"), "•");
+    }
+
+    /// #1152: StandardEncoding — named, as a `/BaseEncoding`, or implied by
+    /// a nonsymbolic Type 1 with no `/Encoding` — and MacExpertEncoding have
+    /// their own tables; both read as WinAnsi before (`x'`®¯áñ¤Ðy`). The
+    /// cells read pdfium's `x’‘fiflÆæ⁄—y`; docling-parse's `x''fiflÆæ⁄-y` is
+    /// the same after the ASCII folding assembly applies to both.
+    #[test]
+    fn standard_and_mac_expert_encodings_have_their_own_tables() {
+        let read = |font: &[u8], text: &[u8]| -> String {
+            cells(&pdf_with_font(font, text))
+                .iter()
+                .map(|c| c.text.as_str())
+                .collect()
+        };
+        let codes = b"x'`\xae\xaf\xe1\xf1\xa4\xd0y";
+        for font in [
+            b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/StandardEncoding>>".as_slice(),
+            b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>",
+            b"<</Type/Font/Subtype/Type1/BaseFont/Times-Roman/Encoding\
+              <</Type/Encoding/BaseEncoding/StandardEncoding/Differences[200/zero]>>>>",
+        ] {
+            assert_eq!(
+                read(font, codes),
+                "x’‘fiflÆæ⁄—y",
+                "{}",
+                String::from_utf8_lossy(font)
+            );
+        }
+        let expert = b"<</Type/Font/Subtype/Type1/BaseFont/ArialMT/Encoding/MacExpertEncoding>>";
+        assert_eq!(read(expert, b"WX"), "fifl");
+        // A TrueType face without an encoding keeps the WinAnsi stand-in.
+        let tt = b"<</Type/Font/Subtype/TrueType/BaseFont/Helvetica>>";
+        assert_eq!(read(tt, b"x\xe1y"), "xáy");
+    }
+
+    /// docling-parse 7.26's duplicate passes (docling-parse#367, #1151):
+    /// its `test_unit_overprinted_text.py` cases with docling-parse 7.27's
+    /// line cells. Exact copies go wherever they fall, near copies on their
+    /// own line within `min(0.5, 0.5 × width)`, and a word or line drawn
+    /// again after other text within `min(0.5, 0.1 × its size)`; a copy 1 pt
+    /// off its line — `shift1pt` — is the documented exception: docling-parse
+    /// keeps both, the shadow pass ([`drop_shadow_runs`]) drops it.
+    #[test]
+    fn overprinted_text_reads_once() {
+        const H: &[u8] =
+            b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>";
+        const HB: &[u8] =
+            b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold/Encoding/WinAnsiEncoding>>";
+        const A: &str = "ALPHA BETA GAMMA";
+        const D: &str = "DELTA EPSILON ZETA";
+        let lines = |fonts: &[&[u8]], content: &str| -> Vec<String> {
+            cells(&pdf_with_fonts(fonts, content.as_bytes()))
+                .into_iter()
+                .map(|c| c.text)
+                .collect()
+        };
+        let draws = |ds: &[(f32, f32, &str)]| -> String {
+            ds.iter()
+                .map(|(x, y, t)| format!("BT /F1 12 Tf {x} {y} Td ({t}) Tj ET\n"))
+                .collect()
+        };
+        let cases: [(&str, String, Vec<&str>); 13] = [
+            ("line3x", draws(&[(72.0, 700.0, A); 3]), vec![A]),
+            ("exact2", draws(&[(72.0, 700.0, A); 2]), vec![A]),
+            (
+                "block3x",
+                draws(&[(72.0, 700.0, A), (72.0, 660.0, D)].repeat(3)),
+                vec![A, D],
+            ),
+            (
+                "two_positions",
+                draws(&[(72.0, 700.0, A), (72.0, 660.0, A)]),
+                vec![A, A],
+            ),
+            (
+                "nearby2",
+                draws(&[(72.0, 700.0, A), (72.3, 700.0, A)]),
+                vec![A],
+            ),
+            (
+                "shift1pt",
+                draws(&[(72.0, 700.0, A), (73.0, 700.0, A)]),
+                vec![A],
+            ),
+            (
+                "bat_pat",
+                draws(&[(72.0, 700.0, "BAT"), (72.0, 660.0, D), (72.3, 700.0, "PAT")]),
+                vec!["BAT", D, "PAT"],
+            ),
+            (
+                "shifted_after",
+                draws(&[(72.0, 700.0, A), (72.0, 660.0, D), (72.01, 700.01, A)]),
+                vec![A, D],
+            ),
+            (
+                "block_shift001",
+                draws(&[
+                    (72.0, 700.0, A),
+                    (72.0, 660.0, D),
+                    (72.01, 700.01, A),
+                    (72.01, 660.01, D),
+                ]),
+                vec![A, D],
+            ),
+            (
+                "token_alpha_beta",
+                draws(&[
+                    (72.0, 700.0, "TOKEN ALPHA"),
+                    (72.0, 660.0, D),
+                    (72.01, 700.01, "TOKEN BETA"),
+                ]),
+                vec!["TOKEN ALPHA", D, "TOKEN BETA"],
+            ),
+            (
+                "rotated",
+                "BT /F1 12 Tf 0 1 -1 0 300 200 Tm (ALPHA BETA) Tj ET\n\
+                 BT /F1 12 Tf 0 1 -1 0 320 200 Tm (OTHER LINE) Tj ET\n\
+                 BT /F1 12 Tf 0 1 -1 0 300.01 200.01 Tm (ALPHA BETA) Tj ET\n"
+                    .to_string(),
+                vec!["ALPHA BETA", "OTHER LINE"],
+            ),
+            (
+                "small_partial",
+                "BT /F1 1 Tf 72 700 Td (WORD) Tj ET\nBT /F1 12 Tf 72 660 Td (OTHER LINE) Tj ET\n\
+                 BT /F1 1 Tf 72.25 700.25 Td (WORD) Tj ET\n"
+                    .to_string(),
+                vec!["WORD", "OTHER LINE", "WORD"],
+            ),
+            (
+                "fonts",
+                "BT /F1 12 Tf 72 700 Td (.) Tj ET\nBT /F1 12 Tf 72 660 Td (OTHER LINE) Tj ET\n\
+                 BT /F2 12 Tf 72.01 700.01 Td (.) Tj ET\n"
+                    .to_string(),
+                vec![".", "OTHER LINE", "."],
+            ),
+        ];
+        for (name, content, want) in cases {
+            assert_eq!(lines(&[H, HB], &content), want, "{name}");
+        }
+    }
+
+    /// docling-parse 7.26's clip boundary (docling-parse#443, #1150): its
+    /// `test_unit_clipped_cell_text.py` cases, word and line cells as
+    /// docling-parse 7.27 lists them. A producer fits text into a table cell
+    /// by clipping it there; the hidden end runs under the next column and
+    /// read on into it (`AB-1001-XYZReplacement of …`).
+    #[test]
+    fn a_clip_that_cuts_a_glyph_separates_words_and_lines() {
+        const HELV: &[u8] = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>";
+        let read = |content: &str| -> (Vec<String>, Vec<String>) {
+            let pdf = pdf_with_content(HELV, content.as_bytes());
+            let words = super::pdf_words(&pdf)
+                .into_iter()
+                .flat_map(|(_, _, c)| c)
+                .map(|c| c.text)
+                .collect();
+            let lines = cells(&pdf).into_iter().map(|c| c.text).collect();
+            (words, lines)
+        };
+        // The table of docling-parse#404, every cell's text in its own clip.
+        let rows = [
+            ["Code", "Description", "Unit", "Amount"],
+            [
+                "AB-1001-XYZ",
+                "Replacement of the ventilation unit, roof level",
+                "pcs",
+                "1",
+            ],
+            ["AB-1002", "Gutter cleaning", "m", "120"],
+            [
+                "AB-1003-LONG",
+                "Repainting of window frames and fascia boards",
+                "m2",
+                "85",
+            ],
+        ];
+        let columns = [72.0, 122.0, 252.0, 302.0, 372.0];
+        let (top, row_h) = (720.0, 22.0);
+        let mut table = String::from("0.5 w\n");
+        for i in 0..=rows.len() {
+            let y = top - i as f64 * row_h;
+            table += &format!("{} {y} m {} {y} l S\n", columns[0], columns[4]);
+        }
+        for x in columns {
+            table += &format!("{x} {top} m {x} {} l S\n", top - rows.len() as f64 * row_h);
+        }
+        for (r, row) in rows.iter().enumerate() {
+            for (c, text) in row.iter().enumerate() {
+                let (x0, x1) = (columns[c], columns[c + 1]);
+                let y1 = top - r as f64 * row_h;
+                let y0 = y1 - row_h;
+                table += &format!(
+                    "q {x0} {y0} {} {} re W n BT /F1 9 Tf {} {} Td ({text}) Tj ET Q\n",
+                    x1 - x0,
+                    y1 - y0,
+                    x0 + 3.0,
+                    y1 - 15.0
+                );
+            }
+        }
+        let (words, lines) = read(&table);
+        let split = |s: &str| s.split(' ').map(String::from).collect::<Vec<_>>();
+        let want_words: Vec<String> = rows.iter().flatten().flat_map(|t| split(t)).collect();
+        assert_eq!(words, want_words);
+        // Row 2 overflows nothing: neither clip cuts a glyph, and its code
+        // and description stay one line across the two clips.
+        assert_eq!(
+            lines,
+            [
+                "Code",
+                "Description",
+                "Unit",
+                "Amount",
+                "AB-1001-XYZ",
+                "Replacement of the ventilation unit, roof level",
+                "pcs",
+                "1",
+                "AB-1002 Gutter cleaning",
+                "m",
+                "120",
+                "AB-1003-LONG",
+                "Repainting of window frames and fascia boards",
+                "m2",
+                "85",
+            ]
         );
-        let text: String = cells(&declared).iter().map(|c| c.text.as_str()).collect();
-        assert_eq!(text, "a");
+
+        // Each run in its own clip, (text, x, clip width): Helvetica 10 pt.
+        let runs = |rs: &[(&str, f64, f64)]| -> String {
+            rs.iter()
+                .map(|(t, x, w)| {
+                    format!("q {x} 697 {w} 12 re W n BT /F1 10 Tf {x} 700 Td ({t}) Tj ET Q\n")
+                })
+                .collect()
+        };
+        // Clips that cut nothing: the runs still join.
+        let (words, lines) = read(&runs(&[
+            ("Hel", 100.0, 15.0),
+            ("lo", 115.0, 7.78),
+            ("World", 125.56, 26.11),
+        ]));
+        assert_eq!(
+            (words, lines),
+            (
+                vec!["Hello".into(), "World".into()],
+                vec!["Hello World".into()]
+            )
+        );
+        // `Hello` clipped short, its hidden `lo` under `World`'s clip.
+        for visible in [12.0, 20.0] {
+            let (words, lines) = read(&runs(&[("Hello", 100.0, visible), ("World", 115.0, 26.11)]));
+            assert_eq!(words, ["Hello", "World"], "{visible}");
+            assert_eq!(lines, ["Hello", "World"], "{visible}");
+        }
+        // Only the overflowing glyph clipped: the unclipped ones lie inside
+        // its box, and the word stays whole.
+        let (words, lines) = read(
+            "BT /F1 10 Tf 100 700 Td (Montclai) Tj ET\n\
+             q 100 697 38 12 re W n BT /F1 10 Tf 137.23 700 Td (r) Tj ET Q\n",
+        );
+        assert_eq!(
+            (words, lines),
+            (vec!["Montclair".into()], vec!["Montclair".into()])
+        );
+        // A clip around a hyphen's ink is no cell: it hides less than a
+        // fifth of the em.
+        let mut x = 100.0;
+        let mut content = String::new();
+        for (t, adv) in [
+            ("a", 5.56),
+            ("u", 5.56),
+            ("f", 2.78),
+            ("g", 5.56),
+            ("e", 5.56),
+            ("-", 3.33),
+        ] {
+            let clip = if t == "-" {
+                format!("{} 697 2.0 12 re W n ", x + 0.6)
+            } else {
+                format!("{x} 697 {adv} 12 re W n ")
+            };
+            content += &format!("q {clip}BT /F1 10 Tf {x} 700 Td ({t}) Tj ET Q\n");
+            x += adv;
+        }
+        let (words, lines) = read(&content);
+        assert_eq!(
+            (words, lines),
+            (vec!["aufge-".into()], vec!["aufge-".into()])
+        );
+        // A glyph repainted under a sliver clip: a box that cannot hold a
+        // glyph is no cell either.
+        let (_, lines) = read(
+            "BT /F1 10 Tf 100 700 Td (d) Tj ET\n\
+             q 105.3 697 0.3 12 re W n BT /F1 10 Tf 100 700 Td (d) Tj ET Q\n\
+             BT /F1 10 Tf 105.56 700 Td (en) Tj ET\n",
+        );
+        assert_eq!(lines.len(), 1, "{lines:?}");
+        // The same token in two clips is two tokens (the duplicate pass,
+        // #1151, compares clips).
+        let (_, lines) = read(
+            "q 0 0 300 792 re W n BT /F1 12 Tf 72 700 Td (TOKEN) Tj ET Q\n\
+             BT /F1 12 Tf 72 660 Td (OTHER LINE) Tj ET\n\
+             q 0 0 400 792 re W n BT /F1 12 Tf 72.01 700.01 Td (TOKEN) Tj ET Q\n",
+        );
+        assert_eq!(lines, ["TOKEN", "OTHER LINE", "TOKEN"]);
+    }
+
+    /// docling-parse's `test_small_text_keeps_repeated_letters`: a line at
+    /// 12, 2, 1, 0.8 and 0.5 pt, drawn once or twice (`1 Tr` then `0 Tr`,
+    /// fake bold), reads its letters once each — the doubled `mm` / `tt` /
+    /// `ee` of `Committee` included, which a fixed 0.5 pt near-copy window
+    /// took for re-stamps in the smallest sizes (#1151). The word spaces
+    /// at ≤ 2 pt are docling-parse#437's em-based gap, not ported; only the
+    /// letters are compared there.
+    #[test]
+    fn small_text_keeps_repeated_letters() {
+        const T: &[u8] =
+            b"<</Type/Font/Subtype/Type1/BaseFont/Times-Roman/Encoding/WinAnsiEncoding>>";
+        const TEXT: &str = "Committee Participant benefits illegible";
+        for size in ["12", "2", "1", "0.8", "0.5"] {
+            for copies in [1, 2] {
+                let run = format!("/F1 {size} Tf 50 400 Td ({TEXT}) Tj");
+                let mut content = format!("BT 0 Tr {run} ET\n");
+                if copies == 2 {
+                    content = format!("BT 1 Tr {run} ET\n{content}");
+                }
+                let text: String = cells(&pdf_with_content(T, content.as_bytes()))
+                    .iter()
+                    .map(|c| c.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if size == "12" {
+                    assert_eq!(text, TEXT, "{size} pt × {copies}");
+                } else {
+                    let letters =
+                        |s: &str| s.chars().filter(|c| !c.is_whitespace()).collect::<String>();
+                    assert_eq!(
+                        letters(&text),
+                        letters(TEXT),
+                        "{size} pt × {copies}: {text:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// #728: one face bound under two resource keys — `/F1` Helvetica in
@@ -6233,6 +6892,8 @@ mod base14_fonts {
             math_font: false,
             invisible: false,
             spaced: false,
+            clip: None,
+            exact: 0,
         };
         let mut out = vec![
             glyph('o', 0.0, 0.0),
