@@ -2915,7 +2915,19 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
   text kept) is a `pipeline`/`VlmPipeline` error item with its `page_no`
   and a `partial_success`; only a document with no page output fails.
   `ErrorItem.page_no` is exposed on every surface (serve JSON `page_no`,
-  Node `pageNo`, Python `ErrorItem.page_no`). (**Audio/ASR is now done** — see §2; Opus and AVI,
+  Node `pageNo`, Python `ErrorItem.page_no`). Since #1146 (docling#4498)
+  the output carries its pages and provenance as docling's does: each
+  page's answer is parsed on its own and the pages concatenated
+  (`_concatenate_page_documents`), each behind its source page number and
+  size, so the JSON `pages` hold exactly the pages converted (`--pages 3-4`
+  → 3 and 4; a failed page leaves the numbers after it unchanged) and a
+  DocTags `loc_` box becomes the item's `prov` on its page (the 0–500 grid
+  rescaled to the 0–511 one the export denormalizes). Markdown is
+  unchanged. A DocLang answer's JSON now comes from its flat nodes, not the
+  reader's item tree (one tree per page does not concatenate). Not ported:
+  a DocTags `key_value_region` is flat `field_key` / `field_value` text
+  here, where docling-core builds a `KeyValueItem` with graph cells.
+  (**Audio/ASR is now done** — see §2; Opus and AVI,
   which symphonia cannot decode, use the optional ffmpeg fallback. The **enrichment
   models are now done** too: DocumentFigureClassifier-v2.5 for
   `do_picture_classification` and CodeFormulaV2 — an Idefics3-class VLM,

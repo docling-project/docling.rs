@@ -24,7 +24,7 @@
 use std::io::Cursor;
 use std::time::Duration;
 
-use docling_core::DoclingDocument;
+use docling_core::{DoclingDocument, Node};
 
 use crate::backend::doclang::DoclangBackend;
 use crate::backend::DeclarativeBackend;
@@ -316,7 +316,8 @@ pub fn convert_vlm_result(
     opts: &VlmOptions,
 ) -> Result<ConversionResult, ConversionError> {
     let agent = agent();
-    let mut fragments: Vec<String> = Vec::new();
+    // Each answered page with its source page number and size (#1146).
+    let mut fragments: Vec<PageAnswer> = Vec::new();
     let mut errors: Vec<ErrorItem> = Vec::new();
     // (page, reason) of the pages that produced no output.
     let mut failed: Vec<(usize, String)> = Vec::new();
@@ -354,7 +355,8 @@ pub fn convert_vlm_result(
                     pages += 1;
                     let step =
                         encode_png(&page.image).and_then(|png| request_page(&agent, opts, &png));
-                    take_page(i + 1, step, &mut fragments, &mut errors, &mut failed);
+                    let size = (page.width, page.height);
+                    take_page(i + 1, size, step, &mut fragments, &mut errors, &mut failed);
                     Ok(())
                 },
             )
@@ -364,7 +366,13 @@ pub fn convert_vlm_result(
             // The image file is already the page; no re-encode, no pdfium.
             pages = 1;
             let step = request_page(&agent, opts, &source.bytes);
-            take_page(1, step, &mut fragments, &mut errors, &mut failed);
+            // An image input is page 1 at its pixel size.
+            let size = image::ImageReader::new(Cursor::new(&source.bytes))
+                .with_guessed_format()
+                .ok()
+                .and_then(|r| r.into_dimensions().ok())
+                .map_or((0.0, 0.0), |(w, h)| (w as f32, h as f32));
+            take_page(1, size, step, &mut fragments, &mut errors, &mut failed);
         }
         other => {
             return Err(ConversionError::Parse(format!(
@@ -394,31 +402,39 @@ pub fn convert_vlm_result(
     // The model-specific grammars go first (#322): their token shapes are
     // unambiguous, and each parser shares the tolerance contract — hostile
     // output degrades to text, never to an error.
-    let doc = if fragments
-        .iter()
-        .any(|f| crate::backend::looks_like_chandra(f))
-    {
+    // Each page is parsed on its own and the pages concatenated, as
+    // docling's `_concatenate_page_documents` does, so every page's items
+    // follow a `PageInfo` with its source page number and size: their boxes
+    // become `prov` on the right page, and `pages` holds exactly the pages
+    // converted — a `--pages 3-4` range included, a failed page leaving the
+    // numbers after it unchanged (#1146, docling#4498).
+    let texts: Vec<&str> = fragments.iter().map(|p| p.text.as_str()).collect();
+    let doc = if texts.iter().any(|f| crate::backend::looks_like_chandra(f)) {
         // Chandra layout HTML (`<div data-bbox=… data-label=…>`).
-        crate::backend::chandra_pages(&source.name, &fragments)
-    } else if fragments.iter().any(|f| {
+        assemble_pages(&source.name, &fragments, false, |text| {
+            crate::backend::chandra_pages(&source.name, &[text.to_string()])
+        })
+    } else if texts.iter().any(|f| {
         crate::backend::is_unlimited_ocr_markdown(f) || crate::backend::is_deepseek_markdown(f)
     }) {
         // Unlimited-OCR grounding output labels blocks the way DeepSeek-OCR
         // does (docling#3944): normalize its `<|det|>label [x,y,x,y]<|/det|>`
         // shape into the DeepSeek one and share that parser. Native
         // DeepSeek-shaped responses take the same path directly.
-        let joined = fragments
-            .iter()
-            .map(|f| crate::backend::normalize_unlimited(f))
-            .collect::<Vec<_>>()
-            .join("\n");
-        crate::backend::deepseek_text(&source.name, &joined)
-    } else if fragments.iter().any(|f| looks_like_doctags(f)) {
-        let mut doc = docling_core::doctags::parse_pages(fragments.iter().map(String::as_str));
-        doc.name = source.name.clone();
+        assemble_pages(&source.name, &fragments, false, |text| {
+            crate::backend::deepseek_text(&source.name, &crate::backend::normalize_unlimited(text))
+        })
+    } else if texts.iter().any(|f| looks_like_doctags(f)) {
+        // DocTags boxes are on a 0–500 grid; the document's are 0–511.
+        let mut doc = assemble_pages(&source.name, &fragments, true, |text| {
+            docling_core::doctags::parse_pages([text])
+        });
+        rescale_located(&mut doc.nodes);
         doc
     } else {
-        parse_doclang_fragments(&source.name, &fragments)
+        assemble_pages(&source.name, &fragments, false, |text| {
+            parse_doclang_fragments(&source.name, &[text.to_string()])
+        })
     };
     if doc.nodes.is_empty() {
         // Some request succeeded, so this is a content problem, not a
@@ -449,12 +465,81 @@ pub fn convert_vlm_result(
     })
 }
 
+/// One answered page: its 1-based source page number, its size (PDF points;
+/// an image input's pixels) and the model's markup.
+struct PageAnswer {
+    page_no: usize,
+    width: f32,
+    height: f32,
+    text: String,
+}
+
+/// The pages parsed one by one (`parse`) and concatenated, each behind a
+/// [`Node::PageInfo`] with its number and size (#1146). A parser's own page
+/// markers — the DocLang reader lays a document out on synthetic 512 × 512
+/// pages — give way to the real one, and its item tree to the flat nodes,
+/// which concatenate. `page_breaks` keeps the [`Node::PageBreak`] the
+/// DocTags path put between pages.
+fn assemble_pages(
+    name: &str,
+    pages: &[PageAnswer],
+    page_breaks: bool,
+    parse: impl Fn(&str) -> DoclingDocument,
+) -> DoclingDocument {
+    let mut doc = DoclingDocument::new(name);
+    for (i, page) in pages.iter().enumerate() {
+        if i > 0 && page_breaks {
+            doc.nodes.push(Node::PageBreak);
+        }
+        doc.nodes.push(Node::PageInfo {
+            page_no: page.page_no,
+            width: page.width,
+            height: page.height,
+        });
+        let part = parse(&page.text);
+        doc.nodes.extend(
+            part.nodes
+                .into_iter()
+                .filter(|n| !matches!(n, Node::PageInfo { .. })),
+        );
+        doc.links.extend(part.links);
+    }
+    doc
+}
+
+/// Move DocTags' `loc_` boxes (a 0–500 grid) onto the 0–511 grid
+/// [`Node::Located`] carries, which the JSON export denormalizes by 512
+/// and DocLang writes as is.
+fn rescale_located(nodes: &mut [Node]) {
+    for node in nodes {
+        match node {
+            Node::Located { location, inner } => {
+                for v in location.iter_mut() {
+                    *v = ((u32::from(*v).min(500) * 512 + 250) / 500).min(511) as u16;
+                }
+                rescale_located(std::slice::from_mut(inner));
+            }
+            Node::Group { children, .. } | Node::PictureChildren(children) => {
+                rescale_located(children)
+            }
+            Node::Prov { inner, .. }
+            | Node::Track { inner, .. }
+            | Node::Furniture { inner, .. }
+            | Node::Commented { inner, .. }
+            | Node::ScriptText { inner, .. }
+            | Node::DoclangOnly(inner) => rescale_located(std::slice::from_mut(inner)),
+            _ => {}
+        }
+    }
+}
+
 /// File one page's answer: its markup into `fragments`, a cut-off answer
 /// also as a page error, a failed request as a page error and in `failed`.
 fn take_page(
     page_no: usize,
+    (width, height): (f32, f32),
     step: Result<Completion, String>,
-    fragments: &mut Vec<String>,
+    fragments: &mut Vec<PageAnswer>,
     errors: &mut Vec<ErrorItem>,
     failed: &mut Vec<(usize, String)>,
 ) {
@@ -466,7 +551,12 @@ fn take_page(
                     format!("VLM output incomplete (stop_reason={reason})."),
                 ));
             }
-            fragments.push(strip_wrappers(&completion.text));
+            fragments.push(PageAnswer {
+                page_no,
+                width,
+                height,
+                text: strip_wrappers(&completion.text),
+            });
         }
         Err(e) => {
             errors.push(ErrorItem::vlm_page(

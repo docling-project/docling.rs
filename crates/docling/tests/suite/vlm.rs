@@ -355,3 +355,98 @@ fn image_bytes() -> Vec<u8> {
         .unwrap();
     out
 }
+
+/// One DocTags page as granite-docling answers it: a header and a text,
+/// each with its `loc_` box.
+fn doctags_page(n: usize) -> String {
+    format!(
+        "<doctag><page_header><loc_10><loc_10><loc_490><loc_30>Header</page_header>\
+         <text><loc_10><loc_50><loc_490><loc_70>Request {n}</text></doctag>"
+    )
+}
+
+/// The page numbers of the JSON's `pages`, and of every item's `prov`.
+fn json_pages(doc: &docling::DoclingDocument) -> (Vec<u64>, Vec<(String, u64)>) {
+    let json: serde_json::Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+    let mut pages: Vec<u64> = json["pages"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(|k| k.parse().unwrap())
+        .collect();
+    pages.sort_unstable();
+    let provs = json["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|t| {
+            let text = t["text"].as_str().unwrap_or("").to_string();
+            t["prov"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .map(move |p| (text.clone(), p["page_no"].as_u64().unwrap()))
+        })
+        .collect();
+    (pages, provs)
+}
+
+/// docling#4498 (#1146, `test_complete_page_ranges_equal_whole_vlm_conversion`):
+/// a VLM conversion carries its pages and its items' provenance — the whole
+/// `multi_page.pdf` gives pages 1–5, `--pages 3-4` exactly pages 3 and 4 with
+/// every prov on them, and a failed page leaves the numbers after it
+/// unchanged. A Markdown answer, which has no boxes, still gets its pages.
+#[test]
+fn vlm_output_carries_its_pages_and_provenance() {
+    let source =
+        SourceDocument::from_file(repo_root().join("tests/data/pdf/sources/multi_page.pdf"))
+            .expect("pdf fixture");
+
+    let (endpoint, _, handle) = mock_openai((1..=5).map(doctags_page).collect());
+    let whole = convert_vlm(&source, &opts(endpoint)).expect("whole conversion");
+    handle.join().expect("mock server");
+    let (pages, provs) = json_pages(&whole);
+    assert_eq!(pages, [1, 2, 3, 4, 5]);
+    assert_eq!(provs.len(), 10, "{provs:?}");
+    for n in 1..=5u64 {
+        assert!(provs.contains(&(format!("Request {n}"), n)), "{provs:?}");
+    }
+
+    let (endpoint, _, handle) = mock_openai(vec![doctags_page(3), doctags_page(4)]);
+    let mut o = opts(endpoint);
+    o.page_range = Some((3, 4));
+    let part = convert_vlm(&source, &o).expect("range conversion");
+    handle.join().expect("mock server");
+    let (pages, provs) = json_pages(&part);
+    assert_eq!(pages, [3, 4]);
+    assert!(provs.iter().all(|(_, p)| *p == 3 || *p == 4), "{provs:?}");
+    assert!(provs.contains(&("Request 3".into(), 3)) && provs.contains(&("Request 4".into(), 4)));
+
+    // A failed middle page: page 3's items stay on page 3.
+    let (endpoint, _, handle) = mock_replies(vec![
+        Reply::ok(doctags_page(1)),
+        Reply {
+            status: 400,
+            content: String::new(),
+            finish_reason: "stop",
+        },
+        Reply::ok(doctags_page(3)),
+    ]);
+    let mut o = opts(endpoint);
+    o.page_range = Some((1, 3));
+    let result = convert_vlm_result(&source, &o).expect("partial conversion");
+    handle.join().expect("mock server");
+    let (pages, provs) = json_pages(&result.document);
+    assert_eq!(pages, [1, 3]);
+    assert!(provs.contains(&("Request 3".into(), 3)), "{provs:?}");
+
+    // Markdown answers: no boxes, but the pages are the converted ones.
+    let (endpoint, _, handle) =
+        mock_openai(vec!["# Page three\n\nBody.".into(), "Body four.".into()]);
+    let mut o = opts(endpoint);
+    o.page_range = Some((3, 4));
+    let md = convert_vlm(&source, &o).expect("markdown answers");
+    handle.join().expect("mock server");
+    assert_eq!(json_pages(&md).0, [3, 4]);
+}
