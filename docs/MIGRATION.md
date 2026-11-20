@@ -860,6 +860,11 @@ converted once more as that format with a warning.
 - folds are joined on the bytes before decoding (a fold may split a UTF-8 character) unless the input is UTF-16/32 — a wide BOM, or a requested `encoding` that is not ASCII compatible — which is decoded first and unfolded as text
 - the JSON is docling's item tree (`title`, `section_header` levels 1/2, `text` fields, `list` groups named after their heading); the flat Markdown prints `& < >` verbatim, as upstream's groundtruth does
 - detection: `.ics` `.ical` `.icalendar` `.ifb`, `text/calendar`, and a nameless input whose first non-blank line is `BEGIN:VCALENDAR` (UTF-16 behind its BOM too); a named `.txt` keeps its own route
+- the 2026-11 upstream sync (#1195) ports three description fixes:
+  - docling#5451: in a MONTHLY or YEARLY rule a weekday without a position is every such day (`Monthly on every Monday`, `Monthly on the first Monday and every Friday`), and a YEARLY rule with BYMONTHDAY and no BYMONTH repeats `… of every month` — we wrote `Monthly on Monday` and `Yearly on the 1st and last day`, which name one day
+  - docling#5394: a blank rule part is skipped, so a rule ending with `;` (`FREQ=YEARLY;BYMONTH=11;BYDAY=1SU;`) is described instead of kept raw
+  - docling#5391: an entry with a DTEND and no DTSTART (a VFREEBUSY, a sloppy VEVENT) keeps its `End:` line
+  - no fixture uses such a rule or entry, so the 4/4 stands
 
 #### EPUB
 

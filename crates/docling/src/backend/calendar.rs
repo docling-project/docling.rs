@@ -733,13 +733,17 @@ fn py_int(token: &str) -> Option<i64> {
     t.parse::<i64>().ok()
 }
 
-fn describe_byday(value: &str) -> Option<String> {
+/// BYDAY in words; `every` (a MONTHLY or YEARLY rule, docling#5451) reads a
+/// day without a position as every such day of the month or year (`every
+/// Monday`), not one of them.
+fn describe_byday(value: &str, every: bool) -> Option<String> {
     let re = cached_regex!(r"(?i)^([+-]?[0-9]{1,2})?(MO|TU|WE|TH|FR|SA|SU)$");
     let mut days = Vec::new();
     for token in value.split(',') {
         let caps = re.captures(py_strip(token))?;
         let name = weekday_name(&caps[2].to_ascii_uppercase())?;
         match caps.get(1) {
+            None if every => days.push(format!("every {name}")),
             None => days.push(name.to_string()),
             Some(pos) => {
                 let n: i64 = pos.as_str().parse().ok()?;
@@ -797,6 +801,12 @@ fn describe_rrule(raw: &str) -> Option<String> {
     ];
     let mut parts: Vec<(String, String)> = Vec::new();
     for item in raw.split(';') {
+        // Some producers end the rule with a semicolon
+        // (`FREQ=YEARLY;BYMONTH=11;BYDAY=1SU;`): a blank item is skipped
+        // (docling#5394), where it used to keep the raw rule.
+        if py_strip(item).is_empty() {
+            continue;
+        }
         let (key, value) = item.split_once('=')?;
         if value.is_empty() {
             return None;
@@ -842,10 +852,16 @@ fn describe_rrule(raw: &str) -> Option<String> {
         text.push_str(&format!(" in {}", describe_bymonth(v)?));
     }
     if let Some(v) = get("BYDAY") {
-        text.push_str(&format!(" on {}", describe_byday(v)?));
+        let every = matches!(freq.as_str(), "MONTHLY" | "YEARLY");
+        text.push_str(&format!(" on {}", describe_byday(v, every)?));
     }
     if let Some(v) = get("BYMONTHDAY") {
         text.push_str(&format!(" on {}", describe_bymonthday(v)?));
+        // Without BYMONTH a yearly rule repeats on these days in every month
+        // (docling#5451).
+        if freq == "YEARLY" && get("BYMONTH").is_none() {
+            text.push_str(" of every month");
+        }
     }
     if let Some(v) = get("COUNT") {
         let count = py_int(v)?;
@@ -1200,7 +1216,13 @@ fn time_fields(entry: &Component) -> Vec<String> {
     };
 
     match (start_prop, start) {
-        (None, _) => {}
+        // An entry with an end and no start keeps its end (docling#5391: a
+        // VFREEBUSY or a sloppy VEVENT), where the end used to be dropped.
+        (None, _) => {
+            if let Some(end) = end_prop {
+                fields.push(format!("End: {}", format_property_time(end)));
+            }
+        }
         (Some(prop), None) => fields.push(format!("{start_label}: {}", prop.value())),
         (Some(_), Some(start)) if start.all_day() && entry.name == "VEVENT" => {
             // DTEND of an all-day entry is exclusive: a one-day event ends the
@@ -1514,6 +1536,11 @@ mod tests {
             ("FREQ=DAILY;COUNT=1", Some("Daily, once")),
             ("FREQ=DAILY;UNTIL=20261231", Some("Daily, until 2026-12-31")),
             ("FREQ=WEEKLY;WKST=MO;BYDAY=MO", Some("Weekly on Monday")),
+            // docling#5394: some producers end the rule with a semicolon.
+            (
+                "FREQ=YEARLY;BYMONTH=11;BYDAY=1SU;",
+                Some("Yearly in November on the first Sunday"),
+            ),
             ("FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1", None),
             ("FREQ=DAILY;BYHOUR=9,17", None),
             ("FREQ=WEEKLY;INTERVAL=2;WKST=SU;BYDAY=MO,SU", None),
@@ -1521,6 +1548,69 @@ mod tests {
         ];
         for (rule, expected) in cases {
             assert_eq!(describe_rrule(rule).as_deref(), *expected, "{rule}");
+        }
+    }
+
+    /// docling#5451 (`test_describe_rrule_monthly_and_yearly_day_without_position`):
+    /// BYDAY=MO in a monthly or yearly rule is every Monday, and BYMONTHDAY
+    /// in a yearly rule without BYMONTH a day of every month.
+    #[test]
+    fn monthly_and_yearly_day_without_position() {
+        let cases = [
+            ("FREQ=MONTHLY;BYDAY=MO", "Monthly on every Monday"),
+            (
+                "FREQ=MONTHLY;BYDAY=TU,TH",
+                "Monthly on every Tuesday and every Thursday",
+            ),
+            (
+                "FREQ=MONTHLY;BYDAY=1MO,FR",
+                "Monthly on the first Monday and every Friday",
+            ),
+            ("FREQ=YEARLY;BYDAY=SU", "Yearly on every Sunday"),
+            (
+                "FREQ=YEARLY;BYMONTH=1;BYDAY=MO",
+                "Yearly in January on every Monday",
+            ),
+            (
+                "FREQ=YEARLY;BYMONTHDAY=1,-1",
+                "Yearly on the 1st and last day of every month",
+            ),
+            (
+                "FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=15",
+                "Yearly in March on the 15th",
+            ),
+            ("FREQ=MONTHLY;BYDAY=-1FR", "Monthly on the last Friday"),
+            ("FREQ=WEEKLY;BYDAY=MO", "Weekly on Monday"),
+        ];
+        for (rule, expected) in cases {
+            assert_eq!(describe_rrule(rule).as_deref(), Some(expected), "{rule}");
+        }
+    }
+
+    /// docling#5391 (`test_end_without_start_is_retained`): an entry with a
+    /// DTEND and no DTSTART keeps its end.
+    #[test]
+    fn end_without_start_is_retained() {
+        for (component, title) in [("VFREEBUSY", "Free/busy"), ("VEVENT", "Untitled event")] {
+            let raw = format!(
+                "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Repro//EN\r\nBEGIN:{component}\r\n\
+                 UID:busy@example.com\r\nDTSTAMP:20261115T120000Z\r\nDTEND:20261116T180000Z\r\n\
+                 END:{component}\r\nEND:VCALENDAR\r\n"
+            );
+            let src = SourceDocument::from_bytes(
+                "t.ics",
+                crate::format::InputFormat::Calendar,
+                raw.into_bytes(),
+            );
+            let doc = CalendarBackend.convert(&src).unwrap();
+            let v: serde_json::Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+            let texts: Vec<&str> = v["texts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|t| t["text"].as_str())
+                .collect();
+            assert_eq!(texts, [title, "End: 2026-11-16 18:00 UTC"], "{component}");
         }
     }
 
