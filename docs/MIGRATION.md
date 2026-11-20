@@ -2116,7 +2116,12 @@ pointed at the wrong item).
   URL is **never** read (docling's local fetch reads any path; a document
   converter honouring `/etc/hosts` is the surprise #646 closes), a relative
   path must stay under the source directory after `..` and symlink
-  resolution, and a remote fetch can be confined to `image_hosts` (redirects
+  resolution (a relative `src` is a URL path, docling#5082 / #1180: its
+  `?query` and `#fragment` are dropped and it is percent-decoded once —
+  `figure%20one.png?v=1` reads `figure one.png`, a decoded `%2e%2e/` or
+  `%2F%2F` stays refused — in every format the resolver serves, where
+  docling decodes for HTML only; the name as written is the fallback, so a
+  file whose name holds a literal `%` still resolves), and a remote fetch can be confined to `image_hosts` (redirects
   included) and is always held to the private-address block-list. Per-document
   limits (`max_image_bytes` 32 MiB, `max_images`, `max_image_total_mb`,
   `min_image_bytes`; `DOCLING_RS_MAX_IMAGE*` / `DOCLING_RS_MIN_IMAGE_BYTES`)
