@@ -2111,7 +2111,12 @@ pointed at the wrong item).
   included) and is always held to the private-address block-list. Per-document
   limits (`max_image_bytes` 32 MiB, `max_images`, `max_image_total_mb`,
   `min_image_bytes`; `DOCLING_RS_MAX_IMAGE*` / `DOCLING_RS_MIN_IMAGE_BYTES`)
-  leave a picture a placeholder rather than failing. **Markdown** images
+  leave a picture a placeholder rather than failing. A resolved picture
+  follows its EXIF orientation tag (#1148, docling#5246's
+  `ImageOps.exif_transpose` in the resource loader and the MHTML branch): a
+  tagged image is stored upright as PNG, width and height swapped for
+  orientations 5–8; an untagged one keeps its bytes. The office backends'
+  embedded pictures are read as before, as docling's are. **Markdown** images
   (`![alt](data:…)`, inline `<img src="data:…">`, embedded HTML blocks) resolve
   under the same policy — docling's Markdown backend resolves none; the JSON
   tree's `PictureItem` carries the bytes, and in the flat chain a paragraph

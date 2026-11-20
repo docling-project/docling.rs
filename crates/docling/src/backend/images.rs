@@ -447,6 +447,17 @@ fn image_fetch_concurrency() -> usize {
 
 impl ImageResolver for FsImageResolver {
     fn resolve(&self, src: &str) -> Option<PictureImage> {
+        self.resolve_raw(src).map(upright)
+    }
+
+    #[cfg(feature = "fetch-images")]
+    fn prefetch(&self, srcs: &[String]) {
+        self.prefetch_remote(srcs);
+    }
+}
+
+impl FsImageResolver {
+    fn resolve_raw(&self, src: &str) -> Option<PictureImage> {
         let src = src.trim();
         if src.is_empty() {
             return None;
@@ -483,7 +494,7 @@ impl ImageResolver for FsImageResolver {
     /// cache so the subsequent serial walk resolves them without blocking. Local
     /// files and `data:` URIs are skipped (their `resolve` is already cheap).
     #[cfg(feature = "fetch-images")]
-    fn prefetch(&self, srcs: &[String]) {
+    fn prefetch_remote(&self, srcs: &[String]) {
         if !self.policy.sources.remote() {
             return;
         }
@@ -547,6 +558,12 @@ impl MapImageResolver {
 
 impl ImageResolver for MapImageResolver {
     fn resolve(&self, src: &str) -> Option<PictureImage> {
+        self.resolve_raw(src).map(upright)
+    }
+}
+
+impl MapImageResolver {
+    fn resolve_raw(&self, src: &str) -> Option<PictureImage> {
         if !self.sources.embedded() {
             return None;
         }
@@ -730,6 +747,51 @@ pub(crate) fn build_picture(mimetype: impl Into<String>, data: Vec<u8>) -> Optio
     })
 }
 
+/// A resolved picture with its EXIF orientation applied (docling#5246,
+/// #1148): docling's image resource loader (HTML, Markdown, AsciiDoc, JATS,
+/// EPUB) and its MHTML branch run `ImageOps.exif_transpose`, so a camera
+/// photo stored sideways with an orientation tag is kept upright. A tagged
+/// image becomes upright pixels re-encoded as PNG (docling's
+/// `ImageRef.from_pil` writes PNG anyway), width and height swapped for
+/// orientations 5–8; an untagged one — every image without EXIF — keeps
+/// its bytes, so outputs and digests do not move. An image that does not
+/// decode is left as it is. The office backends read their pictures
+/// without it, as docling's do.
+pub(crate) fn upright(pic: PictureImage) -> PictureImage {
+    match upright_png(&pic.data) {
+        Some((width, height, data)) => PictureImage {
+            mimetype: "image/png".into(),
+            width,
+            height,
+            data,
+            ..pic
+        },
+        None => pic,
+    }
+}
+
+/// The upright PNG of a tagged image (`width`, `height`, bytes); `None` for
+/// an untagged or undecodable one.
+fn upright_png(data: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
+    use image::metadata::Orientation;
+    use image::ImageDecoder;
+    let mut decoder = image::ImageReader::new(Cursor::new(data))
+        .with_guessed_format()
+        .ok()?
+        .into_decoder()
+        .ok()?;
+    let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
+    if orientation == Orientation::NoTransforms {
+        return None;
+    }
+    let mut img = image::DynamicImage::from_decoder(decoder).ok()?;
+    img.apply_orientation(orientation);
+    let mut png = Vec::new();
+    img.write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
+        .ok()?;
+    Some((img.width(), img.height(), png))
+}
+
 /// Minimal `%XX` percent-decoding for non-base64 `data:` URIs (rare for images).
 fn percent_decode(s: &str) -> Vec<u8> {
     let b = s.as_bytes();
@@ -817,6 +879,73 @@ mod tests {
         let off = MapImageResolver::new(map, &policy(ImageSources::None));
         assert!(off.resolve("images/x.png").is_none());
         assert!(off.resolve(&red_uri()).is_none());
+    }
+
+    /// docling#5246's fixture (#1148): a 200 × 100 JPEG, a black 20 × 20
+    /// corner top-left, EXIF orientation 6 — an `APP1` written by hand.
+    fn exif6_jpeg() -> Vec<u8> {
+        let img = image::RgbImage::from_fn(200, 100, |x, y| {
+            if x < 20 && y < 20 {
+                image::Rgb([0, 0, 0])
+            } else {
+                image::Rgb([255, 255, 255])
+            }
+        });
+        let mut jpeg = Vec::new();
+        image::DynamicImage::ImageRgb8(img)
+            .write_to(&mut Cursor::new(&mut jpeg), image::ImageFormat::Jpeg)
+            .unwrap();
+        // TIFF header (little endian), one IFD entry: Orientation (0x0112),
+        // SHORT, count 1, value 6; no next IFD.
+        let mut exif = b"Exif\0\0II*\0\x08\0\0\0\x01\0".to_vec();
+        exif.extend_from_slice(&[0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0]);
+        let mut app1 = vec![0xFF, 0xE1];
+        app1.extend_from_slice(&((exif.len() + 2) as u16).to_be_bytes());
+        app1.extend_from_slice(&exif);
+        [&jpeg[..2], &app1, &jpeg[2..]].concat()
+    }
+
+    /// The picture is upright: 100 × 200, the dark corner at the top right.
+    fn assert_upright(pic: &PictureImage) {
+        assert_eq!(
+            (pic.width, pic.height, pic.mimetype.as_str()),
+            (100, 200, "image/png")
+        );
+        let px = image::load_from_memory(&pic.data).unwrap().to_rgb8();
+        assert!(
+            px.get_pixel(pic.width - 3, 2).0[0] < 64,
+            "dark corner top right"
+        );
+        assert!(px.get_pixel(2, 2).0[0] > 192, "light top left");
+    }
+
+    /// docling#5246 (#1148): `test_create_image_ref_applies_exif_orientation`
+    /// (a `data:` URI), `test_embedded_image_follows_exif_orientation` (an
+    /// MHTML `cid:` part, through the map resolver) and a relative local file
+    /// under `Local` — each picture comes out upright, width and height
+    /// swapped; an untagged image keeps its bytes.
+    #[test]
+    fn resolved_pictures_follow_the_exif_orientation() {
+        let jpeg = exif6_jpeg();
+        let uri = format!(
+            "data:image/jpeg;base64,{}",
+            docling_core::base64::encode(&jpeg)
+        );
+        let dir = std::env::temp_dir().join(format!("docling.rs_exif_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("photo.jpg"), &jpeg).unwrap();
+        let r = FsImageResolver::new(Some(dir.clone()), None, policy(ImageSources::Local));
+        assert_upright(&r.resolve(&uri).unwrap());
+        assert_upright(&r.resolve("photo.jpg").unwrap());
+        let mut map = HashMap::new();
+        map.insert(
+            "cid:photo@x".to_string(),
+            build_picture("image/jpeg", jpeg).unwrap(),
+        );
+        let m = MapImageResolver::new(map, &policy(ImageSources::Embedded));
+        assert_upright(&m.resolve("cid:photo@x").unwrap());
+        assert_eq!(m.resolve(&red_uri()), from_data_uri(&red_uri()), "untagged");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
