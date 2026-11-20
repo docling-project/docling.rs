@@ -192,6 +192,11 @@ pub fn parse_chart(xml: &str) -> Option<ChartSpec> {
             .filter(|s| !s.is_empty())
     };
 
+    let num_series: usize = plots
+        .iter()
+        .map(|p| p.children().filter(|n| n.has_tag_name("ser")).count())
+        .sum();
+    let max_rows = max_chart_data_rows(1 + num_series);
     let mut series = Vec::new();
     for plot in &plots {
         let axis_title = x_axis(plot_area, *plot)
@@ -213,14 +218,14 @@ pub fn parse_chart(xml: &str) -> Option<ChartSpec> {
                 .or_else(|| child("yVal").and_then(ref_formula));
             let cat_cache = child("cat")
                 .or_else(|| child("xVal"))
-                .map(cache_points)
+                .map(|n| cache_points(n, max_rows, true))
                 .unwrap_or_default();
             let val_cache = child("val")
                 .or_else(|| child("yVal"))
-                .map(cache_points)
+                .map(|n| cache_points(n, max_rows, true))
                 .unwrap_or_default();
             let name_cache = child("tx")
-                .map(cache_points)
+                .map(|n| cache_points(n, 1, false))
                 .and_then(|v| v.into_iter().next());
             series.push(SeriesSpec {
                 name_ref,
@@ -277,7 +282,7 @@ fn title_text(title: XmlNode) -> Option<String> {
         .filter_map(|n| n.text())
         .collect();
     let text = match runs.trim() {
-        "" => cache_points(title)
+        "" => cache_points(title, MAX_CHART_TABLE_CELLS, false)
             .into_iter()
             .filter(|v| !v.is_empty())
             .collect::<String>(),
@@ -289,19 +294,21 @@ fn title_text(title: XmlNode) -> Option<String> {
 
 /// The cached points under a `c:cat`/`c:val`/`c:tx` node (docling's
 /// `_read_chart_cache`): the first `numCache`, `strCache`, `numLit` or
-/// `strLit` under it, each `c:pt`'s `c:v` at its `@idx`, the gaps empty and
-/// the list `c:ptCount` long — so every series keeps its rows aligned (the
-/// points used to be packed, shifting the values after a gap). Numbers
-/// render openpyxl-style (no trailing `.0`) — DOCX/PPTX charts carry their
-/// data only in these caches.
-fn cache_points(node: XmlNode) -> Vec<String> {
+/// `strLit` under it, each `c:pt`'s `c:v` at its `@idx`, the gaps empty, so
+/// every series keeps its rows aligned (the points used to be packed,
+/// shifting the values after a gap). The list is sized by the points
+/// present — a crafted `c:ptCount` is not read (docling#5482, #1166) — and
+/// holds at most `max_rows` ([`chart_points_to_list`]). A repeated index
+/// keeps its last value, as a dict does. Numbers render openpyxl-style (no
+/// trailing `.0`) — DOCX charts carry their data only in these caches.
+fn cache_points(node: XmlNode, max_rows: usize, warn: bool) -> Vec<String> {
     let Some(cache) = ["numCache", "strCache", "numLit", "strLit"]
         .iter()
         .find_map(|tag| node.descendants().find(|c| c.has_tag_name(*tag)))
     else {
         return Vec::new();
     };
-    let mut points: Vec<(usize, String)> = Vec::new();
+    let mut points: HashMap<usize, String> = HashMap::new();
     for pt in cache.children().filter(|c| c.has_tag_name("pt")) {
         let Some(idx) = pt.attribute("idx").unwrap_or("0").parse::<usize>().ok() else {
             continue;
@@ -312,29 +319,45 @@ fn cache_points(node: XmlNode) -> Vec<String> {
             .and_then(|v| v.text())
             .map(format_cached_value)
             .unwrap_or_default();
-        // A repeated index keeps its last value, as a dict does.
-        match points.iter_mut().find(|(i, _)| *i == idx) {
-            Some(slot) => slot.1 = v,
-            None => points.push((idx, v)),
-        }
+        points.insert(idx, v);
     }
-    if points.is_empty() {
-        return Vec::new();
+    chart_points_to_list(points, max_rows, warn)
+}
+
+/// docling's `max_chart_data_rows` (`backend/utils/charts.py`, docling#5482):
+/// the most data rows a chart table with `num_cols` columns keeps — the
+/// header row and the data rows within [`MAX_CHART_TABLE_CELLS`], one data
+/// row at least.
+pub fn max_chart_data_rows(num_cols: usize) -> usize {
+    (MAX_CHART_TABLE_CELLS / num_cols.max(1))
+        .saturating_sub(1)
+        .max(1)
+}
+
+/// docling's `chart_points_to_list` (docling#5482, #1166): a series' cached
+/// points as one entry per index, the gaps empty, sized by the points that
+/// are present — never by the `c:ptCount` the part declares, which can be
+/// anything (`ptCount="1000000000"` made the PPTX reader allocate 24 GB and
+/// abort). A point at an index of `max_rows` or more is dropped, with a
+/// warning when `warn`: the table would cut it anyway, and compacting it
+/// into a free row would move it out of line with the categories.
+pub fn chart_points_to_list(
+    points: HashMap<usize, String>,
+    max_rows: usize,
+    warn: bool,
+) -> Vec<String> {
+    let total = points.len();
+    let kept: Vec<(usize, String)> = points.into_iter().filter(|(i, _)| *i < max_rows).collect();
+    if warn && kept.len() < total {
+        eprintln!(
+            "docling: dropping {} chart points with an index of {max_rows} or more",
+            total - kept.len()
+        );
     }
-    let count = cache
-        .children()
-        .find(|c| c.has_tag_name("ptCount"))
-        .and_then(|c| c.attribute("val"))
-        .and_then(|v| v.parse::<usize>().ok())
-        .unwrap_or(0);
-    // A crafted `ptCount` or `@idx` cannot allocate past the table's cell
-    // cap; points beyond it are dropped, as the table would cut them.
-    let last = points.iter().map(|(i, _)| i + 1).max().unwrap_or(0);
-    let mut out = vec![String::new(); last.max(count).min(MAX_CHART_TABLE_CELLS)];
-    for (i, v) in points {
-        if let Some(slot) = out.get_mut(i) {
-            *slot = v;
-        }
+    let len = kept.iter().map(|(i, _)| i + 1).max().unwrap_or(0);
+    let mut out = vec![String::new(); len];
+    for (i, v) in kept {
+        out[i] = v;
     }
     out
 }
@@ -401,18 +424,9 @@ pub fn build_chart_table(
 
 /// docling's `_chart_to_table_data` grid from resolved series columns:
 /// categories down the first column (row headers), one column per series
-/// (column headers), the top-left cell empty. Shared by the XLSX backend
-/// (which resolves references into sheets) and the DOCX/PPTX backends
-/// (which use the embedded caches).
-pub fn chart_table_from_columns(
-    categories: Vec<String>,
-    columns: Vec<(String, Vec<String>)>,
-) -> Option<docling_core::Table> {
-    chart_table(categories, columns, String::new())
-}
-
-/// [`chart_table_from_columns`] with `corner` in the top-left cell — the
-/// PPTX backend puts the category axis title there (docling#4773).
+/// (column headers), `corner` in the top-left cell — the PPTX backend puts
+/// the category axis title there (docling#4773). Shared by the XLSX, DOCX
+/// and PPTX backends through [`build_chart_table`].
 pub fn chart_table(
     categories: Vec<String>,
     columns: Vec<(String, Vec<String>)>,
@@ -466,8 +480,11 @@ pub fn chart_table(
     })
 }
 
-/// A chart's data table built purely from the embedded caches (the DOCX/PPTX
-/// path — no workbook). `None` when the chart carries no cached data.
+/// A chart's data table built purely from the embedded caches (the DOCX
+/// path — no workbook), laid out by [`build_chart_table`] as docling's
+/// `_chart_to_table_data` does since docling#5482: trailing empty rows
+/// trimmed, the cell cap applied. `None` when the chart carries no cached
+/// data.
 pub fn chart_table_from_caches(spec: &ChartSpec) -> Option<docling_core::Table> {
     if spec.series.is_empty() {
         return None;
@@ -490,7 +507,7 @@ pub fn chart_table_from_caches(spec: &ChartSpec) -> Option<docling_core::Table> 
             (name, s.val_cache.clone())
         })
         .collect();
-    chart_table_from_columns(categories, columns)
+    build_chart_table(categories, columns, String::new())
 }
 
 /// 0-based inclusive range bounds `(min_col, min_row, max_col, max_row)`.
@@ -843,7 +860,8 @@ mod tests {
     }
 
     /// docling's `_read_chart_cache`: points land at their `@idx`, the gaps
-    /// empty and the list `ptCount` long, so a series keeps its rows.
+    /// empty and the list as long as its last point (not `ptCount`, #1166),
+    /// so a series keeps its rows.
     #[test]
     fn chart_cache_keeps_gaps() {
         let xml = r#"<c:chartSpace xmlns:c="c" xmlns:a="a"><c:chart>
@@ -861,9 +879,57 @@ mod tests {
         assert_eq!(spec.kinds, ["bar_chart", "line_chart"]);
         assert_eq!(spec.title.as_deref(), Some("Linked title"));
         assert_eq!(spec.series.len(), 2, "every plot's series");
-        assert_eq!(spec.series[0].val_cache, ["1", "", "3.5", ""]);
+        assert_eq!(spec.series[0].val_cache, ["1", "", "3.5"]);
         assert_eq!(spec.series[1].val_cache, ["9"]);
         assert_eq!(spec.series[0].axis_title, "Year");
+    }
+
+    /// docling#5482 (#1166): a DOCX chart's cache table is sized by its
+    /// cached points — a declared `ptCount` of 10^11, or a point at index
+    /// 10^9, gave a 100,001-row grid (5.4 MB of Markdown) — and laid out by
+    /// `build_chart_table`, trailing empty rows trimmed. docling's
+    /// `test_chart_table_is_sized_by_the_cached_points`.
+    #[test]
+    fn cache_tables_follow_the_cached_points() {
+        let chart = |count: &str, extra: &str| {
+            format!(
+                r#"<c:chartSpace xmlns:c="c"><c:chart><c:plotArea><c:barChart><c:ser>
+                <c:tx><c:strRef><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>Sales</c:v></c:pt></c:strCache></c:strRef></c:tx>
+                <c:cat><c:strRef><c:strCache><c:ptCount val="{count}"/>
+                  <c:pt idx="0"><c:v>A</c:v></c:pt><c:pt idx="1"><c:v>B</c:v></c:pt></c:strCache></c:strRef></c:cat>
+                <c:val><c:numRef><c:numCache><c:ptCount val="{count}"/>
+                  <c:pt idx="0"><c:v>1</c:v></c:pt><c:pt idx="1"><c:v>2.5</c:v></c:pt>{extra}</c:numCache></c:numRef></c:val>
+                </c:ser><c:axId val="1"/></c:barChart></c:plotArea></c:chart></c:chartSpace>"#
+            )
+        };
+        let rows = |xml: String| {
+            chart_table_from_caches(&parse_chart(&xml).expect("chart"))
+                .expect("table")
+                .rows
+        };
+        let want = [["", "Sales"], ["A", "1"], ["B", "2.5"]];
+        assert_eq!(rows(chart("100000000000", "")), want);
+        assert_eq!(
+            rows(chart("2", r#"<c:pt idx="1000000000"><c:v>9</c:v></c:pt>"#)),
+            want
+        );
+    }
+
+    /// The cache reader stays linear in its points: 200,000 of them, past
+    /// the row cap, read in well under a second (a per-point scan for a
+    /// repeated index made it quadratic).
+    #[test]
+    fn cache_points_are_read_in_linear_time() {
+        let pts: String = (0..200_000)
+            .map(|i| format!(r#"<c:pt idx="{i}"><c:v>{i}</c:v></c:pt>"#))
+            .collect();
+        let xml = format!(r#"<c:val xmlns:c="c"><c:numCache>{pts}</c:numCache></c:val>"#);
+        let doc = Document::parse(&xml).expect("xml");
+        let start = std::time::Instant::now();
+        let values = cache_points(doc.root_element(), max_chart_data_rows(2), false);
+        assert_eq!(values.len(), max_chart_data_rows(2));
+        assert_eq!(values[49_998], "49998");
+        assert!(start.elapsed().as_secs_f64() < 5.0, "{:?}", start.elapsed());
     }
 
     #[test]
