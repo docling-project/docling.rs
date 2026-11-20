@@ -94,6 +94,8 @@ mod ppt;
 mod pptx;
 mod pptx_chart;
 #[cfg(test)]
+mod pptx_sync_tests;
+#[cfg(test)]
 mod pptx_upstream_unit;
 mod print_file;
 mod quattro;

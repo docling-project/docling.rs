@@ -685,7 +685,15 @@ pub(super) fn hyperlink_from_href(href: Option<&str>) -> Option<String> {
                 .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '.' | '-'))
     });
     let Some(k) = scheme_len else {
-        return Some(href.to_string()); // relative target: kept as a path
+        // A relative target is kept as a path — unless `urlsplit` would
+        // still read a network location (`//host…`) and reject it.
+        if let Some(authority) = href.strip_prefix("//") {
+            let end = authority.find(['/', '?', '#']).unwrap_or(authority.len());
+            if !brackets_parse(&authority[..end]) {
+                return None;
+            }
+        }
+        return Some(href.to_string());
     };
     let scheme = href[..k].to_ascii_lowercase();
     let rest = &href[k + 1..];
@@ -697,9 +705,10 @@ pub(super) fn hyperlink_from_href(href: Option<&str>) -> Option<String> {
     };
     let host_end = authority.find(['/', '?', '#']).unwrap_or(authority.len());
     let (host, tail) = authority.split_at(host_end);
-    // An empty host (`http://`) or an unterminated IPv6 literal (`http://[::1`)
-    // is a malformed absolute URL: dropped, never guessed at.
-    if host.is_empty() || (host.starts_with('[') && !host.contains(']')) {
+    // An empty host (`http://`), an unterminated IPv6 literal (`http://[::1`)
+    // or any authority `urlsplit` / `AnyUrl` reject (docling#5384, #1164) is
+    // a malformed absolute URL: dropped, never guessed at.
+    if host.is_empty() || !authority_parses(host) {
         return None;
     }
     // pydantic's `AnyUrl` normalization: lower-cased scheme/host, and a bare
@@ -709,6 +718,71 @@ pub(super) fn hyperlink_from_href(href: Option<&str>) -> Option<String> {
         "{scheme}://{}{slash}{tail}",
         host.to_ascii_lowercase()
     ))
+}
+
+/// Whether `urlsplit` accepts the brackets of a network location: none at
+/// all, or one `[…]` host that is an IPv6 address or an IPvFuture
+/// (`v1.x`), right after any `user@`, followed by nothing or a `:port`.
+/// Python raises "Invalid IPv6 URL" otherwise (unbalanced brackets, text
+/// before the bracket, a bracketed name).
+fn brackets_parse(netloc: &str) -> bool {
+    if netloc.contains('[') != netloc.contains(']') {
+        return false;
+    }
+    let hostport = netloc.rsplit_once('@').map_or(netloc, |(_, h)| h);
+    if !hostport.contains('[') {
+        return true;
+    }
+    let Some(bracketed) = hostport.strip_prefix('[') else {
+        return false;
+    };
+    let Some((host, after)) = bracketed.split_once(']') else {
+        return false;
+    };
+    let ipv_future = host.strip_prefix(['v', 'V']).is_some_and(|rest| {
+        rest.split_once('.').is_some_and(|(hex, tail)| {
+            !hex.is_empty() && hex.chars().all(|c| c.is_ascii_hexdigit()) && !tail.is_empty()
+        })
+    });
+    (host.parse::<std::net::Ipv6Addr>().is_ok() || ipv_future)
+        && (after.is_empty() || after.starts_with(':'))
+}
+
+/// Whether an absolute URL's authority (`user@host:port`) parses for
+/// docling: `urlsplit`'s bracket rules ([`brackets_parse`]), then pydantic's
+/// `AnyUrl` (the WHATWG parser of the `url` crate) — no IPvFuture host, no
+/// forbidden host code point (controls, space, `# / < > ? @ [ \ ] ^ |`),
+/// and a port of digits up to 65535.
+fn authority_parses(authority: &str) -> bool {
+    if !brackets_parse(authority) {
+        return false;
+    }
+    let hostport = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
+    let (host, port) = match hostport.strip_prefix('[') {
+        Some(bracketed) => {
+            let (ip, after) = bracketed.split_once(']').unwrap_or((bracketed, ""));
+            if ip.parse::<std::net::Ipv6Addr>().is_err() {
+                return false; // IPvFuture: `urlsplit` takes it, `AnyUrl` does not
+            }
+            (None, after.strip_prefix(':'))
+        }
+        None => match hostport.rsplit_once(':') {
+            Some((h, p)) => (Some(h), Some(p)),
+            None => (Some(hostport), None),
+        },
+    };
+    let port_ok = port.is_none_or(|p| {
+        p.is_empty()
+            || (p.chars().all(|c| c.is_ascii_digit())
+                && p.parse::<u32>().is_ok_and(|n| n <= 65_535))
+    });
+    let host_ok = host.is_none_or(|h| {
+        !h.is_empty()
+            && !h
+                .chars()
+                .any(|c| c.is_control() || " #/<>?@[\\]^|".contains(c))
+    });
+    port_ok && host_ok
 }
 
 /// Collect runs from a paragraph/heading element (recursing spans).
@@ -3205,6 +3279,22 @@ mod tests {
             ("guide.odt#part", "[linked text](guide.odt#part)"),
             ("#part", "[linked text](#part)"),
             ("https://example.com", "[linked text](https://example.com/)"),
+            // docling#5384 (#1164): what `urlsplit` / `AnyUrl` reject.
+            ("https://[broken", "linked text"),
+            ("https://broken]", "linked text"),
+            ("https://[not-ipv6]/", "linked text"),
+            ("https://[v1.x]/", "linked text"),
+            ("https://exa mple.com/", "linked text"),
+            ("https://a b", "linked text"),
+            ("https://example.com:99999/", "linked text"),
+            ("https://example.com:8x/", "linked text"),
+            ("//[broken/x", "linked text"),
+            ("https://[::1]/", "[linked text](https://[::1]/)"),
+            (
+                "https://user@example.com:8080/p",
+                "[linked text](https://user@example.com:8080/p)",
+            ),
+            ("notes.odt", "[linked text](notes.odt)"),
         ] {
             assert_eq!(
                 odt_markdown(&format!(
