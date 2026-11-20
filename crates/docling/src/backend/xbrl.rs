@@ -496,20 +496,58 @@ fn periods(root: XmlNode) -> HashMap<String, String> {
     out
 }
 
-/// Each unit's first measure, by local name (`USD`, `shares`, `pure`): a
-/// simple unit's first `measure`, a divide's first numerator measure.
+/// Each unit as docling prints it (docling#4568, arelle's `ModelUnit.measures`):
+/// its measures' local names joined by a space, a divide's numerator then
+/// ` / ` and its denominator (`USD / shares` — per-share facts used to read
+/// as plain `USD`); each side sorted by namespace and local name, as
+/// arelle's `QName`s sort.
 fn unit_measures(root: XmlNode) -> HashMap<String, String> {
+    let measures = |parent: XmlNode| -> String {
+        let mut names: Vec<(String, String)> = parent
+            .children()
+            .filter(|n| is_xbrli(*n, "measure"))
+            .filter_map(|m| {
+                let text = m.text()?.trim();
+                let (prefix, local) = match text.split_once(':') {
+                    Some((p, l)) => (Some(p), l),
+                    None => (None, text),
+                };
+                let namespace = m.lookup_namespace_uri(prefix).unwrap_or("");
+                Some((namespace.to_string(), local.to_string()))
+            })
+            .collect();
+        names.sort();
+        names
+            .into_iter()
+            .map(|(_, local)| local)
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
     root.children()
         .filter(|n| is_xbrli(*n, "unit"))
         .filter_map(|unit| {
             let id = unit.attribute("id")?;
-            let measure = unit
-                .descendants()
-                .find(|n| is_xbrli(*n, "measure"))
-                .and_then(|n| n.text())
-                .map(str::trim)?;
-            let local = measure.rsplit(':').next().unwrap_or(measure);
-            Some((id.to_string(), local.to_string()))
+            let text = match unit.children().find(|n| is_xbrli(*n, "divide")) {
+                Some(divide) => {
+                    let side = |name: &str| {
+                        divide
+                            .children()
+                            .find(|n| is_xbrli(*n, name))
+                            .map(measures)
+                            .unwrap_or_default()
+                    };
+                    let (num, den) = (side("unitNumerator"), side("unitDenominator"));
+                    if num.is_empty() {
+                        String::new()
+                    } else if den.is_empty() {
+                        num
+                    } else {
+                        format!("{num} / {den}")
+                    }
+                }
+                None => measures(unit),
+            };
+            (!text.is_empty()).then(|| (id.to_string(), text))
         })
         .collect()
 }
@@ -613,6 +651,34 @@ mod tests {
         assert!(links.iter().any(|l| l["label"] == "to_child"
             && l["source_cell_id"] == 10
             && l["target_cell_id"] == 0));
+    }
+
+    /// docling#4568 (`test_xbrl_divide_unit_keeps_denominator`): a divide
+    /// unit reports its numerator and its denominator.
+    #[test]
+    fn divide_unit_keeps_its_denominator() {
+        let xml = r#"<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:iso4217="http://www.xbrl.org/2003/iso4217">
+            <xbrli:unit id="usd"><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unit>
+            <xbrli:unit id="usdPerShare"><xbrli:divide>
+              <xbrli:unitNumerator><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unitNumerator>
+              <xbrli:unitDenominator><xbrli:measure>xbrli:shares</xbrli:measure></xbrli:unitDenominator>
+            </xbrli:divide></xbrli:unit></xbrli:xbrl>"#;
+        let dom = Document::parse(xml).unwrap();
+        let units = unit_measures(dom.root_element());
+        assert_eq!(units["usd"], "USD");
+        assert_eq!(units["usdPerShare"], "USD / shares");
+        // The fixture's per-share facts (grve_10q_htm.xml).
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/data/xbrl/sources/grve_10q_htm.xml");
+        let src = SourceDocument::from_file(&path).unwrap();
+        let json = XbrlBackend.convert(&src).unwrap().export_to_json_value();
+        let cells = json["key_value_items"][0]["graph"]["cells"].as_array().unwrap();
+        let unit_of = |concept: &str| {
+            let i = cells.iter().position(|c| c["orig"] == concept).unwrap();
+            cells[i + 3]["text"].as_str().unwrap().to_string()
+        };
+        assert_eq!(unit_of("us-gaap:EarningsPerShareDiluted"), "currency: USD / shares");
+        assert_eq!(unit_of("us-gaap:Assets"), "currency: USD");
     }
 
     /// docling#4483 (its refreshed groundtruth): an
