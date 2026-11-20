@@ -67,6 +67,8 @@ struct Cell {
     /// The clip box in force ([`Glyph::clip`]); a contracted cell keeps it
     /// only while all its glyphs share it.
     clip: Option<[f64; 4]>,
+    /// The first glyph's full-precision quad hash ([`Glyph::exact`]).
+    exact: u64,
 }
 
 impl Cell {
@@ -447,6 +449,7 @@ fn build_cells(glyphs: &[Glyph], euclidean: bool) -> Vec<Cell> {
             math_font: g.math_font,
             spaced: g.spaced,
             clip: g.clip.map(|c| c.map(f64::from)),
+            exact: g.exact,
         });
     }
     remove_duplicate_cells(&mut cells);
@@ -551,7 +554,9 @@ fn clip_boundary(lhs: &Cell, rhs: &Cell) -> bool {
 /// GAMMA`). Two passes:
 /// - a char equal to an earlier one in text, font and all four corners is
 ///   dropped wherever it falls on the page (copies interleaved with other
-///   lines included);
+///   lines included) — equal at full precision ([`Glyph::exact`]): a
+///   column `newspaper-00` draws again 1e-5 pt off reads twice there, as
+///   in docling-parse, though its `f32` boxes are the same;
 /// - a later char on the same line (the scan stops at the first cell more
 ///   than 0.5 pt off the baseline) with the same text and font is dropped
 ///   when each corner is within `min(0.5, 0.5 × the earlier char's width)`
@@ -563,10 +568,12 @@ fn clip_boundary(lhs: &Cell, rhs: &Cell) -> bool {
 fn remove_duplicate_cells(cells: &mut Vec<Cell>) {
     let quad = |c: &Cell| [c.rx0, c.ry0, c.rx1, c.ry1, c.rx2, c.ry2, c.rx3, c.ry3];
     let mut keep = vec![true; cells.len()];
-    let mut painted: std::collections::HashSet<(&str, u64, [u64; 8])> =
+    // Exact as docling-parse's doubles are: the full-precision quad hash
+    // too, which the `f32` boxes alone would round away.
+    let mut painted: std::collections::HashSet<(&str, u64, u64, [u64; 8])> =
         std::collections::HashSet::new();
     for (i, c) in cells.iter().enumerate() {
-        if !painted.insert((c.text.as_str(), c.font, quad(c).map(f64::to_bits))) {
+        if !painted.insert((c.text.as_str(), c.font, c.exact, quad(c).map(f64::to_bits))) {
             keep[i] = false;
         }
     }
@@ -1747,7 +1754,36 @@ mod tests {
             invisible: false,
             spaced: false,
             clip: None,
+            exact: 0,
         }
+    }
+
+    /// The exact-overprint pass compares quads at full precision (#1151):
+    /// two glyphs whose `f32` boxes are equal but whose `f64` quads differ
+    /// (`newspaper-00`'s column drawn again 1e-5 pt off, other lines
+    /// between the copies) are two glyphs, as in docling-parse; a
+    /// bit-identical redraw is one.
+    #[test]
+    fn exact_overprints_compare_at_full_precision() {
+        let at = |ch: char, y: f32, exact: u64| Glyph {
+            b: y + 2.0,
+            lb: y,
+            t: y + 12.0,
+            lt: y + 12.0,
+            exact,
+            ..glyph(ch, 100.0, 106.0)
+        };
+        let n = |e: u64| {
+            build_cells(
+                &[at('e', 100.0, 1), at('x', 80.0, 9), at('e', 100.0, e)],
+                true,
+            )
+            .iter()
+            .filter(|c| c.text == "e")
+            .count()
+        };
+        assert_eq!(n(2), 2);
+        assert_eq!(n(1), 1);
     }
 
     /// Tight-set Latin (a table cell in a born-digital manual): the gap between
@@ -1845,6 +1881,7 @@ mod tests {
             invisible: false,
             spaced: false,
             clip: None,
+            exact: 0,
         };
         let mut g = Vec::new();
         let mut run = |text: &str, edges: &[f32], font: u64| {

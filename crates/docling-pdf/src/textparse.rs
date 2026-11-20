@@ -3748,6 +3748,14 @@ fn show_text(
         let (x1, y1) = trm.apply(w0, desc);
         let (x2, y2) = trm.apply(w0, asc);
         let (x3, y3) = trm.apply(0.0, asc);
+        let exact = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            [x0, y0, x1, y1, x2, y2, x3, y3]
+                .map(f64::to_bits)
+                .hash(&mut h);
+            h.finish()
+        };
         // Upright = the baseline runs left-to-right along +x. Only then is the
         // loose box the rectangle spanned by the baseline's x and the em's y
         // (a synthetic oblique's skew is ignored, as it always was). A rotated
@@ -3799,6 +3807,7 @@ fn show_text(
                     invisible: false,
                     spaced: false,
                     clip: None,
+                    exact,
                 });
             }
         }
@@ -6884,6 +6893,7 @@ mod base14_fonts {
             invisible: false,
             spaced: false,
             clip: None,
+            exact: 0,
         };
         let mut out = vec![
             glyph('o', 0.0, 0.0),
