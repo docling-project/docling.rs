@@ -27,7 +27,9 @@
 use roxmltree::{Document, Node as XmlNode};
 
 use super::numfmt::{civil_from_days, days_from_civil};
-use super::xlsx_drawings::build_chart_table;
+use std::collections::HashMap;
+
+use super::xlsx_drawings::{build_chart_table, chart_points_to_list, max_chart_data_rows};
 
 /// A PPTX chart as docling records it on the picture.
 pub struct PptxChart {
@@ -146,13 +148,20 @@ fn chart_data(
     plots: &[XmlNode],
     date1904: bool,
 ) -> Option<docling_core::Table> {
+    // The lists are cut to the rows the table can keep before they are
+    // made (docling#5482): a crafted `c:ptCount` sizes nothing.
+    let num_series: usize = plots
+        .iter()
+        .map(|p| p.children().filter(|c| c.has_tag_name("ser")).count())
+        .sum();
+    let max_rows = max_chart_data_rows(1 + num_series);
     let mut categories: Vec<String> = Vec::new();
     let mut corner = String::new();
     let mut columns: Vec<(String, Vec<String>)> = Vec::new();
     for &plot in plots {
         if categories.is_empty() {
             let axis = category_axis(plot_area, plot);
-            categories = category_labels(plot, axis, date1904);
+            categories = category_labels(plot, axis, date1904, max_rows);
             corner = axis.map(axis_title).unwrap_or_default();
         }
         // `_plot_series`: sorted by `c:order`, whose absence python-pptx
@@ -178,7 +187,7 @@ fn chart_data(
                 .to_string();
             // A value that is not a number fails python-pptx's `float()`,
             // and docling then drops the whole table.
-            columns.push((name, series_values(ser, xy)?));
+            columns.push((name, series_values(ser, xy, max_rows)?));
         }
     }
     if columns.is_empty() {
@@ -187,33 +196,41 @@ fn chart_data(
     build_chart_table(categories, columns, corner)
 }
 
-/// A series' values as python-pptx reads them (`c:val`; an xy plot's
-/// `c:yVal`): one per point of the cache's `c:ptCount`, empty where a point
-/// is missing, integer-valued numbers without `.0` (docling's `_cell_text`).
-/// `None` when a point is not a number.
-fn series_values(ser: XmlNode, xy: bool) -> Option<Vec<String>> {
-    let Some(val) = child(ser, if xy { "yVal" } else { "val" }) else {
-        return Some(Vec::new());
-    };
-    let count = val
+/// docling's `_declared_points`: python-pptx reads the indexes below the
+/// declared `c:ptCount` (none without one); the count only filters the
+/// points present, it never sizes a list (docling#5482, #1166).
+fn declared_count(source: XmlNode) -> usize {
+    source
         .descendants()
         .find(|n| n.has_tag_name("ptCount"))
         .and_then(|n| n.attribute("val"))
         .and_then(|v| v.parse::<usize>().ok())
-        .unwrap_or(0);
-    let mut values = vec![String::new(); count];
+        .unwrap_or(0)
+}
+
+/// A series' values as docling's `_series_values` reads them (`c:val`; an
+/// xy plot's `c:yVal`): the cached points below the declared count, the
+/// first point of an index giving its value, one entry per index up to the
+/// last kept one ([`chart_points_to_list`]), integer-valued numbers without
+/// `.0` (docling's `_cell_text`). `None` when a point is not a number.
+fn series_values(ser: XmlNode, xy: bool, max_rows: usize) -> Option<Vec<String>> {
+    let Some(val) = child(ser, if xy { "yVal" } else { "val" }) else {
+        return Some(Vec::new());
+    };
+    let count = declared_count(val);
+    let mut values: HashMap<usize, String> = HashMap::new();
     for pt in val.descendants().filter(|n| n.has_tag_name("pt")) {
         let Some(idx) = pt.attribute("idx").and_then(|i| i.parse::<usize>().ok()) else {
             continue;
         };
-        if idx >= count {
+        if idx >= count || values.contains_key(&idx) {
             continue;
         }
         let text = child(pt, "v").and_then(|v| v.text()).unwrap_or("");
         let value: f64 = text.trim().parse().ok()?;
-        values[idx] = python_number(value);
+        values.insert(idx, python_number(value));
     }
-    Some(values)
+    Some(chart_points_to_list(values, max_rows, true))
 }
 
 /// A float as docling's `_cell_text` writes it: an integer value without
@@ -264,25 +281,23 @@ fn category_axis<'a, 'i>(plot_area: XmlNode<'a, 'i>, plot: XmlNode) -> Option<Xm
     })
 }
 
-/// A plot's category labels (python-pptx's `plot.categories`: the first
-/// series' `c:cat` points, first level only, padded to the cached count),
-/// with dates as ISO 8601 when its axis shows dates.
-fn category_labels(plot: XmlNode, axis: Option<XmlNode>, date1904: bool) -> Vec<String> {
+/// A plot's category labels (docling's `_category_labels`: the first
+/// series' `c:cat` points, first level only, below the declared count, one
+/// entry per index up to the last cached label), with dates as ISO 8601
+/// when its axis shows dates.
+fn category_labels(
+    plot: XmlNode,
+    axis: Option<XmlNode>,
+    date1904: bool,
+    max_rows: usize,
+) -> Vec<String> {
     let first_cat = plot
         .children()
         .find(|c| c.has_tag_name("ser"))
         .and_then(|ser| child(ser, "cat"));
-    let count = plot
-        .children()
-        .filter(|c| c.has_tag_name("ser"))
-        .filter_map(|ser| child(ser, "cat"))
-        .flat_map(|cat| cat.descendants())
-        .find(|n| n.has_tag_name("ptCount"))
-        .and_then(|n| n.attribute("val"))
-        .and_then(|v| v.parse::<usize>().ok())
-        .unwrap_or(0);
-    let mut labels = vec![String::new(); count];
+    let mut points: HashMap<usize, String> = HashMap::new();
     if let Some(cat) = first_cat {
+        let count = declared_count(cat);
         let first_level = cat.descendants().find(|n| n.has_tag_name("lvl"));
         let pts: Vec<XmlNode> = match first_level {
             Some(lvl) => lvl.children().filter(|c| c.has_tag_name("pt")).collect(),
@@ -292,14 +307,13 @@ fn category_labels(plot: XmlNode, axis: Option<XmlNode>, date1904: bool) -> Vec<
             let Some(idx) = pt.attribute("idx").and_then(|i| i.parse::<usize>().ok()) else {
                 continue;
             };
-            if let Some(slot) = labels.get_mut(idx) {
-                *slot = child(pt, "v")
-                    .and_then(|v| v.text())
-                    .unwrap_or("")
-                    .to_string();
+            if idx < count {
+                let text = child(pt, "v").and_then(|v| v.text()).unwrap_or("");
+                points.insert(idx, text.to_string());
             }
         }
     }
+    let labels = chart_points_to_list(points, max_rows, true);
     match axis {
         Some(axis) if categories_are_dates(axis, plot) => labels
             .into_iter()
@@ -496,6 +510,52 @@ mod tests {
     }
 
     /// docling's `test_serial_to_iso` cases.
+    /// docling#5482 (#1166): the table follows the cached points, never the
+    /// declared `c:ptCount` — `ptCount="100000000000"` plus a point at index
+    /// 10^9 (past the table's row cap) gives the 3-row table; it aborted on
+    /// a 24 GB allocation before. A sparse point keeps its row, the gap empty.
+    /// docling's `test_large_declared_point_count_adds_no_rows` and
+    /// `test_sparse_points_stay_aligned_with_the_categories`.
+    #[test]
+    fn chart_tables_follow_the_cached_points() {
+        let grid = |count: &str, extra: &str| -> Vec<Vec<String>> {
+            let ser = SER_2026
+                .replace(
+                    r#"<c:ptCount val="3"/>"#,
+                    &format!(r#"<c:ptCount val="{count}"/>"#),
+                )
+                .replace("</c:numCache>", &format!("{extra}</c:numCache>"));
+            parse(&chart_xml("barChart", &[&ser]))
+                .and_then(|c| c.table)
+                .expect("table")
+                .rows
+        };
+        let row = |a: &str, b: &str| vec![a.to_string(), b.to_string()];
+        let head = vec![
+            row("", "2026"),
+            row("Q1", "10"),
+            row("Q2", "20"),
+            row("Q3", "30"),
+        ];
+        assert_eq!(
+            grid(
+                "100000000000",
+                r#"<c:pt idx="1000000000"><c:v>99</c:v></c:pt>"#
+            ),
+            head
+        );
+        let mut sparse = head.clone();
+        sparse.extend([row("", ""), row("", ""), row("", "60")]);
+        assert_eq!(grid("6", r#"<c:pt idx="5"><c:v>60</c:v></c:pt>"#), sparse);
+        // No declared count: python-pptx reads no point.
+        assert!(parse(&chart_xml(
+            "barChart",
+            &[&SER_2026.replace(r#"<c:ptCount val="3"/>"#, "")]
+        ))
+        .and_then(|c| c.table)
+        .is_none());
+    }
+
     #[test]
     fn serials_map_to_iso_dates_in_both_systems() {
         for (text, date1904, want) in [

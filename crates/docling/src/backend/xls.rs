@@ -56,6 +56,9 @@ impl DeclarativeBackend for XlsBackend {
 
         let mut doc = DoclingDocument::new(&source.name);
         let mut prev_item_page = false;
+        // The workbook's merge and table fill budgets, in sheet order (#1167).
+        let mut merge_budget = super::xlsx::MergeBudget::default();
+        let mut fill_budget = super::xlsx::FillBudget::default();
         for (name, typ, visible) in &metas {
             let formats = SheetFormats {
                 xfs: xfs.clone(),
@@ -69,7 +72,7 @@ impl DeclarativeBackend for XlsBackend {
             let Ok(range) = workbook.worksheet_range(name) else {
                 continue;
             };
-            let merges: Merges = workbook
+            let mut merges: Merges = workbook
                 .merge_cells_by_sheet_name(name)
                 .unwrap_or_default()
                 .iter()
@@ -78,11 +81,19 @@ impl DeclarativeBackend for XlsBackend {
 
             // Same shaping as the XLSX backend: absolute cell coordinates, a
             // merge-covered cell counts as content and renders its top-left.
+            merge_budget.fit_sheet(&mut merges, &range);
             let frame = sheet_frame(&range, &merges);
             let (or, oc) = frame.origin;
 
             let mut items: Vec<((usize, usize, usize, usize), Node)> = Vec::new();
-            for t in find_tables(&range, &frame, self.skip_empty, &formats, is_1904) {
+            for t in find_tables(
+                &range,
+                &frame,
+                self.skip_empty,
+                &formats,
+                is_1904,
+                &mut fill_budget,
+            ) {
                 if let Some(label) = t.label {
                     items.push((
                         (

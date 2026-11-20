@@ -2053,13 +2053,18 @@ fn parse_table_as(table: XmlNode, styles: &Styles, styled_rich: bool) -> Option<
     // `covered-table-cell` for every spanned-over position, so col/row spans need
     // no extra bookkeeping: the anchor carries the text and the covered cells are
     // blank — exactly docling's grid.
+    // The repetitions this table keeps (#1172): its trailing empty cells
+    // are dropped, the rest fit the repeat budget — a table's own here, since
+    // a text document's tables are not a workbook. A trailing empty cell
+    // repeated 10^9 times sized a 24 GB grid.
+    let (repeats, _) = fit_repeats(table, &mut max_repeated_cells());
     let cells_of = |tr: &XmlNode| -> Vec<(bool, usize)> {
         tr.children()
             .filter(|c| c.has_tag_name("table-cell") || c.has_tag_name("covered-table-cell"))
             .map(|c| {
                 (
                     c.has_tag_name("covered-table-cell"),
-                    repeat(c, "number-columns-repeated"),
+                    repeats.get(c, "number-columns-repeated"),
                 )
             })
             .collect()
@@ -2072,6 +2077,10 @@ fn parse_table_as(table: XmlNode, styles: &Styles, styled_rich: bool) -> Option<
     if num_cols == 0 {
         return None;
     }
+    // The grid is dense: one wide row widens every row. It stays within
+    // docling-core's table cell cap (`DOCLING_RS_MAX_TABLE_CELLS`), the
+    // columns past it cut.
+    let num_cols = dense_table_width(num_cols, tr_rows.len());
 
     // The text grid plus the OTSL span overlay. ODF marks a span on its anchor
     // (`number-columns-spanned`/`number-rows-spanned`) and emits an explicit
@@ -2093,7 +2102,7 @@ fn parse_table_as(table: XmlNode, styles: &Styles, styled_rich: bool) -> Option<
             .children()
             .filter(|c| c.has_tag_name("table-cell") || c.has_tag_name("covered-table-cell"))
         {
-            let reps = repeat(tc, "number-columns-repeated");
+            let reps = repeats.get(tc, "number-columns-repeated");
             if tc.has_tag_name("covered-table-cell") {
                 // A covered position: its continuation kind is set by the anchor
                 // whose rectangle reaches it; here we only advance the column.
@@ -2376,9 +2385,12 @@ fn rich_cell_markdown(tc: XmlNode, styles: &Styles) -> String {
 // ---------------------------------------------------------------- spreadsheet
 
 fn walk_spreadsheet(sheet: XmlNode, styles: &Styles, doc: &mut DoclingDocument) {
+    // One repeat budget for the workbook's sheets, in order (#1172).
+    let mut remaining = max_repeated_cells();
     for table in sheet.children().filter(|c| c.has_tag_name("table")) {
         let start = doc.nodes.len();
-        add_ods_sheet(table, styles, doc);
+        let repeats = fit_sheet_repeats(table, &mut remaining);
+        add_ods_sheet(table, styles, doc, &repeats);
         // A hidden sheet (`table:display="false"`) is kept on the invisible
         // layer, as the JSON tree has it (#753).
         if attr(table, "display") == Some("false") {
@@ -2417,10 +2429,10 @@ fn hide_nodes_from(doc: &mut DoclingDocument, start: usize) {
 /// `_find_data_tables_in_sheet` (strict `gap_tolerance = 0` flood fill, singleton
 /// cells kept as 1×1 tables). Numeric columns right-align via the shared table
 /// serializer.
-fn add_ods_sheet(table: XmlNode, styles: &Styles, doc: &mut DoclingDocument) {
+fn add_ods_sheet(table: XmlNode, styles: &Styles, doc: &mut DoclingDocument, repeats: &Repeats) {
     // Build a sparse content grid: (row, col) → cell text, expanding
-    // `number-{rows,columns}-repeated` (empty repeats only advance the index, so a
-    // sheet padded to millions of empty cells stays cheap).
+    // `number-{rows,columns}-repeated` by the copies the workbook's repeat
+    // budget keeps (`repeats`, #1172); empty repeats only advance the index.
     let mut cells: HashMap<(usize, usize), String> = HashMap::new();
     // docling#4992: the rows holding a value, and the blank merged ranges
     // (inclusive row/column bounds) — see below.
@@ -2428,7 +2440,7 @@ fn add_ods_sheet(table: XmlNode, styles: &Styles, doc: &mut DoclingDocument) {
     let mut blank_spans: Vec<(usize, usize, usize, usize)> = Vec::new();
     let mut row_idx = 0usize;
     for row in table.children().filter(|c| c.has_tag_name("table-row")) {
-        let rrep = repeat(row, "number-rows-repeated");
+        let rrep = repeats.get(row, "number-rows-repeated");
         let mut row_cells: Vec<(usize, String)> = Vec::new();
         let mut col_idx = 0usize;
         let mut row_has_content = false;
@@ -2437,7 +2449,7 @@ fn add_ods_sheet(table: XmlNode, styles: &Styles, doc: &mut DoclingDocument) {
             .children()
             .filter(|c| c.has_tag_name("table-cell") || c.has_tag_name("covered-table-cell"))
         {
-            let crep = repeat(cell, "number-columns-repeated");
+            let crep = repeats.get(cell, "number-columns-repeated");
             let covered = cell.has_tag_name("covered-table-cell");
             // A cell holding a picture is a rich cell: its blocks, picture
             // included, as in the JSON tree (#758); so is one with a styled
@@ -2453,8 +2465,8 @@ fn add_ods_sheet(table: XmlNode, styles: &Styles, doc: &mut DoclingDocument) {
                 let rows = repeat(cell, "number-rows-spanned");
                 let cols = repeat(cell, "number-columns-spanned");
                 if rows > 1 || cols > 1 {
-                    for r in 0..rrep.min(1024) {
-                        for c in 0..crep.min(1024) {
+                    for r in 0..rrep {
+                        for c in 0..crep {
                             let (top, left) = (row_idx + r, col_idx + c * cols);
                             blank_spans.push((top, top + rows - 1, left, left + cols - 1));
                         }
@@ -2463,21 +2475,21 @@ fn add_ods_sheet(table: XmlNode, styles: &Styles, doc: &mut DoclingDocument) {
             }
             if !text.is_empty() || covered {
                 row_has_content = true;
-                for c in 0..crep.min(1024) {
+                for c in 0..crep {
                     row_cells.push((col_idx + c, text.clone()));
                 }
             }
             col_idx += crep;
         }
         if row_has_content {
-            for r in 0..rrep.min(1024) {
+            for r in 0..rrep {
                 for (c, text) in &row_cells {
                     cells.insert((row_idx + r, *c), text.clone());
                 }
             }
         }
         if row_has_value {
-            rows_with_values.extend(row_idx..row_idx + rrep.min(1024));
+            rows_with_values.extend(row_idx..row_idx + rrep);
         }
         row_idx += rrep;
     }
@@ -2585,6 +2597,153 @@ pub(crate) fn emit_sheet_regions(
 }
 
 /// A `number-*-repeated` attribute, at least 1.
+/// docling's `OdsBackendOptions.max_repeated_cells` (docling#5485, #1172):
+/// the cells `table:number-rows-repeated` / `number-columns-repeated` may add
+/// to a workbook beyond those written in the file — `DOCLING_RS_ODS_MAX_REPEATED_CELLS`,
+/// 100 000 by default. An 833-byte ODS of 16 rows × 1024 repeats aborted on a
+/// 1.4 GB allocation.
+pub(super) fn max_repeated_cells() -> usize {
+    static MAX: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *MAX.get_or_init(|| {
+        docling_core::env::parse("DOCLING_RS_ODS_MAX_REPEATED_CELLS").unwrap_or(100_000)
+    })
+}
+
+/// The copies each repeated row and cell of a table keeps — docling's
+/// `_OdfRepeatBudget.fit`, after odfdo's `rstrip(aggressive=True)`. A
+/// row or cell absent from the plan keeps its declared count.
+#[derive(Default)]
+pub(super) struct Repeats(HashMap<roxmltree::NodeId, usize>);
+
+impl Repeats {
+    /// `node`'s kept count of its `name` repetition.
+    pub(super) fn get(&self, node: XmlNode, name: &str) -> usize {
+        self.0
+            .get(&node.id())
+            .copied()
+            .unwrap_or_else(|| repeat(node, name))
+    }
+}
+
+/// A dense table grid's width within docling-core's cell cap
+/// (`DOCLING_RS_MAX_TABLE_CELLS`), warning when columns are cut.
+pub(super) fn dense_table_width(width: usize, height: usize) -> usize {
+    let cap = (docling_core::limits::max_table_cells() / height.max(1)).max(1);
+    if width > cap {
+        eprintln!(
+            "docling: a {height} × {width} table exceeds DOCLING_RS_MAX_TABLE_CELLS ({}); \
+             columns past {cap} dropped",
+            docling_core::limits::max_table_cells()
+        );
+        return cap;
+    }
+    width
+}
+
+/// Whether a spreadsheet cell holds anything the readers keep: a covered
+/// position, a value, a span, any child element. odfdo's aggressive
+/// `rstrip` removes the others when they trail.
+fn repeat_cell_has_content(cell: XmlNode) -> bool {
+    cell.has_tag_name("covered-table-cell")
+        || cell.children().any(|c| c.is_element())
+        || cell.attributes().any(|a| {
+            a.name().ends_with("value")
+                || a.name() == "number-columns-spanned"
+                || a.name() == "number-rows-spanned"
+        })
+}
+
+/// Fit one table's repetitions into `remaining` (docling#5485, #1172), the
+/// budget a workbook's sheets share in order. Trailing empty rows, and each
+/// row's trailing empty cells, are dropped first and cost nothing — what
+/// LibreOffice pads a sheet towards its full grid with. Every other
+/// repetition keeps `1 + min(n - 1, remaining / cost)` copies: a cell's
+/// copies cost one cell each, a row's its width. Over budget a repetition
+/// keeps the copies that fit, then one; the cells written in the file are
+/// always kept, and the index advances only by the kept copies, so what
+/// follows a cut repetition stays beside it. Returns the plan and the
+/// declared cells it removed.
+pub(super) fn fit_repeats(table: XmlNode, remaining: &mut usize) -> (Repeats, u64) {
+    let mut plan = HashMap::new();
+    let mut removed = 0u64;
+    let rows: Vec<XmlNode> = table
+        .descendants()
+        .filter(|n| {
+            n.has_tag_name("table-row")
+                && n.ancestors().find(|a| a.has_tag_name("table")) == Some(table)
+        })
+        .collect();
+    fn cells_of<'a, 'i>(row: XmlNode<'a, 'i>) -> Vec<XmlNode<'a, 'i>> {
+        row.children()
+            .filter(|c| c.has_tag_name("table-cell") || c.has_tag_name("covered-table-cell"))
+            .collect()
+    }
+    let last_row = rows
+        .iter()
+        .rposition(|&r| cells_of(r).into_iter().any(repeat_cell_has_content));
+    fn fit(
+        plan: &mut HashMap<roxmltree::NodeId, usize>,
+        node: XmlNode,
+        name: &str,
+        cost: usize,
+        remaining: &mut usize,
+    ) -> usize {
+        let declared = repeat(node, name);
+        if declared <= 1 {
+            return declared;
+        }
+        let cost = cost.max(1);
+        let kept = 1 + (declared - 1).min(*remaining / cost);
+        *remaining -= (kept - 1) * cost;
+        if kept < declared {
+            plan.insert(node.id(), kept);
+        }
+        kept
+    }
+    for (i, &row) in rows.iter().enumerate() {
+        let cells = cells_of(row);
+        if last_row.is_none_or(|l| i > l) {
+            // Trailing: stripped, free.
+            plan.insert(row.id(), 1);
+            for c in cells {
+                plan.insert(c.id(), 1);
+            }
+            continue;
+        }
+        let last_cell = cells.iter().rposition(|&c| repeat_cell_has_content(c));
+        let mut width = 0usize;
+        for (j, &cell) in cells.iter().enumerate() {
+            if last_cell.is_none_or(|l| j > l) {
+                plan.insert(cell.id(), 1);
+                continue;
+            }
+            let declared = repeat(cell, "number-columns-repeated");
+            let kept = fit(&mut plan, cell, "number-columns-repeated", 1, remaining);
+            removed += (declared - kept) as u64;
+            width += kept;
+        }
+        let declared = repeat(row, "number-rows-repeated");
+        let kept = fit(&mut plan, row, "number-rows-repeated", width, remaining);
+        removed += ((declared - kept) as u64).saturating_mul(width as u64);
+    }
+    (Repeats(plan), removed)
+}
+
+/// [`fit_repeats`] for one sheet, warning as docling does when it removed
+/// cells.
+pub(super) fn fit_sheet_repeats(table: XmlNode, remaining: &mut usize) -> Repeats {
+    let (plan, removed) = fit_repeats(table, remaining);
+    if removed > 0 {
+        eprintln!(
+            "docling: sheet {:?} repeats more cells than the limit of {} repeated cells \
+             (DOCLING_RS_ODS_MAX_REPEATED_CELLS); {removed} repeated cells were not converted",
+            attr(table, "name").unwrap_or(""),
+            max_repeated_cells()
+        );
+    }
+    plan
+}
+
 pub(super) fn repeat(node: XmlNode, name: &str) -> usize {
     attr(node, name)
         .and_then(|v| v.parse().ok())
@@ -3459,7 +3618,12 @@ mod tests {
         let dom = Document::parse(xml).unwrap();
         let table = dom.descendants().find(|n| n.has_tag_name("table")).unwrap();
         let mut doc = DoclingDocument::new("t");
-        add_ods_sheet(table, &parse_styles(&dom, None), &mut doc);
+        add_ods_sheet(
+            table,
+            &parse_styles(&dom, None),
+            &mut doc,
+            &Repeats::default(),
+        );
         let tables: Vec<&Table> = doc
             .nodes
             .iter()
@@ -3472,6 +3636,68 @@ mod tests {
         assert_eq!(tables[0].rows, vec![vec!["Title".to_string()]]);
         assert_eq!(tables[1].rows.len(), 2, "header + one data row");
         assert_eq!(tables[1].rows[0], vec!["H1".to_string(), "H2".to_string()]);
+    }
+
+    /// docling#5485 (#1172, `test_ods_repeated_content_is_limited`): a cell
+    /// `A` repeated 10,000,000 times — along a row or down a column — then
+    /// `end`, with a repeat budget of 100: one table of 101 `A`s and `end`
+    /// beside them. Each repeat was capped at 1024 copies and the index still
+    /// advanced by ten million, so `end` became a table of its own; a
+    /// trailing empty repeat costs nothing.
+    #[test]
+    fn repeated_content_is_limited() {
+        for rows in [true, false] {
+            let a = r#"<table:table-cell><text:p>A</text:p></table:table-cell>"#;
+            let end = r#"<table:table-cell><text:p>end</text:p></table:table-cell>"#;
+            let pad = r#"<table:table-cell table:number-columns-repeated="1000000000"/>"#;
+            let body = if rows {
+                format!(
+                    r#"<table:table-row table:number-rows-repeated="10000000">{a}{pad}</table:table-row><table:table-row>{end}</table:table-row><table:table-row table:number-rows-repeated="1048000"><table:table-cell/></table:table-row>"#
+                )
+            } else {
+                format!(
+                    r#"<table:table-row><table:table-cell table:number-columns-repeated="10000000"><text:p>A</text:p></table:table-cell>{end}{pad}</table:table-row>"#
+                )
+            };
+            let xml = format!(
+                r#"<root xmlns:table="t" xmlns:text="x"><table:table>{body}</table:table></root>"#
+            );
+            let dom = Document::parse(&xml).unwrap();
+            let table = dom.descendants().find(|n| n.has_tag_name("table")).unwrap();
+            let mut remaining = 100;
+            let (repeats, removed) = fit_repeats(table, &mut remaining);
+            assert_eq!(removed, 10_000_000 - 101, "rows: {rows}");
+            let mut doc = DoclingDocument::new("t");
+            add_ods_sheet(table, &parse_styles(&dom, None), &mut doc, &repeats);
+            let tables: Vec<&Table> = doc
+                .nodes
+                .iter()
+                .filter_map(|n| match n {
+                    Node::Table(t) => Some(t),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(tables.len(), 1, "rows: {rows}");
+            let cells: Vec<&str> = tables[0]
+                .rows
+                .iter()
+                .flatten()
+                .map(String::as_str)
+                .collect();
+            let mut want = vec!["A"; 101];
+            want.push("end");
+            assert_eq!(cells, want, "rows: {rows}");
+        }
+    }
+
+    /// An ODT table's trailing empty cell repeated 10^9 times sized a dense
+    /// 24 GB grid (#1172); it is dropped, as the spreadsheet's are.
+    #[test]
+    fn a_text_table_drops_its_trailing_empty_repeats() {
+        let t = table_of(
+            r#"<table:table xmlns:table="t" xmlns:text="x"><table:table-row><table:table-cell><text:p>A</text:p></table:table-cell><table:table-cell table:number-columns-repeated="1000000000"/></table:table-row><table:table-row><table:table-cell><text:p>B</text:p></table:table-cell></table:table-row></table:table>"#,
+        );
+        assert_eq!(t.rows, [["A"], ["B"]]);
     }
 
     /// docling#4992: a blank merged row spanning the sheet only separates
@@ -3505,7 +3731,12 @@ mod tests {
             let dom = Document::parse(&xml).unwrap();
             let table = dom.descendants().find(|n| n.has_tag_name("table")).unwrap();
             let mut doc = DoclingDocument::new("t");
-            add_ods_sheet(table, &parse_styles(&dom, None), &mut doc);
+            add_ods_sheet(
+                table,
+                &parse_styles(&dom, None),
+                &mut doc,
+                &Repeats::default(),
+            );
             doc.nodes
                 .iter()
                 .filter_map(|n| match n {
