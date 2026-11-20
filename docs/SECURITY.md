@@ -104,6 +104,14 @@ multi-gigabyte bitmap, which a few-hundred-byte crafted `MediaBox` otherwise
 forces (the `image` crate *panics* rather than erroring when that allocation
 fails).
 
+An XBRL instance's taxonomy references (`xbrl_taxonomy`, `--xbrl-taxonomy`)
+read only files inside the taxonomy directory (#1192): `\` counts as a
+separator, a root, drive or UNC prefix and any `..` are refused, and the
+canonical path — symlinks resolved — must lie under the canonical directory,
+on every platform (a lexical, `/`-only check let `C:/…` and `..\..\…`
+escape it on Windows). Remote references read only from the taxonomy
+packages (`.zip`) in that directory; nothing is fetched.
+
 ### Downloaded assets
 
 The models, pdfium and the s390x ONNX Runtime come from this repository's

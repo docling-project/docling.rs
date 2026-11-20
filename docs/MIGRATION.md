@@ -1018,6 +1018,7 @@ converted once more as that format with a warning.
   - `textBlockItemType` facts (typed from the taxonomy schema, `…TextBlock`/markup by shape when it is out of reach) → HTML, each block converted with `infer_furniture=False, add_title=False` and merged the way `DoclingDocument.concatenate` numbers items (traversal order, its rich-cell ref quirk included)
   - numeric facts → the `key_value_items[0]` `GraphData` (key cell + value/period/unit/decimals cells, `to_child` concept hierarchy from the presentation linkbase, `summation-item` arcs with `weight:` cells)
 - The taxonomy is discovered offline from the `xbrl_taxonomy` directory (schemaRef → xsd → imports/linkbaseRefs; remote URLs through taxonomy packages' `META-INF/catalog.xml`)
+- #1192 (cf. docling#5406, which confines arelle's web cache): a local taxonomy reference reads only a file inside the taxonomy directory, on every platform — `\` is a separator, a root, drive or UNC prefix and any `..` are refused, and the canonical path must lie under the canonical directory (the check was lexical and `/`-only, so on Windows `C:/…` replaced the directory and `..\..\…` climbed out of it). There is no web cache to confine: remote references resolve only through the directory's taxonomy packages
 
 #### YouTube URL
 
