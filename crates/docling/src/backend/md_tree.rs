@@ -511,7 +511,7 @@ fn reparse_as_html(
         }
     }
     let keys = Keys { pictures, images };
-    let parsed = scraper::Html::parse_document(&html);
+    let parsed = super::html::parse_html_document(&html);
     Some(super::html_tree::build_tree(&parsed, &keys, false, false))
 }
 

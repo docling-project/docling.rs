@@ -168,7 +168,7 @@ pub(crate) fn convert_html_with(
     match flattened {
         Some(notice) => doc.notices.push(notice),
         None => {
-            let parsed = Html::parse_document(html);
+            let parsed = parse_html_document(html);
             doc.tree = Some(super::html_tree::build_tree(
                 &parsed,
                 images,
@@ -178,6 +178,74 @@ pub(crate) fn convert_html_with(
         }
     }
     doc
+}
+
+/// Parse an HTML document the way both walks read it: html5ever's tree,
+/// then each `<q>` given its quotation marks as text ([`add_quotation_marks`]).
+pub(crate) fn parse_html_document(html: &str) -> Html {
+    let mut parsed = Html::parse_document(html);
+    add_quotation_marks(&mut parsed);
+    parsed
+}
+
+/// A `<q>`'s quotation marks — `(outer, inner)` pairs — by the primary
+/// subtag of its language (docling's `_Q_QUOTATION_MARKS_BY_LANG`); an
+/// unknown language gets English marks.
+fn quotation_marks(lang: &str) -> [(&'static str, &'static str); 2] {
+    match lang {
+        "cs" | "de" => [("„", "“"), ("‚", "‘")],
+        "el" | "es" | "it" => [("«", "»"), ("“", "”")],
+        "fr" => [("«", "»"), ("«", "»")],
+        "ja" => [("「", "」"), ("『", "』")],
+        "nl" => [("‘", "’"), ("“", "”")],
+        "pl" => [("„", "”"), ("«", "»")],
+        "ru" | "uk" => [("«", "»"), ("„", "“")],
+        "sv" => [("”", "”"), ("’", "’")],
+        _ => [("“", "”"), ("‘", "’")],
+    }
+}
+
+/// A browser draws a `<q>`'s quotation marks from CSS (`open-quote` /
+/// `close-quote`), so the markup does not hold them; docling adds them as
+/// text before the walk (docling#5388, #1175), and so does this: the outer
+/// pair at depth 0, the inner pair inside another `<q>`, the pair chosen by
+/// the nearest `lang` (or `xml:lang`) on the `<q>` or an ancestor. The marks
+/// land in each item's `orig`; `text` gets the usual quote folding.
+fn add_quotation_marks(parsed: &mut Html) {
+    let marks: Vec<(ego_tree::NodeId, &'static str, &'static str)> = parsed
+        .select(cached_selector!("q"))
+        .map(|q| {
+            let lang = std::iter::once(q)
+                .chain(q.ancestors().filter_map(ElementRef::wrap))
+                .find_map(|e| {
+                    e.value()
+                        .attr("lang")
+                        .or_else(|| e.value().attr("xml:lang"))
+                })
+                .map(|l| {
+                    l.trim()
+                        .to_ascii_lowercase()
+                        .split('-')
+                        .next()
+                        .unwrap_or("")
+                        .to_string()
+                })
+                .unwrap_or_default();
+            let nested = q
+                .ancestors()
+                .filter_map(ElementRef::wrap)
+                .any(|e| e.value().name() == "q");
+            let (open, close) = quotation_marks(&lang)[usize::from(nested)];
+            (q.id(), open, close)
+        })
+        .collect();
+    for (id, open, close) in marks {
+        let text = |s: &str| scraper::Node::Text(scraper::node::Text { text: s.into() });
+        if let Some(mut q) = parsed.tree.get_mut(id) {
+            q.prepend(text(open));
+            q.append(text(close));
+        }
+    }
 }
 
 /// The depth-cap notice (#912): the page nests past
@@ -215,7 +283,7 @@ fn append_fragment_with(
         }
         return Some(depth_notice());
     }
-    let parsed = Html::parse_document(html);
+    let parsed = parse_html_document(html);
     // The document `<title>` is docling's furniture-layer title heading — it
     // precedes the body content and is excluded from Markdown (the JSON gets
     // it from the item tree, `html_tree`). Fragments (e.g. Markdown-embedded
@@ -3495,6 +3563,72 @@ mod tests {
                 f("Hours", true, false),
                 f("Monday", false, true),
                 f("09:00 - 17:00", false, false)
+            ]
+        );
+    }
+
+    /// docling#5388 (#1175, `test_inline_quotation_gets_its_quotation_marks`):
+    /// a `<q>` reads with its quotation marks — in a heading, a paragraph,
+    /// nested, a list item and a table cell; `orig` keeps the curly marks.
+    #[test]
+    fn inline_quotation_gets_its_quotation_marks() {
+        let doc = convert(concat!(
+            "<html><body>",
+            "<h2>The <q>best</q> part</h2>",
+            "<p>She said <q>stop</q> and left.</p>",
+            "<p><q>He wrote <q>no</q> twice</q></p>",
+            "<ul><li><b>Note:</b> <q>maybe</q></li></ul>",
+            "<table><tr><td><q>cell</q></td></tr></table>",
+            "</body></html>"
+        ));
+        let md = doc.export_to_markdown();
+        assert!(
+            md.starts_with(concat!(
+                "## The \"best\" part\n\n",
+                "She said \"stop\" and left.\n\n",
+                "\"He wrote 'no' twice\"\n\n",
+                "- **Note:** \"maybe\"\n\n",
+                "| \"cell\""
+            )),
+            "{md}"
+        );
+        let origs: Vec<String> = doc.export_to_json_value()["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["orig"].as_str().unwrap().to_string())
+            .collect();
+        assert!(
+            origs.contains(&"She said “stop” and left.".to_string()),
+            "{origs:?}"
+        );
+    }
+
+    /// `test_inline_quotation_marks_follow_the_language`: the nearest `lang`
+    /// picks the marks; an unknown language gets English ones.
+    #[test]
+    fn inline_quotation_marks_follow_the_language() {
+        let doc = convert(concat!(
+            r#"<html lang="de"><body>"#,
+            "<p>Er sagte <q>Hallo <q>du</q></q>.</p>",
+            r#"<p lang="fr-CA">Il a dit <q>salut</q>.</p>"#,
+            r#"<p lang="ja"><q>はい</q></p>"#,
+            r#"<p lang="xx"><q>unknown</q></p>"#,
+            "</body></html>"
+        ));
+        let origs: Vec<String> = doc.export_to_json_value()["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["orig"].as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(
+            origs,
+            [
+                "Er sagte „Hallo ‚du‘“.",
+                "Il a dit «salut».",
+                "「はい」",
+                "“unknown”"
             ]
         );
     }
