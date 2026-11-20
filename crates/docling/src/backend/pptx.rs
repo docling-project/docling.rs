@@ -49,6 +49,8 @@ impl DeclarativeBackend for PptxBackend {
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
         let mut pkg = Package::open(&source.bytes)
             .ok_or_else(|| ConversionError::Parse("pptx: bad zip".into()))?;
+        pkg.check_limits(&super::ooxml::PackageLimits::from_env())
+            .map_err(|e| ConversionError::with_source("pptx", e))?;
         let mut doc = DoclingDocument::new(&source.name);
 
         let presentation = pkg

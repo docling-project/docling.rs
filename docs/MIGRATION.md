@@ -538,6 +538,7 @@ converted once more as that format with a warning.
 **Backend:** `pptx.rs` (roxmltree)\
 **Status:** **8/8 exact**; **JSON: structurally identical to docling 2.129's on 8/8** (every key and value but `origin`/`version` and the PNG bytes PIL re-encodes)
 
+- #1163 (docling#5113; DOCX and XLSX since docling#4977): a PPTX, DOCX or XLSX package is checked from its central directory before any part is read — 128 MiB declared per member, 512 MiB over all members, 10 000 members (`DOCLING_RS_OOXML_MAX_MEMBER_MB` / `_MAX_TOTAL_MB` / `_MAX_MEMBERS`, docling's `max_file_bytes` / `max_total_bytes` / `max_member_count`) — and fails with the typed `LimitExceeded` naming the member, as docling fails with `ArchiveLimitError`; a 250 KB deck whose `slide1.xml` inflates to 200 MiB used to convert. The limits are environment variables, not backend options as upstream has them; the per-part read cap (`DOCLING_RS_MAX_PART_BYTES`, 512 MiB, a part past it skipped) still guards the bytes actually inflated
 - the flat node stream is not the shape upstream's JSON has, so the slide walk fills docling's `ItemTree` alongside it, as `MsPowerpointDocumentBackend._walk_linear` does:
   - a `chapter` group per slide
   - `paragraph` (not `text`) for a non-title paragraph

@@ -5,6 +5,9 @@ DOCLING_RS_MAX_HTML_DEPTH,limit,crates/docling/src/backend/html.rs
 DOCLING_RS_MAX_IMAGE_PIXELS,limit,crates/docling-pdf/src/lib.rs
 DOCLING_RS_MAX_MEMORY_MB,limit,crates/docling-serve/src/lib.rs
 DOCLING_RS_MAX_PART_BYTES,limit,crates/docling/src/backend/ooxml.rs
+DOCLING_RS_OOXML_MAX_MEMBER_MB,limit,crates/docling/src/backend/ooxml.rs
+DOCLING_RS_OOXML_MAX_TOTAL_MB,limit,crates/docling/src/backend/ooxml.rs
+DOCLING_RS_OOXML_MAX_MEMBERS,limit,crates/docling/src/backend/ooxml.rs
 DOCLING_RS_MAX_RASTER_PAGES,limit,crates/docling-serve/src/lib.rs
 DOCLING_RS_MAX_RENDER_PIXELS,limit,crates/docling-pdf/src/pdfium_backend.rs
 DOCLING_RS_MAX_XML_DEPTH,limit,crates/docling/src/backend/xml_depth.rs

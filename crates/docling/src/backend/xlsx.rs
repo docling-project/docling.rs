@@ -128,6 +128,11 @@ impl DeclarativeBackend for XlsxBackend {
         // Binary workbook (`.xlsb`, issue #210): the same ZIP envelope with
         // binary parts instead of OPC XML — detected by the workbook part
         // (extensions lie) and handed to the slim calamine-`Xlsb` path.
+        // The package limits first (#1163): calamine opens the parts itself.
+        if let Some(mut pkg) = Package::open_slice(&source.bytes) {
+            pkg.check_limits(&super::ooxml::PackageLimits::from_env())
+                .map_err(|e| ConversionError::with_source("xlsx", e))?;
+        }
         if Package::open(&source.bytes)
             .is_some_and(|mut pkg| pkg.read_bytes("xl/workbook.bin").is_some())
         {

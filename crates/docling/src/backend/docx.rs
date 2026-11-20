@@ -60,6 +60,8 @@ impl DeclarativeBackend for DocxBackend {
     fn convert(&self, source: &SourceDocument) -> Result<DoclingDocument, ConversionError> {
         let mut pkg = Package::open(&source.bytes)
             .ok_or_else(|| ConversionError::Parse("docx: bad zip".into()))?;
+        pkg.check_limits(&super::ooxml::PackageLimits::from_env())
+            .map_err(|e| ConversionError::with_source("docx", e))?;
         let document = pkg
             .read("word/document.xml")
             .ok_or_else(|| ConversionError::Parse("docx: no document.xml".into()))?;

@@ -49,9 +49,28 @@ impl fmt::Display for LimitExceeded {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}: {} cells exceeds the limit of {} ({})",
-            self.what, self.actual, self.limit, self.variable
+            "{}: {} {} exceeds the limit of {} ({})",
+            self.what,
+            self.actual,
+            self.unit(),
+            self.limit,
+            self.variable
         )
+    }
+}
+
+impl LimitExceeded {
+    /// What `limit` and `actual` count, read off the variable: bytes for a
+    /// `…_MB` size cap (the counts themselves are bytes), members for a
+    /// member-count cap, cells for the table budgets.
+    pub fn unit(&self) -> &'static str {
+        if self.variable.ends_with("_MB") {
+            "bytes"
+        } else if self.variable.ends_with("_MEMBERS") {
+            "members"
+        } else {
+            "cells"
+        }
     }
 }
 

@@ -38,6 +38,7 @@ secret or network variable is missing from this page.
 | Table cells a document declares (docling-JSON `num_rows × num_cols` / `grid`, DocTags and DocLang OTSL streams — the dense grid every export materializes, #861; docling-core 2.103.1's `max_table_cells` / `max_total_table_cells`) | 1 000 000 cells per table (rows and columns bounded alone too) and 5 000 000 over all of a document's tables — a 10^6 × 10^6 `TableData` around one cell, or one OTSL row of a million tokens plus a million one-token rows, asked for 10^12 slots from a few MB | the document is **rejected** with the typed `LimitExceeded` on the error's source chain (`ConversionError::limit()`; serve answers 422) — docling-core's own load-time error; the tolerant `doctags::parse` leaves the table out instead | `DOCLING_RS_MAX_TABLE_CELLS`, `DOCLING_RS_MAX_TOTAL_TABLE_CELLS` |
 | DjVu scan render (OCR fallback) | the page is rendered into a 2500 px box | never fails: the bitmap is scaled down | `DOCLING_RS_DJVU_RENDER_PX` |
 | OOXML / EPUB part inflation (DOCX, PPTX, XLSX, EPUB) | 512 MiB per decompressed part (checked against the declared size, then while reading, so a lying header cannot get past it) | the part is **skipped** (never truncated, no message) and the conversion continues without it | `DOCLING_RS_MAX_PART_BYTES` |
+| OOXML package size (DOCX, PPTX, XLSX; #1163, docling's `check_archive_limits` — `max_file_bytes` / `max_total_bytes` / `max_member_count`, PPTX since docling#5113) | the sizes the central directory declares: 128 MiB per member, 512 MiB over all members, 10 000 members — checked before any part is read | the document is **rejected** with the typed `LimitExceeded` naming the member and the variable (`ConversionError::limit()`; serve answers 422), as docling fails it with `ArchiveLimitError` | `DOCLING_RS_OOXML_MAX_MEMBER_MB`, `DOCLING_RS_OOXML_MAX_TOTAL_MB`, `DOCLING_RS_OOXML_MAX_MEMBERS` |
 | ZIP inputs (a `.zip` given to the CLI or uploaded to serve, #557) | 10 000 entries · 256 MiB per entry · 1024 MiB in total · compression ratio 200 for an entry over 1 MiB — checked on the central directory before anything is inflated; nested ZIPs (#677) are shut by default (depth 1) and read at most 3 levels down, every level drawing on the same entry count and size budget (the nested archive's own bytes included) | the entry is skipped with its reason in the log; the other entries convert | `DOCLING_RS_ZIP_MAX_ENTRIES`, `DOCLING_RS_ZIP_MAX_ENTRY_MB`, `DOCLING_RS_ZIP_MAX_TOTAL_MB`, `DOCLING_RS_ZIP_MAX_RATIO`, `DOCLING_RS_ZIP_MAX_DEPTH` |
 | XML element nesting (`roxmltree` recurses per level) | 512 levels, counted by an iterative scan before parsing | an OOXML / EPUB part is skipped (`docling: …; part skipped` on stderr); a standalone XML input (JATS, USPTO, XBRL, DocLang, AbiWord, SVG) fails with an error | `DOCLING_RS_MAX_XML_DEPTH` |
 | HTML / EPUB DOM walk | 2000 levels, checked iteratively | the document is emitted as flattened text instead of overflowing the recursion stack — without the item tree and the source blocks, which the conversion says (#912): a `Notice` on the document naming the variable and the effective cap, and a `partial_success` carrying the same message (the CLI's warning, serve's `X-Docling-Status` / `X-Docling-Errors`) | `DOCLING_RS_MAX_HTML_DEPTH` |
@@ -64,9 +65,10 @@ secret or network variable is missing from this page.
 What is **not** bounded: there is no global page-count or input-size cap like
 Python docling's `convert(max_num_pages=…, max_file_size=…)` (both default to
 unlimited there); use `--page-range` to convert a window, and the server's
-`--max-body-mb` for uploads. An OOXML package has a per-part cap but no
-total or ratio cap across its parts (docling's strict OOXML path caps
-512 MiB per member and 2 GiB in total).
+`--max-body-mb` for uploads. A DOCX, PPTX or XLSX is bounded per member,
+in total and in member count (above); EPUB and the other ZIP-based formats
+read through the OOXML package keep the per-part cap alone, and no package
+has a compression-ratio cap (a ZIP *input* does, `DOCLING_RS_ZIP_MAX_RATIO`).
 
 ### Hyperlinks in the output
 
