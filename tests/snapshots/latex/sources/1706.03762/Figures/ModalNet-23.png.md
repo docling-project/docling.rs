@@ -1,7 +1,5 @@
 ## Linear
 
-ReLU
+## ReLU
 
 Linear
-
-<!-- image -->
