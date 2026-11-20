@@ -26,6 +26,10 @@
 //! its table keeps marko's two trailing hard-break spaces upstream
 //! (`"Line one  "`, a block edge marko leaves untrimmed there); ours trims
 //! the block edge, as for every other paragraph.
+//!
+//! `pictures_plain` and `tables_rich` recaptured with docling 2.151.1 for
+//! docling#5272 (#1184): an image's title caption is a child of its
+//! picture; their Markdown did not move.
 use std::fs;
 use std::path::{Path, PathBuf};
 
