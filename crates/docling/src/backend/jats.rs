@@ -107,8 +107,18 @@ struct Seg {
 }
 
 /// Tags that, inside a `<p>`, flush the accumulated paragraph text before they
-/// are handled — docling's `_walk_linear` `flush_tags`.
-const FLUSH_TAGS: &[&str] = &["ack", "sec", "list", "boxed-text", "disp-formula", "fig"];
+/// are handled — docling's `_walk_linear` `flush_tags` (`preformat` and
+/// `code` since docling#5283: a code block in a paragraph is its own item).
+const FLUSH_TAGS: &[&str] = &[
+    "ack",
+    "sec",
+    "list",
+    "boxed-text",
+    "disp-formula",
+    "fig",
+    "preformat",
+    "code",
+];
 
 const DEFAULT_HEADER_ACKNOWLEDGMENTS: &str = "Acknowledgments";
 const DEFAULT_HEADER_FOOTNOTES: &str = "Footnotes";
@@ -1036,6 +1046,10 @@ fn walk_linear(
                 add_equation(out, parent, child);
                 stop_walk = true;
             }
+            "preformat" | "code" => {
+                add_code_block(out, parent, child);
+                stop_walk = true;
+            }
             "inline-formula" => {
                 // Inline formula: the `<tex-math>` stays inline (unlike a block
                 // `<disp-formula>`), carrying any enclosing emphasis (#3726).
@@ -1519,6 +1533,43 @@ fn add_equation(out: &mut Out, parent: Option<usize>, node: XmlNode) {
         });
         out.text(parent, "formula", &formula, None, None, None, None);
     }
+}
+
+/// docling's `_add_code_block` (docling#5283): a `<preformat>`/`<code>` holds
+/// verbatim text — code, console output — so it is one code item with its
+/// line breaks and indentation (all descendant text, outer newlines
+/// stripped), its language from `<code language>` or the content; a blank
+/// block is skipped. A section-level block used to be dropped and one in a
+/// paragraph run into the paragraph text without its line breaks.
+fn add_code_block(out: &mut Out, parent: Option<usize>, node: XmlNode) {
+    let raw: String = node
+        .descendants()
+        .filter(|n| n.is_text())
+        .filter_map(|n| n.text())
+        .collect();
+    let code = raw.trim_matches('\n');
+    if code.trim().is_empty() {
+        return;
+    }
+    let language = super::code_language::detect_code_language(code, node.attribute("language"));
+    out.doc.push(Node::Code {
+        language: language.clone(),
+        text: code.to_string(),
+        orig: None,
+        pretty: None,
+    });
+    out.tree.add(
+        parent,
+        None,
+        TreeKind::Code {
+            text: code.to_string(),
+            orig: None,
+            language,
+            formatting: None,
+            hyperlink: None,
+            captions: Vec::new(),
+        },
+    );
 }
 
 /// A `<fig>` → its label + caption as a picture caption, then a picture marker
@@ -2163,7 +2214,8 @@ fn add_footnote_group(out: &mut Out, parent: Option<usize>, node: XmlNode, hleve
     let footnotes: Vec<Vec<Seg>> = node
         .children()
         .filter(|c| c.has_tag_name("fn"))
-        .map(|f| trim_segment_edges(walk_inline_formula(f, Fmt::default(), None, false)))
+        // `resolve_ext_links` (docling#5290): an `<ext-link>` keeps its target.
+        .map(|f| trim_segment_edges(walk_inline_formula(f, Fmt::default(), None, true)))
         .filter(|segs| !segs.is_empty())
         .collect();
     if footnotes.is_empty() {
