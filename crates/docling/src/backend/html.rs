@@ -4246,10 +4246,14 @@ mod tests {
 
     #[test]
     fn inline_images_produce_no_marker_but_anchor_wrapped_images_stay_pictures() {
-        // An image inside text emits nothing (docling never renders inline image
-        // markers); the surrounding text is unaffected.
+        // An image inside a paragraph's text leaves no marker in the text; it
+        // is a picture after the paragraph, captioned by its `alt` (#1177,
+        // upstream's paragraph branch — docling 2.151.1 prints the same).
         let inline = convert("<p>before <img src=\"x.png\" alt=\"logo\"> after</p>");
-        assert_eq!(inline.export_to_markdown(), "before after\n");
+        assert_eq!(
+            inline.export_to_markdown(),
+            "before after\n\nlogo\n\n<!-- image -->\n"
+        );
         // A non-anchor wrapper around a lone image (`<span><img></span>`) is inline
         // too, so it is dropped entirely.
         let span = convert("<span><img src=\"x.png\" alt=\"logo\"></span><h2>Home</h2>");
