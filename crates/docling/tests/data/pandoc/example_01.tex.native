@@ -65,7 +65,8 @@
           ]
       ]
     ]
-, BulletList
+, OrderedList
+    ( 1 , Decimal , Period )
     [ [ Plain
           [ Str "First"
           , Space

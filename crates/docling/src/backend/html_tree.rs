@@ -43,8 +43,9 @@ use ego_tree::{NodeId, NodeRef};
 use scraper::{ElementRef, Html, Node as HtmlNode, Selector};
 
 use super::html::{
-    checkbox_label_text, detect_field_region, is_hidden, is_rich_cell, normalize_url, normalize_ws,
-    pre_line_breaks, resolve_line_breaks, subtree_text, text_with_breaks,
+    cell_header_flags, checkbox_label_text, detect_field_region, is_hidden, is_rich_cell,
+    normalize_url, normalize_ws, pre_line_breaks, resolve_line_breaks, subtree_text,
+    text_with_breaks,
 };
 use super::images::ImageResolver;
 
@@ -321,6 +322,22 @@ fn suppressed(e: &scraper::node::Element) -> bool {
 
 /// The nearest ancestor element of `node` named `name`, stopping at (and
 /// excluding) `boundary` when given.
+/// `_is_header_in_cell_or_item`: a heading the walk emits as the text of a
+/// table cell, a `<dl>` entry or a `<ul>`/`<ol>` item (one in a `<menu>`
+/// item stays a heading).
+fn header_in_cell_or_item(h: ElementRef) -> bool {
+    if ancestor_named(*h, "table", None).is_some() || ancestor_named(*h, "dl", None).is_some() {
+        return true;
+    }
+    let Some(item) = ancestor_named(*h, "li", None) else {
+        return false;
+    };
+    item.ancestors()
+        .filter_map(ElementRef::wrap)
+        .find(|e| matches!(e.value().name(), "ul" | "ol" | "menu"))
+        .is_some_and(|l| l.value().name() != "menu")
+}
+
 fn ancestor_named<'a>(
     node: NodeRef<'a, HtmlNode>,
     name: &str,
@@ -465,6 +482,7 @@ pub(super) fn build_tree(
         hyperlink: None,
         images,
         el_of: HashMap::new(),
+        captioned_figures: Default::default(),
     };
     // The `<title>` is a furniture-layer title item, created first (unless
     // `add_title` is off, as for the Markdown backend's HTML detour).
@@ -492,12 +510,21 @@ pub(super) fn build_tree(
         w.record(*title, first);
     }
     let content = parsed.select(sel!("body")).next().unwrap_or(root);
-    // `infer_furniture`: everything before the first heading (one not inside
-    // a table) is site chrome on the furniture layer.
+    // `infer_furniture`: everything before the first heading is site chrome
+    // on the furniture layer. Not a heading the walk emits as cell or list
+    // item text (`_is_header_in_cell_or_item`), nor one it skips as hidden —
+    // on the heading or an ancestor below `<body>` (docling#5313, #1176): a
+    // hidden heading used to put the whole visible page on the furniture
+    // layer.
     let has_header = infer_furniture
-        && content
-            .select(sel!("h1, h2, h3, h4, h5, h6"))
-            .any(|h| ancestor_named(*h, "table", None).is_none());
+        && content.select(sel!("h1, h2, h3, h4, h5, h6")).any(|h| {
+            !header_in_cell_or_item(h)
+                && !std::iter::once(*h)
+                    .chain(h.ancestors())
+                    .take_while(|n| n.id() != content.id())
+                    .filter_map(ElementRef::wrap)
+                    .any(|e| is_hidden(e.value()))
+        });
     w.layer = has_header.then_some(ContentLayer::Furniture);
     w.walk(content);
     collect_blocks(root, &w.el_of, &mut w.tree);
@@ -765,6 +792,10 @@ struct Walker<'a> {
     images: &'a dyn ImageResolver,
     /// The element each item was created for (#903): item index → element.
     el_of: HashMap<usize, NodeId>,
+    /// `_captioned_figure_ids` (docling#4745, #1177): the figures whose
+    /// `<figcaption>` a picture has claimed, so a figure of several images
+    /// keeps one caption.
+    captioned_figures: std::collections::HashSet<NodeId>,
 }
 
 impl<'a> Walker<'a> {
@@ -1243,7 +1274,11 @@ impl<'a> Walker<'a> {
                         continue;
                     }
                     if name == "img" {
-                        added.push(self.emit_image(cel));
+                        // A hidden image is no picture and claims no caption,
+                        // as upstream's walk skips it (docling#4745).
+                        if !suppressed(cel.value()) {
+                            added.push(self.emit_image(cel));
+                        }
                     } else if name == "input" {
                         if let Some(r) = self.emit_input(cel) {
                             added.push(r);
@@ -1257,7 +1292,7 @@ impl<'a> Walker<'a> {
                 let any_picture = added
                     .iter()
                     .any(|&r| matches!(self.tree.items[r].kind, TreeKind::Picture { .. }));
-                if !any_picture {
+                if !any_picture && !self.captioned_figures.contains(&tag.id()) {
                     let caption_tag = tag
                         .children()
                         .filter_map(ElementRef::wrap)
@@ -1296,6 +1331,8 @@ impl<'a> Walker<'a> {
                 }
                 let imgs: Vec<ElementRef<'a>> = tag.select(sel!("img")).collect();
                 for img in imgs {
+                    // Not returned, as upstream does not: a figure around the
+                    // paragraph knows its caption was claimed (docling#4745).
                     self.emit_image(img);
                 }
                 let inputs: Vec<ElementRef<'a>> = tag.select(sel!("input")).collect();
@@ -2058,9 +2095,11 @@ impl<'a> Walker<'a> {
                         }
                     }
                 }
-                let is_th = cell.value().name() == "th";
                 // docling#4216: a row-header row's cells label the rows they
-                // span into — row headers, not column headers.
+                // span into — row headers, not column headers; a `<th
+                // scope>` says which it heads (docling#5446, #1174).
+                let (column_header, is_row_header) =
+                    cell_header_flags(cell.value(), col_header, row_header);
                 cells.push(TableCell {
                     text: text.clone(),
                     bbox: None,
@@ -2068,8 +2107,8 @@ impl<'a> Walker<'a> {
                     start_col: col_idx,
                     row_span,
                     col_span,
-                    column_header: col_header && !row_header,
-                    row_header: row_header || (!col_header && is_th),
+                    column_header,
+                    row_header: is_row_header,
                     row_section,
                 });
                 if let Some(gid) = rich_group {
@@ -2132,7 +2171,11 @@ impl<'a> Walker<'a> {
                 code: false,
             });
         }
-        if let Some(fig) = ancestor_named(*img, "figure", None) {
+        // The first picture of a figure claims its `<figcaption>`; a later
+        // one falls back to its `alt` (docling#4745, #1177).
+        if let Some(fig) = ancestor_named(*img, "figure", None)
+            .filter(|f| !self.captioned_figures.contains(&f.id()))
+        {
             if let Some(cap) = fig
                 .children()
                 .filter_map(ElementRef::wrap)
@@ -2140,6 +2183,7 @@ impl<'a> Walker<'a> {
             {
                 caption = self.extract(*cap, false, true, false);
                 fig_cap = Some(cap);
+                self.captioned_figures.insert(fig.id());
             }
         }
         if caption.is_empty() {

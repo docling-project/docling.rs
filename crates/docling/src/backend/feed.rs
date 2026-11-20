@@ -438,10 +438,11 @@ mod tests {
         let md = doc.export_to_markdown();
         // Text is Markdown-escaped like every backend's (`&` → `&amp;`);
         // the relative link resolves against the item's link, its `..`
-        // folded; an image the policy does not fetch is left out.
+        // folded; an image the policy does not fetch is a placeholder, a
+        // paragraph's image too since #1177 (it was dropped).
         assert_eq!(
             md,
-            "# The Blog\n\nNews &amp; notes\n\n## First\\_post\n\nPublished on: Mon, 09 Dec 2024 20:26:59 +0000\n\nHello [us](https://example.com/blog/about) and\n\nFull **text**\n\n- one\n\n## Second\n\nplain words only\n"
+            "# The Blog\n\nNews &amp; notes\n\n## First\\_post\n\nPublished on: Mon, 09 Dec 2024 20:26:59 +0000\n\nHello [us](https://example.com/blog/about) and\n\n<!-- image -->\n\nFull **text**\n\n- one\n\n## Second\n\nplain words only\n"
         );
         let json = doc.export_to_json();
         assert!(json.contains("\"label\": \"title\""), "{json}");

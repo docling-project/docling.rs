@@ -99,21 +99,53 @@ impl DeclarativeBackend for EpubBackend {
 /// value is as legal in single quotes as in double ones, so both are matched
 /// and the link keeps its own quote (docling#5170) — the `regex` crate has no
 /// backreference for upstream's `(["'])…\1`, hence one alternative per quote.
+///
+/// Only inside start tags (docling#5227, #1181): a book about HTML shows
+/// `href="chapter2.xhtml#note2"` in its listings and prose, where `<` is
+/// escaped but the quotes are not, and rewriting the text there showed the
+/// reader a link the book does not hold.
 fn rewrite_internal_links(body: &str) -> std::borrow::Cow<'_, str> {
     let link_re = cached_regex!(
         r#"href=(?:"([^"]*\.(?:xhtml|xht|html?))(#[^"]*)"|'([^']*\.(?:xhtml|xht|html?))(#[^']*)')"#
     );
-    link_re.replace_all(body, |caps: &regex::Captures| {
-        let (q, file, frag) = match caps.get(1) {
-            Some(file) => ('"', file.as_str(), &caps[2]),
-            None => ('\'', &caps[3], &caps[4]),
-        };
-        if is_external_href(file) {
-            caps[0].to_string()
-        } else {
-            format!("href={q}{frag}{q}")
-        }
+    START_TAG.replace_all(body, |tag: &regex::Captures| {
+        link_re
+            .replace_all(&tag[0], |caps: &regex::Captures| {
+                let (q, file, frag) = match caps.get(1) {
+                    Some(file) => ('"', file.as_str(), &caps[2]),
+                    None => ('\'', &caps[3], &caps[4]),
+                };
+                if is_external_href(file) {
+                    caps[0].to_string()
+                } else {
+                    format!("href={q}{frag}{q}")
+                }
+            })
+            .into_owned()
     })
+}
+
+/// upstream's `_START_TAG`: a start tag, its attribute values quoted either
+/// way and free to hold `>`.
+static START_TAG: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r#"<[A-Za-z](?:[^<>"']|"[^"<]*"|'[^'<]*')*>"#).expect("start tag regex")
+});
+
+/// The archive path an image `src` names, relative to the content document
+/// in `dir` (docling#4636 / docling#4602, #1181): a src with a scheme
+/// (`cid:`, `data:`, `https:`), a `//host` or no path (`#top`) is left as
+/// is (`None`); otherwise the query and fragment are dropped, the path is
+/// percent-decoded once (`map%231.png` → `map#1.png`, `%2520` → `%20`) and
+/// resolved against `dir`.
+fn archive_image_key(dir: &str, src: &str) -> Option<String> {
+    if is_external_href(src) {
+        return None;
+    }
+    let path = src.split(['?', '#']).next().unwrap_or("");
+    if path.is_empty() {
+        return None;
+    }
+    Some(ooxml::resolve(dir, &percent_decode(path)))
 }
 
 /// Rewrite each in-archive `<img src>` in `body` to its resolved archive path and
@@ -171,22 +203,23 @@ fn extract_images(
     pkg: &mut Package,
     images: &mut HashMap<String, PictureImage>,
 ) -> String {
-    let img_re = cached_regex!(r"(?is)<img\b[^>]*>");
-    let src_re = cached_regex!(r#"(?is)\bsrc\s*=\s*"([^"]*)""#);
+    // An `<img>` start tag only, never text that looks like one
+    // (docling#5227); its `src` in either quote style (docling#4602).
+    let img_re = cached_regex!(r#"(?i)<img\b(?:[^<>"']|"[^"<]*"|'[^'<]*')*>"#);
+    let src_re = cached_regex!(r#"(?is)\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)')"#);
     img_re
         .replace_all(body, |caps: &regex::Captures| {
             let tag = &caps[0];
-            let Some(raw) = src_re.captures(tag).map(|m| m[1].to_string()) else {
+            let Some(raw) = src_re
+                .captures(tag)
+                .and_then(|m| m.get(1).or_else(|| m.get(2)))
+                .map(|m| m.as_str().to_string())
+            else {
                 return tag.to_string();
             };
-            if raw.is_empty()
-                || raw.starts_with("data:")
-                || raw.starts_with("http://")
-                || raw.starts_with("https://")
-            {
+            let Some(archive_path) = archive_image_key(dir, &raw) else {
                 return tag.to_string();
-            }
-            let archive_path = ooxml::resolve(dir, &raw);
+            };
             if !images.contains_key(&archive_path) {
                 if let Some(pic) = pkg
                     .read_bytes(&archive_path)
@@ -195,8 +228,9 @@ fn extract_images(
                     images.insert(archive_path.clone(), pic);
                 }
             }
+            let escaped = archive_path.replace('&', "&amp;").replace('"', "&quot;");
             src_re
-                .replace(tag, format!(r#"src="{archive_path}""#).as_str())
+                .replace(tag, regex::NoExpand(&format!(r#"src="{escaped}""#)))
                 .into_owned()
         })
         .into_owned()
@@ -463,10 +497,24 @@ mod tests {
     /// An in-memory EPUB: `container.xml` naming `opf_ref`, the package
     /// stored at `opf_name`, and one spine item per `(file, body)`.
     fn build_epub(opf_ref: &str, opf_name: &str, chapters: &[(&str, &str)]) -> Vec<u8> {
+        build_epub_with(opf_ref, opf_name, chapters, &[])
+    }
+
+    /// [`build_epub`] plus `files`, binary parts at their archive paths.
+    fn build_epub_with(
+        opf_ref: &str,
+        opf_name: &str,
+        chapters: &[(&str, &str)],
+        files: &[(&str, &[u8])],
+    ) -> Vec<u8> {
         use std::io::Write;
         let mut out = std::io::Cursor::new(Vec::new());
         let mut w = zip::ZipWriter::new(&mut out);
         let opts = zip::write::SimpleFileOptions::default();
+        for (name, data) in files {
+            w.start_file(*name, opts).unwrap();
+            w.write_all(data).unwrap();
+        }
         let mut put = |name: &str, body: &str| {
             w.start_file(name, opts).unwrap();
             w.write_all(body.as_bytes()).unwrap();
@@ -500,6 +548,165 @@ mod tests {
         );
         w.finish().unwrap();
         out.into_inner()
+    }
+
+    fn png() -> Vec<u8> {
+        let img = image::RgbImage::from_pixel(4, 3, image::Rgb([255, 0, 0]));
+        let mut out = std::io::Cursor::new(Vec::new());
+        img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+        out.into_inner()
+    }
+
+    /// An EPUB converted with its archive images read.
+    fn convert_epub_images(bytes: Vec<u8>) -> serde_json::Value {
+        use crate::format::InputFormat;
+        let src = SourceDocument::from_bytes("book", InputFormat::Epub, bytes);
+        let doc = EpubBackend {
+            images: ImagePolicy::new(ImageSources::Embedded),
+            ..Default::default()
+        }
+        .convert(&src)
+        .unwrap();
+        serde_json::from_str(&doc.export_to_json()).unwrap()
+    }
+
+    fn json_texts(v: &serde_json::Value) -> Vec<String> {
+        v["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["text"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    fn pictures_with_data(v: &serde_json::Value) -> (usize, usize) {
+        let pics = v["pictures"].as_array().unwrap();
+        (
+            pics.len(),
+            pics.iter().filter(|p| p["image"].is_object()).count(),
+        )
+    }
+
+    /// One chapter `Text/ch1.xhtml`: `Start.`, an image of `src`, `End.`;
+    /// `archive_images` are PNGs under `OEBPS/`.
+    fn one_image_epub(src: &str, archive_images: &[&str]) -> serde_json::Value {
+        let png = png();
+        let names: Vec<String> = archive_images
+            .iter()
+            .map(|n| format!("OEBPS/{n}"))
+            .collect();
+        let files: Vec<(&str, &[u8])> =
+            names.iter().map(|n| (n.as_str(), png.as_slice())).collect();
+        let body = format!(r#"<p>Start.</p><img src="{src}" alt="img"/><p>End.</p>"#);
+        convert_epub_images(build_epub_with(
+            "OEBPS/content.opf",
+            "OEBPS/content.opf",
+            &[("Text/ch1.xhtml", &body)],
+            &files,
+        ))
+    }
+
+    /// docling#4636 (#1181, `test_epub_image_source_ignores_query_and_fragment`):
+    /// a query or fragment is not part of the file name; an escaped `#` is;
+    /// the src is decoded once.
+    #[test]
+    fn image_source_ignores_query_and_fragment() {
+        for (src, archive) in [
+            ("../Images/map.png?v=1", "Images/map.png"),
+            ("../Images/map.png#top", "Images/map.png"),
+            ("../Images/map%231.png", "Images/map#1.png"),
+            ("../Images/map%2520one.png", "Images/map%20one.png"),
+        ] {
+            let v = one_image_epub(src, &[archive]);
+            assert_eq!(pictures_with_data(&v), (1, 1), "{src}");
+            let texts = json_texts(&v);
+            assert_eq!(texts.first().map(String::as_str), Some("Start."), "{src}");
+            assert_eq!(texts.last().map(String::as_str), Some("End."), "{src}");
+        }
+    }
+
+    /// `test_epub_image_source_that_is_not_a_relative_path_is_not_loaded`.
+    #[test]
+    fn image_source_that_is_not_a_relative_path_is_not_loaded() {
+        for src in ["cid:foo.png", "foo://[bad/x.png", "#top"] {
+            let v = one_image_epub(src, &["Text/foo.png", "Text/x.png", "Text/top"]);
+            assert_eq!(pictures_with_data(&v).1, 0, "{src}");
+            let texts = json_texts(&v);
+            assert_eq!(texts.first().map(String::as_str), Some("Start."), "{src}");
+            assert_eq!(texts.last().map(String::as_str), Some("End."), "{src}");
+        }
+    }
+
+    /// docling#4602 (`test_epub_image_sources_in_either_quote_style_and_percent_escaped`).
+    #[test]
+    fn image_sources_in_either_quote_style_and_percent_escaped() {
+        let png = png();
+        let body = r#"<p>Cover.</p><img src="../Images/cover%20art.png" alt="cover"/><img src='../Images/map.png' alt='map'/>"#;
+        let v = convert_epub_images(build_epub_with(
+            "OEBPS/content.opf",
+            "OEBPS/content.opf",
+            &[("Text/ch1.xhtml", body)],
+            &[
+                ("OEBPS/Images/cover art.png", &png),
+                ("OEBPS/Images/map.png", &png),
+            ],
+        ));
+        assert_eq!(pictures_with_data(&v), (2, 2));
+    }
+
+    /// docling#5227 (`test_epub_image_source_rewrite_leaves_text_alone`): only
+    /// an image src of the markup is resolved, not one in a code listing.
+    #[test]
+    fn image_source_rewrite_leaves_text_alone() {
+        let png = png();
+        let body = r#"<pre><code>&lt;img src="../Images/logo.png"/&gt;</code></pre><img src="../Images/logo.png" alt="logo"/>"#;
+        let v = convert_epub_images(build_epub_with(
+            "OEBPS/content.opf",
+            "OEBPS/content.opf",
+            &[("Text/ch1.xhtml", body)],
+            &[("OEBPS/Images/logo.png", &png)],
+        ));
+        assert!(json_texts(&v).contains(&r#"<img src="../Images/logo.png"/>"#.to_string()));
+        assert_eq!(pictures_with_data(&v), (1, 1));
+    }
+
+    /// docling#5227 (`test_epub_internal_link_rewrite_leaves_text_alone`):
+    /// only a link of the markup is reduced to its anchor.
+    #[test]
+    fn internal_link_rewrite_leaves_text_alone() {
+        let bytes = build_epub(
+            "OEBPS/content.opf",
+            "OEBPS/content.opf",
+            &[
+                (
+                    "chapter1.xhtml",
+                    concat!(
+                        r#"<pre><code>&lt;a href="chapter2.xhtml#note2"&gt;note 2&lt;/a&gt;</code></pre>"#,
+                        r#"<p>Write <code>href="chapter2.xhtml#note2"</code> to link it.</p>"#,
+                        r##"<p>See <a href="chapter2.xhtml#note2">note 2</a>.</p>"##
+                    ),
+                ),
+                ("chapter2.xhtml", r#"<p id="note2">Note 2.</p>"#),
+            ],
+        );
+        let doc = convert_epub(bytes).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+        let texts = json_texts(&v);
+        assert!(
+            texts.contains(&r#"<a href="chapter2.xhtml#note2">note 2</a>"#.to_string()),
+            "{texts:?}"
+        );
+        assert!(
+            texts.contains(&r#"href="chapter2.xhtml#note2""#.to_string()),
+            "{texts:?}"
+        );
+        let links: Vec<&str> = v["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|t| t["hyperlink"].as_str())
+            .collect();
+        assert_eq!(links, ["#note2"]);
     }
 
     fn convert_epub(bytes: Vec<u8>) -> Result<DoclingDocument, ConversionError> {

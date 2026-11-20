@@ -57,7 +57,9 @@ impl DeclarativeBackend for HtmlBackend {
 /// document declares (an XML declaration within the first 1024 bytes, else a
 /// `<meta charset>` / `http-equiv` charset within the first
 /// `max(2048, 5 % of the length)` bytes — bs4's search windows and regexes);
-/// else strict UTF-8; else windows-1252, which never fails. Each candidate is
+/// else, for a page without a mark whose first character is ASCII between
+/// NULs, UTF-16 / UTF-32 by that pattern (#1179); else strict UTF-8; else
+/// windows-1252, which never fails. Each candidate is
 /// taken only when it decodes without error, as upstream does. The one step
 /// not reproduced is bs4's third-party detector (chardet / charset_normalizer),
 /// consulted between the declaration and the fallbacks: it is heuristic and
@@ -66,7 +68,19 @@ impl DeclarativeBackend for HtmlBackend {
 /// (`encoding_rs`), so `iso-8859-1`/`latin1` decode as windows-1252 the way
 /// browsers do, where Python's codec would map 0x80–0x9F to C1 controls.
 pub(crate) fn decode_html_bytes(bytes: &[u8]) -> std::borrow::Cow<'_, str> {
-    use encoding_rs::{Encoding, WINDOWS_1252};
+    use encoding_rs::{Encoding, UTF_16BE, UTF_16LE, WINDOWS_1252};
+    // UTF-32 before UTF-16: its LE mark starts with UTF-16 LE's, and
+    // `encoding_rs` knows no UTF-32 (#1179, docling#5274's tests).
+    for (bom, little_endian) in [
+        (&[0xff, 0xfe, 0, 0][..], true),
+        (&[0, 0, 0xfe, 0xff][..], false),
+    ] {
+        if let Some(rest) = bytes.strip_prefix(bom) {
+            if let Ok(text) = crate::source::decode_utf32(rest, little_endian) {
+                return text;
+            }
+        }
+    }
     if let Some((enc, bom_len)) = Encoding::for_bom(bytes) {
         if let Some(text) =
             enc.decode_without_bom_handling_and_without_replacement(&bytes[bom_len..])
@@ -80,6 +94,23 @@ pub(crate) fn decode_html_bytes(bytes: &[u8]) -> std::borrow::Cow<'_, str> {
                 return text;
             }
         }
+    }
+    // Without a mark, ASCII markup in UTF-16 / UTF-32 is valid UTF-8 full of
+    // NULs; bs4's detector reads it as UTF-16/32, so a NUL pattern around the
+    // first character settles it here (a cheap stand-in for the detector, for
+    // these encodings only).
+    let first = bytes.iter().position(|&b| b != 0);
+    let utf16 =
+        |enc: &'static Encoding| enc.decode_without_bom_handling_and_without_replacement(bytes);
+    let sniffed = match (first, bytes.get(..4)) {
+        (Some(0), Some([_, 0, 0, 0])) => crate::source::decode_utf32(bytes, true).ok(),
+        (Some(3), Some([0, 0, 0, _])) => crate::source::decode_utf32(bytes, false).ok(),
+        (Some(0), Some([_, 0, _, 0])) => utf16(UTF_16LE),
+        (Some(1), Some([0, _, 0, _])) => utf16(UTF_16BE),
+        _ => None,
+    };
+    if let Some(text) = sniffed {
+        return text;
     }
     if let Ok(text) = std::str::from_utf8(bytes) {
         return std::borrow::Cow::Borrowed(text);
@@ -137,7 +168,7 @@ pub(crate) fn convert_html_with(
     match flattened {
         Some(notice) => doc.notices.push(notice),
         None => {
-            let parsed = Html::parse_document(html);
+            let parsed = parse_html_document(html);
             doc.tree = Some(super::html_tree::build_tree(
                 &parsed,
                 images,
@@ -147,6 +178,100 @@ pub(crate) fn convert_html_with(
         }
     }
     doc
+}
+
+/// A picture for an `<img>` of a paragraph, captioned as upstream's
+/// `_emit_image` captions it: the `alt` text, linked to the nearest
+/// enclosing `<a href>` (a figure's caption is settled by the figure).
+fn paragraph_picture(img: ElementRef, images: &dyn ImageResolver) -> Node {
+    let e = img.value();
+    let caption = e.attr("alt").filter(|a| !a.is_empty()).map(str::to_string);
+    let caption_href = caption.as_ref().and_then(|_| {
+        img.ancestors()
+            .filter_map(ElementRef::wrap)
+            .find(|a| {
+                a.value().name() == "a" && a.value().attr("href").is_some_and(|h| !h.is_empty())
+            })
+            .and_then(|a| a.value().attr("href"))
+            .map(normalize_url)
+    });
+    Node::Picture {
+        caption,
+        caption_href,
+        image: img_src(e).and_then(|s| images.resolve(&s)),
+        classification: None,
+        description: None,
+        caption_parent: Default::default(),
+        caption_location: None,
+    }
+}
+
+/// Parse an HTML document the way both walks read it: html5ever's tree,
+/// then each `<q>` given its quotation marks as text ([`add_quotation_marks`]).
+pub(crate) fn parse_html_document(html: &str) -> Html {
+    let mut parsed = Html::parse_document(html);
+    add_quotation_marks(&mut parsed);
+    parsed
+}
+
+/// A `<q>`'s quotation marks — `(outer, inner)` pairs — by the primary
+/// subtag of its language (docling's `_Q_QUOTATION_MARKS_BY_LANG`); an
+/// unknown language gets English marks.
+fn quotation_marks(lang: &str) -> [(&'static str, &'static str); 2] {
+    match lang {
+        "cs" | "de" => [("„", "“"), ("‚", "‘")],
+        "el" | "es" | "it" => [("«", "»"), ("“", "”")],
+        "fr" => [("«", "»"), ("«", "»")],
+        "ja" => [("「", "」"), ("『", "』")],
+        "nl" => [("‘", "’"), ("“", "”")],
+        "pl" => [("„", "”"), ("«", "»")],
+        "ru" | "uk" => [("«", "»"), ("„", "“")],
+        "sv" => [("”", "”"), ("’", "’")],
+        _ => [("“", "”"), ("‘", "’")],
+    }
+}
+
+/// A browser draws a `<q>`'s quotation marks from CSS (`open-quote` /
+/// `close-quote`), so the markup does not hold them; docling adds them as
+/// text before the walk (docling#5388, #1175), and so does this: the outer
+/// pair at depth 0, the inner pair inside another `<q>`, the pair chosen by
+/// the nearest `lang` (or `xml:lang`) on the `<q>` or an ancestor. The marks
+/// land in each item's `orig`; `text` gets the usual quote folding.
+fn add_quotation_marks(parsed: &mut Html) {
+    let marks: Vec<(ego_tree::NodeId, &'static str, &'static str)> = parsed
+        .select(cached_selector!("q"))
+        .map(|q| {
+            let lang = std::iter::once(q)
+                .chain(q.ancestors().filter_map(ElementRef::wrap))
+                .find_map(|e| {
+                    e.value()
+                        .attr("lang")
+                        .or_else(|| e.value().attr("xml:lang"))
+                })
+                .map(|l| {
+                    l.trim()
+                        .to_ascii_lowercase()
+                        .split('-')
+                        .next()
+                        .unwrap_or("")
+                        .to_string()
+                })
+                .unwrap_or_default();
+            let nested = q
+                .ancestors()
+                .filter_map(ElementRef::wrap)
+                .any(|e| e.value().name() == "q");
+            let (open, close) = quotation_marks(&lang)[usize::from(nested)];
+            (q.id(), open, close)
+        })
+        .collect();
+    for (id, open, close) in marks {
+        let text = |s: &str| scraper::Node::Text(scraper::node::Text { text: s.into() });
+        if let Some(mut q) = parsed.tree.get_mut(id) {
+            q.prepend(text(open));
+            q.append(text(close));
+        }
+    }
 }
 
 /// The depth-cap notice (#912): the page nests past
@@ -184,7 +309,7 @@ fn append_fragment_with(
         }
         return Some(depth_notice());
     }
-    let parsed = Html::parse_document(html);
+    let parsed = parse_html_document(html);
     // The document `<title>` is docling's furniture-layer title heading — it
     // precedes the body content and is excluded from Markdown (the JSON gets
     // it from the item tree, `html_tree`). Fragments (e.g. Markdown-embedded
@@ -286,6 +411,35 @@ fn mark_leading_furniture(nodes: &mut [Node]) {
 /// are honored beyond that — a full CSS cascade (class/stylesheet-driven
 /// visibility, e.g. Wikipedia's collapsed menus) still needs a real browser and
 /// is out of scope, as is docling's `_has_rendered_presence` zero-size check.
+/// docling's `_get_cell_header_flags` (docling#5446, #1174): a cell's
+/// `(column_header, row_header)`. A `<th>` whose `scope` is `col` /
+/// `colgroup` heads its column, `row` / `rowgroup` its row, in any case;
+/// any other cell keeps the row-based flags — a header row (`col_header`:
+/// no `<td>` in it) heads columns unless it is a row-header row, and a
+/// `<th>` beside data cells heads its row.
+pub(super) fn cell_header_flags(
+    cell: &scraper::node::Element,
+    col_header: bool,
+    row_header: bool,
+) -> (bool, bool) {
+    let is_th = cell.name() == "th";
+    if is_th {
+        match cell
+            .attr("scope")
+            .map(|s| s.trim().to_ascii_lowercase())
+            .as_deref()
+        {
+            Some("col" | "colgroup") => return (true, false),
+            Some("row" | "rowgroup") => return (false, true),
+            _ => {}
+        }
+    }
+    (
+        col_header && !row_header,
+        row_header || (!col_header && is_th),
+    )
+}
+
 pub(super) fn is_hidden(e: &scraper::node::Element) -> bool {
     if e.attr("hidden").is_some() {
         return true;
@@ -767,6 +921,13 @@ fn handle_block(
                 let (text, runs) = render_inline(elem, base);
                 push_inline_paragraph(nodes, text, runs);
             }
+            // upstream's `_handle_block` emits every `<img>` of the paragraph
+            // after its text (`for img_tag in tag("img")`), as the item tree
+            // does; the flat walk used to drop them, so the Markdown lost
+            // every picture inside a `<p>` (#1177).
+            for img in elem.select(cached_selector!("img")) {
+                nodes.push(paragraph_picture(img, images));
+            }
         }
         "ul" | "ol" => walk_list(elem, name == "ol", nodes, list_level, base, images),
         "dl" => walk_dl(elem, nodes, list_level, base, images),
@@ -828,9 +989,9 @@ fn handle_block(
             // docling#4050: every child except the `<figcaption>` is dispatched
             // (an `<img>` becomes a picture, block tags go through the block
             // handler, inline content accumulates as text), and the caption is
-            // resolved afterwards — every picture the figure produced takes the
-            // figcaption as its caption (docling's `_emit_image` looks up the
-            // enclosing figure's figcaption); when no picture came out, the
+            // resolved afterwards — the first picture the figure produced takes
+            // the figcaption as its caption (docling's `_emit_image` claims the
+            // enclosing figure's figcaption once); when no picture came out, the
             // figcaption becomes a caption item of its own, attached to the
             // figure's first item when that is a table (`TableItem.captions`).
             let start = nodes.len();
@@ -878,6 +1039,9 @@ fn handle_block(
                 }
             }
             flush_inline(&mut inline, nodes);
+            // The first picture claims the figcaption; a later one keeps its
+            // own `alt` (docling#4745, #1177: a figure of several images
+            // keeps one caption).
             let produced = &mut nodes[start..];
             let mut any_picture = false;
             for node in produced.iter_mut() {
@@ -887,11 +1051,11 @@ fn handle_block(
                     ..
                 } = node
                 {
-                    any_picture = true;
-                    if cap_text.is_some() {
+                    if !any_picture && cap_text.is_some() {
                         *caption = cap_text.clone();
                         *caption_href = cap_href.clone();
                     }
+                    any_picture = true;
                 }
             }
             if !any_picture {
@@ -1919,28 +2083,15 @@ fn render_inline(elem: ElementRef, base: Fmt) -> (String, Vec<InlineRun>) {
 const BR_SENTINEL: &str = "\u{e000}";
 const BR_CHAR: char = '\u{e000}';
 
-/// A `<pre>` part's text: each `<br>` sentinel with at most one space on
-/// either side (` ?SENT ?`) is a newline; the ends are trimmed (#769).
+/// A `<pre>` part's text: each `<br>` sentinel is a newline and nothing
+/// else (docling#5397, #1178 — the spaces beside it are the code's
+/// indentation; it used to take one space on either side along, ` ?SENT ?`,
+/// eating a column of every indented line after a `<br>`).
+///
+/// No trim: a `<pre>`'s interior runs keep their whitespace (#997); the
+/// callers trim the block's own edges.
 pub(super) fn pre_line_breaks(text: &str) -> String {
-    let chars: Vec<char> = text.chars().collect();
-    let mut out = String::with_capacity(text.len());
-    let mut i = 0;
-    while i < chars.len() {
-        let space_br = chars[i] == ' ' && chars.get(i + 1) == Some(&BR_CHAR);
-        if chars[i] == BR_CHAR || space_br {
-            i += if space_br { 2 } else { 1 };
-            if chars.get(i) == Some(&' ') {
-                i += 1;
-            }
-            out.push('\n');
-        } else {
-            out.push(chars[i]);
-            i += 1;
-        }
-    }
-    // No trim: a `<pre>`'s interior runs keep their whitespace (#997); the
-    // callers trim the block's own edges.
-    out
+    text.replace(BR_CHAR, "\n")
 }
 
 /// upstream's `_resolve_line_breaks` (docling#4675, #769): in text that is
@@ -2350,8 +2501,7 @@ fn extract_pre(pre: ElementRef) -> (Option<String>, String) {
     if language.is_none() {
         language = pre.value().attr("class").and_then(lang_from_class);
     }
-    // Each `<br>` is a newline (#769), with at most one space around it
-    // taken along.
+    // Each `<br>` is a newline (#769), the spaces beside it kept (#1178).
     let mut text = String::new();
     for node in pre.descendants() {
         match node.value() {
@@ -2590,8 +2740,7 @@ fn parse_table_cells(
             // into, so they are *row* headers — flagging them `column_header`
             // (as docling did until 2.126) made docling-core 2.96 fold the
             // first data row into the Markdown header (`Year - 2025`).
-            let is_th = all_th && !row_header;
-            let is_rh = row_header || (!all_th && cell.value().name() == "th");
+            let (is_th, is_rh) = cell_header_flags(cell.value(), all_th, row_header);
             any_rich |= !cell_nodes.is_empty();
             let mut anchor_filled = false;
             for r in start_row_span..start_row_span + rowspan {
@@ -3297,6 +3446,361 @@ mod tests {
         }
     }
 
+    fn texts_of_bytes(bytes: Vec<u8>) -> Vec<String> {
+        let src = SourceDocument::from_bytes("page.html", InputFormat::Html, bytes);
+        HtmlBackend.convert(&src).unwrap().export_to_json_value()["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["text"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    fn page(text: &str, head: &str) -> String {
+        let head = if head.is_empty() {
+            String::new()
+        } else {
+            format!("<head>{head}</head>")
+        };
+        format!("<html>{head}<body><h1>Doc</h1><p>{text}</p></body></html>")
+    }
+
+    /// `tests/test_backend_html_encoding.py` (docling#5274, #1179): UTF-8
+    /// without a declaration, a declaration over a UTF-8 guess, a UTF-8 BOM,
+    /// and ASCII pages in UTF-16 / UTF-32 with and without a mark.
+    #[test]
+    fn html_encodings_like_docling() {
+        for text in [
+            "Zażółć gęślą jaźń",
+            "é é é",
+            "Qualcomm® AI Engine for Qualcomm® Hexagon™ NPU",
+            "Größe und Maße",
+            "Où est le café ?",
+        ] {
+            assert_eq!(texts_of_bytes(page(text, "").into_bytes()), ["Doc", text]);
+        }
+        for (charset, text) in [
+            ("windows-1251", "Привет, мир"),
+            ("windows-1252", "café au lait"),
+            ("shift_jis", "日本語のテキスト"),
+            ("windows-1252", "Ã©tÃ©"),
+        ] {
+            let enc = encoding_rs::Encoding::for_label(charset.as_bytes()).unwrap();
+            let html = page(text, &format!(r#"<meta charset="{charset}">"#));
+            let (bytes, _, errors) = enc.encode(&html);
+            assert!(!errors, "{charset}");
+            assert_eq!(texts_of_bytes(bytes.into_owned())[1], text, "{charset}");
+        }
+        let text = "Zażółć gęślą jaźń";
+        let mut bom = b"\xef\xbb\xbf".to_vec();
+        bom.extend(page(text, "").as_bytes());
+        assert_eq!(texts_of_bytes(bom), ["Doc", text]);
+        let html = page("plain text", "");
+        let utf16 = |le: bool| -> Vec<u8> {
+            html.encode_utf16()
+                .flat_map(|u| if le { u.to_le_bytes() } else { u.to_be_bytes() })
+                .collect()
+        };
+        let utf32 = |le: bool| -> Vec<u8> {
+            html.chars()
+                .flat_map(|c| {
+                    if le {
+                        (c as u32).to_le_bytes()
+                    } else {
+                        (c as u32).to_be_bytes()
+                    }
+                })
+                .collect()
+        };
+        let with = |mut bom: Vec<u8>, body: Vec<u8>| {
+            bom.extend(body);
+            bom
+        };
+        for (name, bytes) in [
+            ("utf-16-le", utf16(true)),
+            ("utf-16-be", utf16(false)),
+            ("utf-16", with(vec![0xff, 0xfe], utf16(true))),
+            ("utf-32", with(vec![0xff, 0xfe, 0, 0], utf32(true))),
+            ("utf-32-be", utf32(false)),
+        ] {
+            assert_eq!(texts_of_bytes(bytes), ["Doc", "plain text"], "{name}");
+        }
+    }
+
+    /// `(text, column_header, row_header)` of the first table's cells.
+    fn header_flags(doc: &DoclingDocument) -> Vec<(String, bool, bool)> {
+        doc.export_to_json_value()["tables"][0]["data"]["table_cells"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                (
+                    c["text"].as_str().unwrap().to_string(),
+                    c["column_header"].as_bool().unwrap(),
+                    c["row_header"].as_bool().unwrap(),
+                )
+            })
+            .collect()
+    }
+
+    /// docling#5446 (#1174, `test_table_th_scope_sets_the_header_flags`,
+    /// the W3C "two headers" table): a `<th scope>` names what it heads, in
+    /// the JSON and in the flat table's structure.
+    #[test]
+    fn table_th_scope_sets_the_header_flags() {
+        let head = r#"<tr><td></td><th scope="col">Monday</th><th scope="col">Tuesday</th></tr>"#;
+        let body = r#"<tr><th scope="row">09:00 - 11:00</th><td>Closed</td><td>Open</td></tr><tr><th scope="row">11:00 - 13:00</th><td>Open</td><td>Closed</td></tr>"#;
+        let plain = format!("{head}{body}");
+        for table in [
+            plain.clone(),
+            format!("<thead>{head}</thead><tbody>{body}</tbody>"),
+            plain
+                .replace(r#""col""#, r#""COLGROUP""#)
+                .replace(r#""row""#, r#""RowGroup""#),
+            plain.replace(">Monday<", "><b>Monday</b><"),
+        ] {
+            let doc = convert(&format!("<table>{table}</table>"));
+            let flags = header_flags(&doc);
+            let of = |t: &str| {
+                let c = flags
+                    .iter()
+                    .find(|c| c.0 == t)
+                    .unwrap_or_else(|| panic!("{t}: {flags:?}"));
+                (c.1, c.2)
+            };
+            for day in ["Monday", "Tuesday"] {
+                assert_eq!(of(day), (true, false), "{table}");
+            }
+            for slot in ["09:00 - 11:00", "11:00 - 13:00"] {
+                assert_eq!(of(slot), (false, true), "{table}");
+            }
+            // The flat table's structure carries the same flags.
+            let Some(Node::Table(t)) = doc.nodes.iter().find(|n| matches!(n, Node::Table(_)))
+            else {
+                panic!("no table");
+            };
+            let st = t.structure.as_ref().unwrap();
+            assert!(st.col_header[0][1] && !st.row_header[0][1], "{table}");
+            assert!(!st.col_header[1][0] && st.row_header[1][0], "{table}");
+        }
+    }
+
+    /// `test_table_th_without_scope_keeps_the_row_based_flags`.
+    #[test]
+    fn table_th_without_scope_keeps_the_row_based_flags() {
+        let doc = convert(
+            "<table><tr><th>Day</th><th>Hours</th></tr><tr><th>Monday</th><td>09:00 - 17:00</td></tr></table>",
+        );
+        let f = |t: &str, c, r| (t.to_string(), c, r);
+        assert_eq!(
+            header_flags(&doc),
+            [
+                f("Day", true, false),
+                f("Hours", true, false),
+                f("Monday", false, true),
+                f("09:00 - 17:00", false, false)
+            ]
+        );
+    }
+
+    /// docling#5388 (#1175, `test_inline_quotation_gets_its_quotation_marks`):
+    /// a `<q>` reads with its quotation marks — in a heading, a paragraph,
+    /// nested, a list item and a table cell; `orig` keeps the curly marks.
+    #[test]
+    fn inline_quotation_gets_its_quotation_marks() {
+        let doc = convert(concat!(
+            "<html><body>",
+            "<h2>The <q>best</q> part</h2>",
+            "<p>She said <q>stop</q> and left.</p>",
+            "<p><q>He wrote <q>no</q> twice</q></p>",
+            "<ul><li><b>Note:</b> <q>maybe</q></li></ul>",
+            "<table><tr><td><q>cell</q></td></tr></table>",
+            "</body></html>"
+        ));
+        let md = doc.export_to_markdown();
+        assert!(
+            md.starts_with(concat!(
+                "## The \"best\" part\n\n",
+                "She said \"stop\" and left.\n\n",
+                "\"He wrote 'no' twice\"\n\n",
+                "- **Note:** \"maybe\"\n\n",
+                "| \"cell\""
+            )),
+            "{md}"
+        );
+        let origs: Vec<String> = doc.export_to_json_value()["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["orig"].as_str().unwrap().to_string())
+            .collect();
+        assert!(
+            origs.contains(&"She said “stop” and left.".to_string()),
+            "{origs:?}"
+        );
+    }
+
+    /// `test_inline_quotation_marks_follow_the_language`: the nearest `lang`
+    /// picks the marks; an unknown language gets English ones.
+    #[test]
+    fn inline_quotation_marks_follow_the_language() {
+        let doc = convert(concat!(
+            r#"<html lang="de"><body>"#,
+            "<p>Er sagte <q>Hallo <q>du</q></q>.</p>",
+            r#"<p lang="fr-CA">Il a dit <q>salut</q>.</p>"#,
+            r#"<p lang="ja"><q>はい</q></p>"#,
+            r#"<p lang="xx"><q>unknown</q></p>"#,
+            "</body></html>"
+        ));
+        let origs: Vec<String> = doc.export_to_json_value()["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["orig"].as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(
+            origs,
+            [
+                "Er sagte „Hallo ‚du‘“.",
+                "Il a dit «salut».",
+                "「はい」",
+                "“unknown”"
+            ]
+        );
+    }
+
+    fn captions(doc: &DoclingDocument) -> Vec<String> {
+        doc.export_to_json_value()["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|t| t["label"] == "caption")
+            .map(|t| t["text"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    /// docling#4745 (#1177, `test_figure_keeps_one_caption`): a figure keeps
+    /// one caption, claimed by the first image that makes a picture — a
+    /// hidden image claims nothing, an image in the figcaption is not walked,
+    /// and images in a paragraph of the figure claim it too.
+    #[test]
+    fn figure_keeps_one_caption() {
+        for (figure, md) in [
+            (
+                r#"<figure><img src="a.png"/><img src="b.png"/><figcaption>cap</figcaption></figure>"#,
+                "cap\n\n<!-- image -->\n\n<!-- image -->",
+            ),
+            (
+                r#"<figure><img src="a.png"/><figcaption>cap</figcaption></figure>"#,
+                "cap\n\n<!-- image -->",
+            ),
+            (
+                r#"<figure><img src="a.png" style="display:none"/><img src="b.png"/><figcaption>cap</figcaption></figure>"#,
+                "cap\n\n<!-- image -->",
+            ),
+            (
+                r#"<figure><img src="a.png" aria-hidden="true"/><img src="b.png"/><figcaption>cap</figcaption></figure>"#,
+                "cap\n\n<!-- image -->",
+            ),
+            (
+                r#"<figure><figcaption><img src="icon.png"/>cap</figcaption><img src="b.png"/></figure>"#,
+                "cap\n\n<!-- image -->",
+            ),
+            (
+                r#"<figure><p><img src="a.png"/><img src="b.png"/></p><figcaption>cap</figcaption></figure>"#,
+                "cap\n\n<!-- image -->\n\n<!-- image -->",
+            ),
+        ] {
+            let doc = convert(&format!("<html><body><h1>Title</h1>{figure}</body></html>"));
+            assert_eq!(captions(&doc), ["cap"], "{figure}");
+            assert_eq!(
+                doc.export_to_markdown().trim(),
+                format!("# Title\n\n{md}"),
+                "{figure}"
+            );
+        }
+    }
+
+    /// `test_figure_later_image_falls_back_to_its_alt_text`.
+    #[test]
+    fn figure_later_image_falls_back_to_its_alt_text() {
+        let doc = convert(concat!(
+            "<html><body><h1>Title</h1>",
+            r#"<figure><img src="a.png" alt="panel A"/><img src="b.png" alt="panel B"/>"#,
+            "<figcaption>cap</figcaption></figure></body></html>"
+        ));
+        assert_eq!(captions(&doc), ["cap", "panel B"]);
+        let v = doc.export_to_json_value();
+        let first = v["pictures"][0]["captions"][0]["$ref"].as_str().unwrap();
+        let idx: usize = first.rsplit('/').next().unwrap().parse().unwrap();
+        assert_eq!(v["texts"][idx]["text"], "cap");
+        assert_eq!(
+            doc.export_to_markdown().trim(),
+            "# Title\n\ncap\n\n<!-- image -->\n\npanel B\n\n<!-- image -->"
+        );
+    }
+
+    fn texts_and_layers(doc: &DoclingDocument) -> Vec<(String, String)> {
+        doc.export_to_json_value()["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| {
+                (
+                    t["text"].as_str().unwrap().to_string(),
+                    t["content_layer"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect()
+    }
+
+    /// docling#5313 (#1176, `test_hidden_heading_does_not_hide_visible_body`):
+    /// a hidden heading does not end the furniture prelude, in the item tree
+    /// as in the Markdown.
+    #[test]
+    fn hidden_heading_does_not_hide_visible_body() {
+        for heading in [
+            r#"<h1 style="display: none">Hidden</h1>"#,
+            r#"<h2 style="visibility: hidden">Hidden</h2>"#,
+            r#"<h3 aria-hidden="true">Hidden</h3>"#,
+            r#"<div style="display: none"><h1>Hidden</h1></div>"#,
+            r#"<section aria-hidden="true"><div><h2>Hidden</h2></div></section>"#,
+        ] {
+            let doc = convert(&format!(
+                "<html><body><p>Before.</p>{heading}<p>After.</p></body></html>"
+            ));
+            let body = |t: &str| (t.to_string(), "body".to_string());
+            assert_eq!(
+                texts_and_layers(&doc),
+                [body("Before."), body("After.")],
+                "{heading}"
+            );
+            assert_eq!(
+                doc.export_to_markdown().trim(),
+                "Before.\n\nAfter.",
+                "{heading}"
+            );
+        }
+    }
+
+    /// `test_hidden_body_keeps_furniture_before_first_heading`: the walk does
+    /// not check `<body>` itself, so neither does the heading search.
+    #[test]
+    fn hidden_body_keeps_furniture_before_first_heading() {
+        let doc = convert(
+            r#"<html><body aria-hidden="true"><p>Nav</p><h1>Title</h1><p>Text</p></body></html>"#,
+        );
+        let pair = |t: &str, l: &str| (t.to_string(), l.to_string());
+        assert_eq!(
+            texts_and_layers(&doc),
+            [
+                pair("Nav", "furniture"),
+                pair("Title", "body"),
+                pair("Text", "body")
+            ]
+        );
+    }
+
     /// docling#4998 (#1023): sibling `<code>` children of a `<pre>` are one
     /// code block, not three code runs of an inline group; upstream's
     /// `test_preformatted_blocks_preserve_inline_whitespace` cases.
@@ -3315,6 +3819,12 @@ mod tests {
                 "<pre><code>\n    if ok:\n        run()\n\n</code></pre>",
                 "    if ok:\n        run()",
             ),
+            // docling#5397 (#1178): the spaces next to a `<br>` are kept.
+            (
+                "<pre>def f():<br>    if ok:<br>        run()</pre>",
+                "def f():\n    if ok:\n        run()",
+            ),
+            ("<pre>first<br>second</pre>", "first\nsecond"),
         ] {
             let doc = convert(&format!("<html><body>{pre}</body></html>"));
             let json = doc.export_to_json_value();
@@ -3417,7 +3927,10 @@ mod tests {
         // No trim: callers trim the block's edges (#997).
         assert_eq!(resolve_line_breaks(&format!(" {b} ")), "\n");
         assert_eq!(pre_line_breaks(&format!("Code{b}line")), "Code\nline");
-        assert_eq!(pre_line_breaks(&format!("a  {b}  b{b}{b}c")), "a \n b\n\nc");
+        assert_eq!(
+            pre_line_breaks(&format!("a  {b}  b{b}{b}c")),
+            "a  \n  b\n\nc"
+        );
     }
 
     /// docling's `_handle_heading` builds the heading with
@@ -3733,10 +4246,14 @@ mod tests {
 
     #[test]
     fn inline_images_produce_no_marker_but_anchor_wrapped_images_stay_pictures() {
-        // An image inside text emits nothing (docling never renders inline image
-        // markers); the surrounding text is unaffected.
+        // An image inside a paragraph's text leaves no marker in the text; it
+        // is a picture after the paragraph, captioned by its `alt` (#1177,
+        // upstream's paragraph branch — docling 2.151.1 prints the same).
         let inline = convert("<p>before <img src=\"x.png\" alt=\"logo\"> after</p>");
-        assert_eq!(inline.export_to_markdown(), "before after\n");
+        assert_eq!(
+            inline.export_to_markdown(),
+            "before after\n\nlogo\n\n<!-- image -->\n"
+        );
         // A non-anchor wrapper around a lone image (`<span><img></span>`) is inline
         // too, so it is dropped entirely.
         let span = convert("<span><img src=\"x.png\" alt=\"logo\"></span><h2>Home</h2>");

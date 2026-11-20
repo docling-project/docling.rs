@@ -511,7 +511,7 @@ fn reparse_as_html(
         }
     }
     let keys = Keys { pictures, images };
-    let parsed = scraper::Html::parse_document(&html);
+    let parsed = super::html::parse_html_document(&html);
     Some(super::html_tree::build_tree(&parsed, &keys, false, false))
 }
 
@@ -621,10 +621,36 @@ impl Walker<'_> {
         }
     }
 
+    /// An image's `"title"` as a caption item under its picture, listed in
+    /// the picture's `captions` (docling#5272); nothing for an empty title.
+    fn caption_picture(
+        &mut self,
+        pic: usize,
+        title: &str,
+        formatting: Option<Formatting>,
+        hyperlink: Option<&str>,
+    ) {
+        if title.is_empty() {
+            return;
+        }
+        let kind = text_kind(
+            "caption",
+            &unescape_entities(title),
+            formatting,
+            hyperlink,
+            None,
+            None,
+        );
+        let cap = self.tree.add(Some(pic), None, kind);
+        if let TreeKind::Picture { captions, .. } = &mut self.tree.items[pic].kind {
+            captions.push(cap);
+        }
+    }
+
     /// `_iterate_cell_inline`: one inline node of a rich cell, as items of
     /// the cell's `inline` group — every run its own text (no line-break
-    /// merging), a code span a `code` item, an image a picture whose title
-    /// is a body-level caption (its alt text is not walked). `items` counts
+    /// merging), a code span a `code` item, an image a picture with its
+    /// title caption under it (its alt text is not walked). `items` counts
     /// what was made.
     fn cell_inline(
         &mut self,
@@ -671,17 +697,13 @@ impl Walker<'_> {
                 return;
             }
             El::Image { title, dest, .. } => {
-                let mut captions = Vec::new();
-                if !title.is_empty() {
-                    let kind =
-                        text_kind("caption", &unescape_entities(title), None, None, None, None);
-                    captions.push(self.tree.add(None, None, kind));
-                }
-                self.tree.add(
+                // The picture, then its title caption under it (docling#5272,
+                // #1184), as in a paragraph.
+                let pic = self.tree.add(
                     Some(parent),
                     None,
                     TreeKind::Picture {
-                        captions,
+                        captions: Vec::new(),
                         image: self.images.resolve(dest),
                         extra_classes: Vec::new(),
                         classification: None,
@@ -691,6 +713,7 @@ impl Walker<'_> {
                         dpi: None,
                     },
                 );
+                self.caption_picture(pic, title, None, None);
                 *items += 1;
                 return;
             }
@@ -897,32 +920,17 @@ impl Walker<'_> {
                     parent =
                         self.flush_creation_stack("", parent, formatting, hyperlink.as_deref());
                 }
-                // The `"title"` is the caption (on the body, like every
-                // `add_text` without a parent); the alt text runs are walked
-                // as the picture's children afterwards. The payload is what
-                // the image policy resolves the destination to (#646) —
-                // nothing by default, as upstream fetches none.
-                let mut captions = Vec::new();
-                if !title.is_empty() {
-                    let cap = self.tree.add(
-                        None,
-                        None,
-                        text_kind(
-                            "caption",
-                            &unescape_entities(title),
-                            formatting,
-                            hyperlink.as_deref(),
-                            None,
-                            None,
-                        ),
-                    );
-                    captions.push(cap);
-                }
-                self.tree.add(
+                // The picture, then its `"title"` caption under it
+                // (docling#5272, #1184 — it used to be a body-level item
+                // created ahead of the picture); the alt text runs are walked
+                // afterwards. The payload is what the image policy resolves
+                // the destination to (#646) — nothing by default, as upstream
+                // fetches none.
+                let pic = self.tree.add(
                     parent,
                     None,
                     TreeKind::Picture {
-                        captions,
+                        captions: Vec::new(),
                         image: self.images.resolve(dest),
                         extra_classes: Vec::new(),
                         classification: None,
@@ -932,6 +940,7 @@ impl Walker<'_> {
                         dpi: None,
                     },
                 );
+                self.caption_picture(pic, title, formatting, hyperlink.as_deref());
             }
             El::Emphasis(_) => {
                 let mut f = formatting.unwrap_or_default();
@@ -1174,6 +1183,35 @@ mod tests {
 
     fn tree(md: &str) -> ItemTree {
         build_tree(md, &super::super::images::NoFetch).expect("a tree")
+    }
+
+    /// docling#5272 (#1184, `test_image_caption_is_parented_under_its_picture`):
+    /// an image's title caption is a child of its picture — in a list item
+    /// and in a table cell — and listed in its `captions`.
+    #[test]
+    fn image_caption_is_parented_under_its_picture() {
+        let t = tree(concat!(
+            "- Item with image ![alt](http://x.y/a.png \"List caption\")\n",
+            "\n",
+            "| Cell |\n",
+            "| --- |\n",
+            "| ![alt](http://x.y/b.png \"Table caption\") |\n",
+        ));
+        let caps: Vec<usize> = (0..t.items.len())
+            .filter(|&i| label(&t.items[i]) == "caption")
+            .collect();
+        assert_eq!(caps.len(), 2);
+        for cap in caps {
+            let pic = t.items[cap].parent.expect("the caption has a parent");
+            let TreeKind::Picture { captions, .. } = &t.items[pic].kind else {
+                panic!("{} is not under a picture", text(&t.items[cap]));
+            };
+            assert!(captions.contains(&cap));
+            assert!(
+                t.items[pic].parent.is_some(),
+                "the picture is not on the body"
+            );
+        }
     }
 
     fn label(it: &TreeItem) -> String {

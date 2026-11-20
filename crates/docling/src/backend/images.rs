@@ -397,6 +397,26 @@ impl FsImageResolver {
         if src.starts_with("file:") || has_scheme(src) {
             return None;
         }
+        // A relative `src` is a URL path (docling#5082, #1180): its query and
+        // fragment are not part of the file name, and it is percent-decoded
+        // once (`figure%20one.png?v=1#preview` → `figure one.png`) before the
+        // confinement below. The name as written is the fallback, so a file
+        // whose name holds a literal `%`, `?` or `#` still resolves.
+        let path = src.split(['?', '#']).next().unwrap_or("");
+        let decoded = String::from_utf8(percent_decode(path)).ok();
+        decoded
+            .as_deref()
+            .into_iter()
+            .chain((decoded.as_deref() != Some(src)).then_some(src))
+            .find_map(|candidate| self.confined(candidate))
+    }
+
+    /// [`Self::confined_local_path`] for one candidate path.
+    fn confined(&self, src: &str) -> Option<PathBuf> {
+        // A decoded `%2F%2F…` or `%5C…` is absolute on every host.
+        if src.is_empty() || src.starts_with(['/', '\\']) {
+            return None;
+        }
         let rel = Path::new(src);
         if rel.is_absolute() || rel.has_root() {
             return None;
@@ -946,6 +966,44 @@ mod tests {
         assert_upright(&m.resolve("cid:photo@x").unwrap());
         assert_eq!(m.resolve(&red_uri()), from_data_uri(&red_uri()), "untagged");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// docling#5082 (#1180, `test_percent_escaped_local_image` and
+    /// `…_keeps_confinement`): a relative `src` is percent-decoded once,
+    /// its query and fragment dropped; a decoded path that escapes the base
+    /// directory, or reads as absolute, is still refused.
+    #[test]
+    fn percent_escaped_local_images_resolve_within_the_base_dir() {
+        let root = std::env::temp_dir().join(format!("docling.rs_img1180_{}", std::process::id()));
+        let base = root.join("doc");
+        std::fs::create_dir_all(&base).unwrap();
+        for name in [
+            "figure one.png",
+            "图 片.png",
+            "figure%20one.png",
+            "figure#one.png",
+        ] {
+            std::fs::write(base.join(name), RED_PNG).unwrap();
+        }
+        std::fs::write(root.join("outside.png"), RED_PNG).unwrap();
+        let r = FsImageResolver::new(Some(base.clone()), None, policy(ImageSources::Local));
+        for src in [
+            "figure%20one.png?v=1#preview",
+            "%E5%9B%BE%20%E7%89%87.png?v=1#preview",
+            "figure%2520one.png?v=1#preview",
+            "figure%23one.png?v=1#preview",
+            "figure one.png",
+        ] {
+            assert!(r.resolve(src).is_some(), "{src}");
+        }
+        for src in [
+            "%2e%2e/outside.png",
+            "%2F%2Fimages.test/outside.png",
+            "%5C..%5Coutside.png",
+        ] {
+            assert!(r.resolve(src).is_none(), "{src}");
+        }
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

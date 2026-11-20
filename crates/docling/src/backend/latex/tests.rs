@@ -648,3 +648,353 @@ A \href{https://example.com}{} b \href{}{only text} c.
         )]
     );
 }
+
+/// docling#4544 (#1183, `test_latex_code_environment_skips_its_arguments`):
+/// an environment's arguments are markup, not the first line of its code —
+/// minted's `{language}`, and an optional argument whose braced value holds
+/// brackets.
+#[test]
+fn latex_code_environment_skips_its_arguments() {
+    for opening in [
+        "\\begin{minted}{python}",
+        "\\begin{minted}[linenos, frame=lines]{python}",
+        "\\begin{lstlisting}[language=Python, caption={A [nested] cap}]",
+    ] {
+        let env = &opening["\\begin{".len()..opening.find('}').unwrap()];
+        let tex = format!(
+            "\\documentclass{{article}}\n\\begin{{document}}\n{opening}\n    x = 1\n\\end{{{env}}}\n\\end{{document}}\n"
+        );
+        let codes: Vec<String> = body_texts(&json(&tex))
+            .into_iter()
+            .filter(|(l, _)| l == "code")
+            .map(|(_, t)| t)
+            .collect();
+        assert_eq!(codes, ["    x = 1"], "{opening}");
+    }
+}
+
+/// docling#5190 (`test_latex_verb_keeps_braces_and_spaces`): `\verb`
+/// content keeps its own braces, in body text and in headings.
+#[test]
+fn latex_verb_keeps_braces_and_spaces() {
+    let tex = r"
+    \documentclass{article}
+    \begin{document}
+    \section{The \verb|{x}| key}
+    Start a section with \verb|\section{Intro}| and write an empty group as \verb|{}|.
+    \end{document}
+    ";
+    let texts: Vec<String> = body_texts(&json(tex)).into_iter().map(|(_, t)| t).collect();
+    assert_eq!(
+        texts,
+        [
+            "The {x} key",
+            "Start a section with \\section{Intro} and write an empty group as {}."
+        ]
+    );
+}
+
+// ----- docling#4518 / docling#5413 (#1182): enumerate items -------------
+
+fn enumerate_doc(items: &str) -> Value {
+    json(&format!(
+        "\\documentclass{{article}}\n\\begin{{document}}\n\\begin{{enumerate}}\n{items}\n\\item Second\n\\end{{enumerate}}\n\\end{{document}}\n"
+    ))
+}
+
+fn enumerate_md(items: &str) -> String {
+    md(&format!(
+        "\\documentclass{{article}}\n\\begin{{document}}\n\\begin{{enumerate}}\n{items}\n\\item Second\n\\end{{enumerate}}\n\\end{{document}}\n"
+    ))
+}
+
+/// The items of the first list group: `(label, text, enumerated)`.
+fn outer_items(v: &Value) -> Vec<(String, String, bool)> {
+    v["groups"][0]["children"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| {
+            let it = resolve(v, c);
+            (
+                it["label"].as_str().unwrap_or_default().to_string(),
+                it["text"].as_str().unwrap_or_default().to_string(),
+                it["enumerated"].as_bool().unwrap_or(false),
+            )
+        })
+        .collect()
+}
+
+/// The labels of the first item's children.
+fn first_item_children(v: &Value) -> Vec<String> {
+    let first = resolve(v, &v["groups"][0]["children"][0]);
+    first["children"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| resolve(v, c)["label"].as_str().unwrap().to_string())
+        .collect()
+}
+
+fn item(text: &str) -> (String, String, bool) {
+    ("list_item".to_string(), text.to_string(), true)
+}
+
+/// `test_latex_list_enumerate`.
+#[test]
+fn latex_list_enumerate_numbers_its_items() {
+    let tex = "\\documentclass{article}\n\\begin{document}\n\\begin{enumerate}\n\\item Alpha\n\\item Beta\n\\end{enumerate}\n\\end{document}\n";
+    assert_eq!(outer_items(&json(tex)), [item("Alpha"), item("Beta")]);
+    assert_eq!(md(tex), "1. Alpha\n2. Beta");
+}
+
+/// `test_latex_enumerate_numbering_with_nested_content`.
+#[test]
+fn latex_enumerate_numbering_with_nested_content() {
+    let tex = r"
+    \documentclass{article}
+    \begin{document}
+    \begin{enumerate}
+    \item First
+      \begin{itemize}
+      \item Detail
+      \end{itemize}
+      Rest of the first item.
+    \item Second
+
+    Second paragraph of the second item.
+    \item Third
+      \begin{enumerate}
+      \item Sub one
+      \item Sub two
+      \end{enumerate}
+    \item Fourth
+    \end{enumerate}
+    \end{document}
+    ";
+    assert_eq!(
+        outer_items(&json(tex)),
+        [item("First"), item("Second"), item("Third"), item("Fourth")]
+    );
+    let md = md(tex);
+    assert!(md.contains("\n2. Second"), "{md}");
+    assert!(
+        md.contains("\n3. Third\n    1. Sub one\n    2. Sub two\n4. Fourth"),
+        "{md}"
+    );
+    assert!(md.contains("Rest of the first item."), "{md}");
+    assert!(md.contains("Second paragraph of the second item."), "{md}");
+}
+
+/// `test_latex_enumerate_item_with_block_content` (all three).
+#[test]
+fn latex_enumerate_item_with_block_content() {
+    for content in [
+        r"\[x=1\]",
+        r"\begin{equation}x=1\end{equation}",
+        r"\begin{quote}A quote.\end{quote}",
+    ] {
+        let items = format!("\\item First {content} continuation");
+        assert_eq!(
+            outer_items(&enumerate_doc(&items)),
+            [item("First"), item("Second")],
+            "{content}"
+        );
+        let md = enumerate_md(&items);
+        assert!(md.starts_with("1. First\n"), "{content}: {md}");
+        assert!(md.ends_with("\n2. Second"), "{content}: {md}");
+        assert!(md.contains("continuation"), "{content}: {md}");
+    }
+}
+
+/// `test_latex_enumerate_item_starting_with_footnote_or_newline`.
+#[test]
+fn latex_enumerate_item_starting_with_footnote_or_newline() {
+    for (start, children) in [
+        (r"\footnote{A note.}", vec!["footnote"]),
+        (r"\newline", vec![]),
+    ] {
+        let items = format!("\\item {start} First");
+        let v = enumerate_doc(&items);
+        assert_eq!(outer_items(&v), [item("First"), item("Second")], "{start}");
+        assert_eq!(first_item_children(&v), children, "{start}");
+        let md = enumerate_md(&items);
+        assert!(md.starts_with("1. First\n"), "{start}: {md}");
+        assert!(md.ends_with("\n2. Second"), "{start}: {md}");
+    }
+}
+
+/// `test_latex_enumerate_item_starting_with_nested_text`.
+#[test]
+fn latex_enumerate_item_starting_with_nested_text() {
+    for start in [
+        r"\begin{quote}First\end{quote}",
+        r"{\begin{quote}First\end{quote}}",
+        r"\begin{center}First\end{center}",
+    ] {
+        assert_eq!(
+            enumerate_md(&format!("\\item {start}")),
+            "1. First\n2. Second",
+            "{start}"
+        );
+    }
+}
+
+/// `test_latex_enumerate_item_starting_with_paragraph_break`.
+#[test]
+fn latex_enumerate_item_starting_with_paragraph_break() {
+    for items in [
+        "\\item\n\nFirst\n\nContinuation",
+        "\\item \\begin{quote}\n\nFirst\n\nContinuation\\end{quote}",
+        "\\item {\n\nFirst\n\nContinuation}",
+    ] {
+        let v = enumerate_doc(items);
+        assert_eq!(
+            outer_items(&v),
+            [item("First"), item("Second")],
+            "{items:?}"
+        );
+        let first = resolve(&v, &v["groups"][0]["children"][0]);
+        let texts: Vec<&str> = first["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| resolve(&v, c)["text"].as_str().unwrap())
+            .collect();
+        assert_eq!(texts, ["Continuation"], "{items:?}");
+        assert_eq!(
+            enumerate_md(items),
+            "1. First\nContinuation\n2. Second",
+            "{items:?}"
+        );
+    }
+}
+
+/// `test_latex_enumerate_item_starting_with_formula`.
+#[test]
+fn latex_enumerate_item_starting_with_formula() {
+    for (items, formula) in [
+        (r"\item \[x=1\] First", "x=1"),
+        (
+            r"\item \begin{equation}x=1\end{equation} First",
+            r"\begin{equation}x=1\end{equation}",
+        ),
+    ] {
+        let v = enumerate_doc(items);
+        assert_eq!(outer_items(&v), [item(""), item("Second")], "{items}");
+        let first = resolve(&v, &v["groups"][0]["children"][0]);
+        let children = first["children"].as_array().unwrap();
+        assert_eq!(children.len(), 1, "{items}");
+        let line = resolve(&v, &children[0]);
+        assert_eq!(line["label"], "inline", "{items}");
+        let parts: Vec<(&str, &str)> = line["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                let it = resolve(&v, c);
+                (it["label"].as_str().unwrap(), it["text"].as_str().unwrap())
+            })
+            .collect();
+        assert_eq!(parts, [("formula", formula), ("text", " First")], "{items}");
+        assert_eq!(
+            enumerate_md(items),
+            format!("1. ${formula}$ First\n2. Second"),
+            "{items}"
+        );
+    }
+}
+
+/// `test_latex_enumerate_line_of_item_starting_with_formula`.
+#[test]
+fn latex_enumerate_line_of_item_starting_with_formula() {
+    for (items, children, want) in [
+        (
+            r"\item \[x=1\] \begin{itemize}\item In\end{itemize} After",
+            vec!["inline", "list", "text"],
+            "1. $x=1$\n    - In\nAfter\n2. Second",
+        ),
+        (
+            r"\item \[x=1\]\footnote{Note.} First",
+            vec!["inline", "footnote"],
+            "1. $x=1$ First\nNote.\n2. Second",
+        ),
+    ] {
+        assert_eq!(
+            first_item_children(&enumerate_doc(items)),
+            children,
+            "{items}"
+        );
+        assert_eq!(enumerate_md(items), want, "{items}");
+    }
+}
+
+/// `test_latex_enumerate_empty_item_keeps_numbering`.
+#[test]
+fn latex_enumerate_empty_item_keeps_numbering() {
+    let tex = r"
+    \documentclass{article}
+    \begin{document}
+    \begin{enumerate}
+    \item One
+    \item
+    \item \label{it:three}
+    \item Four
+    \end{enumerate}
+    \end{document}
+    ";
+    assert_eq!(
+        outer_items(&json(tex)),
+        [item("One"), item(""), item(""), item("Four")]
+    );
+    assert!(md(tex).ends_with("\n4. Four"), "{}", md(tex));
+}
+
+/// `test_latex_enumerate_content_before_first_item`.
+#[test]
+fn latex_enumerate_content_before_first_item() {
+    for (leading, want) in [
+        ("% The steps.", "1. One\n2. Two"),
+        (r"\setlength{\itemsep}{0pt}", "1. One\n2. Two"),
+        (r"\label{list:steps}", "1. One\n2. Two"),
+        ("Stray text.", "1. Stray text.\n2. One\n3. Two"),
+    ] {
+        let tex = format!(
+            "\\documentclass{{article}}\n\\begin{{document}}\n\\begin{{enumerate}}\n{leading}\n\\item One\n\\item Two\n\\end{{enumerate}}\n\\end{{document}}\n"
+        );
+        assert_eq!(md(&tex), want, "{leading}");
+    }
+}
+
+/// docling#5413 (`test_latex_list_items_from_input_file`): an `\item` in an
+/// `\input` file starts a new item of the open list; a self-`\input` cycle
+/// is skipped.
+#[test]
+fn latex_list_items_from_input_file() {
+    let dir = std::env::temp_dir().join(format!("docling.rs_latex1182_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("main.tex"),
+        "\\documentclass{article}\n\\begin{document}\n\\begin{enumerate}\n\\item Paper A\n\\input{items}\n\\item Paper D\n\\end{enumerate}\n\\end{document}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("items.tex"),
+        "\\item Paper B\n\\item Paper C\n\\input{items}\n",
+    )
+    .unwrap();
+    let src = SourceDocument::from_file(dir.join("main.tex")).unwrap();
+    let doc = LatexBackend.convert(&src).unwrap();
+    let v: Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+    assert_eq!(
+        outer_items(&v),
+        [
+            item("Paper A"),
+            item("Paper B"),
+            item("Paper C"),
+            item("Paper D")
+        ]
+    );
+    assert!(doc.export_to_markdown().contains("4. Paper D"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

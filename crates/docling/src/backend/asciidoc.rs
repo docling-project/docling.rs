@@ -307,6 +307,13 @@ struct Parser<'r> {
     pending_list_start: Option<u64>,
     /// The start that applies to the line being fed.
     list_start: Option<u64>,
+    /// docling's `pending_table_cols` (docling#5259, #1185): the column
+    /// count of an attribute line's `cols=`, kept like `start=` for the next
+    /// block; `block_table_cols` the count the line being fed takes, and
+    /// `table_cols` the one the open delimited table was given.
+    pending_table_cols: Option<usize>,
+    block_table_cols: Option<usize>,
+    table_cols: Option<usize>,
     /// docling's `next_list_numbers`: the next number of each ordered list
     /// that does not start at 1, by its group's tree id.
     next_list_numbers: std::collections::HashMap<usize, u64>,
@@ -519,13 +526,18 @@ impl Parser<'_> {
             {
                 self.pending_list_start = Some(n);
             }
+            if let Some(n) = table_column_count(stripped) {
+                self.pending_table_cols = Some(n);
+            }
             return;
         }
         // docling's `_take_list_start`: a pending start applies to this
         // line, and is used up by any line but a blank one or a block title.
         self.list_start = self.pending_list_start;
+        self.block_table_cols = self.pending_table_cols;
         if !stripped.is_empty() && is_caption(line).is_none() {
             self.pending_list_start = None;
+            self.pending_table_cols = None;
         }
 
         // Title: `= ` — the root of the section tree.
@@ -591,6 +603,7 @@ impl Parser<'_> {
             } else {
                 self.in_table = true;
                 self.in_delimited_table = true;
+                self.table_cols = self.block_table_cols;
             }
             return;
         }
@@ -946,6 +959,7 @@ impl Parser<'_> {
     /// list the default Markdown prints.
     fn feed_comment(&mut self, text: String, doc: &mut DoclingDocument) {
         self.pending_list_start = None;
+        self.pending_table_cols = None;
         let parent = if self.in_list {
             self.last_item_tree
         } else {
@@ -1197,7 +1211,7 @@ impl Parser<'_> {
             // the dense grid, a spanning cell's text repeated across what it
             // covers — docling-core's Markdown — and an empty position where
             // no cell is; the tree keeps docling's cells, spans and gaps.
-            let cells = table_grid(&self.table_data);
+            let cells = table_grid(&self.table_data, self.table_cols);
             self.table_data.clear();
             let num_rows = cells
                 .iter()
@@ -1252,6 +1266,7 @@ impl Parser<'_> {
         }
         self.in_table = false;
         self.in_delimited_table = false;
+        self.table_cols = None;
         self.table_data.clear();
     }
 
@@ -1803,14 +1818,17 @@ fn parse_table_cells(line: &str) -> Vec<CellSource> {
 /// (docling#5483, #1168): `1000000000*|copy` in a two-column table writes two
 /// cells, not a thousand. Row spans are counted per column as they start and
 /// end, not per covered row (300 lines of `1000.1000+|x` aborted).
-fn group_table_rows(lines: &[Vec<CellSource>]) -> Vec<Vec<CellSource>> {
+fn group_table_rows(lines: &[Vec<CellSource>], num_cols: Option<usize>) -> Vec<Vec<CellSource>> {
     let Some(first) = lines.first() else {
         return Vec::new();
     };
-    let copy_limit = first
-        .iter()
-        .map(|c| c.col_span.saturating_mul(c.repeat))
-        .fold(0usize, usize::saturating_add)
+    let copy_limit = num_cols
+        .unwrap_or_else(|| {
+            first
+                .iter()
+                .map(|c| c.col_span.saturating_mul(c.repeat))
+                .fold(0usize, usize::saturating_add)
+        })
         .clamp(1, MAX_COLSPAN);
     let mut copies_left = MAX_TABLE_CELL_COPIES;
     let lines: Vec<Vec<CellSource>> = lines
@@ -1834,7 +1852,9 @@ fn group_table_rows(lines: &[Vec<CellSource>]) -> Vec<Vec<CellSource>> {
             out
         })
         .collect();
-    let num_cols: usize = lines[0].iter().map(|c| c.col_span).sum();
+    // The table's `cols=` when it has one (docling#5259), else the first
+    // line's width.
+    let num_cols: usize = num_cols.unwrap_or_else(|| lines[0].iter().map(|c| c.col_span).sum());
     let mut rows: Vec<Vec<CellSource>> = Vec::new();
     // The columns row spans from rows above cover in the current row, and
     // the columns they stop covering, by row.
@@ -1878,6 +1898,35 @@ fn group_table_rows(lines: &[Vec<CellSource>]) -> Vec<Vec<CellSource>> {
     rows
 }
 
+/// docling's `_table_column_count` (docling#5259, #1185): the column count
+/// an attribute line's `cols=` (`"…"`, `'…'` or bare) gives — a bare
+/// integer is that count; else the records split by `,` (or `;` without a
+/// comma), each `N*` counting N and any other 1. `None` without `cols`, or
+/// for a count of 0.
+fn table_column_count(attribute_line: &str) -> Option<usize> {
+    let caps = cached_regex!(r#"[\[,]\s*cols\s*=\s*(?:"([^"]*)"|'([^']*)'|([^,\]\s]+))"#)
+        .captures(attribute_line)?;
+    let value = (1..=3).find_map(|i| caps.get(i))?.as_str();
+    let records: String = value.chars().filter(|c| *c != ' ').collect();
+    if records.is_empty() {
+        return None;
+    }
+    if records.chars().all(|c| c.is_ascii_digit()) {
+        return records.parse::<usize>().ok().filter(|&n| n > 0);
+    }
+    let sep = if records.contains(',') { ',' } else { ';' };
+    let count: usize = records
+        .split(sep)
+        .map(|record| {
+            cached_regex!(r"^(\d+)\*")
+                .captures(record)
+                .and_then(|c| c[1].parse::<usize>().ok())
+                .unwrap_or(1)
+        })
+        .fold(0, usize::saturating_add);
+    (count > 0).then_some(count)
+}
+
 /// docling's `_populate_table_as_grid`: each cell takes the first column of
 /// its row that no cell to its left and no row span from above covers; a
 /// row span is cut at the table's last row and a column span at its last
@@ -1885,8 +1934,8 @@ fn group_table_rows(lines: &[Vec<CellSource>]) -> Vec<Vec<CellSource>> {
 /// spans two columns, not a thousand). The width is docling's `table_width`.
 /// Coverage is kept per column, not per grid position. Row 0 is the column
 /// header.
-fn table_grid(lines: &[Vec<CellSource>]) -> Vec<TableCell> {
-    let rows = group_table_rows(lines);
+fn table_grid(lines: &[Vec<CellSource>], num_cols: Option<usize>) -> Vec<TableCell> {
+    let rows = group_table_rows(lines, num_cols);
     let num_rows = rows.len();
     let spans: Vec<Vec<(usize, usize)>> = rows
         .iter()
@@ -1961,6 +2010,68 @@ mod tests {
 
     fn json(src: &str) -> serde_json::Value {
         serde_json::from_str(&parse(src, "t", &NoFetch).export_to_json()).unwrap()
+    }
+
+    /// Each table's grid texts, row by row.
+    fn table_rows(src: &str) -> Vec<Vec<Vec<String>>> {
+        json(src)["tables"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| {
+                t["data"]["grid"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|row| {
+                        row.as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|c| c["text"].as_str().unwrap().to_string())
+                            .collect()
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// docling#5259 (#1185, `test_table_cols_attribute_sets_the_column_count`):
+    /// a table's `cols=` sets its column count, whatever the first line holds.
+    #[test]
+    fn table_cols_attribute_sets_the_column_count() {
+        for attributes in [
+            r#"[cols="1,2"]"#,
+            r#"[cols="2*"]"#,
+            "[cols=2]",
+            r#"[%header, cols="<.^1a;>3"]"#,
+            r#"[cols='1,2',options="header"]"#,
+        ] {
+            let src = format!(
+                "{attributes}\n|===\n|Cell in column 1, row 1\n|Cell in column 2, row 1\n\n\
+                 |Cell in column 1, row 2\n|Cell in column 2, row 2\n|===\n"
+            );
+            assert_eq!(
+                table_rows(&src),
+                [[
+                    ["Cell in column 1, row 1", "Cell in column 2, row 1"],
+                    ["Cell in column 1, row 2", "Cell in column 2, row 2"],
+                ]],
+                "{attributes}"
+            );
+        }
+    }
+
+    /// `test_table_cols_attribute_applies_only_to_its_table`.
+    #[test]
+    fn table_cols_attribute_applies_only_to_its_table() {
+        let tables =
+            table_rows("[cols=\"3*\"]\n|===\n|a\n|b\n|c\n|d\n|e\n|f\n|===\n\n|===\n|x\n|y\n|===\n");
+        let shape = |t: &Vec<Vec<String>>| (t.len(), t[0].len());
+        assert_eq!(shape(&tables[0]), (2, 3));
+        assert_eq!(shape(&tables[1]), (2, 1));
+        assert_eq!(table_column_count("[cols=0]"), None);
+        assert_eq!(table_column_count(r#"[cols="2*,1"]"#), Some(3));
+        assert_eq!(table_column_count("[NOTE]"), None);
     }
 
     /// docling's `_parse` tree (verified item for item against docling
