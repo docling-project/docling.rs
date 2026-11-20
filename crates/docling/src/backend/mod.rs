@@ -52,6 +52,8 @@ mod docx_upstream_unit;
 mod dos_codepage;
 mod ebcdic;
 mod email;
+#[cfg(test)]
+mod email_sync_tests;
 pub(crate) mod epub;
 pub mod feed;
 mod html;

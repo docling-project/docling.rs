@@ -2,8 +2,9 @@
 //! `EmailDocumentBackend` (#251 for `.msg`, docling#3873).
 //!
 //! The subject becomes the document title; `From:`/`To:`/`Date:` headers become
-//! text paragraphs; the body (preferring `text/plain`) is split into paragraphs
-//! on blank lines. All emitted text is HTML/underscore-escaped like docling-core
+//! text paragraphs; the body (a non-empty `text/plain`, else each `text/html`
+//! part through the HTML backend with its furniture kept apart, docling#5228)
+//! is split into paragraphs on blank lines. All emitted text is HTML/underscore-escaped like docling-core
 //! (so `<a@b>` renders as `&lt;a@b&gt;`). A CFB-magic input is an Outlook
 //! `.msg`: it projects onto RFC 822 (see [`super::msg`]) and flows through the
 //! **same** parse below, so `.msg` and `.eml` output match by construction —
@@ -24,7 +25,7 @@
 
 use std::collections::HashMap;
 
-use mail_parser::{Address, Message, MessageParser, MimeHeaders};
+use mail_parser::{Address, Message, MessageParser, MimeHeaders, PartType};
 
 use crate::backend::images::{build_picture, normalize_cid, ImagePolicy, MapImageResolver};
 use crate::backend::markdown::escape_text;
@@ -33,6 +34,7 @@ use crate::error::ConversionError;
 use crate::source::SourceDocument;
 use docling_core::{DoclingDocument, Node, PictureImage};
 
+#[derive(Default)]
 pub struct EmailBackend {
     /// Append an `Attachments` section (names + content types, never the
     /// payload) — docling's opt-in `list_attachments`.
@@ -81,9 +83,17 @@ impl DeclarativeBackend for EmailBackend {
         match self.body_with_images(source, &msg, projected.as_ref()) {
             Some(nodes) => doc.nodes.extend(nodes),
             None => {
-                for para in body_paragraphs(&msg) {
-                    doc.push(Node::Paragraph {
-                        text: escape_text(&para),
+                for (para, furniture) in body_paragraphs(&text_parts(&msg)) {
+                    let text = escape_text(&para);
+                    // A furniture paragraph is docling's furniture-layer text
+                    // item: in the JSON, out of the default Markdown.
+                    doc.push(if furniture {
+                        Node::FurnitureText {
+                            label: "text".into(),
+                            text,
+                        }
+                    } else {
+                        Node::Paragraph { text }
                     });
                 }
             }
@@ -154,7 +164,15 @@ impl EmailBackend {
         };
         for html in bodies {
             let resolver = MapImageResolver::new(cids.clone(), &self.images);
-            let html_doc = super::html::convert_html("email-body.html", &html, &resolver);
+            // docling's `_convert_html_part` options (no title, no inferred
+            // furniture), as on the paragraph path.
+            let html_doc = super::html::convert_html_opts(
+                "email-body.html",
+                &html,
+                &resolver,
+                false,
+                false,
+            );
             if html_doc
                 .nodes
                 .iter()
@@ -296,43 +314,137 @@ fn format_addresses(addr: Option<&Address>) -> String {
         .join(", ")
 }
 
-/// Body paragraphs (split on blank lines), preferring `text/plain`. CRLF and
-/// a lone CR are normalised to `\n` first (docling#4248, 2.129), so a
-/// CR-only body still splits into paragraphs.
-fn body_paragraphs(msg: &Message) -> Vec<String> {
-    let re = cached_regex!(r"\n\s*\n+");
-    let split = |text: &str, out: &mut Vec<String>| {
-        let text = text.replace("\r\n", "\n").replace('\r', "\n");
-        for p in re.split(text.trim()) {
-            let p = p.trim();
-            if !p.is_empty() {
-                out.push(p.to_string());
+/// The delimiter mailparser puts between the parts of its whole-message
+/// `body`, the last-resort text.
+const MAILPARSER_BODY_DELIMITER: &str = "\n--- mail_boundary ---\n";
+
+/// A message's leaf text the way docling's mailparser files it: every
+/// non-multipart part that is not an attachment, in order — `text/html` to
+/// `html`, `text/plain` (or no content type) to `plain`, any other subtype
+/// to `other` (`text_not_managed`). A part is an attachment when it has a
+/// file name, a `Content-ID` and a subtype other than html/plain, the `rtf`
+/// subtype, or `Content-Disposition: attachment`; an `inline` text/plain or
+/// text/html part is a body all the same. mail-parser's own body lists are
+/// not used: they put an HTML-only alternative among the text bodies as its
+/// own html-to-text conversion, so the HTML backend — and the furniture it
+/// keeps apart (docling#5228) — never saw it.
+#[derive(Default)]
+struct TextParts {
+    plain: Vec<String>,
+    html: Vec<String>,
+    other: Vec<String>,
+}
+
+fn text_parts(msg: &Message) -> TextParts {
+    let mut out = TextParts::default();
+    for part in &msg.parts {
+        let payload = match &part.body {
+            PartType::Text(t) | PartType::Html(t) => t.to_string(),
+            PartType::Binary(b) | PartType::InlineBinary(b) => {
+                String::from_utf8_lossy(b).into_owned()
             }
+            PartType::Message(_) | PartType::Multipart(_) => continue,
+        };
+        let ct = part.content_type();
+        let subtype = ct
+            .map(|c| c.subtype().unwrap_or("").to_ascii_lowercase())
+            .unwrap_or_else(|| "plain".into());
+        let body_type = ct.is_none_or(|c| c.ctype().eq_ignore_ascii_case("text"))
+            && matches!(subtype.as_str(), "plain" | "html");
+        let disposition = part
+            .content_disposition()
+            .map(|d| d.ctype().to_ascii_lowercase());
+        let inline_body = body_type && disposition.as_deref() == Some("inline");
+        let attachment = part.attachment_name().is_some()
+            || (part.content_id().is_some() && !matches!(subtype.as_str(), "plain" | "html"))
+            || subtype == "rtf"
+            || disposition.as_deref() == Some("attachment");
+        if (attachment && !inline_body) || payload.is_empty() {
+            continue;
         }
-    };
-    let mut out = Vec::new();
-    for i in 0..msg.text_body_count() {
-        if let Some(t) = msg.body_text(i) {
-            split(&t, &mut out);
-        }
-    }
-    // A present `text/plain` part is not necessarily a body: many senders
-    // emit a blank one beside the real `text/html` in a multipart/alternative
-    // message, so only a part that produced text wins (docling#4295).
-    if !out.is_empty() {
-        return out;
-    }
-    // No plain text — the `text/html` part(s), converted through the HTML
-    // backend and split into paragraphs (docling's `_convert_html_part` +
-    // `_split_paragraphs` over its Markdown).
-    for i in 0..msg.html_body_count() {
-        if let Some(t) = msg.body_html(i) {
-            let html_doc =
-                super::html::convert_html("email-body.html", &t, &super::images::NoFetch);
-            split(&html_doc.export_to_markdown(), &mut out);
+        match subtype.as_str() {
+            "html" => out.html.push(payload),
+            "plain" => out.plain.push(payload),
+            _ => out.other.push(payload),
         }
     }
     out
+}
+
+/// docling's `_split_paragraphs`: CRLF and a lone CR normalised to `\n`
+/// (docling#4248), then split on blank lines.
+fn split_paragraphs(text: &str, out: &mut Vec<String>) {
+    let re = cached_regex!(r"\n\s*\n+");
+    let text = text.replace("\r\n", "\n").replace('\r', "\n");
+    for p in re.split(text.trim()) {
+        let p = p.trim();
+        if !p.is_empty() {
+            out.push(p.to_string());
+        }
+    }
+}
+
+/// One body paragraph and whether it is furniture (docling's
+/// `_BodyParagraph`), unescaped — the caller escapes it like every text.
+type BodyParagraph = (String, bool);
+
+/// docling's `_get_body_paragraphs`: the `text/plain` parts' paragraphs, if
+/// any part produced one (a blank plain part beside the real HTML is common,
+/// docling#4295); else each `text/html` part through the HTML backend
+/// (`add_title=False, infer_furniture=False`), its body then its furniture
+/// exported as unescaped Markdown and split (docling#5228: a `<footer>`
+/// stays furniture, out of the default export); else mailparser's whole
+/// body.
+fn body_paragraphs(parts: &TextParts) -> Vec<BodyParagraph> {
+    let mut plain = Vec::new();
+    for text in &parts.plain {
+        split_paragraphs(text, &mut plain);
+    }
+    if !plain.is_empty() {
+        return plain.into_iter().map(|p| (p, false)).collect();
+    }
+    let mut out = Vec::new();
+    for html in &parts.html {
+        let html_doc = super::html::convert_html_opts(
+            "email-body.html",
+            html,
+            &super::images::NoFetch,
+            false,
+            false,
+        );
+        for furniture in [false, true] {
+            let layers = docling_core::ContentLayers {
+                body: !furniture,
+                furniture,
+                notes: false,
+                invisible: false,
+                background: false,
+            };
+            let options = docling_core::MarkdownExportOptions {
+                layers,
+                escape_html: false,
+                escape_underscores: false,
+                ..Default::default()
+            };
+            let (markdown, _) = html_doc.export_to_markdown_with_options(&options);
+            let mut paragraphs = Vec::new();
+            split_paragraphs(&markdown, &mut paragraphs);
+            out.extend(paragraphs.into_iter().map(|p| (p, furniture)));
+        }
+    }
+    if !out.is_empty() {
+        return out;
+    }
+    let body: Vec<&str> = parts
+        .plain
+        .iter()
+        .chain(&parts.html)
+        .chain(&parts.other)
+        .map(String::as_str)
+        .collect();
+    let mut fallback = Vec::new();
+    split_paragraphs(&body.join(MAILPARSER_BODY_DELIMITER), &mut fallback);
+    fallback.into_iter().map(|p| (p, false)).collect()
 }
 
 #[cfg(test)]

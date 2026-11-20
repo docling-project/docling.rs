@@ -126,8 +126,23 @@ pub(crate) fn convert_html_with(
     images: &dyn ImageResolver,
     infer_furniture: bool,
 ) -> DoclingDocument {
+    convert_html_opts(name, html, images, infer_furniture, true)
+}
+
+/// [`convert_html_with`] plus docling's `add_title`: `false` leaves the
+/// `<title>` out of both outputs — how the email backend converts a
+/// `text/html` part (`HTMLBackendOptions(add_title=False,
+/// infer_furniture=False)`).
+pub(crate) fn convert_html_opts(
+    name: &str,
+    html: &str,
+    images: &dyn ImageResolver,
+    infer_furniture: bool,
+    add_title: bool,
+) -> DoclingDocument {
     let mut doc = DoclingDocument::new(name);
-    let flattened = append_fragment_with(html, &mut doc.nodes, images, infer_furniture);
+    let flattened =
+        append_fragment_with(html, &mut doc.nodes, images, infer_furniture, add_title);
     // The flat nodes above drive Markdown / DocLang / LaTeX; the JSON export
     // takes docling's item tree, built by a call-for-call port of upstream's
     // walk ([`super::html_tree`]) so the JSON structure — heading nesting,
@@ -142,7 +157,7 @@ pub(crate) fn convert_html_with(
                 &parsed,
                 images,
                 infer_furniture,
-                true,
+                add_title,
             ));
         }
     }
@@ -159,7 +174,7 @@ fn depth_notice() -> docling_core::Notice {
 /// Markdown backend, which feeds embedded raw-HTML blocks through here (as
 /// docling does).
 pub(crate) fn append_fragment(html: &str, out: &mut Vec<Node>, images: &dyn ImageResolver) {
-    append_fragment_with(html, out, images, true);
+    append_fragment_with(html, out, images, true, true);
 }
 
 /// [`append_fragment`] with docling's `infer_furniture` option (see
@@ -170,6 +185,7 @@ fn append_fragment_with(
     out: &mut Vec<Node>,
     images: &dyn ImageResolver,
     infer_furniture: bool,
+    add_title: bool,
 ) -> Option<docling_core::Notice> {
     // html5ever's tree builder walks its stack of open elements per tag, so
     // a page nested tens of thousands of elements deep parses in quadratic
@@ -189,7 +205,11 @@ fn append_fragment_with(
     // precedes the body content and is excluded from Markdown (the JSON gets
     // it from the item tree, `html_tree`). Fragments (e.g. Markdown-embedded
     // HTML) carry no `<title>`, so none is added.
-    if let Some(title) = parsed.select(cached_selector!("title")).next() {
+    if let Some(title) = parsed
+        .select(cached_selector!("title"))
+        .next()
+        .filter(|_| add_title)
+    {
         let text = normalize_ws(&title.text().collect::<String>());
         if !text.is_empty() {
             out.push(Node::Furniture {

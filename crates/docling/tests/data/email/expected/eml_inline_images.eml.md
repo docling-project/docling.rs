@@ -6,6 +6,18 @@ To: Bob &lt;bob@example.com&gt;
 
 Date: 2026-05-20T10:30:00+00:00
 
-ReportFirst the red box:  
-Then the blue one:  
-" alt="blue box"&gt;Regards, Alice
+## Report
+
+First the red box:
+
+red box
+
+&lt;!-- image --&gt;
+
+Then the blue one:
+
+blue box
+
+&lt;!-- image --&gt;
+
+Regards, Alice
