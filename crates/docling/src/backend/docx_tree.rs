@@ -1056,6 +1056,10 @@ fn trim_part_edges(parts: Vec<Part>) -> Vec<Part> {
 /// spliced in as `<eq>latex</eq>`, plus the bookended equations — or the
 /// text untouched (and no equations) when the run texts do not
 /// reconstruct it.
+/// The texts are whole runs (docling#4622's `_get_run_text`, #1162): a
+/// `w:sym` glyph, a tab or a break is part of the paragraph text, so
+/// reading the `w:t` alone failed the check on a paragraph or cell with a
+/// Symbol character and dropped its equations.
 fn equations_in_text(element: XmlNode, text: &str) -> (String, Vec<String>) {
     {
         let mut only_texts: Vec<String> = Vec::new();
@@ -1076,22 +1080,22 @@ fn equations_in_text(element: XmlNode, text: &str) -> (String, Vec<String>) {
                 if is_omath(child) {
                     push_eq(child, &mut only_equations, &mut texts_and_equations);
                 } else {
-                    for t in child
+                    for r in child
                         .descendants()
-                        .filter(|n| n.has_tag_name("t") && !is_math(*n))
+                        .filter(|n| n.has_tag_name("r") && !is_math(*n))
                     {
-                        let s = t_text(t);
-                        only_texts.push(s.to_string());
-                        texts_and_equations.push(s.into_owned());
+                        let s = run_text(r);
+                        only_texts.push(s.clone());
+                        texts_and_equations.push(s);
                     }
                 }
             }
         } else {
             for n in element.descendants() {
-                if n.has_tag_name("t") && !is_math(n) {
-                    let s = t_text(n);
-                    only_texts.push(s.to_string());
-                    texts_and_equations.push(s.into_owned());
+                if n.has_tag_name("r") && !is_math(n) {
+                    let s = run_text(n);
+                    only_texts.push(s.clone());
+                    texts_and_equations.push(s);
                 } else if is_omath(n) {
                     push_eq(n, &mut only_equations, &mut texts_and_equations);
                 }

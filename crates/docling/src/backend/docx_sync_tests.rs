@@ -749,3 +749,40 @@ fn table_right_after_a_list_closes_the_list() {
         assert!(md.contains("\n\n| cell 00"), "nested={nested}: {md}");
     }
 }
+
+/// docling#4622 (#1162, `test_equation_next_to_symbol_font_text_is_kept`):
+/// an inline equation is kept when its paragraph or cell holds Symbol text.
+#[test]
+fn equation_next_to_symbol_font_text_is_kept() {
+    let omath = r#"<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:r><m:t>x=1</m:t></m:r></m:oMath>"#;
+    let sym = |c: &str| format!(r#"<w:r><w:sym w:font="Symbol" w:char="{c}"/></w:r>"#);
+    let grid = "<w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>";
+    let body = format!(
+        r#"<w:p><w:r><w:t xml:space="preserve">sym </w:t></w:r>{}{omath}</w:p><w:p>{}{omath}</w:p><w:tbl>{grid}<w:tr><w:tc><w:p><w:r><w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol"/></w:rPr><w:t>a</w:t></w:r>{omath}</w:p></w:tc>{}</w:tr></w:tbl>"#,
+        sym("F061"),
+        sym("F062"),
+        tc("b"),
+    );
+    let v = json(&convert(docx(&body, "", &[])));
+    let texts: Vec<(&str, &str)> = v["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| (t["text"].as_str().unwrap(), t["label"].as_str().unwrap()))
+        .collect();
+    assert!(texts.contains(&("sym α", "text")), "{texts:?}");
+    assert!(texts.contains(&("β", "text")), "{texts:?}");
+    let formulas: Vec<&str> = texts
+        .iter()
+        .filter(|(_, l)| *l == "formula")
+        .map(|(t, _)| *t)
+        .collect();
+    assert_eq!(formulas, ["x=1", "x=1"]);
+    let cells: Vec<&str> = v["tables"][0]["data"]["table_cells"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(cells, ["α$x=1$", "b"]);
+}
