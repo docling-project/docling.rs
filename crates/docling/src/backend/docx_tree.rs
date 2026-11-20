@@ -665,6 +665,32 @@ impl Walker {
         self.cache = None;
     }
 
+    /// `_close_list_before_table` (docling#5309, #1161): a list still open
+    /// when a table starts is closed, so the table is the list's sibling
+    /// rather than a child of its group, and the next item opens a new list
+    /// (to the outer list's numId when nested).
+    fn close_list_before_table(&mut self) {
+        if self.prev_numid().is_none() {
+            return;
+        }
+        self.last_numid = match self.nested_lists.first() {
+            Some(n) if self.level_at_new_list.is_some() => Some(n.outer_numid.clone()),
+            _ => self.prev_numid(),
+        };
+        self.nested_lists.clear();
+        self.clear_list_cache();
+        // Python truthiness: a `level_at_new_list` of 0 unwinds everything.
+        if let Some(lanl) = self.level_at_new_list.filter(|&l| l != 0) {
+            self.clear_parents_from(lanl);
+            self.level = lanl - 1;
+            self.level_at_new_list = None;
+        } else {
+            self.clear_parents_from(0);
+            self.level = 0;
+        }
+        self.update_history(None, None);
+    }
+
     /// `_end_list_on_body_text`.
     fn end_list_on_body_text(&mut self, text: &str) {
         if !text.is_empty() {
@@ -1736,14 +1762,20 @@ impl Walker {
         let num_cols = grid_cols.max(row_cols);
         if num_rows == 1 && num_cols == 1 {
             // A 1×1 table is furniture: its cell is walked as body content.
-            if let Some(cell) = row_cells(rows[0]).first() {
-                self.clear_list_cache();
-                self.force_new_code_block = true;
-                self.walk_linear(*cell, ctx);
-                self.force_new_code_block = true;
-            }
-            return Vec::new();
+            // docling#5258 (#1161): the items made from the cell are
+            // returned, so a container holding the table (a rich cell, a
+            // text box, a content control) groups them in place rather than
+            // leaving them on the body after it.
+            let Some(cell) = row_cells(rows[0]).first().copied() else {
+                return Vec::new();
+            };
+            self.clear_list_cache();
+            self.force_new_code_block = true;
+            let refs = self.walk_linear(cell, ctx);
+            self.force_new_code_block = true;
+            return refs;
         }
+        self.close_list_before_table();
         let level = self.get_level();
         let table_id = self.add(
             self.parent_at(level - 1),

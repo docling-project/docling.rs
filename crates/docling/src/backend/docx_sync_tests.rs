@@ -613,3 +613,139 @@ fn footnote_without_a_link_stays_one_text() {
     assert_eq!(notes, ["Bold note. Second."]);
     assert!(v["groups"].as_array().unwrap().is_empty());
 }
+
+/// The JSON item at `#/<kind>/<n>`.
+fn resolve<'v>(v: &'v Value, r: &Value) -> &'v Value {
+    let path = r["$ref"].as_str().unwrap();
+    let mut it = path.trim_start_matches("#/").split('/');
+    let (kind, idx) = (it.next().unwrap(), it.next());
+    match idx {
+        Some(i) => &v[kind][i.parse::<usize>().unwrap()],
+        None => &v[kind],
+    }
+}
+
+fn children_texts(v: &Value, item: &Value) -> Vec<String> {
+    item["children"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| {
+            resolve(v, c)["text"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string()
+        })
+        .filter(|t| !t.trim().is_empty())
+        .collect()
+}
+
+/// docling#5258 (#1161, `test_single_cell_table_in_cell_stays_inside_the_cell`
+/// and `…_keeps_its_place_between_paragraphs`): a 1×1 table in a cell
+/// unwraps into that cell, in place.
+#[test]
+fn single_cell_table_in_cell_stays_inside_the_cell() {
+    let inner = |text: &str| {
+        format!(
+            "<w:tbl><w:tblGrid><w:gridCol/></w:tblGrid><w:tr>{}</w:tr></w:tbl>",
+            tc(text)
+        )
+    };
+    let grid = "<w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>";
+    // python-docx's `cell.add_table` leaves the cell's empty paragraph
+    // before the table and adds one after it.
+    let body = format!(
+        "<w:tbl>{grid}<w:tr>{}<w:tc>{}{}{}</w:tc></w:tr></w:tbl>{}",
+        tc("left"),
+        p(""),
+        inner("boxed"),
+        p(""),
+        p("after the table"),
+    );
+    let doc = convert(docx(&body, "", &[]));
+    let v = json(&doc);
+    assert_eq!(v["tables"].as_array().unwrap().len(), 1);
+    let table = &v["tables"][0];
+    assert_eq!(table["children"].as_array().unwrap().len(), 1, "{table}");
+    let group = resolve(&v, &table["children"][0]);
+    assert_eq!(children_texts(&v, group), ["boxed"]);
+    assert_eq!(children_texts(&v, &v["body"]), ["after the table"]);
+    let md = doc.export_to_markdown();
+    assert!(
+        md.lines()
+            .any(|l| l.starts_with('|') && l.contains("left") && l.contains("boxed")),
+        "{md}"
+    );
+
+    let body = format!(
+        "<w:tbl>{grid}<w:tr>{}<w:tc>{}{}{}</w:tc></w:tr></w:tbl>",
+        tc("left"),
+        p("before"),
+        inner("boxed"),
+        p("after"),
+    );
+    let v = json(&convert(docx(&body, "", &[])));
+    let group = resolve(&v, &v["tables"][0]["children"][0]);
+    assert_eq!(children_texts(&v, group), ["before", "boxed", "after"]);
+}
+
+/// docling#5309 (`test_table_right_after_a_list_closes_the_list`, flat and
+/// nested): a table right after a list item is the list's sibling, and the
+/// next item opens a new list.
+#[test]
+fn table_right_after_a_list_closes_the_list() {
+    let numbering = (
+        "word/numbering.xml",
+        format!(
+            r#"<w:numbering xmlns:w="{W}"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/></w:lvl><w:lvl w:ilvl="1"><w:numFmt w:val="bullet"/><w:lvlText w:val="o"/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>"#
+        ),
+    );
+    let item = |text: &str, ilvl: u8| {
+        format!(
+            r#"<w:p><w:pPr><w:numPr><w:ilvl w:val="{ilvl}"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>{text}</w:t></w:r></w:p>"#
+        )
+    };
+    let grid = "<w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>";
+    let table = format!(
+        "<w:tbl>{grid}<w:tr>{}{}</w:tr><w:tr>{}{}</w:tr></w:tbl>",
+        tc("cell 00"),
+        tc("cell 01"),
+        tc("cell 10"),
+        tc("cell 11")
+    );
+    for nested in [false, true] {
+        let mut body = item("item", 0);
+        if nested {
+            body += &item("sub item", 1);
+        }
+        body += &table;
+        body += &item("next item", 0);
+        let rels = format!("{STYLES_REL}{NUMBERING_REL}");
+        let doc = convert(docx(&body, &rels, &[styles(), numbering.clone()]));
+        let v = json(&doc);
+        assert_eq!(
+            v["tables"][0]["parent"]["$ref"], "#/body",
+            "nested={nested}"
+        );
+        for group in v["groups"].as_array().unwrap() {
+            if group["label"] == "list" {
+                for child in group["children"].as_array().unwrap() {
+                    let c = resolve(&v, child);
+                    assert_eq!(c["label"], "list_item", "nested={nested}: {group}");
+                }
+            }
+        }
+        let parent_of = |text: &str| {
+            v["texts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|t| t["text"] == text)
+                .map(|t| t["parent"]["$ref"].clone())
+                .unwrap()
+        };
+        assert_ne!(parent_of("next item"), parent_of("item"), "nested={nested}");
+        let md = doc.export_to_markdown();
+        assert!(md.contains("\n\n| cell 00"), "nested={nested}: {md}");
+    }
+}
