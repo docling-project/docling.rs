@@ -64,7 +64,7 @@ ties cohtinues until seven or eight in the evening. When they return to the dorm
 
 ## CLASSIFIED ADS
 
-Wanted: Man or woman full or part time. Direct Sales Prestige Products. Call Mrs. Iodge, 6825540 or 335-9937 for appt.
+Wanted: Man or woman full or part time. Direct Sales Prestige Products. Call Mrs. Iodge, 682-5540 or 335-9937 for appt.
 
 ## Arnold Rexall Pharmacy
 
