@@ -873,6 +873,7 @@ converted once more as that format with a warning.
 - #466 (docling#4351): a content document that opens with a UTF-16 byte order mark is decoded as UTF-16 instead of being dropped
 - docling#4293 (2.130.0-33): cross-document links of every content-document extension (`.xhtml`, `.xht`, `.htm`, `.html`) become anchors; a link with a scheme or `//host` is left alone
 - #1027 (docling#5170): a single-quoted cross-document link (`href='ch2.xhtml#n2'`) becomes an anchor too, keeping its quote; a single-quoted absolute URL keeps its host
+- #1181 (docling#4636, docling#5227, docling#4602): an image `src` is resolved as a URL relative to its content document — in either quote style, its query and fragment dropped, percent-decoded once (`cover%20art.png`, `map%231.png` → `map#1.png`); one with a scheme (`cid:`, `data:`), a `//host` or no path (`#top`) is left as is — and both rewrites, links and image sources, apply inside start tags only, so a listing that shows `<a href="chapter2.xhtml#note2">` or `<img src="../Images/logo.png"/>` keeps the text the book prints
 - #1027 (docling#5168): `container.xml`'s rootfile `full-path` is percent-decoded like the manifest hrefs, so `OEBPS/my%20book.opf` reads `OEBPS/my book.opf` instead of failing the conversion
 
 #### ODF (odt/ods/odp)
