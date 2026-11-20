@@ -1510,7 +1510,7 @@ fn has_page_content(doc: &Document) -> bool {
     doc.get_pages()
         .into_values()
         .take(4)
-        .any(|pid| !page_content(&doc, pid).is_empty())
+        .any(|pid| !page_content(doc, pid).is_empty())
 }
 
 /// Correct `/Length` values that disagree with where `endstream` actually is.
