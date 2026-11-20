@@ -351,6 +351,8 @@ pub struct DocumentConverter {
     /// The stage's sub-options (#1145: `numbering_schemes`,
     /// `numbering_keywords`, `numbering_number_words`, …) — see
     /// [`Self::heading_hierarchy_options`]; `None` = docling's defaults.
+    /// Only the ML pipeline reads it, so only a `pdf` build carries it.
+    #[cfg(feature = "pdf")]
     heading_hierarchy_options: Option<docling_pdf::HeadingHierarchyOptions>,
     use_web_browser: bool,
     /// Named Whisper model preset for audio sources (docling's ASR model
@@ -689,6 +691,7 @@ impl Default for DocumentConverter {
             generate_page_images: false,
             use_embedded_picture_images: false,
             heading_hierarchy: false,
+            #[cfg(feature = "pdf")]
             heading_hierarchy_options: None,
             use_web_browser: false,
             asr_model: None,
@@ -2282,7 +2285,9 @@ impl DocumentConverter {
     /// `numbering_schemes`) and `numbering_number_words`. Options that fail
     /// [`docling_pdf::HeadingHierarchyOptions::validate`] fail the PDF /
     /// image conversion with the reason. The CLI, serve and the bindings
-    /// set only the switch.
+    /// set only the switch. A `pdf` build only: without the ML pipeline
+    /// there is no stage to configure.
+    #[cfg(feature = "pdf")]
     pub fn heading_hierarchy_options(
         mut self,
         options: docling_pdf::HeadingHierarchyOptions,
