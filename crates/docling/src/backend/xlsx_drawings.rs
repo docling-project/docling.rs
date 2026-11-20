@@ -422,6 +422,74 @@ pub fn build_chart_table(
     chart_table(categories, columns, corner)
 }
 
+/// docling's `build_chart_grid` (`backend/utils/charts.py`, docling#5371):
+/// the data table of a chart whose categories can have several levels — one
+/// column per category level, outer level first, row headers, then one
+/// column per series; a chart without categories (a histogram) has only the
+/// series columns. Trailing rows with no data are dropped (interior gaps
+/// stay) and the table is capped at [`MAX_CHART_TABLE_CELLS`] cells. `None`
+/// when no row carries data.
+pub fn build_chart_grid(
+    category_columns: Vec<(String, Vec<String>)>,
+    value_columns: Vec<(String, Vec<String>)>,
+) -> Option<docling_core::Table> {
+    let num_categories = category_columns.len();
+    let mut columns: Vec<(String, Vec<String>)> =
+        category_columns.into_iter().chain(value_columns).collect();
+    let declared = columns.iter().map(|(_, v)| v.len()).max().unwrap_or(0);
+    let populated = (0..declared)
+        .rev()
+        .find(|&row| {
+            columns
+                .iter()
+                .any(|(_, v)| v.get(row).is_some_and(|s| !s.is_empty()))
+        })
+        .map_or(0, |row| row + 1);
+    if populated == 0 {
+        return None;
+    }
+    let num_cols = columns.len();
+    let num_data_rows = if (populated + 1) * num_cols > MAX_CHART_TABLE_CELLS {
+        max_chart_data_rows(num_cols)
+    } else {
+        populated
+    };
+    for (_, values) in &mut columns {
+        values.resize(num_data_rows, String::new());
+    }
+    let mut rows = vec![columns.iter().map(|(h, _)| h.clone()).collect::<Vec<_>>()];
+    for i in 0..num_data_rows {
+        rows.push(columns.iter().map(|(_, v)| v[i].clone()).collect());
+    }
+    let nrows = rows.len();
+    let mut header_row = vec![false; nrows];
+    header_row[0] = true;
+    let mut row_header = vec![vec![false; num_cols]; nrows];
+    for r in row_header.iter_mut().skip(1) {
+        for cell in r.iter_mut().take(num_categories) {
+            *cell = true;
+        }
+    }
+    Some(docling_core::Table {
+        footnotes: Vec::new(),
+        rows,
+        location: None,
+        structure: Some(docling_core::TableStructure {
+            header_row,
+            col_continuation: Vec::new(),
+            row_continuation: Vec::new(),
+            row_header,
+            col_header: Vec::new(),
+        }),
+        cell_blocks: None,
+        cells: None,
+        caption: None,
+        caption_parent: Default::default(),
+        caption_location: None,
+        document_index: false,
+    })
+}
+
 /// docling's `_chart_to_table_data` grid from resolved series columns:
 /// categories down the first column (row headers), one column per series
 /// (column headers), `corner` in the top-left cell — the PPTX backend puts

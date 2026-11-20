@@ -92,6 +92,97 @@ pub(super) fn resolve_alternate_content(xml: &str) -> Cow<'_, str> {
     current
 }
 
+/// The attribute [`resolve_chartex_frames`] puts on a chartex frame: the
+/// relationship id of the picture its `mc:Fallback` held (no namespace: it
+/// cannot collide with OOXML's).
+pub(super) const CHARTEX_FALLBACK_ATTR: &str = "docling-chartex-fallback";
+
+/// PowerPoint's Office 2016 charts (docling#5371, #1165): every
+/// `mc:AlternateContent` whose `mc:Choice` holds a `p:graphicFrame` with a
+/// chartex `cx:chart` is replaced by that frame — the chart is read
+/// (`pptx_chartex`), where [`resolve_alternate_content`] would take the
+/// `Fallback` (`cx1` is not [`SUPPORTED`]) — and the picture the Fallback
+/// held, if any, is noted on the frame as [`CHARTEX_FALLBACK_ATTR`], to be
+/// the chart's image rather than a second picture. docling's
+/// `_with_chartex_frames` / `_chartex_fallback_image`; PPTX only, as
+/// upstream changed only its PowerPoint backend. Run before
+/// [`resolve_alternate_content`]; anything else is returned as is.
+pub(super) fn resolve_chartex_frames(xml: &str) -> Cow<'_, str> {
+    let chartex = super::pptx_chartex::CHARTEX_NS;
+    if !xml.contains(chartex) || !xml.contains("AlternateContent") {
+        return Cow::Borrowed(xml);
+    }
+    let Ok(doc) = Document::parse(xml) else {
+        return Cow::Borrowed(xml);
+    };
+    let mc = |n: &Node, name: &str| n.is_element() && n.tag_name() == (MC_NS, name).into();
+    let is_alt = |n: Node| mc(&n, "AlternateContent");
+    let mut edits: Vec<(std::ops::Range<usize>, String)> = Vec::new();
+    for alt in doc
+        .descendants()
+        .filter(|n| is_alt(*n) && !n.ancestors().skip(1).any(is_alt))
+    {
+        let frame = alt
+            .children()
+            .filter(|c| mc(c, "Choice"))
+            .find_map(|choice| {
+                choice.children().find(|f| {
+                    f.is_element()
+                        && f.tag_name().name() == "graphicFrame"
+                        && f.descendants().any(|n| {
+                            n.is_element()
+                                && n.tag_name().name() == "chart"
+                                && n.tag_name().namespace() == Some(chartex)
+                        })
+                })
+            });
+        let Some(frame) = frame else {
+            continue;
+        };
+        let local = |n: &Node, name: &str| n.is_element() && n.tag_name().name() == name;
+        let embed = alt
+            .children()
+            .find(|c| mc(c, "Fallback"))
+            .and_then(|fb| fb.children().find(|c| local(c, "pic")))
+            .and_then(|pic| pic.children().find(|c| local(c, "blipFill")))
+            .and_then(|fill| fill.children().find(|c| local(c, "blip")))
+            .and_then(|blip| {
+                blip.attributes()
+                    .find(|a| a.name() == "embed")
+                    .map(|a| a.value().to_string())
+            });
+        let src = doc.input_text();
+        let outside = alt.parent().unwrap_or_else(|| doc.root());
+        let mut extra: String = frame
+            .namespaces()
+            .filter(|ns| outside.lookup_namespace_uri(ns.name()) != Some(ns.uri()))
+            .map(|ns| match ns.name() {
+                Some(p) => format!(" xmlns:{p}=\"{}\"", ns.uri()),
+                None => format!(" xmlns=\"{}\"", ns.uri()),
+            })
+            .collect();
+        if let Some(rid) = embed {
+            extra.push_str(&format!(" {CHARTEX_FALLBACK_ATTR}=\"{rid}\""));
+        }
+        let range = frame.range();
+        let at = qname_end(src, range.start);
+        let text = format!("{}{extra}{}", &src[range.start..at], &src[at..range.end]);
+        edits.push((alt.range(), text));
+    }
+    if edits.is_empty() {
+        return Cow::Borrowed(xml);
+    }
+    let mut out = String::with_capacity(xml.len());
+    let mut pos = 0;
+    for (range, replacement) in edits {
+        out.push_str(&xml[pos..range.start]);
+        out.push_str(&replacement);
+        pos = range.end;
+    }
+    out.push_str(&xml[pos..]);
+    Cow::Owned(out)
+}
+
 /// `(range of the mc:AlternateContent element, its replacement text)` for
 /// every alternative not nested in another, in document order.
 fn outermost_edits(doc: &Document) -> Vec<(std::ops::Range<usize>, String)> {

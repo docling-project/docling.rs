@@ -256,6 +256,20 @@ fn convert_slide(
             }
             continue;
         }
+        // An Office 2016 chart (`…/2014/relationships/chartEx`, docling#5371):
+        // a part that cannot be read still makes a picture, without data.
+        if r.rel_type.ends_with("/chartEx") {
+            let chart = pkg
+                .read(&p)
+                .as_deref()
+                .and_then(super::pptx_chartex::parse)
+                .unwrap_or_else(|| {
+                    eprintln!("docling: Could not read an Office 2016 chart: {p}");
+                    super::pptx_chartex::unreadable()
+                });
+            charts.insert(r.id.clone(), chart);
+            continue;
+        }
         if !content_type(content_types, &p)
             .map(|ct| ct.starts_with("image/"))
             .unwrap_or(false)
@@ -287,6 +301,8 @@ fn convert_slide(
     // every such block — equations, and any other shape behind a Choice,
     // whose Fallback is kept here; a deliberate divergence (the content is
     // what PowerPoint and anydoc show).
+    // An Office 2016 chart's frame is kept first (#1165, docling#5371).
+    let xml = super::mc::resolve_chartex_frames(&xml);
     let xml = super::mc::resolve_alternate_content(&xml);
     let slide = Document::parse(&xml).ok()?;
     let page_no = slide_ix + 1;
@@ -719,10 +735,31 @@ fn handle_shape_content(shape: XmlNode, ctx: &SlideCtx, out: &mut SlideOut) {
                     }
                     push_located(&mut out.doc, location, Node::Table(table));
                 }
-            } else if let Some(chart) = descendant(shape, "chart")
-                .and_then(|c| c.attributes().find(|a| a.name() == "id"))
-                .and_then(|a| ctx.charts.get(a.value()))
-            {
+            } else if let Some(chart_el) = descendant(shape, "chart") {
+                let rid = chart_el
+                    .attributes()
+                    .find(|a| a.name() == "id")
+                    .map(|a| a.value());
+                // An Office 2016 chart whose part is missing still keeps
+                // its place, without data (docling#5371); a classic chart
+                // without its part is dropped, as python-pptx drops it.
+                let unreadable;
+                let chart = match rid.and_then(|r| ctx.charts.get(r)) {
+                    Some(chart) => chart,
+                    None if chart_el.tag_name().namespace()
+                        == Some(super::pptx_chartex::CHARTEX_NS) =>
+                    {
+                        eprintln!("docling: Could not read an Office 2016 chart: no part");
+                        unreadable = super::pptx_chartex::unreadable();
+                        &unreadable
+                    }
+                    None => return,
+                };
+                // The picture an Office 2016 chart's `mc:Fallback` held is
+                // its image (`_chartex_fallback_image`).
+                let image = shape
+                    .attribute(super::mc::CHARTEX_FALLBACK_ATTR)
+                    .and_then(|rid| ctx.images.get(rid));
                 // A native chart frame (docling PR #3794): one prediction
                 // per plot type (the back-most plot's first) + the data grid,
                 // chart title as the caption. docling adds the caption to the
@@ -734,6 +771,10 @@ fn handle_shape_content(shape: XmlNode, ctx: &SlideCtx, out: &mut SlideOut) {
                     table,
                 } = chart;
                 let kind = labels[0].to_string();
+                // No data (an unreadable Office 2016 chart): no
+                // `tabular_chart` in the JSON, an empty table in the flat
+                // nodes.
+                let chart_table = table.clone();
                 let table = table.clone().unwrap_or_default();
                 let caption = title.as_deref().filter(|t| !t.is_empty()).map(|t| {
                     out.tree.add_with_prov(
@@ -748,13 +789,13 @@ fn handle_shape_content(shape: XmlNode, ctx: &SlideCtx, out: &mut SlideOut) {
                     None,
                     TreeKind::Picture {
                         captions: caption.into_iter().collect(),
-                        image: None,
+                        image: image.cloned(),
                         classification: Some(kind.clone()),
                         extra_classes: labels[1..].iter().map(|l| l.to_string()).collect(),
                         description: None,
                         confidence: None,
-                        chart: Some(table.clone()),
-                        dpi: None,
+                        chart: chart_table.clone(),
+                        dpi: image.map(|img| pptx_dpi(&img.data)),
                     },
                     shape_prov(shape, ctx, 0),
                 );
