@@ -362,17 +362,48 @@ impl Resolver {
                 .find_map(|package| package.read(url));
         }
         let dir = self.dir.as_ref()?;
-        // A relative reference stays inside the taxonomy directory: a
-        // `../` that would climb out of it names nothing.
-        if url.starts_with("..") || url.starts_with('/') {
-            return None;
-        }
-        let path = dir.join(url);
+        let path = confined(dir, url)?;
         let len = std::fs::metadata(&path).ok()?.len();
         (len <= MAX_DOCUMENT_BYTES)
             .then(|| std::fs::read(&path).ok())
             .flatten()
     }
+}
+
+/// A relative taxonomy reference as a file inside `dir`, or `None` when it
+/// could name anything outside it (#1192, the local counterpart of
+/// docling#5406's web-cache confinement). The check used to be lexical and
+/// `/`-only: on Windows `C:/Windows/win.ini` made `Path::join` replace the
+/// directory, and `..\..\x.xsd` — one `/`-segment — climbed out of it. Now,
+/// on every platform alike: `\` is a separator; a root, a drive or UNC
+/// prefix, a `name:` first segment and any `..` component are refused; and
+/// the canonical path (symlinks resolved) must lie under the canonical
+/// directory, as `images.rs`' `confined_local_path` requires.
+fn confined(dir: &Path, url: &str) -> Option<PathBuf> {
+    let rel = url.replace('\\', "/");
+    if rel.starts_with('/') || rel.split('/').next().is_some_and(|s| s.contains(':')) {
+        return None;
+    }
+    if rel.split('/').any(|s| s == "..") {
+        return None;
+    }
+    let rel = Path::new(&rel);
+    if rel.is_absolute()
+        || rel.has_root()
+        || rel.components().any(|c| {
+            matches!(
+                c,
+                std::path::Component::Prefix(_)
+                    | std::path::Component::RootDir
+                    | std::path::Component::ParentDir
+            )
+        })
+    {
+        return None;
+    }
+    let base = dir.canonicalize().ok()?;
+    let full = base.join(rel).canonicalize().ok()?;
+    full.starts_with(&base).then_some(full)
 }
 
 impl TaxonomyPackage {
@@ -483,6 +514,45 @@ pub(crate) fn join_url(base: &str, href: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1192: a taxonomy reference reads a file inside the taxonomy
+    /// directory or nothing — a drive, UNC or rooted path, a `..` with
+    /// either separator, percent-encoded dots (a name like any other, absent
+    /// here) and a symlink out of the directory all resolve to nothing, on
+    /// every platform alike.
+    #[test]
+    fn taxonomy_reads_stay_inside_the_directory() {
+        let root = std::env::temp_dir().join(format!("xbrl-confine-{}", std::process::id()));
+        let dir = root.join("taxonomy");
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(dir.join("sub/x.xsd"), b"<schema/>").unwrap();
+        std::fs::write(root.join("x.xsd"), b"outside").unwrap();
+        assert!(confined(&dir, "sub/x.xsd").is_some());
+        assert!(confined(&dir, "sub\\x.xsd").is_some());
+        for url in [
+            "C:/x.xsd",
+            "C:\\x.xsd",
+            "c:x.xsd",
+            "\\\\server\\share\\x.xsd",
+            "//server/share/x.xsd",
+            "/x.xsd",
+            "\\x.xsd",
+            "../x.xsd",
+            "..\\x.xsd",
+            "..\\..\\x.xsd",
+            "sub/../../x.xsd",
+            "sub\\..\\..\\x.xsd",
+            "%2e%2e/x.xsd",
+        ] {
+            assert!(confined(&dir, url).is_none(), "{url}");
+        }
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&root, dir.join("up")).unwrap();
+            assert!(confined(&dir, "up/x.xsd").is_none(), "a symlink out");
+        }
+        std::fs::remove_dir_all(&root).ok();
+    }
 
     #[test]
     fn urls_join_like_arelle_resolves_them() {
