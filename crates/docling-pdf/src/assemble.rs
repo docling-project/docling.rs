@@ -2952,7 +2952,9 @@ fn cells_text_keep_wrap(inside: Vec<&TextCell>) -> String {
         // unless it ends with `-`. A dash-ending line whose last word and the
         // next line's first word are both alphanumeric is a wrapped word: the
         // dash is dropped and the lines fuse (`platforms-` + `reflects` →
-        // `platformsreflects`, `pp. 545-` + `561` → `545561`). Any other
+        // `platformsreflects`) — unless that last word is one character or
+        // the next line opens on a digit (docling#4387: `n-` + `octanal` →
+        // `n-octanal`, `pp. 545-` + `561` → `545-561`). Any other
         // dash-ending line — e.g. the *bare* `-` cell a superscript ORCID or an
         // inline `–` bullet splits off (its word list is empty, so the fuse
         // test fails) — keeps its dash and still takes no trailing space:
@@ -2968,16 +2970,15 @@ fn cells_text_keep_wrap(inside: Vec<&TextCell>) -> String {
             // glyph): an empty line would double the separator.
             .filter(|t| !t.is_empty())
             .collect();
-        let last_word_alnum = |s: &str| {
+        // docling's `\b[\w]+\b` words of a line: runs of letters, digits
+        // and `_`.
+        let words = |s: &str| {
             s.split(|c: char| !(c.is_alphanumeric() || c == '_'))
-                .rfind(|w| !w.is_empty())
-                .is_some_and(|w| w.chars().all(char::is_alphanumeric))
+                .filter(|w| !w.is_empty())
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
         };
-        let first_word_alnum = |s: &str| {
-            s.split(|c: char| !(c.is_alphanumeric() || c == '_'))
-                .find(|w| !w.is_empty())
-                .is_some_and(|w| w.chars().all(char::is_alphanumeric))
-        };
+        let alnum = |w: &str| w.chars().all(char::is_alphanumeric);
         let mut out = String::new();
         for (i, t) in texts.iter().enumerate() {
             if i > 0 {
@@ -3006,7 +3007,17 @@ fn cells_text_keep_wrap(inside: Vec<&TextCell>) -> String {
                     // keeps its dash and the line break's space (#920).
                     out.push(' ');
                 } else if dashish && attached {
-                    if last_word_alnum(prev) && first_word_alnum(t) {
+                    // docling#4387: a hyphen no hyphenation rule could have
+                    // placed belongs to the word and stays — after a
+                    // one-character token (`n-` / `octanal`) or before a
+                    // continuation opening on a digit (`15137-` / `15145`,
+                    // `6-methyl-` / `5-hepten-2-one`).
+                    let (pw, nw) = (words(prev), words(t));
+                    let fuses = pw.last().is_some_and(|w| alnum(w) && w.chars().count() > 1)
+                        && nw.first().is_some_and(|w| {
+                            alnum(w) && !w.chars().next().is_some_and(|c| c.is_ascii_digit())
+                        });
+                    if fuses {
                         out.pop(); // wrapped word: fuse without the dash
                     }
                     // an attached dash never takes a separating space
@@ -4929,6 +4940,25 @@ pub(crate) enum Continuations {
     Lines,
 }
 
+/// docling#4387 (`ReadingOrderModel`, `_TOKEN_BEFORE_HYPHEN_RE`): a hard
+/// hyphen ending a paragraph fragment belongs to the word when the token
+/// before it is one character (`n-` / `octanal`) or the continuation opens on
+/// a digit (`6-methyl-` / `5-hepten-2-one`) — no hyphenation rule places
+/// either. The fragments then join without a space and the hyphen stays.
+/// A hyphen after a space (`cost is -`) is no such token.
+fn hyphen_belongs_to_word(a: &str, b: &str) -> bool {
+    let Some(stem) = a.strip_suffix('-') else {
+        return false;
+    };
+    let token: String = stem
+        .chars()
+        .rev()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect();
+    !token.is_empty()
+        && (token.chars().count() == 1 || b.chars().next().is_some_and(|c| c.is_ascii_digit()))
+}
+
 pub(crate) fn merge_continuations(nodes: &mut Vec<Node>, how: Continuations) {
     merge_open_paragraphs(nodes, how);
     strip_wrap_marks(nodes);
@@ -5000,9 +5030,17 @@ fn merge_open_paragraphs(nodes: &mut Vec<Node>, how: Continuations) {
             // its space; docling fuses these (`Warteund`), a deliberate
             // divergence (docs/MIGRATION.md).
             let elliptical = !a.ends_with('\u{ad}') && starts_with_conjunction(&b);
-            let merged = match a.strip_suffix('\u{ad}').or_else(|| a.strip_suffix('-')) {
-                Some(stem) if !elliptical => format!("{stem}{b}"),
-                _ => format!("{a} {b}"),
+            // A hyphen that belongs to the word (docling#4387: after a
+            // one-character token, or before a digit) stays, and the
+            // fragments still join without a space.
+            let merged = match a.strip_suffix('\u{ad}') {
+                Some(stem) => format!("{stem}{b}"),
+                None if elliptical => format!("{a} {b}"),
+                None if hyphen_belongs_to_word(&a, &b) => format!("{a}{b}"),
+                None => match a.strip_suffix('-') {
+                    Some(stem) => format!("{stem}{b}"),
+                    None => format!("{a} {b}"),
+                },
             };
             // Keep node i's provenance wrapper; docling's merged paragraph keeps
             // the first fragment's geometry as its primary location — and, from
@@ -6926,6 +6964,36 @@ mod tests {
         assert_eq!(lines, [page(1), para("the definition of lists in scope")]);
     }
 
+    /// docling#4387 (`test_readingorder_hyphenated_merges.py`): a paragraph
+    /// merge keeps a hyphen that belongs to the word — after a one-character
+    /// token, or before a digit — and joins without a space; a wrapped word
+    /// still fuses, a soft hyphen always does, and the #920 elliptical
+    /// compound before a conjunction keeps its space.
+    #[test]
+    fn paragraph_merge_keeps_a_hyphen_that_belongs_to_the_word() {
+        let merged = |a: &str, b: &str| {
+            let mut nodes = vec![para(a), para(b)];
+            merge_continuations(&mut nodes, Continuations::Lines);
+            nodes
+        };
+        assert_eq!(merged("algo-", "rithms"), [para("algorithms")]);
+        assert_eq!(merged("algo\u{ad}", "rithms"), [para("algorithms")]);
+        assert_eq!(
+            merged("undecanal or n-", "tridecanal"),
+            [para("undecanal or n-tridecanal")]
+        );
+        assert_eq!(
+            merged("Warte-", "und Behaltefristen"),
+            [para("Warte- und Behaltefristen")]
+        );
+        assert_eq!(merged("A-", "und B-Seite"), [para("A- und B-Seite")]);
+        // The digit case, at the join itself (our merge gate only takes a
+        // lowercase continuation, as before).
+        assert!(super::hyphen_belongs_to_word("6-methyl-", "5-hepten-2-one"));
+        assert!(!super::hyphen_belongs_to_word("cost is -", "5.00 USD"));
+        assert!(!super::hyphen_belongs_to_word("algo-", "rithms"));
+    }
+
     /// #1127: a paragraph joined across page breaks keeps every fragment's
     /// box — docling's merged item has one `prov` per page, each with its
     /// `charspan` into the joined text — and the Markdown is unchanged.
@@ -7251,11 +7319,27 @@ mod tests {
             cells_text(vec![&line("algo-", 0.0), &line("rithms", 12.0)]),
             "algorithms"
         );
-        // `pp. 545-` / `561`: attached, digits count as alnum → `545561` (upstream).
+        // docling#4387: a hyphen no hyphenation rule could have placed stays,
+        // with no space — before a continuation opening on a digit …
         assert_eq!(
             cells_text(vec![&line("pp. 545-", 0.0), &line("561", 12.0)]),
-            "pp. 545561"
+            "pp. 545-561"
         );
+        for (a, b, want) in [
+            ("6-methyl-", "5-hepten-2-one", "6-methyl-5-hepten-2-one"),
+            ("COVID-", "19 cases", "COVID-19 cases"),
+            // … or after a one-character token.
+            (
+                "undecanal or n-",
+                "tridecanal, from each blend",
+                "undecanal or n-tridecanal, from each blend",
+            ),
+            ("i-", "butyric acid", "i-butyric acid"),
+            // An underscore-bearing token is no split word (unchanged).
+            ("foo_bar-", "baz", "foo_bar-baz"),
+        ] {
+            assert_eq!(cells_text(vec![&line(a, 0.0), &line(b, 12.0)]), want);
+        }
         // A dash after whitespace — a separator or a lone `-` cell — is kept and
         // the lines take the ordinary joining space.
         assert_eq!(
