@@ -445,6 +445,7 @@ pub fn convert_vlm_result(
         errors,
         redaction: None,
         pdf_repairs: None,
+        ocr_status: None,
     })
 }
 

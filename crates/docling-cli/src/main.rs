@@ -2993,6 +2993,10 @@ fn batch_convert_one(
     // itself; the VLM and warm-pipeline branches bypass `convert`, so it
     // is applied to their document below.
     let mut redaction = None;
+    // Whether the document had the OCR it asked for (#1210): the engine's
+    // own warning prints once per process, so a batch of scans names each
+    // one that came back without it.
+    let mut ocr_status = None;
     let bypasses_converter =
         cfg.vlm.is_some() || matches!(source.format, InputFormat::Pdf | InputFormat::Image);
     let mut document = if let Some(vlm) = &cfg.vlm {
@@ -3011,6 +3015,8 @@ fn batch_convert_one(
         let reporter = std::sync::Arc::new(converter.reporter(document_index, &source.name, None));
         reporter.document_started();
         p.set_progress(reporter.page_hook());
+        // What an earlier document that failed half-way left (#1210).
+        let _ = p.take_ocr_status();
         let converted = match source.format {
             InputFormat::Pdf => p
                 .convert_outcome(&source.bytes, cfg.opts.password.as_deref(), &source.name)
@@ -3027,6 +3033,7 @@ fn batch_convert_one(
             _ => p.convert_image(&source.bytes, &source.name),
         };
         p.set_progress(None);
+        ocr_status = p.take_ocr_status();
         match converted {
             Ok(mut document) => {
                 // The picture enrichment `convert` runs (#896): without it
@@ -3051,8 +3058,15 @@ fn batch_convert_one(
             .map_err(|e| e.to_string())?;
         partial.extend(result.errors.iter().map(docling::ErrorItem::describe));
         redaction = result.redaction;
+        ocr_status = result.ocr_status;
         result.document
     };
+    if let Some(docling::OcrStatus::Unavailable { .. }) = &ocr_status {
+        eprintln!(
+            "warning: {label}: OCR unavailable; text on scanned pages and inside images is \
+             missing"
+        );
+    }
     if bypasses_converter {
         redaction = converter.redact(&mut document).map_err(|e| e.to_string())?;
         // The document-level settings `convert` ends with: without them a

@@ -452,6 +452,14 @@ curl -F file=@deck.pptx -F password=1234 localhost:5001/v1/convert
 
 ## Repaired PDF input
 
+A missing OCR model does not fail a conversion: scanned pages and text
+inside images come back empty, the status stays `Success`, and the result
+says why (#1210) — `result.ocr_status` is `None` when nothing needed OCR,
+`Some(OcrStatus::Available)` when it ran, and
+`Some(OcrStatus::Unavailable { reason })` (the load error) when it could
+not (Python `result.ocr_status`, Node `ocrStatus`, serve
+`X-Docling-Ocr-Status`).
+
 The PDF reader repairs what it can — a stream whose `/Length` overstates or
 understates its data is read from its `endstream` boundary — and says
 nothing about it. A caller that must refuse repaired sources asks (#934):

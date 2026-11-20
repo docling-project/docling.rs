@@ -52,6 +52,11 @@ struct PictureReader {
 
 #[cfg(feature = "pdf")]
 impl PictureReader {
+    /// What the reads so far asked of the OCR engine (#1210), cleared.
+    fn take_ocr_status(&mut self) -> Option<docling_core::OcrStatus> {
+        self.pipeline.take_ocr_status()
+    }
+
     /// The text read off `img`, as the picture's description annotation;
     /// `None` when the picture is skipped (too small, filtered out by its
     /// class) or carries no text.
@@ -121,6 +126,10 @@ struct PictureReader;
 
 #[cfg(not(feature = "pdf"))]
 impl PictureReader {
+    fn take_ocr_status(&mut self) -> Option<docling_core::OcrStatus> {
+        None
+    }
+
     fn read(
         &mut self,
         _img: &docling_core::PictureImage,
@@ -608,6 +617,40 @@ impl std::ops::DerefMut for PipelineLease<'_> {
     }
 }
 
+/// A [`PipelineLease`] that reports what its OCR requests met to the
+/// conversion's reporter when it is given back (#1210) — every ML-pipeline
+/// stage of [`DocumentConverter::convert`] leases one, so none can forget
+/// to. The status is cleared on the lease too: a warm pipeline may still
+/// hold what a conversion that failed half-way left behind.
+#[cfg(feature = "pdf")]
+struct ReportingLease<'a, 'r> {
+    lease: PipelineLease<'a>,
+    reporter: &'r ProgressReporter,
+}
+
+#[cfg(feature = "pdf")]
+impl std::ops::Deref for ReportingLease<'_, '_> {
+    type Target = docling_pdf::Pipeline;
+
+    fn deref(&self) -> &Self::Target {
+        &self.lease
+    }
+}
+
+#[cfg(feature = "pdf")]
+impl std::ops::DerefMut for ReportingLease<'_, '_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.lease
+    }
+}
+
+#[cfg(feature = "pdf")]
+impl Drop for ReportingLease<'_, '_> {
+    fn drop(&mut self) {
+        self.reporter.note_ocr_status(self.lease.take_ocr_status());
+    }
+}
+
 impl Default for DocumentConverter {
     fn default() -> Self {
         Self {
@@ -801,17 +844,19 @@ impl DocumentConverter {
     /// converter was lent. Both are configured by the same setters, so the
     /// warm path cannot drift from the cold one.
     #[cfg(feature = "pdf")]
-    fn ml_pipeline(
+    fn ml_pipeline<'r>(
         &self,
-        progress: Option<docling_pdf::PageProgressHook>,
-    ) -> Result<PipelineLease<'_>, docling_pdf::PdfError> {
+        reporter: &'r std::sync::Arc<ProgressReporter>,
+    ) -> Result<ReportingLease<'_, 'r>, docling_pdf::PdfError> {
         let switches = PipelineSwitches::of(self);
         let mut lease = match &self.warm {
             None => PipelineLease::Fresh(Box::new(switches.build()?)),
             Some(warm) => PipelineLease::Warm(warm.lease(switches)?),
         };
-        self.configure_pipeline(&mut lease, progress);
-        Ok(lease)
+        self.configure_pipeline(&mut lease, reporter.page_hook());
+        // Stale state from an earlier holder of a warm pipeline (#1210).
+        let _ = lease.take_ocr_status();
+        Ok(ReportingLease { lease, reporter })
     }
 
     /// Every per-conversion setting, set unconditionally — on a warm
@@ -873,7 +918,7 @@ impl DocumentConverter {
         if self.text_layer_only != TextLayerOnly::On && !self.no_ocr {
             let pngs = djvu::rasterize_pages(&source.bytes, self.page_range)?;
             let mut pipeline = self
-                .ml_pipeline(reporter.page_hook())
+                .ml_pipeline(reporter)
                 .map_err(|e| ConversionError::with_source("djvu", e))?;
             let mut doc = docling_core::DoclingDocument::new(&source.name);
             for (i, (page_no, png)) in pngs.iter().enumerate() {
@@ -1770,6 +1815,8 @@ impl DocumentConverter {
                 }
             }
         }
+        // What the picture reads asked of the OCR engine (#1210).
+        reporter.note_ocr_status(reader.take_ocr_status());
     }
 
     /// The picture-description pass (#670). Two walks over the document:
@@ -2119,6 +2166,7 @@ impl DocumentConverter {
     fn convert_video(
         &self,
         source: &SourceDocument,
+        reporter: &ProgressReporter,
     ) -> Result<docling_core::DoclingDocument, String> {
         use docling_core::Node;
         let opts = self.frame_options();
@@ -2146,14 +2194,19 @@ impl DocumentConverter {
                 }
             }
         };
-        crate::video::convert_video(
+        let converted = crate::video::convert_video(
             &source.bytes,
             &source.name,
             self.asr_model.as_deref(),
             self.asr_lang.as_deref(),
             &opts,
             &mut on_frame,
-        )
+        );
+        // The frames' picture OCR (#1210): what its requests met.
+        if let Some(Some(reader)) = reader.as_mut() {
+            reporter.note_ocr_status(reader.take_ocr_status());
+        }
+        converted
     }
 
     /// The copybook layout for EBCDIC sources (#252): docling's
@@ -2996,6 +3049,9 @@ impl DocumentConverter {
         // today the PDF pipeline's spent document budget (#497).
         #[cfg_attr(not(feature = "pdf"), allow(unused_mut))]
         let mut errors: Vec<crate::ErrorItem> = Vec::new();
+        // A retried attempt (a sniffed format) starts its OCR status afresh
+        // (#1210): only the attempt that produced the document reports.
+        let _ = reporter.take_ocr_status();
         // An encrypted Office document (#624/#625) is decrypted with the
         // converter's password (or the format's default password) into the
         // file the backend reads; without a key that opens it, the error
@@ -3266,7 +3322,7 @@ impl DocumentConverter {
                 #[cfg(feature = "pdf")]
                 InputFormat::Pdf => {
                     let converted = self
-                        .ml_pipeline(reporter.page_hook())
+                        .ml_pipeline(reporter)
                         .and_then(|mut p| {
                             p.set_force_full_page_ocr(self.force_full_page_ocr);
                             p.set_pages(self.page_range);
@@ -3296,7 +3352,7 @@ impl DocumentConverter {
                 #[cfg(feature = "pdf")]
                 InputFormat::Svg if self.text_layer_only == TextLayerOnly::Off && !self.no_ocr => {
                     let png = crate::backend::svg::rasterize_png(&source.bytes)?;
-                    self.ml_pipeline(reporter.page_hook())
+                    self.ml_pipeline(reporter)
                         .and_then(|mut p| p.convert_image(&png, &source.name))
                         .map_err(|e| ConversionError::with_source("svg", e))?
                 }
@@ -3310,7 +3366,7 @@ impl DocumentConverter {
                         Ok(doc) => doc,
                         Err(_) => {
                             let png = crate::backend::svg::rasterize_png(&source.bytes)?;
-                            self.ml_pipeline(reporter.page_hook())
+                            self.ml_pipeline(reporter)
                                 .and_then(|mut p| p.convert_image(&png, &source.name))
                                 .map_err(|e| ConversionError::with_source("svg", e))?
                         }
@@ -3331,12 +3387,12 @@ impl DocumentConverter {
                 }
                 #[cfg(feature = "pdf")]
                 InputFormat::Image => self
-                    .ml_pipeline(reporter.page_hook())
+                    .ml_pipeline(reporter)
                     .and_then(|mut p| p.convert_image(&source.bytes, &source.name))
                     .map_err(|e| ConversionError::with_source("image", e))?,
                 #[cfg(feature = "pdf")]
                 InputFormat::MetsGbs => self
-                    .ml_pipeline(reporter.page_hook())
+                    .ml_pipeline(reporter)
                     .and_then(|mut p| {
                         docling_pdf::convert_mets_gbs_with_pipeline(
                             &source.bytes,
@@ -3361,7 +3417,7 @@ impl DocumentConverter {
                 // pictures (Phase 2). Without ffmpeg: transcript only.
                 #[cfg(feature = "asr")]
                 InputFormat::Video => self
-                    .convert_video(source)
+                    .convert_video(source, reporter)
                     .map_err(|e| ConversionError::with_source(source.format.as_str(), e))?,
                 // Without the full ML pipeline, `pdf-text` still converts a PDF's
                 // embedded text layer (pure Rust — the wasm32 path), equivalent to
@@ -3460,6 +3516,7 @@ impl DocumentConverter {
             format: source.format,
             redaction,
             pdf_repairs,
+            ocr_status: reporter.take_ocr_status(),
             errors,
         })
     }
@@ -3499,7 +3556,15 @@ mod tests {
         assert_eq!(built(&warm), Some(text));
         // Converters share the handle.
         let converter = DocumentConverter::new().warm_pipeline(&warm);
-        drop(converter.ml_pipeline(None).unwrap());
+        drop(
+            converter
+                .ml_pipeline(&std::sync::Arc::new(ProgressReporter::new(
+                    Vec::new(),
+                    0,
+                    "t",
+                )))
+                .unwrap(),
+        );
         assert_eq!(built(&warm), Some(full));
     }
 

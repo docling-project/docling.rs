@@ -371,3 +371,21 @@ fn test_name(name: &str) -> String {
         None => path,
     }
 }
+
+/// #1210: the picture-OCR pass reports what its reads met on the result —
+/// `Available` when it read, nothing when it was off.
+#[test]
+fn the_pass_reports_its_ocr_status() {
+    if !ocr_models_ready() {
+        eprintln!("skipping: OCR models not found");
+        return;
+    }
+    let source = || SourceDocument::from_file(fixture()).expect("fixture");
+    let read = DocumentConverter::new()
+        .do_picture_ocr(true)
+        .convert(source())
+        .expect("convert");
+    assert_eq!(read.ocr_status, Some(docling::OcrStatus::Available));
+    let off = DocumentConverter::new().convert(source()).expect("convert");
+    assert_eq!(off.ocr_status, None);
+}

@@ -46,11 +46,14 @@ fn scanned_fixtures_match_groundtruth() {
     ] {
         let source = SourceDocument::from_file(format!("tests/data/scanned/sources/{stem}.pdf"))
             .expect("scanned fixture");
-        let got = converter
-            .convert(source)
-            .expect("scanned conversion")
-            .document
-            .export_to_markdown();
+        let result = converter.convert(source).expect("scanned conversion");
+        // The OCR the scan asked for ran (#1210).
+        assert_eq!(
+            result.ocr_status,
+            Some(docling::OcrStatus::Available),
+            "{stem}"
+        );
+        let got = result.document.export_to_markdown();
         let want = std::fs::read_to_string(format!("tests/data/scanned/groundtruth/{stem}.md"))
             .expect("groundtruth");
         // The groundtruth files carry no trailing newline; normalize both ends.

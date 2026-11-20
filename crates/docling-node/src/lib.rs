@@ -702,6 +702,14 @@ pub struct ConvertResult {
     /// `pdfReportRepairs` was on and the input is a PDF — `[]` for a
     /// well-formed file; absent otherwise.
     pub pdf_repairs: Option<Vec<PdfRepairItem>>,
+    /// Whether the conversion had the OCR it asked for (#1210):
+    /// `"available"`, or `"unavailable"` when the OCR model could not be
+    /// loaded and the conversion went on without it — scanned pages and
+    /// text inside images are then missing although the status is
+    /// `"success"`. Absent when nothing asked for OCR.
+    pub ocr_status: Option<String>,
+    /// The load error behind an `"unavailable"` `ocrStatus`.
+    pub ocr_unavailable_reason: Option<String>,
 }
 
 /// One repair the PDF reader made to read the input (#934).
@@ -878,6 +886,7 @@ pub struct RawResult {
     errors: Vec<docling::ErrorItem>,
     redaction: Option<docling::RedactionReport>,
     pdf_repairs: Option<Vec<docling::PdfRepair>>,
+    ocr_status: Option<docling::OcrStatus>,
 }
 
 impl RawResult {
@@ -892,6 +901,11 @@ impl RawResult {
                 .redaction
                 .map(|r| r.counts.into_iter().map(|(k, v)| (k, v as u32)).collect()),
             pdf_repairs: self.pdf_repairs.map(pdf_repair_items),
+            ocr_status: self.ocr_status.as_ref().map(|s| s.as_str().to_string()),
+            ocr_unavailable_reason: match self.ocr_status {
+                Some(docling::OcrStatus::Unavailable { reason }) => Some(reason),
+                _ => None,
+            },
             images: self
                 .images
                 .into_iter()
@@ -1076,6 +1090,7 @@ fn render_doc(
         errors,
         redaction,
         pdf_repairs: None,
+        ocr_status: None,
     }
 }
 
@@ -1136,6 +1151,7 @@ fn run_convert(source: SourceDocument, cfg: &ConvertConfig) -> Result<RawResult>
     let status = status_str(result.status);
     Ok(RawResult {
         pdf_repairs: result.pdf_repairs,
+        ocr_status: result.ocr_status,
         ..render_doc(
             result.document,
             cfg,
@@ -2010,6 +2026,8 @@ fn run_pipeline(
     let reporter = Arc::new(converter.reporter(1, &source.name, None));
     reporter.document_started();
     pipe.set_progress(reporter.page_hook());
+    // What an earlier conversion that failed half-way left (#1210).
+    let _ = pipe.take_ocr_status();
     // docling's PARTIAL_SUCCESS (#497): a spent budget leaves the pages done.
     let mut errors: Vec<docling::ErrorItem> = Vec::new();
     let converted = match source.format {
@@ -2028,6 +2046,7 @@ fn run_pipeline(
         _ => pipe.convert_image(&source.bytes, &source.name),
     };
     pipe.set_progress(None);
+    reporter.note_ocr_status(pipe.take_ocr_status());
     let mut doc = match converted {
         Ok(doc) => doc,
         Err(e) => {
@@ -2058,6 +2077,7 @@ fn run_pipeline(
     };
     Ok(RawResult {
         pdf_repairs,
+        ocr_status: reporter.take_ocr_status(),
         ..render_doc(
             doc,
             cfg,

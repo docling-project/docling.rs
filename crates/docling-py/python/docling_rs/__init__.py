@@ -219,7 +219,14 @@ class ConversionResult:
     to read the input — ``[{"kind": "stream_length", "object": [4, 0],
     "offset": 202, "declared": 5, "recovered": 3}]``, ``[]`` for a
     well-formed file — when the converter was built with
-    ``pdf_report_repairs=True`` and the input is a PDF, else ``None``."""
+    ``pdf_report_repairs=True`` and the input is a PDF, else ``None``.
+    ``.ocr_status`` (#1210) says whether the conversion had the OCR it
+    needed: ``"available"``, ``"unavailable"`` — the OCR models could not be
+    loaded (install them with :func:`download_models`) and the conversion
+    went on without them, so scanned pages and text inside images are
+    missing although the status is ``SUCCESS`` — or ``None`` when nothing
+    asked for OCR. ``.ocr_unavailable_reason`` is the load error behind an
+    ``"unavailable"``."""
 
     def __init__(
         self,
@@ -231,6 +238,8 @@ class ConversionResult:
         metadata: Optional[Dict[str, Any]] = None,
         confidence: Optional[ConfidenceReport] = None,
         pdf_repairs: Optional[List[Dict[str, Any]]] = None,
+        ocr_status: Optional[str] = None,
+        ocr_unavailable_reason: Optional[str] = None,
     ):
         self.status = ConversionStatus(status)
         self.document = document
@@ -240,6 +249,8 @@ class ConversionResult:
         self.metadata = dict(metadata) if metadata is not None else None
         self.confidence = confidence if confidence is not None else ConfidenceReport()
         self.pdf_repairs = list(pdf_repairs) if pdf_repairs is not None else None
+        self.ocr_status = ocr_status
+        self.ocr_unavailable_reason = ocr_unavailable_reason
 
 
 # Imported here because datamodel re-exports ConversionResult from this module.
@@ -1418,4 +1429,6 @@ def _wrap(native) -> ConversionResult:
             else ConfidenceReport()
         ),
         json.loads(pdf_repairs_json) if pdf_repairs_json is not None else None,
+        getattr(native, "ocr_status", None),
+        getattr(native, "ocr_unavailable_reason", None),
     )
