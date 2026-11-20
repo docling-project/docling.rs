@@ -21,6 +21,71 @@ known residual items.
   HTML and is off by default; enable it only for content you accept that risk
   for.
 
+### Denial-of-service reports: scope and scoring
+
+Which resource-exhaustion reports count as vulnerabilities, following
+docling's policy (docling#5475). A converter is built to take untrusted
+documents in its **default configuration**; running it in isolated workers
+with memory and CPU-time limits (see
+[`docling-serve`](#docling-serve-http-conversion-api) below) is defence
+in depth, not a substitute for the limits inside docling.rs.
+
+**In scope** — all three hold:
+
+- a small, attacker-controlled value or structure makes the conversion use
+  memory or CPU out of proportion to the input's size: a decompression bomb;
+  a declared span, repeat count, table or sheet size, image or page size used
+  as an allocation size; nesting that drives recursion; a super-linear
+  algorithm;
+- it happens in the default configuration;
+- the limits on by default do not stop it. These are the ones in
+  [Hardening in place](#hardening-in-place) at their defaults — among them
+  `DOCLING_RS_OOXML_MAX_MEMBER_MB` / `_MAX_TOTAL_MB` / `_MAX_MEMBERS`, the
+  `DOCLING_RS_ZIP_MAX_*` archive limits, `DOCLING_RS_MAX_PART_BYTES`,
+  `DOCLING_RS_MAX_IMAGE_PIXELS`, `DOCLING_RS_MAX_RENDER_PIXELS`,
+  `DOCLING_RS_MAX_IMAGE_BYTES`, `DOCLING_RS_MAX_XML_DEPTH`,
+  `DOCLING_RS_MAX_HTML_DEPTH`, `DOCLING_RS_SHEET_MAX_CELLS`,
+  `DOCLING_RS_ODS_MAX_REPEATED_CELLS` and `DOCLING_RS_MAX_TABLE_CELLS` /
+  `DOCLING_RS_MAX_TOTAL_TABLE_CELLS`, plus serve's request bounds.
+
+A limit that is off unless the operator sets it — a page range, a document
+timeout, `DOCLING_RS_MAX_IMAGES` / `DOCLING_RS_MAX_IMAGE_TOTAL_MB`,
+`DOCLING_RS_CUDA_MEM_LIMIT_MB` — does not take a default-configuration
+report out of scope. A document timeout is checked between pages and
+pipeline stages, so one page or one model run that never ends stays in scope
+with a timeout set.
+
+**Out of scope:**
+
+- cost that grows linearly with the bytes the attacker sends (a large ZIP
+  central directory, a long text);
+- resource use within the default limits, or within the limits the operator
+  set;
+- behaviour that needs an opt-in this page marks as risky — the
+  `web-browser` feature, `image_sources=remote` / `fetch_images`, the
+  `pdfium` feature, raised limits. Such a report is accepted at low
+  severity at most;
+- a bug in a dependency that docling.rs does not make reachable, or whose
+  fix its version pins do not block — report it to that project;
+- an attacker who already controls the process's working directory,
+  environment, model files or installed binaries (above).
+
+**Scoring:** CVSS 3.1 with `UI:R`, since a user or a service has to convert
+the file. Unbounded memory or CPU use in the default configuration is usually
+`AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:H` — 6.5 (Medium); a bounded case, or one
+that needs an opt-in, takes `A:L`, `AC:H` or both. A separate third-party
+vulnerability is not chained into the score.
+
+### Reporting a vulnerability
+
+Do not open a public issue, discussion or pull request for a security
+problem. Report it privately through GitHub's **Report a vulnerability**
+button on the repository's
+[Security tab](https://github.com/docling-project/docling.rs/security)
+(the policy is [`.github/SECURITY.md`](../.github/SECURITY.md)), with the
+input or the steps that trigger it, the version, and the surface (library,
+CLI, serve, MCP, a binding).
+
 ## Hardening in place
 
 Resource limits that turn a crafted document from a process abort into a
