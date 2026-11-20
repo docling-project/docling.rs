@@ -540,7 +540,10 @@ fn guess_legacy_encoding(bytes: &[u8]) -> Option<(&'static encoding_rs::Encoding
 }
 
 /// Python's `utf-32` codec on the bytes after the mark.
-fn decode_utf32(rest: &[u8], little_endian: bool) -> Result<Cow<'static, str>, ConversionError> {
+pub(crate) fn decode_utf32(
+    rest: &[u8],
+    little_endian: bool,
+) -> Result<Cow<'static, str>, ConversionError> {
     if !rest.len().is_multiple_of(4) {
         return Err(ConversionError::Parse("truncated UTF-32 input".into()));
     }

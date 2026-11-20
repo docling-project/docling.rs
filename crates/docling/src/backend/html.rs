@@ -57,7 +57,9 @@ impl DeclarativeBackend for HtmlBackend {
 /// document declares (an XML declaration within the first 1024 bytes, else a
 /// `<meta charset>` / `http-equiv` charset within the first
 /// `max(2048, 5 % of the length)` bytes — bs4's search windows and regexes);
-/// else strict UTF-8; else windows-1252, which never fails. Each candidate is
+/// else, for a page without a mark whose first character is ASCII between
+/// NULs, UTF-16 / UTF-32 by that pattern (#1179); else strict UTF-8; else
+/// windows-1252, which never fails. Each candidate is
 /// taken only when it decodes without error, as upstream does. The one step
 /// not reproduced is bs4's third-party detector (chardet / charset_normalizer),
 /// consulted between the declaration and the fallbacks: it is heuristic and
@@ -66,7 +68,19 @@ impl DeclarativeBackend for HtmlBackend {
 /// (`encoding_rs`), so `iso-8859-1`/`latin1` decode as windows-1252 the way
 /// browsers do, where Python's codec would map 0x80–0x9F to C1 controls.
 pub(crate) fn decode_html_bytes(bytes: &[u8]) -> std::borrow::Cow<'_, str> {
-    use encoding_rs::{Encoding, WINDOWS_1252};
+    use encoding_rs::{Encoding, UTF_16BE, UTF_16LE, WINDOWS_1252};
+    // UTF-32 before UTF-16: its LE mark starts with UTF-16 LE's, and
+    // `encoding_rs` knows no UTF-32 (#1179, docling#5274's tests).
+    for (bom, little_endian) in [
+        (&[0xff, 0xfe, 0, 0][..], true),
+        (&[0, 0, 0xfe, 0xff][..], false),
+    ] {
+        if let Some(rest) = bytes.strip_prefix(bom) {
+            if let Ok(text) = crate::source::decode_utf32(rest, little_endian) {
+                return text;
+            }
+        }
+    }
     if let Some((enc, bom_len)) = Encoding::for_bom(bytes) {
         if let Some(text) =
             enc.decode_without_bom_handling_and_without_replacement(&bytes[bom_len..])
@@ -80,6 +94,23 @@ pub(crate) fn decode_html_bytes(bytes: &[u8]) -> std::borrow::Cow<'_, str> {
                 return text;
             }
         }
+    }
+    // Without a mark, ASCII markup in UTF-16 / UTF-32 is valid UTF-8 full of
+    // NULs; bs4's detector reads it as UTF-16/32, so a NUL pattern around the
+    // first character settles it here (a cheap stand-in for the detector, for
+    // these encodings only).
+    let first = bytes.iter().position(|&b| b != 0);
+    let utf16 =
+        |enc: &'static Encoding| enc.decode_without_bom_handling_and_without_replacement(bytes);
+    let sniffed = match (first, bytes.get(..4)) {
+        (Some(0), Some([_, 0, 0, 0])) => crate::source::decode_utf32(bytes, true).ok(),
+        (Some(3), Some([0, 0, 0, _])) => crate::source::decode_utf32(bytes, false).ok(),
+        (Some(0), Some([_, 0, _, 0])) => utf16(UTF_16LE),
+        (Some(1), Some([0, _, 0, _])) => utf16(UTF_16BE),
+        _ => None,
+    };
+    if let Some(text) = sniffed {
+        return text;
     }
     if let Ok(text) = std::str::from_utf8(bytes) {
         return std::borrow::Cow::Borrowed(text);
@@ -3308,6 +3339,87 @@ mod tests {
             // Markdown is unchanged: the caption, then its picture.
             let md = doc.export_to_markdown();
             assert!(md.contains("Caption text\n\n<!-- image -->"), "{md}");
+        }
+    }
+
+    fn texts_of_bytes(bytes: Vec<u8>) -> Vec<String> {
+        let src = SourceDocument::from_bytes("page.html", InputFormat::Html, bytes);
+        HtmlBackend.convert(&src).unwrap().export_to_json_value()["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["text"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    fn page(text: &str, head: &str) -> String {
+        let head = if head.is_empty() {
+            String::new()
+        } else {
+            format!("<head>{head}</head>")
+        };
+        format!("<html>{head}<body><h1>Doc</h1><p>{text}</p></body></html>")
+    }
+
+    /// `tests/test_backend_html_encoding.py` (docling#5274, #1179): UTF-8
+    /// without a declaration, a declaration over a UTF-8 guess, a UTF-8 BOM,
+    /// and ASCII pages in UTF-16 / UTF-32 with and without a mark.
+    #[test]
+    fn html_encodings_like_docling() {
+        for text in [
+            "Zażółć gęślą jaźń",
+            "é é é",
+            "Qualcomm® AI Engine for Qualcomm® Hexagon™ NPU",
+            "Größe und Maße",
+            "Où est le café ?",
+        ] {
+            assert_eq!(texts_of_bytes(page(text, "").into_bytes()), ["Doc", text]);
+        }
+        for (charset, text) in [
+            ("windows-1251", "Привет, мир"),
+            ("windows-1252", "café au lait"),
+            ("shift_jis", "日本語のテキスト"),
+            ("windows-1252", "Ã©tÃ©"),
+        ] {
+            let enc = encoding_rs::Encoding::for_label(charset.as_bytes()).unwrap();
+            let html = page(text, &format!(r#"<meta charset="{charset}">"#));
+            let (bytes, _, errors) = enc.encode(&html);
+            assert!(!errors, "{charset}");
+            assert_eq!(texts_of_bytes(bytes.into_owned())[1], text, "{charset}");
+        }
+        let text = "Zażółć gęślą jaźń";
+        let mut bom = b"\xef\xbb\xbf".to_vec();
+        bom.extend(page(text, "").as_bytes());
+        assert_eq!(texts_of_bytes(bom), ["Doc", text]);
+        let html = page("plain text", "");
+        let utf16 = |le: bool| -> Vec<u8> {
+            html.encode_utf16()
+                .flat_map(|u| if le { u.to_le_bytes() } else { u.to_be_bytes() })
+                .collect()
+        };
+        let utf32 = |le: bool| -> Vec<u8> {
+            html.chars()
+                .flat_map(|c| {
+                    if le {
+                        (c as u32).to_le_bytes()
+                    } else {
+                        (c as u32).to_be_bytes()
+                    }
+                })
+                .collect()
+        };
+        let with = |mut bom: Vec<u8>, body: Vec<u8>| {
+            bom.extend(body);
+            bom
+        };
+        for (name, bytes) in [
+            ("utf-16-le", utf16(true)),
+            ("utf-16-be", utf16(false)),
+            ("utf-16", with(vec![0xff, 0xfe], utf16(true))),
+            ("utf-32", with(vec![0xff, 0xfe, 0, 0], utf32(true))),
+            ("utf-32-be", utf32(false)),
+        ] {
+            assert_eq!(texts_of_bytes(bytes), ["Doc", "plain text"], "{name}");
         }
     }
 
