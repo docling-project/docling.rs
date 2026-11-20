@@ -254,19 +254,22 @@ pub(super) fn build_spreadsheet(sheet: XmlNode, styles: &Styles) -> Built {
         let first = w.tree.items.len();
         w.convert_sheet(table, group, page_no, layer);
         w.sheet_repeats = None;
-        // `_find_page_size`: the extent of the page's items in cell units
-        // (`right − left`, `bottom − top`; 0×0 for a sheet without any).
-        let mut ext: Option<(f64, f64, f64, f64)> = None;
+        // `_find_page_size` (docling#5300, #1173): the largest right and
+        // bottom edge of the page's items, every content layer, in cell
+        // units — 0×0 for a sheet without any. It used to be the extent
+        // (`right − left`, `bottom − top`), which made the page smaller than
+        // an offset table, and docling-core's clamp then cut the table's box.
+        let mut ext: Option<(f64, f64)> = None;
         for item in &w.tree.items[first..] {
             if let Some(p) = &item.prov {
-                let [l, t, r, b] = p.bbox;
+                let [_, _, r, b] = p.bbox;
                 ext = Some(match ext {
-                    None => (l, t, r, b),
-                    Some((el, et, er, eb)) => (el.min(l), et.min(t), er.max(r), eb.max(b)),
+                    None => (r, b),
+                    Some((er, eb)) => (er.max(r), eb.max(b)),
                 });
             }
         }
-        let (w_, h_) = ext.map_or((0.0, 0.0), |(l, t, r, b)| (r - l, b - t));
+        let (w_, h_) = ext.unwrap_or((0.0, 0.0));
         pages.push((page_no, w_, h_));
     }
     Built {
@@ -2271,6 +2274,54 @@ mod tests {
         }
     }
 
+    /// docling#5300 (#1173, `test_ods_offset_table_keeps_unclamped_page_size`,
+    /// visible and hidden): an offset table's page reaches its right and
+    /// bottom edge, so the exported box is not clamped.
+    #[test]
+    fn ods_offset_table_keeps_unclamped_page_size() {
+        for hidden in [false, true] {
+            let display = if hidden {
+                r#" table:display="false""#
+            } else {
+                ""
+            };
+            let cell = |t: &str| {
+                format!(
+                    r#"<table:table-cell office:value-type="string"><text:p>{t}</text:p></table:table-cell>"#
+                )
+            };
+            let xml = format!(
+                r#"<office:document {NS}><office:body><office:spreadsheet>
+                  <table:table table:name="Sheet"{display}>
+                    <table:table-row><table:table-cell table:number-columns-repeated="3"/></table:table-row>
+                    <table:table-row><table:table-cell/>{}{}</table:table-row>
+                    <table:table-row><table:table-cell/>{}{}</table:table-row>
+                  </table:table>
+                </office:spreadsheet></office:body></office:document>"#,
+                cell("a"),
+                cell("b"),
+                cell("1"),
+                cell("2"),
+            );
+            let doc = convert(&xml, InputFormat::Ods);
+            let v: serde_json::Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+            let size = &v["pages"]["1"]["size"];
+            assert_eq!(
+                (size["width"].as_f64(), size["height"].as_f64()),
+                (Some(3.0), Some(3.0)),
+                "hidden={hidden}"
+            );
+            let tables = v["tables"].as_array().unwrap();
+            assert_eq!(tables.len(), 1, "hidden={hidden}");
+            let bbox = &tables[0]["prov"][0]["bbox"];
+            let edges: Vec<f64> = ["l", "t", "r", "b"]
+                .iter()
+                .map(|k| bbox[k].as_f64().unwrap())
+                .collect();
+            assert_eq!(edges, [1.0, 1.0, 3.0, 3.0], "hidden={hidden}");
+        }
+    }
+
     #[test]
     fn typed_values_are_spelled_as_odfdo_does() {
         let durations = [
@@ -2337,7 +2388,11 @@ mod tests {
             } => Some((*page_no, *width, *height)),
             _ => None,
         });
-        assert_eq!(page, Some((1, 2.0, 3.0)), "right − left, bottom − top");
+        assert_eq!(
+            page,
+            Some((1, 3.0, 3.0)),
+            "the largest right and bottom edge"
+        );
     }
 
     /// The tree items of the rich cell group `g`: its runs, flattening an
