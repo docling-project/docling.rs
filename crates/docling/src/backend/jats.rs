@@ -21,7 +21,8 @@ use crate::error::ConversionError;
 use crate::source::SourceDocument;
 use docling_core::tree::{Formatting, ItemTree, ListMeta, TreeKind};
 use docling_core::{
-    inline_paragraph_node, DoclingDocument, InlineRun, ListItemDclx, Node, PictureImage, Script,
+    inline_paragraph_node, ContentLayer, DoclingDocument, InlineRun, ListItemDclx, Node,
+    PictureImage, Script,
     Table, TableStructure,
 };
 
@@ -146,6 +147,9 @@ const ORDERED_LIST_TYPES: &[&str] = &[
 struct Out<'a> {
     doc: &'a mut DoclingDocument,
     tree: ItemTree,
+    /// The content layer new tree items go on — `None` (body) except while
+    /// the article statements are added (docling#4866 / #5216: furniture).
+    layer: Option<ContentLayer>,
 }
 
 impl Out<'_> {
@@ -162,7 +166,7 @@ impl Out<'_> {
     ) -> usize {
         self.tree.add(
             parent,
-            None,
+            self.layer,
             TreeKind::Text {
                 label: label.into(),
                 text: text.into(),
@@ -191,7 +195,7 @@ impl Out<'_> {
     fn group(&mut self, parent: Option<usize>, label: &str, name: &str) -> usize {
         self.tree.add(
             parent,
-            None,
+            self.layer,
             TreeKind::Group {
                 label: label.into(),
                 name: name.into(),
@@ -258,6 +262,7 @@ impl DeclarativeBackend for JatsBackend {
                 inline_whitespace: true,
                 ..ItemTree::default()
             },
+            layer: None,
         };
 
         // --- metadata -------------------------------------------------------
@@ -394,9 +399,85 @@ impl DeclarativeBackend for JatsBackend {
         for sub in subs {
             add_sub_article(sub, root, &mut hlevel, fig_base, &mut out);
         }
+        add_statements(&dom, root, &mut hlevel, fig_base, &mut out);
         let tree = out.tree;
         doc.tree = Some(tree);
         Ok(doc)
+    }
+}
+
+/// docling's `_parse_statements` (docling#4866, #5216): the copyright
+/// statement, each license paragraph, the funding statement and each author
+/// note of the article's metadata (`_find_metadata`: the first
+/// `article-meta`, else `book-part-meta`), in source order.
+fn statements<'a, 'i>(dom: &'a Document<'i>) -> Vec<XmlNode<'a, 'i>> {
+    let Some(meta) = ["article-meta", "book-part-meta"]
+        .iter()
+        .find_map(|name| dom.descendants().find(|n| n.has_tag_name(*name)))
+    else {
+        return Vec::new();
+    };
+    // `node`'s ancestors up to `meta` are exactly `path` (innermost first).
+    let under = |node: XmlNode, path: &[&str]| {
+        let mut cur = node.parent();
+        for tag in path {
+            match cur {
+                Some(p) if p.has_tag_name(*tag) => cur = p.parent(),
+                _ => return false,
+            }
+        }
+        cur == Some(meta)
+    };
+    meta.descendants()
+        .filter(|n| match n.tag_name().name() {
+            _ if !n.is_element() => false,
+            "copyright-statement" => under(*n, &["permissions"]),
+            "license-p" => under(*n, &["license", "permissions"]),
+            "funding-statement" => under(*n, &["funding-group"]),
+            "fn" => under(*n, &["author-notes"]),
+            _ => false,
+        })
+        .collect()
+}
+
+/// docling's `_add_statements`: the [`statements`] on the furniture layer, as
+/// the last children of the title item — like the page headers and footers
+/// of other backends, available on request but out of the reading order, so
+/// the default Markdown is unchanged and `--layers all` appends them. A
+/// statement is walked like a paragraph (styling, `<sup>`, `<ext-link>`
+/// targets kept); an author note like a footnote (`_walk_author_footnote`:
+/// its label kept, equal runs coalesced, text runs `footnote`). One run is a
+/// text item, several an inline group.
+fn add_statements(
+    dom: &Document,
+    root: Option<usize>,
+    hlevel: &mut i32,
+    fig_base: Option<&Path>,
+    out: &mut Out,
+) {
+    for statement in statements(dom) {
+        let (segments, footnote) = if statement.has_tag_name("fn") {
+            let mut merged = Vec::new();
+            extend_segments(
+                &mut merged,
+                walk_inline_formula(statement, Fmt::default(), None, true),
+            );
+            (merged, true)
+        } else {
+            let segs = walk_linear(statement, root, Fmt::default(), None, hlevel, fig_base, out);
+            (segs, false)
+        };
+        out.layer = Some(ContentLayer::Furniture);
+        let start = out.doc.nodes.len();
+        emit_inline_labelled(out, root, segments, if footnote { "footnote" } else { "text" });
+        // The flat nodes of the statement: furniture, which Markdown and
+        // LaTeX leave out by default and DocLang marks with its layer.
+        let added: Vec<Node> = out.doc.nodes.drain(start..).collect();
+        out.doc.nodes.extend(added.into_iter().map(|inner| Node::Furniture {
+            layer: ContentLayer::Furniture,
+            inner: Box::new(inner),
+        }));
+        out.layer = None;
     }
 }
 
@@ -517,6 +598,7 @@ fn walk_generic(node: XmlNode, doc: &mut DoclingDocument) {
             let mut out = Out {
                 doc,
                 tree: ItemTree::default(),
+                layer: None,
             };
             add_table_grid(&mut out, None, child);
             continue;
@@ -1294,6 +1376,12 @@ fn strip_segments(segments: Vec<Seg>) -> Vec<Seg> {
 /// styled run carries its emphasis into DocLang while Markdown keeps the
 /// baked-in `*…*`/`**…**` markers.
 fn emit_inline(out: &mut Out, parent: Option<usize>, segments: Vec<Seg>) {
+    emit_inline_labelled(out, parent, segments, "text");
+}
+
+/// [`emit_inline`] with the tree label of the text runs (`footnote` for an
+/// author note, docling's `_as_footnote_segments`); formulas stay `formula`.
+fn emit_inline_labelled(out: &mut Out, parent: Option<usize>, segments: Vec<Seg>, label: &str) {
     let trimmed = trim_segment_edges(segments);
     if trimmed.is_empty() {
         return;
@@ -1328,7 +1416,7 @@ fn emit_inline(out: &mut Out, parent: Option<usize>, segments: Vec<Seg>) {
         parent
     };
     for seg in &trimmed {
-        let label = if seg.formula { "formula" } else { "text" };
+        let label = if seg.formula { "formula" } else { label };
         out.text(
             container,
             label,

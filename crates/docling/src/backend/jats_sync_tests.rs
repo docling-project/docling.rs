@@ -157,3 +157,249 @@ fn footnote_group_keeps_external_link_target() {
         "{md}"
     );
 }
+
+/// `export_to_markdown(included_content_layers={BODY, FURNITURE})`.
+fn md_with_furniture(doc: &DoclingDocument) -> String {
+    let options = docling_core::MarkdownExportOptions {
+        layers: docling_core::ContentLayers {
+            body: true,
+            furniture: true,
+            notes: false,
+            invisible: false,
+            background: false,
+        },
+        ..Default::default()
+    };
+    doc.export_to_markdown_with_options(&options).0
+}
+
+/// docling's `_furniture_statements`: the `(text, hyperlink)` runs of each
+/// furniture text, the runs of one inline group together, in order.
+fn furniture_statements(doc: &DoclingDocument) -> Vec<Vec<(String, Option<String>)>> {
+    let v = json(doc);
+    let mut keys: Vec<String> = Vec::new();
+    let mut runs: Vec<Vec<(String, Option<String>)>> = Vec::new();
+    for item in v["texts"].as_array().unwrap() {
+        if item["content_layer"] != "furniture" {
+            continue;
+        }
+        let mut key = item["self_ref"].as_str().unwrap().to_string();
+        if let Some(parent) = item["parent"]["$ref"].as_str() {
+            if let Some(idx) = parent.strip_prefix("#/groups/") {
+                let group = &v["groups"][idx.parse::<usize>().unwrap()];
+                if group["label"] == "inline" {
+                    assert_eq!(group["content_layer"], "furniture");
+                    key = parent.to_string();
+                }
+            }
+        }
+        let run = (
+            item["text"].as_str().unwrap().to_string(),
+            item["hyperlink"].as_str().map(str::to_string),
+        );
+        match keys.iter().position(|k| *k == key) {
+            Some(i) => runs[i].push(run),
+            None => {
+                keys.push(key);
+                runs.push(vec![run]);
+            }
+        }
+    }
+    runs
+}
+
+fn runs(v: &[(&str, Option<&str>)]) -> Vec<(String, Option<String>)> {
+    v.iter()
+        .map(|(t, h)| (t.to_string(), h.map(str::to_string)))
+        .collect()
+}
+
+/// docling#4866 (`test_jats_license_and_funding_statements_are_furniture`).
+#[test]
+fn license_and_funding_statements_are_furniture() {
+    let doc = meta_doc(
+        r#"<title-group><article-title>Control</article-title></title-group>
+      <permissions><license xlink:href="https://example.org/c3-licence"><license-p>CHARLIE-LICENCE terms of the
+      <ext-link ext-link-type="uri" xlink:href="https://example.org/c3-licence">licence</ext-link>.</license-p></license></permissions>
+      <abstract><p>CHARLIE-ABSTRACT paragraph.</p></abstract>
+      <funding-group><funding-statement>CHARLIE-FUNDING statement.</funding-statement></funding-group>"#,
+        "<sec><title>S</title><p>Body.</p></sec>",
+    );
+    assert_eq!(
+        furniture_statements(&doc),
+        [
+            runs(&[
+                ("CHARLIE-LICENCE terms of the ", None),
+                ("licence", Some("https://example.org/c3-licence")),
+                (".", None),
+            ]),
+            runs(&[("CHARLIE-FUNDING statement.", None)]),
+        ]
+    );
+    let body = doc.export_to_markdown();
+    assert!(body.contains("CHARLIE-ABSTRACT paragraph."));
+    assert!(!body.contains("CHARLIE-LICENCE") && !body.contains("CHARLIE-FUNDING"));
+    let md = md_with_furniture(&doc);
+    let at = |s: &str| md.find(s).unwrap_or_else(|| panic!("{s} in {md}"));
+    assert!(at("Body.") < at("CHARLIE-LICENCE") && at("CHARLIE-LICENCE") < at("CHARLIE-FUNDING"));
+}
+
+/// docling#4866 (`test_jats_copyright_and_each_license_paragraph_are_kept_in_order`).
+#[test]
+fn copyright_and_each_license_paragraph_are_kept_in_order() {
+    let doc = meta_doc(
+        r#"<title-group><article-title>Permissions</article-title></title-group>
+      <permissions>
+        <copyright-statement>© The Authors 2026.</copyright-statement>
+        <copyright-year>2026</copyright-year>
+        <license license-type="cc-by" xlink:href="https://creativecommons.org/licenses/by/4.0/">
+          <license-p>Distributed under the CC BY licence.</license-p>
+          <license-p>Funded by SCOAP<sup>3</sup></license-p>
+        </license>
+      </permissions>
+      <funding-group>
+        <award-group><funding-source>Agency</funding-source></award-group>
+        <funding-statement>First grant.</funding-statement>
+        <funding-statement>Second grant.</funding-statement>
+      </funding-group>"#,
+        "",
+    );
+    assert_eq!(
+        furniture_statements(&doc),
+        [
+            runs(&[("© The Authors 2026.", None)]),
+            runs(&[("Distributed under the CC BY licence.", None)]),
+            runs(&[("Funded by SCOAP", None), ("3", None)]),
+            runs(&[("First grant.", None)]),
+            runs(&[("Second grant.", None)]),
+        ]
+    );
+    let v = json(&doc);
+    let supers: Vec<_> = v["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|t| t["formatting"]["script"] == "super")
+        .map(|t| t["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(supers, ["3"]);
+}
+
+/// docling#5216 (`test_jats_author_footnotes_are_furniture[none|single|multiple]`).
+#[test]
+fn author_footnotes_are_furniture() {
+    let cases: [&[&str]; 3] = [
+        &[],
+        &["Author contribution marker."],
+        &["Author contribution marker.", "Conflict statement marker."],
+    ];
+    for notes in cases {
+        let fns: String = notes.iter().map(|n| format!("<fn><p>{n}</p></fn>")).collect();
+        let author_notes = if notes.is_empty() {
+            String::new()
+        } else {
+            format!("<author-notes>{fns}</author-notes>")
+        };
+        let doc = meta_doc(
+            &format!(
+                "<title-group><article-title>Author Footnote Test</article-title></title-group>
+                {author_notes}"
+            ),
+            "<p>Body text.</p>",
+        );
+        let v = json(&doc);
+        let footnotes: Vec<_> = v["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|t| t["label"] == "footnote")
+            .collect();
+        let texts: Vec<_> = footnotes.iter().map(|t| t["text"].as_str().unwrap()).collect();
+        assert_eq!(texts, notes);
+        assert!(footnotes.iter().all(|t| t["content_layer"] == "furniture"));
+        let want: Vec<_> = notes.iter().map(|n| runs(&[(n, None)])).collect();
+        assert_eq!(furniture_statements(&doc), want);
+        let body = ["# Author Footnote Test", "Body text."];
+        assert_eq!(doc.export_to_markdown().trim_end(), body.join("\n\n"));
+        let all: Vec<&str> = body.iter().chain(notes).copied().collect();
+        assert_eq!(md_with_furniture(&doc).trim_end(), all.join("\n\n"));
+    }
+}
+
+/// docling#5216
+/// (`test_jats_author_footnote_preserves_formatting_link_formula_and_paragraphs`).
+#[test]
+fn author_footnote_preserves_formatting_link_formula_and_paragraphs() {
+    let doc = meta_doc(
+        r#"<title-group><article-title>Author Footnote Test</article-title></title-group>
+        <author-notes>
+          <fn><label>1</label><p>See <italic><ext-link
+            xlink:href="https://example.org/statement">disclosure</ext-link></italic>
+            and <inline-formula><tex-math>x+1</tex-math></inline-formula>.</p>
+            <p>Further details.</p></fn>
+        </author-notes>"#,
+        "",
+    );
+    let v = json(&doc);
+    let texts = v["texts"].as_array().unwrap();
+    let disclosure: Vec<_> = texts
+        .iter()
+        .filter(|t| t["label"] == "footnote" && t["text"] == "disclosure")
+        .collect();
+    assert_eq!(disclosure.len(), 1);
+    let disclosure = disclosure[0];
+    assert_eq!(disclosure["formatting"]["italic"], true);
+    assert_eq!(disclosure["hyperlink"], "https://example.org/statement");
+    assert!(texts
+        .iter()
+        .filter(|t| t["label"] == "footnote")
+        .all(|t| t["content_layer"] == "furniture"));
+    let formula = texts.iter().find(|t| t["label"] == "formula").unwrap();
+    assert_eq!(formula["text"], "x+1");
+    assert_eq!(formula["content_layer"], "furniture");
+    assert_eq!(disclosure["parent"], formula["parent"]);
+    let group = disclosure["parent"]["$ref"].as_str().unwrap();
+    let group = &v["groups"][group.strip_prefix("#/groups/").unwrap().parse::<usize>().unwrap()];
+    assert_eq!(group["label"], "inline");
+    assert_eq!(group["content_layer"], "furniture");
+    assert_eq!(doc.export_to_markdown().trim_end(), "# Author Footnote Test");
+    let md = md_with_furniture(&doc);
+    assert!(!md.contains("Author Notes"), "{md}");
+    assert!(md.contains("1 See"), "{md}");
+    assert!(md.contains("https://example.org/statement"), "{md}");
+    assert!(md.contains("$x+1$. Further details."), "{md}");
+}
+
+/// docling#5216
+/// (`test_jats_author_footnotes_share_furniture_with_article_statements`).
+#[test]
+fn author_footnotes_share_furniture_with_article_statements() {
+    let doc = meta_doc(
+        "<title-group><article-title>Article metadata</article-title></title-group>
+        <author-notes>
+          <fn><p>First author note.</p></fn>
+          <fn><p>Second author note.</p></fn>
+        </author-notes>
+        <permissions><license><license-p>License statement.</license-p></license></permissions>
+        <funding-group><funding-statement>Funding statement.</funding-statement></funding-group>",
+        "<p>Body text.</p><fn-group><fn><p>Body footnote.</p></fn></fn-group>",
+    );
+    assert_eq!(
+        furniture_statements(&doc),
+        [
+            runs(&[("First author note.", None)]),
+            runs(&[("Second author note.", None)]),
+            runs(&[("License statement.", None)]),
+            runs(&[("Funding statement.", None)]),
+        ]
+    );
+    let v = json(&doc);
+    let body_fn = v["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["text"] == "Body footnote.")
+        .unwrap();
+    assert_eq!(body_fn["label"], "footnote");
+    assert_eq!(body_fn["content_layer"], "body");
+}
