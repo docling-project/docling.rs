@@ -1180,3 +1180,83 @@ mod word_segmentation {
         }
     }
 }
+
+/// An image as the opaque RGB page the layout and OCR models read —
+/// docling's `to_rgb` (`utils/image_utils.py`, docling#4511 and #5248,
+/// #1149). Transparency is composited onto white: `into_rgb8()` dropped the
+/// alpha channel, so a transparent PNG holding dark text became a black page
+/// (the PNG decoder already expands a `tRNS` key into alpha, a 16-bit key
+/// included). Samples of a 16-bit image scale to 8 bits by truncation,
+/// `v >> 8`, as Pillow's `value / 256` (the `image` crate rounds `v / 257`,
+/// one off: 60000 read 233, docling 234). Any other image converts as
+/// before.
+pub fn flatten_onto_white(img: image::DynamicImage) -> image::RgbImage {
+    use image::DynamicImage as D;
+    let sixteen = matches!(
+        img,
+        D::ImageLuma16(_) | D::ImageLumaA16(_) | D::ImageRgb16(_) | D::ImageRgba16(_)
+    );
+    if !sixteen && !img.color().has_alpha() {
+        return img.into_rgb8();
+    }
+    let (w, h) = (img.width(), img.height());
+    let rgba: Vec<[u8; 4]> = if sixteen {
+        img.into_rgba16()
+            .pixels()
+            .map(|p| p.0.map(|v| (v >> 8) as u8))
+            .collect()
+    } else {
+        img.into_rgba8().pixels().map(|p| p.0).collect()
+    };
+    let mut out = image::RgbImage::new(w, h);
+    for (dst, [r, g, b, a]) in out.pixels_mut().zip(rgba) {
+        let a = u32::from(a);
+        let over = |c: u8| ((u32::from(c) * a + 255 * (255 - a) + 127) / 255) as u8;
+        dst.0 = [over(r), over(g), over(b)];
+    }
+    out
+}
+
+#[cfg(test)]
+mod flatten_tests {
+    use super::flatten_onto_white;
+    use image::{DynamicImage, ImageBuffer, LumaA, Rgba};
+
+    /// docling's `test_transparent_background_is_flattened_onto_white`
+    /// (docling#4511): a black corner on transparent black.
+    #[test]
+    fn transparency_is_composited_onto_white() {
+        let mut rgba = image::RgbaImage::from_pixel(8, 8, Rgba([0, 0, 0, 0]));
+        rgba.put_pixel(0, 0, Rgba([0, 0, 0, 255]));
+        let out = flatten_onto_white(DynamicImage::ImageRgba8(rgba));
+        assert_eq!(out.get_pixel(0, 0).0, [0, 0, 0]);
+        assert_eq!(out.get_pixel(5, 5).0, [255, 255, 255]);
+        let la: ImageBuffer<LumaA<u8>, Vec<u8>> = ImageBuffer::from_pixel(2, 1, LumaA([0, 0]));
+        assert_eq!(
+            flatten_onto_white(DynamicImage::ImageLumaA8(la))
+                .get_pixel(1, 0)
+                .0,
+            [255; 3]
+        );
+    }
+
+    /// docling#5248: 16-bit samples scale by truncation (`60000 → 234`,
+    /// `4000 → 15`, `[0, 255, 256, 65535] → [0, 0, 1, 255]`); an 8-bit image
+    /// is unchanged.
+    #[test]
+    fn sixteen_bit_samples_truncate_to_eight() {
+        let g: ImageBuffer<image::Luma<u16>, Vec<u16>> = ImageBuffer::from_fn(6, 1, |x, _| {
+            image::Luma([[60000, 4000, 0, 255, 256, 65535][x as usize]])
+        });
+        let out = flatten_onto_white(DynamicImage::ImageLuma16(g));
+        let row: Vec<u8> = out.pixels().map(|p| p.0[0]).collect();
+        assert_eq!(row, [234, 15, 0, 0, 1, 255]);
+        let eight = image::RgbImage::from_pixel(1, 1, image::Rgb([7, 8, 9]));
+        assert_eq!(
+            flatten_onto_white(DynamicImage::ImageRgb8(eight))
+                .get_pixel(0, 0)
+                .0,
+            [7, 8, 9]
+        );
+    }
+}

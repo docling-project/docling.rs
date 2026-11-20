@@ -732,7 +732,9 @@ fn decode_image_with_max_side(bytes: &[u8], max_side: u32) -> Result<image::RgbI
     let mut img = image::DynamicImage::from_decoder(decoder)
         .map_err(|e| PdfError::Pdfium(format!("image: {e}")))?;
     img.apply_orientation(orientation);
-    Ok(img.into_rgb8())
+    // Transparency onto white, 16-bit samples truncated — docling's
+    // `to_rgb` (#1149).
+    Ok(ocr_prep::flatten_onto_white(img))
 }
 
 /// Image outputs of the PDF/image pipeline (#519/#520): the scale picture
@@ -5149,5 +5151,71 @@ mod tables_off_gate {
             .prepare_page(0, &mut page, regions)
             .unwrap();
         assert!(prepared.regions.iter().any(|r| r.label == "table"));
+    }
+}
+
+/// #1149: an image input decodes to the page docling reads — transparency
+/// on white, a 16-bit `tRNS` key included, 16-bit samples truncated.
+/// docling's `test_transparent_background_is_flattened_onto_white`,
+/// `test_to_rgb_scales_the_transparency_key_of_16_bit_images` and
+/// `test_16_bit_grayscale_is_scaled_to_8_bits[PNG]`.
+#[cfg(all(test, feature = "ml"))]
+mod image_input_tests {
+    use super::decode_image_with_max_side;
+
+    fn png(img: image::DynamicImage) -> Vec<u8> {
+        let mut out = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+            .unwrap();
+        out
+    }
+
+    /// A PNG chunk inserted before `IDAT`.
+    fn with_chunk(png: &[u8], kind: &[u8; 4], data: &[u8]) -> Vec<u8> {
+        let crc = |bytes: &[u8]| {
+            let mut c = 0xFFFF_FFFFu32;
+            for &b in bytes {
+                c ^= u32::from(b);
+                for _ in 0..8 {
+                    c = if c & 1 != 0 {
+                        0xEDB8_8320 ^ (c >> 1)
+                    } else {
+                        c >> 1
+                    };
+                }
+            }
+            !c
+        };
+        let idat = png.windows(4).position(|w| w == b"IDAT").unwrap() - 4;
+        let mut chunk = (data.len() as u32).to_be_bytes().to_vec();
+        let body = [kind.as_slice(), data].concat();
+        chunk.extend_from_slice(&body);
+        chunk.extend_from_slice(&crc(&body).to_be_bytes());
+        [&png[..idat], &chunk, &png[idat..]].concat()
+    }
+
+    #[test]
+    fn transparent_inputs_are_flattened_onto_white() {
+        let mut rgba = image::RgbaImage::from_pixel(8, 8, image::Rgba([0, 0, 0, 0]));
+        rgba.put_pixel(0, 0, image::Rgba([0, 0, 0, 255]));
+        let page = decode_image_with_max_side(&png(rgba.into()), 1000).unwrap();
+        assert_eq!(page.get_pixel(0, 0).0, [0, 0, 0]);
+        assert_eq!(page.get_pixel(4, 4).0, [255, 255, 255]);
+
+        // 16-bit gray, 4000 and 60000, the 60000 key transparent.
+        let g: image::ImageBuffer<image::Luma<u16>, Vec<u16>> =
+            image::ImageBuffer::from_fn(2, 1, |x, _| image::Luma([[4000u16, 60000][x as usize]]));
+        let plain = png(image::DynamicImage::ImageLuma16(g));
+        let page = decode_image_with_max_side(&plain, 1000).unwrap();
+        assert_eq!(
+            (page.get_pixel(0, 0).0, page.get_pixel(1, 0).0),
+            ([15; 3], [234; 3])
+        );
+        let keyed = with_chunk(&plain, b"tRNS", &60000u16.to_be_bytes());
+        let page = decode_image_with_max_side(&keyed, 1000).unwrap();
+        assert_eq!(
+            (page.get_pixel(0, 0).0, page.get_pixel(1, 0).0),
+            ([15; 3], [255; 3])
+        );
     }
 }

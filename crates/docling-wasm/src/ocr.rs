@@ -71,11 +71,9 @@ pub async fn ocr_image(
 ) -> Result<String, JsError> {
     // Screenshots and dark-mode captures arrive light-on-dark; the whole
     // pipeline assumes scan polarity, so normalize first.
-    let img = normalize_polarity(
-        image::load_from_memory(bytes)
-            .map_err(|e| JsError::new(&format!("decode image: {e}")))?
-            .to_rgb8(),
-    );
+    let img = normalize_polarity(docling_pdf::ocr_prep::flatten_onto_white(
+        image::load_from_memory(bytes).map_err(|e| JsError::new(&format!("decode image: {e}")))?,
+    ));
     let lines = prep_page_lines(&img);
     let chars = dict_chars(dict);
     let mut texts = vec![String::new(); lines.len()];
