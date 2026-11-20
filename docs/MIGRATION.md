@@ -396,7 +396,7 @@ converted once more as that format with a warning.
   - a picture's caption is a `caption` item under its picture, so it stays in the picture's section or rich table cell (docling#5037, #1023 — it was a body-level item before)
   - a `<pre>`'s sibling `<code>` children are one code item, not code runs of an inline group (docling#4998, #1023)
   - a table's `<tfoot>` rows are kept and come after every other row group wherever the element sits — HTML 4 put it before `<tbody>` — in the JSON and the Markdown alike (docling#4323, #1023; the JSON used to drop them and the Markdown kept source order)
-  - the `<title>`, everything before the first heading and a `<footer>` (a `section` group) are `furniture`
+  - the `<title>`, everything before the first heading — not one emitted as cell or `<ul>`/`<ol>` item text, nor a hidden one (#1176, docling#5313: a hidden heading used to put the whole visible page on furniture in the JSON) — and a `<footer>` (a `section` group) are `furniture`
   - `<details>` a `section` group
   - `field_value` items carry `kind`
   - items are numbered in upstream's creation order.

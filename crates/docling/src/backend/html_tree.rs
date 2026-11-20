@@ -321,6 +321,22 @@ fn suppressed(e: &scraper::node::Element) -> bool {
 
 /// The nearest ancestor element of `node` named `name`, stopping at (and
 /// excluding) `boundary` when given.
+/// `_is_header_in_cell_or_item`: a heading the walk emits as the text of a
+/// table cell, a `<dl>` entry or a `<ul>`/`<ol>` item (one in a `<menu>`
+/// item stays a heading).
+fn header_in_cell_or_item(h: ElementRef) -> bool {
+    if ancestor_named(*h, "table", None).is_some() || ancestor_named(*h, "dl", None).is_some() {
+        return true;
+    }
+    let Some(item) = ancestor_named(*h, "li", None) else {
+        return false;
+    };
+    item.ancestors()
+        .filter_map(ElementRef::wrap)
+        .find(|e| matches!(e.value().name(), "ul" | "ol" | "menu"))
+        .is_some_and(|l| l.value().name() != "menu")
+}
+
 fn ancestor_named<'a>(
     node: NodeRef<'a, HtmlNode>,
     name: &str,
@@ -492,12 +508,21 @@ pub(super) fn build_tree(
         w.record(*title, first);
     }
     let content = parsed.select(sel!("body")).next().unwrap_or(root);
-    // `infer_furniture`: everything before the first heading (one not inside
-    // a table) is site chrome on the furniture layer.
+    // `infer_furniture`: everything before the first heading is site chrome
+    // on the furniture layer. Not a heading the walk emits as cell or list
+    // item text (`_is_header_in_cell_or_item`), nor one it skips as hidden —
+    // on the heading or an ancestor below `<body>` (docling#5313, #1176): a
+    // hidden heading used to put the whole visible page on the furniture
+    // layer.
     let has_header = infer_furniture
-        && content
-            .select(sel!("h1, h2, h3, h4, h5, h6"))
-            .any(|h| ancestor_named(*h, "table", None).is_none());
+        && content.select(sel!("h1, h2, h3, h4, h5, h6")).any(|h| {
+            !header_in_cell_or_item(h)
+                && !std::iter::once(*h)
+                    .chain(h.ancestors())
+                    .take_while(|n| n.id() != content.id())
+                    .filter_map(ElementRef::wrap)
+                    .any(|e| is_hidden(e.value()))
+        });
     w.layer = has_header.then_some(ContentLayer::Furniture);
     w.walk(content);
     collect_blocks(root, &w.el_of, &mut w.tree);

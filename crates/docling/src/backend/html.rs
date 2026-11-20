@@ -3283,6 +3283,67 @@ mod tests {
         }
     }
 
+    fn texts_and_layers(doc: &DoclingDocument) -> Vec<(String, String)> {
+        doc.export_to_json_value()["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| {
+                (
+                    t["text"].as_str().unwrap().to_string(),
+                    t["content_layer"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect()
+    }
+
+    /// docling#5313 (#1176, `test_hidden_heading_does_not_hide_visible_body`):
+    /// a hidden heading does not end the furniture prelude, in the item tree
+    /// as in the Markdown.
+    #[test]
+    fn hidden_heading_does_not_hide_visible_body() {
+        for heading in [
+            r#"<h1 style="display: none">Hidden</h1>"#,
+            r#"<h2 style="visibility: hidden">Hidden</h2>"#,
+            r#"<h3 aria-hidden="true">Hidden</h3>"#,
+            r#"<div style="display: none"><h1>Hidden</h1></div>"#,
+            r#"<section aria-hidden="true"><div><h2>Hidden</h2></div></section>"#,
+        ] {
+            let doc = convert(&format!(
+                "<html><body><p>Before.</p>{heading}<p>After.</p></body></html>"
+            ));
+            let body = |t: &str| (t.to_string(), "body".to_string());
+            assert_eq!(
+                texts_and_layers(&doc),
+                [body("Before."), body("After.")],
+                "{heading}"
+            );
+            assert_eq!(
+                doc.export_to_markdown().trim(),
+                "Before.\n\nAfter.",
+                "{heading}"
+            );
+        }
+    }
+
+    /// `test_hidden_body_keeps_furniture_before_first_heading`: the walk does
+    /// not check `<body>` itself, so neither does the heading search.
+    #[test]
+    fn hidden_body_keeps_furniture_before_first_heading() {
+        let doc = convert(
+            r#"<html><body aria-hidden="true"><p>Nav</p><h1>Title</h1><p>Text</p></body></html>"#,
+        );
+        let pair = |t: &str, l: &str| (t.to_string(), l.to_string());
+        assert_eq!(
+            texts_and_layers(&doc),
+            [
+                pair("Nav", "furniture"),
+                pair("Title", "body"),
+                pair("Text", "body")
+            ]
+        );
+    }
+
     /// docling#4998 (#1023): sibling `<code>` children of a `<pre>` are one
     /// code block, not three code runs of an inline group; upstream's
     /// `test_preformatted_blocks_preserve_inline_whitespace` cases.
