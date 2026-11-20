@@ -176,16 +176,23 @@ impl DeclarativeBackend for DocxBackend {
         // a `w:footnoteReference` in the body carries no text of its own, so
         // without reading `word/footnotes.xml` / `word/endnotes.xml` the
         // notes were silently dropped.
-        for note in footnote_texts(&mut pkg, ctx.hidden) {
+        // A note with a link reads with its formatting and links
+        // (docling#5322's inline group); any other stays its plain text.
+        visit_notes(&mut pkg, &ctx, |note, note_ctx| {
+            let text = if note.has_link(note_ctx) {
+                note.paragraphs
+                    .iter()
+                    .map(|p| paragraph_markdown(*p, note_ctx).trim().to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            } else {
+                super::markdown::escape_html(&super::markdown::escape_underscores(&note.text))
+            };
             doc.nodes.push(Node::Furniture {
                 layer: docling_core::ContentLayer::Furniture,
-                inner: Box::new(Node::Paragraph {
-                    text: super::markdown::escape_html(&super::markdown::escape_underscores(
-                        &note.text,
-                    )),
-                }),
+                inner: Box::new(Node::Paragraph { text }),
             });
-        }
+        });
         // Reviewer comments (docling's `notes` layer) are appended after the
         // body as `comment_section` groups: Markdown/LaTeX drop them, JSON
         // emits the group plus its notes text (and the `comments` back-refs on
@@ -318,32 +325,44 @@ fn even_and_odd_headers(pkg: &mut Package) -> bool {
         .is_some_and(|n| on_off(attr(n, "val")))
 }
 
-/// One footnote / endnote body ([`footnote_texts`]).
-pub(super) struct DocxNote {
+/// One footnote / endnote body ([`visit_notes`]).
+pub(super) struct DocxNote<'a, 'i> {
     /// `footnote` or `endnote` — which reference element calls it.
     pub(super) kind: &'static str,
     /// The note's `w:id`.
     pub(super) id: String,
+    /// Its non-blank paragraphs' plain texts, joined with one space.
     pub(super) text: String,
+    /// Those paragraphs, for a reading with formatting and links.
+    pub(super) paragraphs: Vec<XmlNode<'a, 'i>>,
 }
 
-/// The body text of every footnote and endnote, in part order (footnotes,
-/// then endnotes) and document order — docling's `_add_footnotes_and_endnotes`
+impl DocxNote<'_, '_> {
+    /// Whether a paragraph of the note holds a hyperlink with a target —
+    /// docling#5322's test for reading the note as an inline group.
+    pub(super) fn has_link(&self, ctx: &Ctx) -> bool {
+        self.paragraphs.iter().any(|p| {
+            p.descendants()
+                .any(|n| n.has_tag_name("hyperlink") && hyperlink_target(n, ctx).is_some())
+        })
+    }
+}
+
+/// Every footnote and endnote body, in part order (footnotes, then
+/// endnotes) and document order — docling's `_add_footnotes_and_endnotes`
 /// (docling#4374): the parts are reached through the document's FOOTNOTES /
 /// ENDNOTES relationships, the `separator` / `continuationSeparator` /
 /// `continuationNotice` placeholders Word writes into every document are
 /// skipped, and a note's non-blank paragraphs — at any depth, so a table in
 /// the note counts, read through the inline wrappers (a tracked insertion,
-/// a content control) like a body paragraph, docling#4735 — are joined with
-/// one space. Each becomes a furniture-layer `footnote` item.
+/// a content control) like a body paragraph, docling#4735 — make its body.
 /// The note's kind (`footnote` / `endnote`) and `w:id` come along: a body
 /// `w:footnoteReference` / `w:endnoteReference` names it by those (#538).
-pub(super) fn footnote_texts(
-    pkg: &mut Package,
-    hidden: &super::docx_hidden::HiddenStyles,
-) -> Vec<DocxNote> {
+/// `visit` gets each note with a [`Ctx`] for its part (docling#5322,
+/// #1160): the part's own relationships, so a link in a note resolves
+/// against `footnotes.xml.rels`, not the document's.
+pub(super) fn visit_notes(pkg: &mut Package, ctx: &Ctx, mut visit: impl FnMut(DocxNote, &Ctx)) {
     const SKIP_TYPES: [&str; 3] = ["separator", "continuationSeparator", "continuationNotice"];
-    let mut out = Vec::new();
     for (rel_suffix, tag) in [("/footnotes", "footnote"), ("/endnotes", "endnote")] {
         let Some(part) = pkg
             .rels_for("word/document.xml")
@@ -357,11 +376,15 @@ pub(super) fn footnote_texts(
             continue;
         };
         let xml = super::mc::resolve_alternate_content(&xml);
-        let xml = super::docx_hidden::resolve_hidden(&xml, hidden, true);
+        let xml = super::docx_hidden::resolve_hidden(&xml, ctx.hidden, true);
         let Ok(dom) = Document::parse(&xml) else {
             eprintln!("docling: failed to parse {tag}s part");
             continue;
         };
+        let rels = part_rels(pkg, &part);
+        let images = pkg.image_rels(&part, "word");
+        let charts = chart_rels(pkg, &part);
+        let note_ctx = ctx.for_part(&rels, &images, &charts);
         for note in dom
             .root_element()
             .children()
@@ -370,22 +393,25 @@ pub(super) fn footnote_texts(
             if attr(note, "type").is_some_and(|t| SKIP_TYPES.contains(&t)) {
                 continue;
             }
-            let texts: Vec<String> = note
+            let (paragraphs, texts): (Vec<_>, Vec<_>) = note
                 .descendants()
                 .filter(|n| n.has_tag_name("p"))
-                .map(|p| plain_paragraph_text(p).trim().to_string())
-                .filter(|t| !t.is_empty())
-                .collect();
+                .map(|p| (p, plain_paragraph_text(p).trim().to_string()))
+                .filter(|(_, t)| !t.is_empty())
+                .unzip();
             if !texts.is_empty() {
-                out.push(DocxNote {
-                    kind: tag,
-                    id: attr(note, "id").unwrap_or_default().to_string(),
-                    text: texts.join(" "),
-                });
+                visit(
+                    DocxNote {
+                        kind: tag,
+                        id: attr(note, "id").unwrap_or_default().to_string(),
+                        text: texts.join(" "),
+                        paragraphs,
+                    },
+                    &note_ctx,
+                );
             }
         }
     }
-    out
 }
 
 /// Walk one header/footer part and append its blocks wrapped in the furniture

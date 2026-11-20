@@ -537,3 +537,79 @@ fn strip_comments_and_pis_shapes() {
     // An unterminated comment is left for the parser.
     assert_eq!(strip("<a><!-- open</a>", None), "<a><!-- open</a>");
 }
+
+/// docling#5322 (#1160, `test_footnote_hyperlink_keeps_its_target`): a link
+/// in a footnote resolves against the notes part's relationships, and the
+/// linked note is an inline group of `footnote` items.
+#[test]
+fn footnote_hyperlink_keeps_its_target() {
+    let footnotes = format!(
+        r#"<w:footnotes xmlns:w="{W}" xmlns:r="{R}"><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:id="2"><w:p><w:r><w:t xml:space="preserve">See </w:t></w:r><w:hyperlink r:id="rIdNote1"><w:r><w:t>the source</w:t></w:r></w:hyperlink></w:p><w:p><w:r><w:t>Second line.</w:t></w:r></w:p></w:footnote></w:footnotes>"#
+    );
+    let note_rels = r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdNote1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.org/note" TargetMode="External"/></Relationships>"#;
+    let rels = r#"<Relationship Id="rIdF" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>"#;
+    let body = r#"<w:p><w:r><w:t>This is a claim that needs support</w:t></w:r><w:r><w:footnoteReference w:id="2"/></w:r></w:p>"#;
+    let doc = convert(docx(
+        body,
+        rels,
+        &[
+            ("word/footnotes.xml", footnotes),
+            ("word/_rels/footnotes.xml.rels", note_rels.to_string()),
+        ],
+    ));
+    let v = json(&doc);
+    let texts = v["texts"].as_array().unwrap();
+    let linked: Vec<(&str, &str)> = texts
+        .iter()
+        .filter(|t| t["label"] == "footnote" && t["hyperlink"].is_string())
+        .map(|t| {
+            (
+                t["text"].as_str().unwrap(),
+                t["hyperlink"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(linked, [("the source", "https://example.org/note")]);
+    let parts: Vec<&str> = texts
+        .iter()
+        .filter(|t| t["label"] == "footnote")
+        .map(|t| t["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(parts, ["See ", "the source", " Second line."]);
+    let group = &v["groups"].as_array().unwrap()[0];
+    assert_eq!(group["label"], "inline");
+    assert_eq!(group["content_layer"], "furniture");
+    let opts = docling_core::MarkdownExportOptions {
+        layers: docling_core::ContentLayers::BODY.with(docling_core::ContentLayer::Furniture),
+        ..Default::default()
+    };
+    let (md, _) = doc.export_to_markdown_with_options(&opts);
+    assert!(
+        md.contains("See [the source](https://example.org/note) Second line."),
+        "{md}"
+    );
+    // The default Markdown leaves the note out.
+    assert!(!doc.export_to_markdown().contains("the source"));
+}
+
+/// A note without a link stays one plain `footnote` text.
+#[test]
+fn footnote_without_a_link_stays_one_text() {
+    let footnotes = format!(
+        r#"<w:footnotes xmlns:w="{W}"><w:footnote w:id="2"><w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Bold</w:t></w:r><w:r><w:t xml:space="preserve"> note.</w:t></w:r></w:p><w:p><w:r><w:t>Second.</w:t></w:r></w:p></w:footnote></w:footnotes>"#
+    );
+    let rels = r#"<Relationship Id="rIdF" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>"#;
+    let body =
+        r#"<w:p><w:r><w:t>Claim</w:t></w:r><w:r><w:footnoteReference w:id="2"/></w:r></w:p>"#;
+    let doc = convert(docx(body, rels, &[("word/footnotes.xml", footnotes)]));
+    let v = json(&doc);
+    let notes: Vec<&str> = v["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|t| t["label"] == "footnote")
+        .map(|t| t["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(notes, ["Bold note. Second."]);
+    assert!(v["groups"].as_array().unwrap().is_empty());
+}

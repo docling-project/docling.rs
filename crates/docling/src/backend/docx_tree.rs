@@ -38,11 +38,11 @@ use roxmltree::{Document, Node as XmlNode, NodeId};
 
 use super::docx::{
     attr, build_enum_marker, caption_numbering_marker, chart_rels, child_elements,
-    clean_checkbox_symbols, detect_code_language, footnote_texts, get_list_counter, grid_span,
-    header_footer_parts, heading_labels, hyperlink_target, in_textbox, is_code_by_font,
-    is_code_style, is_title_style, numbered_heading_text, on_off, paragraph_anchors, part_rels,
-    revision_of, row_cells, row_grid_offsets, row_kept, run_child_text, style_chain_bold,
-    style_numbering, sync_heading_counter, t_text, Ctx, MAX_TABLE_DEPTH,
+    clean_checkbox_symbols, detect_code_language, get_list_counter, grid_span, header_footer_parts,
+    heading_labels, hyperlink_target, in_textbox, is_code_by_font, is_code_style, is_title_style,
+    numbered_heading_text, on_off, paragraph_anchors, part_rels, revision_of, row_cells,
+    row_grid_offsets, row_kept, run_child_text, style_chain_bold, style_numbering,
+    sync_heading_counter, t_text, visit_notes, Ctx, MAX_TABLE_DEPTH,
 };
 use super::html_tree::docling_href;
 use super::ooxml::Package;
@@ -234,15 +234,44 @@ pub(super) fn build_tree(
     }
     // `_add_footnotes_and_endnotes` (docling#4374): after the comments, each
     // note's body a furniture-layer `footnote` text on the body.
-    let mut bodies: HashMap<(&'static str, String), (usize, String)> = HashMap::new();
-    for note in footnote_texts(pkg, ctx.hidden) {
-        let id = w.add(
-            None,
-            Some(ContentLayer::Furniture),
-            text_kind("footnote", &note.text, None, None),
-        );
-        bodies.insert((note.kind, note.id), (id, note.text));
-    }
+    let mut bodies: HashMap<(&'static str, String), (Vec<usize>, String)> = HashMap::new();
+    // docling#5322 (#1160, `_add_note`): a note with a link is an inline
+    // group of `footnote` items, one per paragraph element — its text,
+    // formatting and link, read against the notes part's relationships —
+    // later paragraphs' first element after a space; the rest stay one
+    // plain `footnote` text.
+    visit_notes(pkg, ctx, |note, note_ctx| {
+        let mut items = Vec::new();
+        if note.has_link(note_ctx) {
+            let group = w.add(
+                None,
+                Some(ContentLayer::Furniture),
+                group_kind("inline", "group"),
+            );
+            for (pi, p) in note.paragraphs.iter().enumerate() {
+                let content = w.iter_paragraph_content(*p, note_ctx);
+                for (ei, e) in w.paragraph_elements(&content).into_iter().enumerate() {
+                    let text = if pi > 0 && ei == 0 {
+                        format!(" {}", e.text)
+                    } else {
+                        e.text
+                    };
+                    items.push(w.add(
+                        Some(group),
+                        Some(ContentLayer::Furniture),
+                        text_kind("footnote", &text, e.fmt, e.link),
+                    ));
+                }
+            }
+        } else {
+            items.push(w.add(
+                None,
+                Some(ContentLayer::Furniture),
+                text_kind("footnote", &note.text, None, None),
+            ));
+        }
+        bodies.insert((note.kind, note.id), (items, note.text));
+    });
     // #538: hang each note on the text item that calls it, for the Pandoc
     // AST's `Note` (docling's JSON keeps the bodies unlinked).
     for call in std::mem::take(&mut w.note_calls) {
@@ -251,7 +280,9 @@ pub(super) fn build_tree(
                 offset: call.offset,
                 text: text.clone(),
             });
-            w.tree.items[*body].note_body = true;
+            for item in body {
+                w.tree.items[*item].note_body = true;
+            }
         }
     }
     // docling#4674 (#764): the blank paragraphs before resumed list items go
