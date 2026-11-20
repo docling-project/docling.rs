@@ -10,6 +10,7 @@ DOCLING_RS_MAX_RENDER_PIXELS,limit,crates/docling-pdf/src/pdfium_backend.rs
 DOCLING_RS_MAX_XML_DEPTH,limit,crates/docling/src/backend/xml_depth.rs
 DOCLING_RS_MEMORY_WATERMARK_PCT,limit,crates/docling-serve/src/lib.rs
 DOCLING_RS_SHEET_MAX_CELLS,limit,crates/docling/src/backend/xlsx.rs
+DOCLING_RS_ODS_MAX_REPEATED_CELLS,limit,crates/docling/src/backend/odf.rs
 DOCLING_RS_MAX_TABLE_CELLS,limit,crates/docling-core/src/limits.rs
 DOCLING_RS_MAX_TOTAL_TABLE_CELLS,limit,crates/docling-core/src/limits.rs
 DOCLING_RS_VLM_TIMEOUT,limit,crates/docling/src/vlm.rs
