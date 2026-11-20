@@ -36,3 +36,5 @@ word_sample.docx
 word_tables.docx
 docx_list_east_asian_num_fmt.docx
 docx_list_resumed_after_table.docx
+docx_wrapped_table_rows.docx
+docx_symbol_font_glyphs.docx

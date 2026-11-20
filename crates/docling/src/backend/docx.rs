@@ -41,8 +41,9 @@ pub struct DocxBackend {
     /// in that format after a drawing's picture when its connectors name
     /// their end shapes; Mermaid by default.
     pub extract_diagrams: crate::DiagramFormat,
-    /// A style's `w:outlineLvl` alone makes it a heading (docling#4480's
-    /// `use_outline_level_for_headings`; on by default).
+    /// A `w:outlineLvl` — the paragraph's own, else its style's — alone
+    /// makes it a heading (docling#4480's `use_outline_level_for_headings`;
+    /// on by default).
     pub use_outline_level_for_headings: bool,
 }
 
@@ -63,6 +64,12 @@ impl DeclarativeBackend for DocxBackend {
         let document = pkg
             .read("word/document.xml")
             .ok_or_else(|| ConversionError::Parse("docx: no document.xml".into()))?;
+        // XML comments and processing instructions are stripped from every
+        // part before it is parsed (docling#4584, #1157), the main part's
+        // comments kept as notes-layer text after the reviewer comments.
+        let mut xml_notes = Vec::new();
+        let document = super::ooxml::strip_comments_and_pis_owned(document, Some(&mut xml_notes));
+        pkg.strip_comments_and_pis();
         let styles = pkg.read("word/styles.xml").unwrap_or_default();
         let numbering = pkg.read("word/numbering.xml").unwrap_or_default();
         let even_and_odd_headers = even_and_odd_headers(&mut pkg);
@@ -169,16 +176,23 @@ impl DeclarativeBackend for DocxBackend {
         // a `w:footnoteReference` in the body carries no text of its own, so
         // without reading `word/footnotes.xml` / `word/endnotes.xml` the
         // notes were silently dropped.
-        for note in footnote_texts(&mut pkg, ctx.hidden) {
+        // A note with a link reads with its formatting and links
+        // (docling#5322's inline group); any other stays its plain text.
+        visit_notes(&mut pkg, &ctx, |note, note_ctx| {
+            let text = if note.has_link(note_ctx) {
+                note.paragraphs
+                    .iter()
+                    .map(|p| paragraph_markdown(*p, note_ctx).trim().to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            } else {
+                super::markdown::escape_html(&super::markdown::escape_underscores(&note.text))
+            };
             doc.nodes.push(Node::Furniture {
                 layer: docling_core::ContentLayer::Furniture,
-                inner: Box::new(Node::Paragraph {
-                    text: super::markdown::escape_html(&super::markdown::escape_underscores(
-                        &note.text,
-                    )),
-                }),
+                inner: Box::new(Node::Paragraph { text }),
             });
-        }
+        });
         // Reviewer comments (docling's `notes` layer) are appended after the
         // body as `comment_section` groups: Markdown/LaTeX drop them, JSON
         // emits the group plus its notes text (and the `comments` back-refs on
@@ -190,7 +204,7 @@ impl DeclarativeBackend for DocxBackend {
         // back-refs — is upstream's; the flat nodes above stay the source for
         // Markdown / DocLang / LaTeX.
         doc.tree = Some(super::docx_tree::build_tree(
-            &mut pkg, body, &ctx, &comments,
+            &mut pkg, body, &ctx, &comments, &xml_notes,
         ));
         for (id, text) in comments {
             doc.nodes.push(Node::CommentSection {
@@ -200,6 +214,16 @@ impl DeclarativeBackend for DocxBackend {
                 // group's, so replies to one comment group together.
                 refs_note_text: false,
                 grouped: true,
+            });
+        }
+        // The main part's XML comments (docling#4584): notes-layer text
+        // after the reviewer comments, which Markdown and LaTeX leave out.
+        for note in xml_notes {
+            doc.nodes.push(Node::Furniture {
+                layer: docling_core::ContentLayer::Notes,
+                inner: Box::new(Node::Paragraph {
+                    text: super::markdown::escape_html(&super::markdown::escape_underscores(&note)),
+                }),
             });
         }
         Ok(doc)
@@ -301,32 +325,44 @@ fn even_and_odd_headers(pkg: &mut Package) -> bool {
         .is_some_and(|n| on_off(attr(n, "val")))
 }
 
-/// One footnote / endnote body ([`footnote_texts`]).
-pub(super) struct DocxNote {
+/// One footnote / endnote body ([`visit_notes`]).
+pub(super) struct DocxNote<'a, 'i> {
     /// `footnote` or `endnote` — which reference element calls it.
     pub(super) kind: &'static str,
     /// The note's `w:id`.
     pub(super) id: String,
+    /// Its non-blank paragraphs' plain texts, joined with one space.
     pub(super) text: String,
+    /// Those paragraphs, for a reading with formatting and links.
+    pub(super) paragraphs: Vec<XmlNode<'a, 'i>>,
 }
 
-/// The body text of every footnote and endnote, in part order (footnotes,
-/// then endnotes) and document order — docling's `_add_footnotes_and_endnotes`
+impl DocxNote<'_, '_> {
+    /// Whether a paragraph of the note holds a hyperlink with a target —
+    /// docling#5322's test for reading the note as an inline group.
+    pub(super) fn has_link(&self, ctx: &Ctx) -> bool {
+        self.paragraphs.iter().any(|p| {
+            p.descendants()
+                .any(|n| n.has_tag_name("hyperlink") && hyperlink_target(n, ctx).is_some())
+        })
+    }
+}
+
+/// Every footnote and endnote body, in part order (footnotes, then
+/// endnotes) and document order — docling's `_add_footnotes_and_endnotes`
 /// (docling#4374): the parts are reached through the document's FOOTNOTES /
 /// ENDNOTES relationships, the `separator` / `continuationSeparator` /
 /// `continuationNotice` placeholders Word writes into every document are
 /// skipped, and a note's non-blank paragraphs — at any depth, so a table in
 /// the note counts, read through the inline wrappers (a tracked insertion,
-/// a content control) like a body paragraph, docling#4735 — are joined with
-/// one space. Each becomes a furniture-layer `footnote` item.
+/// a content control) like a body paragraph, docling#4735 — make its body.
 /// The note's kind (`footnote` / `endnote`) and `w:id` come along: a body
 /// `w:footnoteReference` / `w:endnoteReference` names it by those (#538).
-pub(super) fn footnote_texts(
-    pkg: &mut Package,
-    hidden: &super::docx_hidden::HiddenStyles,
-) -> Vec<DocxNote> {
+/// `visit` gets each note with a [`Ctx`] for its part (docling#5322,
+/// #1160): the part's own relationships, so a link in a note resolves
+/// against `footnotes.xml.rels`, not the document's.
+pub(super) fn visit_notes(pkg: &mut Package, ctx: &Ctx, mut visit: impl FnMut(DocxNote, &Ctx)) {
     const SKIP_TYPES: [&str; 3] = ["separator", "continuationSeparator", "continuationNotice"];
-    let mut out = Vec::new();
     for (rel_suffix, tag) in [("/footnotes", "footnote"), ("/endnotes", "endnote")] {
         let Some(part) = pkg
             .rels_for("word/document.xml")
@@ -340,11 +376,15 @@ pub(super) fn footnote_texts(
             continue;
         };
         let xml = super::mc::resolve_alternate_content(&xml);
-        let xml = super::docx_hidden::resolve_hidden(&xml, hidden, true);
+        let xml = super::docx_hidden::resolve_hidden(&xml, ctx.hidden, true);
         let Ok(dom) = Document::parse(&xml) else {
             eprintln!("docling: failed to parse {tag}s part");
             continue;
         };
+        let rels = part_rels(pkg, &part);
+        let images = pkg.image_rels(&part, "word");
+        let charts = chart_rels(pkg, &part);
+        let note_ctx = ctx.for_part(&rels, &images, &charts);
         for note in dom
             .root_element()
             .children()
@@ -353,22 +393,25 @@ pub(super) fn footnote_texts(
             if attr(note, "type").is_some_and(|t| SKIP_TYPES.contains(&t)) {
                 continue;
             }
-            let texts: Vec<String> = note
+            let (paragraphs, texts): (Vec<_>, Vec<_>) = note
                 .descendants()
                 .filter(|n| n.has_tag_name("p"))
-                .map(|p| plain_paragraph_text(p).trim().to_string())
-                .filter(|t| !t.is_empty())
-                .collect();
+                .map(|p| (p, plain_paragraph_text(p).trim().to_string()))
+                .filter(|(_, t)| !t.is_empty())
+                .unzip();
             if !texts.is_empty() {
-                out.push(DocxNote {
-                    kind: tag,
-                    id: attr(note, "id").unwrap_or_default().to_string(),
-                    text: texts.join(" "),
-                });
+                visit(
+                    DocxNote {
+                        kind: tag,
+                        id: attr(note, "id").unwrap_or_default().to_string(),
+                        text: texts.join(" "),
+                        paragraphs,
+                    },
+                    &note_ctx,
+                );
             }
         }
     }
-    out
 }
 
 /// Walk one header/footer part and append its blocks wrapped in the furniture
@@ -673,7 +716,7 @@ pub(super) fn is_heading_paragraph(p: XmlNode, ctx: &Ctx) -> bool {
         .unwrap_or(style_id);
     named_heading_level(style_id, style_name, ctx).is_some()
         || (ctx.outline_headings
-            && inherited_outline(style_id, ctx).is_some_and(|l| (1..=9).contains(&l)))
+            && outline_level(p, style_id, ctx).is_some_and(|l| (1..=9).contains(&l)))
         || is_title_style(style_id, style_name, ctx)
 }
 
@@ -794,12 +837,20 @@ pub(super) fn paragraph_anchors(p: XmlNode, ctx: &Ctx) -> Vec<String> {
 /// resolves; else the bookmark `w:anchor` names, as `#id`. A relationship
 /// the part lacks and a bookmark the document lacks are diagnosed under
 /// `DOCLING_RS_DEBUG` and leave the text unlinked — never a failed
-/// conversion. `r:id` wins when both are present (Word writes both for a
-/// link into another file's bookmark; the file is the destination).
+/// conversion. With both present (Word writes both for a link into another
+/// file's bookmark) the file is the destination and the bookmark its
+/// fragment: `manual.docx#Installation`, `https://example.org/guide#top` —
+/// docling's `_get_hyperlink_target` (docling#5249, #1159); the fragment
+/// used to be dropped.
 pub(super) fn hyperlink_target(h: XmlNode, ctx: &Ctx) -> Option<String> {
     if let Some(id) = attr(h, "id") {
         match ctx.rels.get(id).filter(|t| !t.is_empty()) {
-            Some(target) => return Some(target.clone()),
+            Some(target) => {
+                return Some(match attr(h, "anchor").filter(|a| !a.is_empty()) {
+                    Some(fragment) => format!("{target}#{fragment}"),
+                    None => target.clone(),
+                })
+            }
             None => docling_core::debug_log!("docx: hyperlink relationship {id} is missing"),
         }
     }
@@ -925,9 +976,9 @@ fn process_block(node: XmlNode, ctx: &Ctx, state: &mut ListState, doc: &mut Docl
         "tbl" => {
             // A 1×1 table is treated as furniture: its single cell's content is
             // processed as document-body blocks (docling unwraps it).
-            let rows: Vec<XmlNode> = node
-                .children()
-                .filter(|n| n.has_tag_name("tr") && row_kept(*n, ctx))
+            let rows: Vec<XmlNode> = table_rows(node)
+                .into_iter()
+                .filter(|n| row_kept(*n, ctx))
                 .collect();
             let num_cols = rows
                 .iter()
@@ -1148,9 +1199,11 @@ fn handle_paragraph_body(
     // style is a named heading, and it alone promotes a localized or custom
     // style ("Nadpis1", "Rubrik 1") the name check can't see. A Title style
     // keeps its own branch (level 1) either way, and outlineLvl 9 is OOXML's
-    // "body text" sentinel, not a heading.
+    // "body text" sentinel, not a heading. The paragraph's own `w:outlineLvl`
+    // comes before its style's (docling#4129, #1158), so a numbered paragraph
+    // carrying one is a numbered heading, not a list item.
     let named = named_heading_level(style_id, &style_name, ctx);
-    let outline = inherited_outline(style_id, ctx).filter(|l| (1..=9).contains(l));
+    let outline = outline_level(p, style_id, ctx).filter(|l| (1..=9).contains(l));
     let level = match (named, outline) {
         (Some(1), _) => Some(1), // Title
         (Some(_), Some(out)) => Some(out + 1),
@@ -1780,6 +1833,21 @@ pub(super) fn inherited_outline(style_id: &str, ctx: &Ctx) -> Option<u8> {
     style_chain(style_id, ctx)
         .into_iter()
         .find_map(|sid| ctx.style_outline.get(sid).copied())
+}
+
+/// The 1-indexed `w:outlineLvl` a paragraph resolves to (docling#4129,
+/// #1158): its own direct `pPr/w:outlineLvl` first, else its style's
+/// ([`inherited_outline`]). A paragraph-level 9 — OOXML's body text, stored
+/// as 10 like the style's — masks the style's level: the callers keep only
+/// 1–9, so such a paragraph is a heading by its style *name* alone.
+pub(super) fn outline_level(p: XmlNode, style_id: &str, ctx: &Ctx) -> Option<u8> {
+    p.children()
+        .find(|n| n.has_tag_name("pPr"))
+        .and_then(|ppr| ppr.children().find(|n| n.has_tag_name("outlineLvl")))
+        .and_then(|n| attr(n, "val"))
+        .and_then(|v| v.parse::<u8>().ok())
+        .map(|l| l.saturating_add(1))
+        .or_else(|| inherited_outline(style_id, ctx))
 }
 
 /// Markdown heading level from a paragraph style, by name — the name path of
@@ -2466,9 +2534,9 @@ fn parse_table_with(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
 }
 
 fn parse_table_inner(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
-    let rows: Vec<XmlNode> = tbl
-        .children()
-        .filter(|n| n.has_tag_name("tr") && row_kept(*n, ctx))
+    let rows: Vec<XmlNode> = table_rows(tbl)
+        .into_iter()
+        .filter(|n| row_kept(*n, ctx))
         .collect();
     // A row's width in grid columns includes the leading/trailing skipped
     // columns (`w:gridBefore`/`w:gridAfter`) — a row that starts late still
@@ -2716,13 +2784,31 @@ pub(super) fn flat_text<'a, 'i>(n: XmlNode<'a, 'i>) -> Option<Cow<'a, str>> {
 /// slides left under the wrong header, and a 1×1 layout table loses its only
 /// cell — and with it all of its content.
 pub(super) fn row_cells<'a, 'i>(tr: XmlNode<'a, 'i>) -> Vec<XmlNode<'a, 'i>> {
+    unwrapped_children(tr, "tc")
+}
+
+/// A table's rows: its `w:tr` children, a row wrapped in `w:customXml` or a
+/// content control (`w:sdt/w:sdtContent`) included — docling's
+/// `_unwrapped_children(tbl, "tr")` (docling#4393, #1156). python-docx's
+/// `Table.rows` sees direct `w:tr` children only, and so did we: a wrapped
+/// row was dropped, its cells with it, and a vertical merge stopped there.
+pub(super) fn table_rows<'a, 'i>(tbl: XmlNode<'a, 'i>) -> Vec<XmlNode<'a, 'i>> {
+    unwrapped_children(tbl, "tr")
+}
+
+/// docling's `_unwrapped_children`: the `target` elements (`tr` or `tc`)
+/// under `parent` in document order, looking through `w:customXml` and
+/// `w:sdt/w:sdtContent` at any depth.
+fn unwrapped_children<'a, 'i>(parent: XmlNode<'a, 'i>, target: &str) -> Vec<XmlNode<'a, 'i>> {
     let mut out = Vec::new();
-    for child in tr.children().filter(XmlNode::is_element) {
-        if child.has_tag_name("tc") {
+    for child in parent.children().filter(XmlNode::is_element) {
+        if child.has_tag_name(target) {
             out.push(child);
+        } else if child.has_tag_name("customXml") {
+            out.extend(unwrapped_children(child, target));
         } else if child.has_tag_name("sdt") {
             if let Some(content) = child.children().find(|n| n.has_tag_name("sdtContent")) {
-                out.extend(row_cells(content));
+                out.extend(unwrapped_children(content, target));
             }
         }
     }

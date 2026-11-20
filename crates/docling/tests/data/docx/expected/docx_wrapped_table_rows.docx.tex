@@ -1,0 +1,50 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+\usepackage{graphicx}       % graphics
+\usepackage[normalem]{ulem} % strikethrough
+
+\begin{document}
+
+\section{Wrapped table rows}
+
+Word processors and document management tools can wrap a table row in a custom XML element or in a content control. They can also wrap a single cell. Every row and every cell below must appear in the converted table.
+
+Review log, one wrapper kind per row:
+
+\begin{table}[h]
+\begin{tabular}{|l|l|l|}
+\hline
+Entry & Wrapper & Reviewer \\ \hline
+1 & none & A. Reviewer \\ \hline
+2 & customXml around the row & B. Editor \\ \hline
+3 & content control around the row & C. Approver \\ \hline
+4 & none & D. Auditor \\ \hline
+5 & nested wrappers around the row & E. Owner \\ \hline
+\end{tabular}
+\end{table}
+
+Release plan, a merged cell that continues into a wrapped row:
+
+\begin{table}[h]
+\begin{tabular}{|l|l|}
+\hline
+Phase & Task \\ \hline
+Preparation & Freeze the scope \\ \hline
+Preparation & Collect the sign-offs \\ \hline
+Preparation & Tag the release \\ \hline
+Publication & Publish the notes \\ \hline
+\end{tabular}
+\end{table}
+
+End of document.
+
+\end{document}

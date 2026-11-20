@@ -38,12 +38,11 @@ use roxmltree::{Document, Node as XmlNode, NodeId};
 
 use super::docx::{
     attr, build_enum_marker, caption_numbering_marker, chart_rels, child_elements,
-    clean_checkbox_symbols, detect_code_language, footnote_texts, get_list_counter, grid_span,
-    header_footer_parts, heading_labels, hyperlink_target, in_textbox, inherited_outline,
-    is_code_by_font, is_code_style, is_title_style, numbered_heading_text, on_off,
-    paragraph_anchors, part_rels, revision_of, row_cells, row_grid_offsets, row_kept,
-    run_child_text, style_chain_bold, style_numbering, sync_heading_counter, t_text, Ctx,
-    MAX_TABLE_DEPTH,
+    clean_checkbox_symbols, detect_code_language, get_list_counter, grid_span, header_footer_parts,
+    heading_labels, hyperlink_target, in_textbox, is_code_by_font, is_code_style, is_title_style,
+    numbered_heading_text, on_off, paragraph_anchors, part_rels, revision_of, row_cells,
+    row_grid_offsets, row_kept, run_child_text, style_chain_bold, style_numbering,
+    sync_heading_counter, t_text, visit_notes, Ctx, MAX_TABLE_DEPTH,
 };
 use super::html_tree::docling_href;
 use super::ooxml::Package;
@@ -217,23 +216,62 @@ pub(super) fn build_tree(
     body: XmlNode,
     ctx: &Ctx,
     comments: &[(String, String)],
+    xml_notes: &[String],
 ) -> ItemTree {
     let mut w = Walker::new();
     w.extract_comment_ranges(body);
     w.walk_linear(body, ctx);
     w.add_header_footer(pkg, body, ctx);
     w.add_comments(comments);
+    // docling#4584: the main part's XML comments, each a notes-layer text
+    // on the body, between the reviewer comments and the notes.
+    for note in xml_notes {
+        w.add(
+            None,
+            Some(ContentLayer::Notes),
+            text_kind("text", note, None, None),
+        );
+    }
     // `_add_footnotes_and_endnotes` (docling#4374): after the comments, each
     // note's body a furniture-layer `footnote` text on the body.
-    let mut bodies: HashMap<(&'static str, String), (usize, String)> = HashMap::new();
-    for note in footnote_texts(pkg, ctx.hidden) {
-        let id = w.add(
-            None,
-            Some(ContentLayer::Furniture),
-            text_kind("footnote", &note.text, None, None),
-        );
-        bodies.insert((note.kind, note.id), (id, note.text));
-    }
+    let mut bodies: HashMap<(&'static str, String), (Vec<usize>, String)> = HashMap::new();
+    // docling#5322 (#1160, `_add_note`): a note with a link is an inline
+    // group of `footnote` items, one per paragraph element — its text,
+    // formatting and link, read against the notes part's relationships —
+    // later paragraphs' first element after a space; the rest stay one
+    // plain `footnote` text.
+    visit_notes(pkg, ctx, |note, note_ctx| {
+        let mut items = Vec::new();
+        if note.has_link(note_ctx) {
+            let group = w.add(
+                None,
+                Some(ContentLayer::Furniture),
+                group_kind("inline", "group"),
+            );
+            for (pi, p) in note.paragraphs.iter().enumerate() {
+                let content = w.iter_paragraph_content(*p, note_ctx);
+                for (ei, e) in w.paragraph_elements(&content).into_iter().enumerate() {
+                    let text = if pi > 0 && ei == 0 {
+                        format!(" {}", e.text)
+                    } else {
+                        e.text
+                    };
+                    items.push(w.add(
+                        Some(group),
+                        Some(ContentLayer::Furniture),
+                        text_kind("footnote", &text, e.fmt, e.link),
+                    ));
+                }
+            }
+        } else {
+            items.push(w.add(
+                None,
+                Some(ContentLayer::Furniture),
+                text_kind("footnote", &note.text, None, None),
+            ));
+        }
+        bodies.insert((note.kind, note.id), (items, note.text));
+    });
     // #538: hang each note on the text item that calls it, for the Pandoc
     // AST's `Note` (docling's JSON keeps the bodies unlinked).
     for call in std::mem::take(&mut w.note_calls) {
@@ -242,7 +280,9 @@ pub(super) fn build_tree(
                 offset: call.offset,
                 text: text.clone(),
             });
-            w.tree.items[*body].note_body = true;
+            for item in body {
+                w.tree.items[*item].note_body = true;
+            }
         }
     }
     // docling#4674 (#764): the blank paragraphs before resumed list items go
@@ -625,6 +665,32 @@ impl Walker {
         self.cache = None;
     }
 
+    /// `_close_list_before_table` (docling#5309, #1161): a list still open
+    /// when a table starts is closed, so the table is the list's sibling
+    /// rather than a child of its group, and the next item opens a new list
+    /// (to the outer list's numId when nested).
+    fn close_list_before_table(&mut self) {
+        if self.prev_numid().is_none() {
+            return;
+        }
+        self.last_numid = match self.nested_lists.first() {
+            Some(n) if self.level_at_new_list.is_some() => Some(n.outer_numid.clone()),
+            _ => self.prev_numid(),
+        };
+        self.nested_lists.clear();
+        self.clear_list_cache();
+        // Python truthiness: a `level_at_new_list` of 0 unwinds everything.
+        if let Some(lanl) = self.level_at_new_list.filter(|&l| l != 0) {
+            self.clear_parents_from(lanl);
+            self.level = lanl - 1;
+            self.level_at_new_list = None;
+        } else {
+            self.clear_parents_from(0);
+            self.level = 0;
+        }
+        self.update_history(None, None);
+    }
+
     /// `_end_list_on_body_text`.
     fn end_list_on_body_text(&mut self, text: &str) {
         if !text.is_empty() {
@@ -990,6 +1056,10 @@ fn trim_part_edges(parts: Vec<Part>) -> Vec<Part> {
 /// spliced in as `<eq>latex</eq>`, plus the bookended equations — or the
 /// text untouched (and no equations) when the run texts do not
 /// reconstruct it.
+/// The texts are whole runs (docling#4622's `_get_run_text`, #1162): a
+/// `w:sym` glyph, a tab or a break is part of the paragraph text, so
+/// reading the `w:t` alone failed the check on a paragraph or cell with a
+/// Symbol character and dropped its equations.
 fn equations_in_text(element: XmlNode, text: &str) -> (String, Vec<String>) {
     {
         let mut only_texts: Vec<String> = Vec::new();
@@ -1010,22 +1080,22 @@ fn equations_in_text(element: XmlNode, text: &str) -> (String, Vec<String>) {
                 if is_omath(child) {
                     push_eq(child, &mut only_equations, &mut texts_and_equations);
                 } else {
-                    for t in child
+                    for r in child
                         .descendants()
-                        .filter(|n| n.has_tag_name("t") && !is_math(*n))
+                        .filter(|n| n.has_tag_name("r") && !is_math(*n))
                     {
-                        let s = t_text(t);
-                        only_texts.push(s.to_string());
-                        texts_and_equations.push(s.into_owned());
+                        let s = run_text(r);
+                        only_texts.push(s.clone());
+                        texts_and_equations.push(s);
                     }
                 }
             }
         } else {
             for n in element.descendants() {
-                if n.has_tag_name("t") && !is_math(n) {
-                    let s = t_text(n);
-                    only_texts.push(s.to_string());
-                    texts_and_equations.push(s.into_owned());
+                if n.has_tag_name("r") && !is_math(n) {
+                    let s = run_text(n);
+                    only_texts.push(s.clone());
+                    texts_and_equations.push(s);
                 } else if is_omath(n) {
                     push_eq(n, &mut only_equations, &mut texts_and_equations);
                 }
@@ -1131,7 +1201,7 @@ impl Walker {
         // docling stops at one hop), the outline level inherited likewise.
         let labels = heading_labels(label, name, ctx);
         let is_heading = labels.iter().any(|l| l.to_lowercase().contains("heading"));
-        let outline = inherited_outline(label, ctx)
+        let outline = super::docx::outline_level(p, label, ctx)
             .map(|l| l as i64)
             .filter(|l| (1..=9).contains(l));
         if is_heading {
@@ -1664,9 +1734,9 @@ impl Walker {
     }
 
     fn handle_tables_inner(&mut self, tbl: XmlNode, ctx: &Ctx) -> Vec<usize> {
-        let rows: Vec<XmlNode> = tbl
-            .children()
-            .filter(|n| n.has_tag_name("tr") && row_kept(*n, ctx))
+        let rows: Vec<XmlNode> = super::docx::table_rows(tbl)
+            .into_iter()
+            .filter(|n| row_kept(*n, ctx))
             .collect();
         let num_rows = rows.len();
         // python-docx's `len(table.columns)` is the `w:tblGrid` column count,
@@ -1696,14 +1766,20 @@ impl Walker {
         let num_cols = grid_cols.max(row_cols);
         if num_rows == 1 && num_cols == 1 {
             // A 1×1 table is furniture: its cell is walked as body content.
-            if let Some(cell) = row_cells(rows[0]).first() {
-                self.clear_list_cache();
-                self.force_new_code_block = true;
-                self.walk_linear(*cell, ctx);
-                self.force_new_code_block = true;
-            }
-            return Vec::new();
+            // docling#5258 (#1161): the items made from the cell are
+            // returned, so a container holding the table (a rich cell, a
+            // text box, a content control) groups them in place rather than
+            // leaving them on the body after it.
+            let Some(cell) = row_cells(rows[0]).first().copied() else {
+                return Vec::new();
+            };
+            self.clear_list_cache();
+            self.force_new_code_block = true;
+            let refs = self.walk_linear(cell, ctx);
+            self.force_new_code_block = true;
+            return refs;
         }
+        self.close_list_before_table();
         let level = self.get_level();
         let table_id = self.add(
             self.parent_at(level - 1),
