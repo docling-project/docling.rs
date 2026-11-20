@@ -1919,28 +1919,15 @@ fn render_inline(elem: ElementRef, base: Fmt) -> (String, Vec<InlineRun>) {
 const BR_SENTINEL: &str = "\u{e000}";
 const BR_CHAR: char = '\u{e000}';
 
-/// A `<pre>` part's text: each `<br>` sentinel with at most one space on
-/// either side (` ?SENT ?`) is a newline; the ends are trimmed (#769).
+/// A `<pre>` part's text: each `<br>` sentinel is a newline and nothing
+/// else (docling#5397, #1178 — the spaces beside it are the code's
+/// indentation; it used to take one space on either side along, ` ?SENT ?`,
+/// eating a column of every indented line after a `<br>`).
+///
+/// No trim: a `<pre>`'s interior runs keep their whitespace (#997); the
+/// callers trim the block's own edges.
 pub(super) fn pre_line_breaks(text: &str) -> String {
-    let chars: Vec<char> = text.chars().collect();
-    let mut out = String::with_capacity(text.len());
-    let mut i = 0;
-    while i < chars.len() {
-        let space_br = chars[i] == ' ' && chars.get(i + 1) == Some(&BR_CHAR);
-        if chars[i] == BR_CHAR || space_br {
-            i += if space_br { 2 } else { 1 };
-            if chars.get(i) == Some(&' ') {
-                i += 1;
-            }
-            out.push('\n');
-        } else {
-            out.push(chars[i]);
-            i += 1;
-        }
-    }
-    // No trim: a `<pre>`'s interior runs keep their whitespace (#997); the
-    // callers trim the block's own edges.
-    out
+    text.replace(BR_CHAR, "\n")
 }
 
 /// upstream's `_resolve_line_breaks` (docling#4675, #769): in text that is
@@ -2350,8 +2337,7 @@ fn extract_pre(pre: ElementRef) -> (Option<String>, String) {
     if language.is_none() {
         language = pre.value().attr("class").and_then(lang_from_class);
     }
-    // Each `<br>` is a newline (#769), with at most one space around it
-    // taken along.
+    // Each `<br>` is a newline (#769), the spaces beside it kept (#1178).
     let mut text = String::new();
     for node in pre.descendants() {
         match node.value() {
@@ -3315,6 +3301,12 @@ mod tests {
                 "<pre><code>\n    if ok:\n        run()\n\n</code></pre>",
                 "    if ok:\n        run()",
             ),
+            // docling#5397 (#1178): the spaces next to a `<br>` are kept.
+            (
+                "<pre>def f():<br>    if ok:<br>        run()</pre>",
+                "def f():\n    if ok:\n        run()",
+            ),
+            ("<pre>first<br>second</pre>", "first\nsecond"),
         ] {
             let doc = convert(&format!("<html><body>{pre}</body></html>"));
             let json = doc.export_to_json_value();
@@ -3417,7 +3409,10 @@ mod tests {
         // No trim: callers trim the block's edges (#997).
         assert_eq!(resolve_line_breaks(&format!(" {b} ")), "\n");
         assert_eq!(pre_line_breaks(&format!("Code{b}line")), "Code\nline");
-        assert_eq!(pre_line_breaks(&format!("a  {b}  b{b}{b}c")), "a \n b\n\nc");
+        assert_eq!(
+            pre_line_breaks(&format!("a  {b}  b{b}{b}c")),
+            "a  \n  b\n\nc"
+        );
     }
 
     /// docling's `_handle_heading` builds the heading with

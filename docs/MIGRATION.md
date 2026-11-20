@@ -405,7 +405,7 @@ converted once more as that format with a warning.
 - text nodes collapse every whitespace run to one space on extraction (docling#3973, so a table flattened into an ancestor's cell reads `I II III IV`, `table_06`)
 - a GFM task-list item — `<li><input type=checkbox checked> done</li>` with no block content or custom checkbox markup — is one `checkbox_selected`/`checkbox_unselected` item carrying that text under the list group, not a list item plus an empty checkbox (docling#4401)
 - Ported from docling 2.139 and checked document by document against 2.140 (`tests/data/html/upstream`, `html_upstream`):
-  - a `<br>` in a heading, list item, `<dt>`/`<dd>`, caption or `<pre>` is a line break, not a leftover U+E000, and a checkbox's `<br>` a space (docling#4675, #769)
+  - a `<br>` in a heading, list item, `<dt>`/`<dd>`, caption or `<pre>` is a line break, not a leftover U+E000, and a checkbox's `<br>` a space (docling#4675, #769); inside `<pre>` the spaces next to it stay, since they are the code's indentation (#1178, docling#5397)
   - a formatting or a link is the whole heading's or caption's only when all of its text has it (docling#4670, #770)
   - an item's inline CSS string `list-style-type` (`<li style="list-style-type: '3. ';">`, how docling's HTML export writes an original marker) is its marker (docling#4669), so a marker survives the Markdown backend's HTML detour
   - `<ol start>` is read by the HTML integer rules — ` 3`, `+3`, `3.5` start at 3, `-5`, `²` or a value above 2³¹−1 at 1 (docling#4713, #771)
