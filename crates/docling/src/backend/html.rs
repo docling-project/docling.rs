@@ -180,6 +180,32 @@ pub(crate) fn convert_html_with(
     doc
 }
 
+/// A picture for an `<img>` of a paragraph, captioned as upstream's
+/// `_emit_image` captions it: the `alt` text, linked to the nearest
+/// enclosing `<a href>` (a figure's caption is settled by the figure).
+fn paragraph_picture(img: ElementRef, images: &dyn ImageResolver) -> Node {
+    let e = img.value();
+    let caption = e.attr("alt").filter(|a| !a.is_empty()).map(str::to_string);
+    let caption_href = caption.as_ref().and_then(|_| {
+        img.ancestors()
+            .filter_map(ElementRef::wrap)
+            .find(|a| {
+                a.value().name() == "a" && a.value().attr("href").is_some_and(|h| !h.is_empty())
+            })
+            .and_then(|a| a.value().attr("href"))
+            .map(normalize_url)
+    });
+    Node::Picture {
+        caption,
+        caption_href,
+        image: img_src(e).and_then(|s| images.resolve(&s)),
+        classification: None,
+        description: None,
+        caption_parent: Default::default(),
+        caption_location: None,
+    }
+}
+
 /// Parse an HTML document the way both walks read it: html5ever's tree,
 /// then each `<q>` given its quotation marks as text ([`add_quotation_marks`]).
 pub(crate) fn parse_html_document(html: &str) -> Html {
@@ -895,6 +921,13 @@ fn handle_block(
                 let (text, runs) = render_inline(elem, base);
                 push_inline_paragraph(nodes, text, runs);
             }
+            // upstream's `_handle_block` emits every `<img>` of the paragraph
+            // after its text (`for img_tag in tag("img")`), as the item tree
+            // does; the flat walk used to drop them, so the Markdown lost
+            // every picture inside a `<p>` (#1177).
+            for img in elem.select(cached_selector!("img")) {
+                nodes.push(paragraph_picture(img, images));
+            }
         }
         "ul" | "ol" => walk_list(elem, name == "ol", nodes, list_level, base, images),
         "dl" => walk_dl(elem, nodes, list_level, base, images),
@@ -956,9 +989,9 @@ fn handle_block(
             // docling#4050: every child except the `<figcaption>` is dispatched
             // (an `<img>` becomes a picture, block tags go through the block
             // handler, inline content accumulates as text), and the caption is
-            // resolved afterwards — every picture the figure produced takes the
-            // figcaption as its caption (docling's `_emit_image` looks up the
-            // enclosing figure's figcaption); when no picture came out, the
+            // resolved afterwards — the first picture the figure produced takes
+            // the figcaption as its caption (docling's `_emit_image` claims the
+            // enclosing figure's figcaption once); when no picture came out, the
             // figcaption becomes a caption item of its own, attached to the
             // figure's first item when that is a table (`TableItem.captions`).
             let start = nodes.len();
@@ -1006,6 +1039,9 @@ fn handle_block(
                 }
             }
             flush_inline(&mut inline, nodes);
+            // The first picture claims the figcaption; a later one keeps its
+            // own `alt` (docling#4745, #1177: a figure of several images
+            // keeps one caption).
             let produced = &mut nodes[start..];
             let mut any_picture = false;
             for node in produced.iter_mut() {
@@ -1015,11 +1051,11 @@ fn handle_block(
                     ..
                 } = node
                 {
-                    any_picture = true;
-                    if cap_text.is_some() {
+                    if !any_picture && cap_text.is_some() {
                         *caption = cap_text.clone();
                         *caption_href = cap_href.clone();
                     }
+                    any_picture = true;
                 }
             }
             if !any_picture {
@@ -3630,6 +3666,77 @@ mod tests {
                 "「はい」",
                 "“unknown”"
             ]
+        );
+    }
+
+    fn captions(doc: &DoclingDocument) -> Vec<String> {
+        doc.export_to_json_value()["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|t| t["label"] == "caption")
+            .map(|t| t["text"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    /// docling#4745 (#1177, `test_figure_keeps_one_caption`): a figure keeps
+    /// one caption, claimed by the first image that makes a picture — a
+    /// hidden image claims nothing, an image in the figcaption is not walked,
+    /// and images in a paragraph of the figure claim it too.
+    #[test]
+    fn figure_keeps_one_caption() {
+        for (figure, md) in [
+            (
+                r#"<figure><img src="a.png"/><img src="b.png"/><figcaption>cap</figcaption></figure>"#,
+                "cap\n\n<!-- image -->\n\n<!-- image -->",
+            ),
+            (
+                r#"<figure><img src="a.png"/><figcaption>cap</figcaption></figure>"#,
+                "cap\n\n<!-- image -->",
+            ),
+            (
+                r#"<figure><img src="a.png" style="display:none"/><img src="b.png"/><figcaption>cap</figcaption></figure>"#,
+                "cap\n\n<!-- image -->",
+            ),
+            (
+                r#"<figure><img src="a.png" aria-hidden="true"/><img src="b.png"/><figcaption>cap</figcaption></figure>"#,
+                "cap\n\n<!-- image -->",
+            ),
+            (
+                r#"<figure><figcaption><img src="icon.png"/>cap</figcaption><img src="b.png"/></figure>"#,
+                "cap\n\n<!-- image -->",
+            ),
+            (
+                r#"<figure><p><img src="a.png"/><img src="b.png"/></p><figcaption>cap</figcaption></figure>"#,
+                "cap\n\n<!-- image -->\n\n<!-- image -->",
+            ),
+        ] {
+            let doc = convert(&format!("<html><body><h1>Title</h1>{figure}</body></html>"));
+            assert_eq!(captions(&doc), ["cap"], "{figure}");
+            assert_eq!(
+                doc.export_to_markdown().trim(),
+                format!("# Title\n\n{md}"),
+                "{figure}"
+            );
+        }
+    }
+
+    /// `test_figure_later_image_falls_back_to_its_alt_text`.
+    #[test]
+    fn figure_later_image_falls_back_to_its_alt_text() {
+        let doc = convert(concat!(
+            "<html><body><h1>Title</h1>",
+            r#"<figure><img src="a.png" alt="panel A"/><img src="b.png" alt="panel B"/>"#,
+            "<figcaption>cap</figcaption></figure></body></html>"
+        ));
+        assert_eq!(captions(&doc), ["cap", "panel B"]);
+        let v = doc.export_to_json_value();
+        let first = v["pictures"][0]["captions"][0]["$ref"].as_str().unwrap();
+        let idx: usize = first.rsplit('/').next().unwrap().parse().unwrap();
+        assert_eq!(v["texts"][idx]["text"], "cap");
+        assert_eq!(
+            doc.export_to_markdown().trim(),
+            "# Title\n\ncap\n\n<!-- image -->\n\npanel B\n\n<!-- image -->"
         );
     }
 

@@ -482,6 +482,7 @@ pub(super) fn build_tree(
         hyperlink: None,
         images,
         el_of: HashMap::new(),
+        captioned_figures: Default::default(),
     };
     // The `<title>` is a furniture-layer title item, created first (unless
     // `add_title` is off, as for the Markdown backend's HTML detour).
@@ -791,6 +792,10 @@ struct Walker<'a> {
     images: &'a dyn ImageResolver,
     /// The element each item was created for (#903): item index → element.
     el_of: HashMap<usize, NodeId>,
+    /// `_captioned_figure_ids` (docling#4745, #1177): the figures whose
+    /// `<figcaption>` a picture has claimed, so a figure of several images
+    /// keeps one caption.
+    captioned_figures: std::collections::HashSet<NodeId>,
 }
 
 impl<'a> Walker<'a> {
@@ -1269,7 +1274,11 @@ impl<'a> Walker<'a> {
                         continue;
                     }
                     if name == "img" {
-                        added.push(self.emit_image(cel));
+                        // A hidden image is no picture and claims no caption,
+                        // as upstream's walk skips it (docling#4745).
+                        if !suppressed(cel.value()) {
+                            added.push(self.emit_image(cel));
+                        }
                     } else if name == "input" {
                         if let Some(r) = self.emit_input(cel) {
                             added.push(r);
@@ -1283,7 +1292,7 @@ impl<'a> Walker<'a> {
                 let any_picture = added
                     .iter()
                     .any(|&r| matches!(self.tree.items[r].kind, TreeKind::Picture { .. }));
-                if !any_picture {
+                if !any_picture && !self.captioned_figures.contains(&tag.id()) {
                     let caption_tag = tag
                         .children()
                         .filter_map(ElementRef::wrap)
@@ -1322,6 +1331,8 @@ impl<'a> Walker<'a> {
                 }
                 let imgs: Vec<ElementRef<'a>> = tag.select(sel!("img")).collect();
                 for img in imgs {
+                    // Not returned, as upstream does not: a figure around the
+                    // paragraph knows its caption was claimed (docling#4745).
                     self.emit_image(img);
                 }
                 let inputs: Vec<ElementRef<'a>> = tag.select(sel!("input")).collect();
@@ -2160,7 +2171,11 @@ impl<'a> Walker<'a> {
                 code: false,
             });
         }
-        if let Some(fig) = ancestor_named(*img, "figure", None) {
+        // The first picture of a figure claims its `<figcaption>`; a later
+        // one falls back to its `alt` (docling#4745, #1177).
+        if let Some(fig) = ancestor_named(*img, "figure", None)
+            .filter(|f| !self.captioned_figures.contains(&f.id()))
+        {
             if let Some(cap) = fig
                 .children()
                 .filter_map(ElementRef::wrap)
@@ -2168,6 +2183,7 @@ impl<'a> Walker<'a> {
             {
                 caption = self.extract(*cap, false, true, false);
                 fig_cap = Some(cap);
+                self.captioned_figures.insert(fig.id());
             }
         }
         if caption.is_empty() {
