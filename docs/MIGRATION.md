@@ -942,6 +942,8 @@ converted once more as that format with a warning.
   - **Divergence (Markdown):** for a table with several notes, docling-core first prints the notes' own empty texts joined by blank lines (its `serialize_footnotes`), then each note from its runs; we print the notes alone, so `pntd.0008301` and `pone.0234687` are short of those blank lines and nothing else.
   - **Divergence (LaTeX):** a note's superscript or subscript prints as plain text (`sup` where docling writes `$^{sup}$`) — the flat note carries Markdown, which has no script markup; the JSON and HTML keep the script.
 - #1016 (docling#4809): a table cell with a styled, script, linked or inline-formula run is a `RichTableCell` — its runs in a `rich_cell_group_{T}_{col}_{row}` group under the table (one item, or an inline group), the JSON cell keeping its plain text; a `<p>`/`<list-item>` boundary inside the cell keeps a space; an unmapped tag (`<named-content>`) or a blank script leaves the cell plain. Markdown prints the runs (`*W*. *bancrofti* &amp; mixed`, escaped like body text), DocLang gets them as the cell's content. Every table row of `elife-56337`, `pntd.0008301` and `pone.0234687` now matches upstream's groundtruth, and the rich cells match its JSON cell for cell
+- The 2026-11 upstream sync (#1208) ports the JATS fixes of docling 2.149–2.151 and `main`:
+  - docling#5244 (#1187): a heading joins its non-empty `<label>` and `<title>` with a space — `<sec>`/`<ack>` headings, the `<ref-list>` heading, the abstract and its sections — so `ptag100` reads `## 1. Introduction` and `#### 2.1.1. Setup of the Hamiltonian` where only the label (`## 1.`) was printed; a label-only or title-only heading is unchanged. `ptag100`'s refreshed `.md`/`.itxt` are mirrored and match (bar the trailing newline, as before)
 
 - #391 ports docling#4172, unreleased: a **structured abstract** keeps its `<sec>`s — where we flattened every section into one `Title: text` paragraph
   - each a heading one level below the abstract's (`hlevel + 2`, the abstract's being `hlevel + 1`, both with `hlevel` still 0 since the abstract precedes the body walk) with one text item per `<p>`
@@ -949,7 +951,7 @@ converted once more as that format with a warning.
   - a sections-only abstract with no plain text item
   - a section without paragraphs dropped
   - a nested `<sec>` not descended into
-- the abstract's own heading is its first `title` **or `label`** child (we read `title` only, so a label-only abstract fell back to "Abstract" for us and not for docling)
+- the abstract's own heading is its `title` **and `label`** children (we read `title` only, so a label-only abstract fell back to "Abstract" for us and not for docling; since docling#5244 both are joined, below)
 - the new `pmc2231364` fixture mirrored with its groundtruth
 - The nested-list half of docling#4172 does not apply: it wraps a sub-list in a LIST group to silence a docling-core deprecation warning, and our node model carries nesting in the item's level, not in parent refs — Markdown is unchanged there
 - **Known upstream quirk, replicated:** docling's `_parse_title` joins `elem.text` of each `title-group` child (the text before its first child element), so an `<article-title>` with inline markup is cut at the markup — `pmc2231364`'s title comes out as `# Global transcriptional response of`, as in upstream's groundtruth

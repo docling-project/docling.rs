@@ -64,6 +64,8 @@ pub(crate) mod iwork;
 mod iwork_cells;
 mod iwork_charts;
 pub(crate) mod jats;
+#[cfg(test)]
+mod jats_sync_tests;
 mod keynote;
 mod keynote_iwa;
 mod keynote_xml;

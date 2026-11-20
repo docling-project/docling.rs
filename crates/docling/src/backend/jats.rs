@@ -776,13 +776,18 @@ fn abstract_section<'a, 'i>(section: XmlNode<'a, 'i>) -> (String, Vec<XmlNode<'a
     (title_or_label(section), paragraphs)
 }
 
-/// The first `title` or `label` child in document order (docling's
-/// `xpath("title|label")[0]`), or empty.
+/// The non-empty `title`/`label` children in document order, each
+/// whitespace-normalized, joined by a space — docling's `_get_heading_text`
+/// (docling#5244). Only the first of them used to be read, so a
+/// `<label>1.</label><title>Introduction</title>` section printed `## 1.`;
+/// a label-only or title-only heading reads as before.
 fn title_or_label(node: XmlNode) -> String {
     node.children()
-        .find(|c| c.has_tag_name("title") || c.has_tag_name("label"))
+        .filter(|c| c.has_tag_name("title") || c.has_tag_name("label"))
         .map(node_text)
-        .unwrap_or_default()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// `_get_text`, un-normalized (newlines → spaces, formula tags skipped).
@@ -806,13 +811,10 @@ fn fw_level(dl: i32) -> u8 {
     (dl + 1).clamp(1, 6) as u8
 }
 
-/// A `<sec>`/`<ack>` header text (`title|label`), or a default for `<ack>`.
+/// A `<sec>`/`<ack>` header text (its `title|label` children joined,
+/// [`title_or_label`]), or a default for an `<ack>` without one.
 fn header_text(child: XmlNode) -> Option<String> {
-    child
-        .children()
-        .find(|c| c.has_tag_name("title") || c.has_tag_name("label"))
-        .map(get_text)
-        .map(|s| normalize(&s))
+    Some(title_or_label(child))
         .filter(|s| !s.is_empty())
         .or_else(|| {
             child
@@ -1008,10 +1010,7 @@ fn walk_linear(
                 stop_walk = true;
             }
             "ref-list" if node_tag != "ref-list" => {
-                let text = child
-                    .children()
-                    .find(|c| c.has_tag_name("title") || c.has_tag_name("label"))
-                    .map(|h| normalize(&get_text(h)))
+                let text = Some(title_or_label(child))
                     .filter(|s| !s.is_empty())
                     .unwrap_or_else(|| DEFAULT_HEADER_REFERENCES.to_string());
                 out.doc.push(Node::Heading {
