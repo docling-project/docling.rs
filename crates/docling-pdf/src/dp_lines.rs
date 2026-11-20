@@ -64,6 +64,9 @@ struct Cell {
     math_font: bool,
     /// Letter-spaced from the glyph before it ([`Glyph::spaced`]).
     spaced: bool,
+    /// The clip box in force ([`Glyph::clip`]); a contracted cell keeps it
+    /// only while all its glyphs share it.
+    clip: Option<[f64; 4]>,
 }
 
 impl Cell {
@@ -129,6 +132,9 @@ impl Cell {
             }
             self.text.push_str(&other.text);
             self.ltr = true;
+        }
+        if clips_differ(self.clip, other.clip) {
+            self.clip = None;
         }
         // Extend the right edge to `other`.
         self.rx1 = other.rx1;
@@ -440,6 +446,7 @@ fn build_cells(glyphs: &[Glyph], euclidean: bool) -> Vec<Cell> {
             pen: g.pen.map(|p| p.map(f64::from)),
             math_font: g.math_font,
             spaced: g.spaced,
+            clip: g.clip.map(|c| c.map(f64::from)),
         });
     }
     remove_duplicate_cells(&mut cells);
@@ -449,6 +456,92 @@ fn build_cells(glyphs: &[Glyph], euclidean: bool) -> Vec<Cell> {
 /// docling-parse's overprint tolerance, in points (`remove_duplicate_cells`
 /// and `remove_overlapping_text_cells` are both called with 0.5).
 const DUP_EPS: f64 = 0.5;
+
+/// Clip boxes whose edges differ by less than this are one clip
+/// (docling-parse's `CLIP_BBOX_EPS`).
+const CLIP_EPS: f64 = 1e-3;
+
+/// The fraction of a glyph's extent along the writing axis — or of its
+/// nominal text height, whichever is larger — a box must hide before the
+/// glyph counts as cut (docling-parse's `CLIP_HIDDEN_FRACTION`).
+const CLIP_HIDDEN: f64 = 0.2;
+
+/// `clips_differ`: no clip differs from a clip; two clips differ when an
+/// edge moves by more than [`CLIP_EPS`].
+fn clips_differ(a: Option<[f64; 4]>, b: Option<[f64; 4]>) -> bool {
+    match (a, b) {
+        (None, None) => false,
+        (Some(a), Some(b)) => (0..4).any(|k| (a[k] - b[k]).abs() > CLIP_EPS),
+        _ => true,
+    }
+}
+
+/// `cut_by`: `bx` hides more than [`CLIP_HIDDEN`] of the glyph along its
+/// writing axis. A box shorter than the nominal text height along that axis
+/// never cuts — a clip drawn tight around a period's ink, or a sliver under
+/// which a producer repaints a glyph, is no table cell; a glyph cut at its
+/// top or bottom still sits in its word and line.
+fn cut_by(c: &Cell, bx: [f64; 4]) -> bool {
+    let (dx, dy) = (c.rx1 - c.rx0, c.ry1 - c.ry0);
+    let n = dx.hypot(dy);
+    if n <= 1e-9 {
+        return false;
+    }
+    let (ux, uy) = (dx / n, dy / n);
+    let extent = |pts: [(f64, f64); 4]| {
+        pts.iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &(x, y)| {
+                let u = x * ux + y * uy;
+                (lo.min(u), hi.max(u))
+            })
+    };
+    let (g_lo, g_hi) = extent([
+        (c.rx0, c.ry0),
+        (c.rx1, c.ry1),
+        (c.rx2, c.ry2),
+        (c.rx3, c.ry3),
+    ]);
+    let (b_lo, b_hi) = extent([
+        (bx[0], bx[1]),
+        (bx[2], bx[1]),
+        (bx[2], bx[3]),
+        (bx[0], bx[3]),
+    ]);
+    let nominal = c
+        .pen
+        .map(|p| p[2])
+        .unwrap_or_else(|| (c.rx3 - c.rx0).hypot(c.ry3 - c.ry0));
+    if b_hi - b_lo < nominal {
+        return false;
+    }
+    let hidden = (b_lo - g_lo).max(0.0) + (g_hi - b_hi).max(0.0);
+    hidden > CLIP_HIDDEN * (g_hi - g_lo).max(nominal).max(1e-6)
+}
+
+/// `clip_hides`: the glyph's own clip cuts it.
+fn clip_hides(c: &Cell) -> bool {
+    c.clip.is_some_and(|bx| cut_by(c, bx))
+}
+
+/// docling-parse 7.26's `clip_boundary` (docling-parse#443, #1150): two
+/// consecutive glyphs fitted into different boxes — a producer that fits
+/// text into a table cell clips it there, and the hidden end runs under the
+/// next cell (`AB-1001-XYZReplacement of …` read as one line). Both clipped:
+/// the clips differ and one of the glyphs is cut by its own. One clipped:
+/// that glyph is cut, and the same box also cuts the other (some producers
+/// clip only the overflowing glyph and draw the rest of the word
+/// unclipped). Glyphs whole under their clips always may join — producers
+/// wrap every run, or every glyph, in a clip that does not cut it.
+fn clip_boundary(lhs: &Cell, rhs: &Cell) -> bool {
+    match (lhs.clip, rhs.clip) {
+        (None, None) => false,
+        (Some(_), Some(_)) => {
+            clips_differ(lhs.clip, rhs.clip) && (clip_hides(lhs) || clip_hides(rhs))
+        }
+        (Some(bx), None) => clip_hides(lhs) && cut_by(rhs, bx),
+        (None, Some(bx)) => clip_hides(rhs) && cut_by(lhs, bx),
+    }
+}
 
 /// docling-parse 7.26's `remove_duplicate_cells` over the char cells, before
 /// any contraction (docling-parse#367, `do_remove_duplicate_cells`, #1151).
@@ -508,6 +601,10 @@ fn remove_duplicate_cells(cells: &mut Vec<Cell>) {
     cells.retain(|_| it.next().unwrap_or(true));
 }
 
+/// A cell as [`overlapping_copies`] compares it: text, font, left-to-right,
+/// the quad, the clip box.
+type CopyKey<'a> = (&'a str, u64, bool, [f64; 8], Option<[f64; 4]>);
+
 /// docling-parse 7.26's `remove_overlapping_text_cells(…, 0.5)` over the
 /// contracted word cells and line cells (docling-parse#367, #1151): a cell
 /// is a copy of an earlier one with the same text, font and writing
@@ -517,15 +614,17 @@ fn remove_duplicate_cells(cells: &mut Vec<Cell>) {
 /// kept, the order preserved; a partial match or an overlap alone never
 /// counts. Candidates are bucketed by text, font and a 0.5 pt grid of the
 /// first corner, so a copy is looked for in the 3 × 3 buckets around its
-/// own. docling-parse also asks for the same widget state and clip; the
-/// clip is not tracked here yet (#1150). Returns the keep mask.
-fn overlapping_copies(cells: &[(&str, u64, bool, [f64; 8])]) -> Vec<bool> {
+/// own. The clips must not differ either ([`clips_differ`], #1150): the
+/// same token in two table cells is two tokens. docling-parse also asks
+/// for the same widget state, which glyphs here do not carry. Returns the
+/// keep mask.
+fn overlapping_copies(cells: &[CopyKey]) -> Vec<bool> {
     let mut keep = vec![true; cells.len()];
     // (text, font, grid column, grid row) → the earlier cells there, each
     // with its width and height.
     type Bucket<'a> = (&'a str, u64, i64, i64);
     let mut buckets: HashMap<Bucket, Vec<(usize, f64, f64)>> = HashMap::new();
-    for (i, &(text, font, ltr, q)) in cells.iter().enumerate() {
+    for (i, &(text, font, ltr, q, clip)) in cells.iter().enumerate() {
         if text.is_empty() {
             continue;
         }
@@ -542,9 +641,10 @@ fn overlapping_copies(cells: &[(&str, u64, bool, [f64; 8])]) -> Vec<bool> {
                     .get(&(text, font, col + dx, row + dy))
                     .is_some_and(|earlier| {
                         earlier.iter().any(|&(k, pw, ph)| {
-                            let (_, _, pltr, p) = cells[k];
+                            let (_, _, pltr, p, pclip) = cells[k];
                             let tol = DUP_EPS.min(0.1 * w.min(h).min(pw).min(ph));
                             pltr == ltr
+                                && !clips_differ(clip, pclip)
                                 && (0..4).all(|c| {
                                     let d =
                                         (q[2 * c] - p[2 * c]).hypot(q[2 * c + 1] - p[2 * c + 1]);
@@ -672,7 +772,7 @@ fn drop_overlapping_cells(cells: &mut Vec<Cell>) {
         .iter()
         .map(|c| {
             let q = [c.rx0, c.ry0, c.rx1, c.ry1, c.rx2, c.ry2, c.rx3, c.ry3];
-            (c.text.as_str(), c.font, c.ltr, q)
+            (c.text.as_str(), c.font, c.ltr, q, c.clip)
         })
         .collect();
     let keep = overlapping_copies(&keys);
@@ -1282,6 +1382,8 @@ struct Agg {
     /// The first glyph's font — a contracted cell's `font_name` in
     /// docling-parse, which the duplicate pass compares.
     font: u64,
+    /// The clip box all its glyphs share, else `None` (#1150).
+    clip: Option<[f64; 4]>,
 }
 
 impl Agg {
@@ -1292,13 +1394,18 @@ impl Agg {
             q: [c.rx0, c.ry0, c.rx1, c.ry1, c.rx2, c.ry2, c.rx3, c.ry3],
             glued,
             font: c.font,
+            clip: c.clip,
         }
     }
 
     /// `append_cell`: the text in reading order (an RTL piece prepends), and
     /// the smallest rectangle aligned with the writing direction holding
     /// both boxes.
-    fn append(&mut self, text: &str, ltr: bool, q: &[f64; 8], space: bool) {
+    fn append(&mut self, text: &str, ltr: bool, q: &[f64; 8], space: bool, clip: Option<[f64; 4]>) {
+        // A word or line keeps the clip box all its glyphs share (#1150).
+        if clips_differ(self.clip, clip) {
+            self.clip = None;
+        }
         if self.ltr && ltr {
             if space {
                 self.text.push(' ');
@@ -1466,8 +1573,14 @@ fn contract_runs(
             }
             continue;
         }
+        // A clip border that cuts a glyph separates the lines (#1150,
+        // docling-parse#443's `continues_line`); with the runs cut there,
+        // no two glyphs of one run straddle one, and the word and gap tests
+        // below need no clip test of their own.
         let starts = match runs.last().and_then(|r| r.iter().rev().find(|c| !c.space)) {
-            Some(prev) => !continues_line(prev, &rc, zero_advance_run),
+            Some(prev) => {
+                clip_boundary(prev.cell, rc.cell) || !continues_line(prev, &rc, zero_advance_run)
+            }
             None => runs.is_empty(),
         };
         if starts {
@@ -1573,6 +1686,7 @@ fn contract_runs(
                     c.cell.ltr,
                     &q,
                     false,
+                    c.cell.clip,
                 );
             }
             prev = Some(c);
@@ -1588,10 +1702,11 @@ fn contract_runs(
             q: first.q,
             glued: false,
             font: first.font,
+            clip: first.clip,
         };
         words_out.push(first);
         for w in it {
-            line.append(&w.text, w.ltr, &w.q, !w.glued);
+            line.append(&w.text, w.ltr, &w.q, !w.glued, w.clip);
             words_out.push(w);
         }
         lines_out.push(line);
@@ -1599,7 +1714,7 @@ fn contract_runs(
     let cells = |aggs: Vec<Agg>| {
         let keys: Vec<_> = aggs
             .iter()
-            .map(|a| (a.text.as_str(), a.font, a.ltr, a.q))
+            .map(|a| (a.text.as_str(), a.font, a.ltr, a.q, a.clip))
             .collect();
         let keep = overlapping_copies(&keys);
         aggs.into_iter()
@@ -1631,6 +1746,7 @@ mod tests {
             math_font: false,
             invisible: false,
             spaced: false,
+            clip: None,
         }
     }
 
@@ -1728,6 +1844,7 @@ mod tests {
             math_font: false,
             invisible: false,
             spaced: false,
+            clip: None,
         };
         let mut g = Vec::new();
         let mut run = |text: &str, edges: &[f32], font: u64| {

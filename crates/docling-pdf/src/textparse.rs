@@ -2990,11 +2990,14 @@ fn run_content(
                     tc = op_f(operands, 1);
                 }
                 if let (Some(f), Some(Object::String(s, _))) = (font, operands.last()) {
+                    let first = out.len();
                     show_text(f, s, fsize, tc, tw, th, trise, &mut tm, ctm, out);
+                    stamp_clip(&mut out[first..], shape_gs.clip_box);
                 }
             }
             "TJ" => {
                 if let (Some(f), Some(Object::Array(arr))) = (font, operands.first()) {
+                    let first = out.len();
                     for el in arr {
                         match el {
                             Object::String(s, _) => {
@@ -3017,6 +3020,7 @@ fn run_content(
                             }
                         }
                     }
+                    stamp_clip(&mut out[first..], shape_gs.clip_box);
                 }
             }
             "m" => {
@@ -3120,14 +3124,14 @@ fn run_content(
                 );
                 // A pending `W` takes effect after the painting operator.
                 if std::mem::take(&mut clip_pending) {
-                    capture_clip(&shape_path, &mut shape_gs.clips);
+                    capture_clip(&shape_path, &mut shape_gs);
                 }
                 shape_path.clear();
             }
             "n" => {
                 path.clear();
                 if std::mem::take(&mut clip_pending) {
-                    capture_clip(&shape_path, &mut shape_gs.clips);
+                    capture_clip(&shape_path, &mut shape_gs);
                 }
                 shape_path.clear();
             }
@@ -3410,6 +3414,11 @@ struct ShapeGs {
     fill_alpha: f64,
     fill_pattern: bool,
     clips: Vec<[f64; 4]>,
+    /// The clip in force as one box: the intersection of each capture's
+    /// box (the union of its subpaths' points), an empty intersection a
+    /// zero-size box — docling-parse 7.26's `clip_bbox`, which every glyph
+    /// carries (#1150, [`Glyph::clip`]).
+    clip_box: Option<[f64; 4]>,
 }
 
 impl ShapeGs {
@@ -3419,7 +3428,16 @@ impl ShapeGs {
         fill_alpha: 1.0,
         fill_pattern: false,
         clips: Vec::new(),
+        clip_box: None,
     };
+}
+
+/// Give the glyphs a text operator just drew the clip box in force.
+fn stamp_clip(glyphs: &mut [Glyph], clip: Option<[f64; 4]>) {
+    let clip = clip.map(|c| c.map(|v| v as f32));
+    for g in glyphs {
+        g.clip = clip;
+    }
 }
 
 /// docling-parse's `bbox_intersects`: the boxes share area (a degenerate box
@@ -3484,11 +3502,30 @@ fn shape_line(a: (f64, f64), z: (f64, f64), clips: &[[f64; 4]], out: &mut Vec<[f
 /// `capture_pending_clip`: each subpath of the clipping path with a segment
 /// (two points or more) bounds what later operators paint — appended, which
 /// approximates the intersection the spec asks for, as docling-parse does.
-fn capture_clip(subs: &[ShapeSub], clips: &mut Vec<[f64; 4]>) {
+///
+/// The capture's box as a whole — every point of its subpaths — narrows
+/// the clip box ([`ShapeGs::clip_box`], docling-parse's
+/// `intersect_clip_bbox`).
+fn capture_clip(subs: &[ShapeSub], gs: &mut ShapeGs) {
+    let mut group: Option<[f64; 4]> = None;
     for sub in subs.iter().filter(|s| s.pts.len() >= 2) {
         if let Some((l, b, r, t)) = bbox_of(&sub.pts) {
-            clips.push([l, b, r, t]);
+            gs.clips.push([l, b, r, t]);
+            group = Some(match group {
+                None => [l, b, r, t],
+                Some(g) => [g[0].min(l), g[1].min(b), g[2].max(r), g[3].max(t)],
+            });
         }
+    }
+    if let Some(g) = group {
+        gs.clip_box = Some(match gs.clip_box {
+            None => g,
+            Some(c) => {
+                let (x0, y0) = (c[0].max(g[0]), c[1].max(g[1]));
+                // An empty intersection clips everything: a zero-size box.
+                [x0, y0, c[2].min(g[2]).max(x0), c[3].min(g[3]).max(y0)]
+            }
+        });
     }
 }
 
@@ -3761,6 +3798,7 @@ fn show_text(
                     math_font: font.math,
                     invisible: false,
                     spaced: false,
+                    clip: None,
                 });
             }
         }
@@ -6145,6 +6183,172 @@ mod base14_fonts {
         }
     }
 
+    /// docling-parse 7.26's clip boundary (docling-parse#443, #1150): its
+    /// `test_unit_clipped_cell_text.py` cases, word and line cells as
+    /// docling-parse 7.27 lists them. A producer fits text into a table cell
+    /// by clipping it there; the hidden end runs under the next column and
+    /// read on into it (`AB-1001-XYZReplacement of …`).
+    #[test]
+    fn a_clip_that_cuts_a_glyph_separates_words_and_lines() {
+        const HELV: &[u8] = b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>";
+        let read = |content: &str| -> (Vec<String>, Vec<String>) {
+            let pdf = pdf_with_content(HELV, content.as_bytes());
+            let words = super::pdf_words(&pdf)
+                .into_iter()
+                .flat_map(|(_, _, c)| c)
+                .map(|c| c.text)
+                .collect();
+            let lines = cells(&pdf).into_iter().map(|c| c.text).collect();
+            (words, lines)
+        };
+        // The table of docling-parse#404, every cell's text in its own clip.
+        let rows = [
+            ["Code", "Description", "Unit", "Amount"],
+            [
+                "AB-1001-XYZ",
+                "Replacement of the ventilation unit, roof level",
+                "pcs",
+                "1",
+            ],
+            ["AB-1002", "Gutter cleaning", "m", "120"],
+            [
+                "AB-1003-LONG",
+                "Repainting of window frames and fascia boards",
+                "m2",
+                "85",
+            ],
+        ];
+        let columns = [72.0, 122.0, 252.0, 302.0, 372.0];
+        let (top, row_h) = (720.0, 22.0);
+        let mut table = String::from("0.5 w\n");
+        for i in 0..=rows.len() {
+            let y = top - i as f64 * row_h;
+            table += &format!("{} {y} m {} {y} l S\n", columns[0], columns[4]);
+        }
+        for x in columns {
+            table += &format!("{x} {top} m {x} {} l S\n", top - rows.len() as f64 * row_h);
+        }
+        for (r, row) in rows.iter().enumerate() {
+            for (c, text) in row.iter().enumerate() {
+                let (x0, x1) = (columns[c], columns[c + 1]);
+                let y1 = top - r as f64 * row_h;
+                let y0 = y1 - row_h;
+                table += &format!(
+                    "q {x0} {y0} {} {} re W n BT /F1 9 Tf {} {} Td ({text}) Tj ET Q\n",
+                    x1 - x0,
+                    y1 - y0,
+                    x0 + 3.0,
+                    y1 - 15.0
+                );
+            }
+        }
+        let (words, lines) = read(&table);
+        let split = |s: &str| s.split(' ').map(String::from).collect::<Vec<_>>();
+        let want_words: Vec<String> = rows.iter().flatten().flat_map(|t| split(t)).collect();
+        assert_eq!(words, want_words);
+        // Row 2 overflows nothing: neither clip cuts a glyph, and its code
+        // and description stay one line across the two clips.
+        assert_eq!(
+            lines,
+            [
+                "Code",
+                "Description",
+                "Unit",
+                "Amount",
+                "AB-1001-XYZ",
+                "Replacement of the ventilation unit, roof level",
+                "pcs",
+                "1",
+                "AB-1002 Gutter cleaning",
+                "m",
+                "120",
+                "AB-1003-LONG",
+                "Repainting of window frames and fascia boards",
+                "m2",
+                "85",
+            ]
+        );
+
+        // Each run in its own clip, (text, x, clip width): Helvetica 10 pt.
+        let runs = |rs: &[(&str, f64, f64)]| -> String {
+            rs.iter()
+                .map(|(t, x, w)| {
+                    format!("q {x} 697 {w} 12 re W n BT /F1 10 Tf {x} 700 Td ({t}) Tj ET Q\n")
+                })
+                .collect()
+        };
+        // Clips that cut nothing: the runs still join.
+        let (words, lines) = read(&runs(&[
+            ("Hel", 100.0, 15.0),
+            ("lo", 115.0, 7.78),
+            ("World", 125.56, 26.11),
+        ]));
+        assert_eq!(
+            (words, lines),
+            (
+                vec!["Hello".into(), "World".into()],
+                vec!["Hello World".into()]
+            )
+        );
+        // `Hello` clipped short, its hidden `lo` under `World`'s clip.
+        for visible in [12.0, 20.0] {
+            let (words, lines) = read(&runs(&[("Hello", 100.0, visible), ("World", 115.0, 26.11)]));
+            assert_eq!(words, ["Hello", "World"], "{visible}");
+            assert_eq!(lines, ["Hello", "World"], "{visible}");
+        }
+        // Only the overflowing glyph clipped: the unclipped ones lie inside
+        // its box, and the word stays whole.
+        let (words, lines) = read(
+            "BT /F1 10 Tf 100 700 Td (Montclai) Tj ET\n\
+             q 100 697 38 12 re W n BT /F1 10 Tf 137.23 700 Td (r) Tj ET Q\n",
+        );
+        assert_eq!(
+            (words, lines),
+            (vec!["Montclair".into()], vec!["Montclair".into()])
+        );
+        // A clip around a hyphen's ink is no cell: it hides less than a
+        // fifth of the em.
+        let mut x = 100.0;
+        let mut content = String::new();
+        for (t, adv) in [
+            ("a", 5.56),
+            ("u", 5.56),
+            ("f", 2.78),
+            ("g", 5.56),
+            ("e", 5.56),
+            ("-", 3.33),
+        ] {
+            let clip = if t == "-" {
+                format!("{} 697 2.0 12 re W n ", x + 0.6)
+            } else {
+                format!("{x} 697 {adv} 12 re W n ")
+            };
+            content += &format!("q {clip}BT /F1 10 Tf {x} 700 Td ({t}) Tj ET Q\n");
+            x += adv;
+        }
+        let (words, lines) = read(&content);
+        assert_eq!(
+            (words, lines),
+            (vec!["aufge-".into()], vec!["aufge-".into()])
+        );
+        // A glyph repainted under a sliver clip: a box that cannot hold a
+        // glyph is no cell either.
+        let (_, lines) = read(
+            "BT /F1 10 Tf 100 700 Td (d) Tj ET\n\
+             q 105.3 697 0.3 12 re W n BT /F1 10 Tf 100 700 Td (d) Tj ET Q\n\
+             BT /F1 10 Tf 105.56 700 Td (en) Tj ET\n",
+        );
+        assert_eq!(lines.len(), 1, "{lines:?}");
+        // The same token in two clips is two tokens (the duplicate pass,
+        // #1151, compares clips).
+        let (_, lines) = read(
+            "q 0 0 300 792 re W n BT /F1 12 Tf 72 700 Td (TOKEN) Tj ET Q\n\
+             BT /F1 12 Tf 72 660 Td (OTHER LINE) Tj ET\n\
+             q 0 0 400 792 re W n BT /F1 12 Tf 72.01 700.01 Td (TOKEN) Tj ET Q\n",
+        );
+        assert_eq!(lines, ["TOKEN", "OTHER LINE", "TOKEN"]);
+    }
+
     /// docling-parse's `test_small_text_keeps_repeated_letters`: a line at
     /// 12, 2, 1, 0.8 and 0.5 pt, drawn once or twice (`1 Tr` then `0 Tr`,
     /// fake bold), reads its letters once each — the doubled `mm` / `tt` /
@@ -6679,6 +6883,7 @@ mod base14_fonts {
             math_font: false,
             invisible: false,
             spaced: false,
+            clip: None,
         };
         let mut out = vec![
             glyph('o', 0.0, 0.0),
