@@ -1664,9 +1664,9 @@ impl Walker {
     }
 
     fn handle_tables_inner(&mut self, tbl: XmlNode, ctx: &Ctx) -> Vec<usize> {
-        let rows: Vec<XmlNode> = tbl
-            .children()
-            .filter(|n| n.has_tag_name("tr") && row_kept(*n, ctx))
+        let rows: Vec<XmlNode> = super::docx::table_rows(tbl)
+            .into_iter()
+            .filter(|n| row_kept(*n, ctx))
             .collect();
         let num_rows = rows.len();
         // python-docx's `len(table.columns)` is the `w:tblGrid` column count,

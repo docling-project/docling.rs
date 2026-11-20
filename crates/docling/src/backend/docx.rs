@@ -925,9 +925,9 @@ fn process_block(node: XmlNode, ctx: &Ctx, state: &mut ListState, doc: &mut Docl
         "tbl" => {
             // A 1×1 table is treated as furniture: its single cell's content is
             // processed as document-body blocks (docling unwraps it).
-            let rows: Vec<XmlNode> = node
-                .children()
-                .filter(|n| n.has_tag_name("tr") && row_kept(*n, ctx))
+            let rows: Vec<XmlNode> = table_rows(node)
+                .into_iter()
+                .filter(|n| row_kept(*n, ctx))
                 .collect();
             let num_cols = rows
                 .iter()
@@ -2466,9 +2466,9 @@ fn parse_table_with(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
 }
 
 fn parse_table_inner(tbl: XmlNode, ctx: &Ctx, nested: bool) -> Option<Table> {
-    let rows: Vec<XmlNode> = tbl
-        .children()
-        .filter(|n| n.has_tag_name("tr") && row_kept(*n, ctx))
+    let rows: Vec<XmlNode> = table_rows(tbl)
+        .into_iter()
+        .filter(|n| row_kept(*n, ctx))
         .collect();
     // A row's width in grid columns includes the leading/trailing skipped
     // columns (`w:gridBefore`/`w:gridAfter`) — a row that starts late still
@@ -2716,13 +2716,31 @@ pub(super) fn flat_text<'a, 'i>(n: XmlNode<'a, 'i>) -> Option<Cow<'a, str>> {
 /// slides left under the wrong header, and a 1×1 layout table loses its only
 /// cell — and with it all of its content.
 pub(super) fn row_cells<'a, 'i>(tr: XmlNode<'a, 'i>) -> Vec<XmlNode<'a, 'i>> {
+    unwrapped_children(tr, "tc")
+}
+
+/// A table's rows: its `w:tr` children, a row wrapped in `w:customXml` or a
+/// content control (`w:sdt/w:sdtContent`) included — docling's
+/// `_unwrapped_children(tbl, "tr")` (docling#4393, #1156). python-docx's
+/// `Table.rows` sees direct `w:tr` children only, and so did we: a wrapped
+/// row was dropped, its cells with it, and a vertical merge stopped there.
+pub(super) fn table_rows<'a, 'i>(tbl: XmlNode<'a, 'i>) -> Vec<XmlNode<'a, 'i>> {
+    unwrapped_children(tbl, "tr")
+}
+
+/// docling's `_unwrapped_children`: the `target` elements (`tr` or `tc`)
+/// under `parent` in document order, looking through `w:customXml` and
+/// `w:sdt/w:sdtContent` at any depth.
+fn unwrapped_children<'a, 'i>(parent: XmlNode<'a, 'i>, target: &str) -> Vec<XmlNode<'a, 'i>> {
     let mut out = Vec::new();
-    for child in tr.children().filter(XmlNode::is_element) {
-        if child.has_tag_name("tc") {
+    for child in parent.children().filter(XmlNode::is_element) {
+        if child.has_tag_name(target) {
             out.push(child);
+        } else if child.has_tag_name("customXml") {
+            out.extend(unwrapped_children(child, target));
         } else if child.has_tag_name("sdt") {
             if let Some(content) = child.children().find(|n| n.has_tag_name("sdtContent")) {
-                out.extend(row_cells(content));
+                out.extend(unwrapped_children(content, target));
             }
         }
     }

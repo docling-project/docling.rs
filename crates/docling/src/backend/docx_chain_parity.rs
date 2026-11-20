@@ -223,7 +223,7 @@ const WP: &str = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessin
 const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 const WPS: &str = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape";
 
-fn package(parts: &[(&str, String)]) -> Vec<u8> {
+pub(super) fn package(parts: &[(&str, String)]) -> Vec<u8> {
     let mut zw = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     let opts =
         zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
@@ -404,6 +404,23 @@ fn payloads() -> Vec<(&'static str, String)> {
             dml_textbox(&para(&run("dml box text romeo"))),
         ),
         ("table", table(&para(&run("inner table sierra")))),
+        (
+            // #1156 (docling#4393): rows and a cell wrapped in `w:customXml`
+            // and a content control.
+            "wrapped-rows",
+            format!(
+                "<w:tbl><w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>\
+                 <w:tr><w:tc>{a}</w:tc><w:tc>{b}</w:tc></w:tr>\
+                 <w:customXml><w:tr><w:tc>{c}</w:tc><w:customXml><w:tc>{d}</w:tc></w:customXml></w:tr></w:customXml>\
+                 <w:sdt><w:sdtContent><w:tr><w:tc>{e}</w:tc><w:tc>{f}</w:tc></w:tr></w:sdtContent></w:sdt></w:tbl>",
+                a = para(&run("row one uniform")),
+                b = para(&run("row one victor")),
+                c = para(&run("custom row whiskey")),
+                d = para(&run("custom cell xray")),
+                e = para(&run("control row yankee")),
+                f = para(&run("control row zulu")),
+            ),
+        ),
         (
             "line-break",
             para(&format!(
