@@ -3167,6 +3167,11 @@ impl DocumentConverter {
                 // from, as MarkItDown's `accepts` does — its title, metadata and
                 // caption transcript, not the page's markup.
                 InputFormat::Html if Self::is_youtube_page(source) => self.youtube_page(source)?,
+                // An inline XBRL report that reached here typed as HTML (a
+                // source built with an explicit format) is still a filing.
+                InputFormat::Html if crate::backend::is_ixbrl(&source.bytes) => {
+                    crate::backend::xbrl::convert_xbrl(source, self.xbrl_taxonomy.as_deref())?
+                }
                 InputFormat::Html => {
                     // Optionally resolve the CSS cascade in a headless browser first
                     // (strips computed-hidden elements); everything else stays in the

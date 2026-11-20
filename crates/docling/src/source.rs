@@ -85,6 +85,7 @@ impl SourceDocument {
                     },
                 })?,
         };
+        let format = refine_format(format, &bytes);
         let name = path
             .file_stem()
             .and_then(|s| s.to_str())
@@ -147,6 +148,7 @@ impl SourceDocument {
             .filter(|s| !s.is_empty())
             .unwrap_or("document")
             .to_string();
+        let format = refine_format(format, &bytes);
         let mut doc = Self::from_bytes(stem, format, bytes);
         doc.extension = ext.map(str::to_ascii_lowercase);
         doc.media_type = media_type.map(str::to_string);
@@ -785,6 +787,19 @@ mod decode_tests {
             decode_text_as(&bytes, "windows-1250").unwrap(),
             "Zażółć gęślą jaźń, zażółć gęślą jaźń."
         );
+    }
+}
+
+/// The format a page's content overrides its name with: an `.htm` /
+/// `.html` / `.xhtml` (or a sniffed HTML page) whose root declares the
+/// inline XBRL namespace is an inline XBRL report (docling#4689's
+/// `is_ixbrl`) — XBRL, so a converter allowed HTML only skips it rather than
+/// reading the filing as a web page.
+pub(crate) fn refine_format(format: InputFormat, bytes: &[u8]) -> InputFormat {
+    if format == InputFormat::Html && crate::backend::is_ixbrl(bytes) {
+        InputFormat::XmlXbrl
+    } else {
+        format
     }
 }
 

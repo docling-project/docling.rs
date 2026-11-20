@@ -129,6 +129,8 @@ mod wpd;
 mod wps;
 pub(crate) mod xbrl;
 mod xbrl_dts;
+mod xbrl_inline;
+pub(crate) use xbrl_inline::is_ixbrl;
 mod xls;
 mod xlsx;
 mod xlsx_drawings;
