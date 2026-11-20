@@ -454,6 +454,7 @@ pub(crate) fn run(
             confidence: None,
             redaction: None,
             pdf_repairs: None,
+            ocr_status: None,
             body: serde_json::to_vec(&body).expect("the envelope serializes"),
         };
     }
@@ -500,6 +501,7 @@ pub(crate) fn run(
         confidence: None,
         redaction: None,
         pdf_repairs: None,
+        ocr_status: None,
         body: docling::dclx::zip_bytes(refs),
     }
 }

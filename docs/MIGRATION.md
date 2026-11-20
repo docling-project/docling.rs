@@ -3003,6 +3003,22 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
   Markdown's placeholder mode the block takes the drawing's
   `<!-- image -->`'s place (the picture itself stays in the document and
   in the embedded / referenced modes). docling has no counterpart.
+- **`ocr_status`** (#1210) — whether a conversion had the OCR it needed.
+  A missing OCR model degrades instead of failing (#244): the conversion
+  succeeds and the text OCR would have read is missing. The fact now rides
+  the result, not only a once-per-process stderr warning:
+  `ConversionResult::ocr_status: Option<OcrStatus>` — `None` when nothing
+  asked for OCR (a born-digital page, OCR off), `Available`, or
+  `Unavailable { reason }` with the load error; the status stays
+  `Success`. Python `result.ocr_status` (`"available"` / `"unavailable"` /
+  `None`) + `result.ocr_unavailable_reason`, Node `ocrStatus` +
+  `ocrUnavailableReason`, serve `X-Docling-Ocr-Status` (+
+  `X-Docling-Ocr-Unavailable-Reason`) on a single response and an
+  `ocr_status` object on a batch / async item, and a per-document
+  `warning: …: OCR unavailable` line in a CLI batch. Not on the streaming
+  Markdown paths (a chunk stream has no result) nor the C ABI. A page that
+  merely *could* need OCR but has no text-less region no longer loads the
+  OCR model either.
 - **`pdf_repairs`** (#934) — what the PDF reader repaired to read a file,
   typed: `docling_pdf::pdf_repairs(bytes) -> Vec<PdfRepair>` (re-exported by
   `docling`), with `PdfRepair::StreamLength { object, offset, declared,

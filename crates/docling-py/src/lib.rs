@@ -121,6 +121,25 @@ struct PyNativeResult {
     /// the input is a PDF; `None` otherwise.
     #[pyo3(get)]
     pdf_repairs_json: Option<String>,
+    /// Whether the conversion had the OCR it asked for (#1210):
+    /// `"available"`, `"unavailable"` (the OCR model could not be loaded and
+    /// the conversion went on without it), `None` when nothing asked for OCR.
+    #[pyo3(get)]
+    ocr_status: Option<String>,
+    /// The load error behind an `"unavailable"` [`Self::ocr_status`].
+    #[pyo3(get)]
+    ocr_unavailable_reason: Option<String>,
+}
+
+/// [`PyNativeResult::ocr_status`] and its reason (#1210).
+fn ocr_status_fields(status: Option<docling::OcrStatus>) -> (Option<String>, Option<String>) {
+    match status {
+        None => (None, None),
+        Some(docling::OcrStatus::Unavailable { reason }) => {
+            (Some("unavailable".to_string()), Some(reason))
+        }
+        Some(s) => (Some(s.as_str().to_string()), None),
+    }
 }
 
 /// The `metadata` object of `doc`'s JSON (#679), when its output mode
@@ -1183,8 +1202,11 @@ impl PyDocumentConverter {
                 reporter.document_started();
                 pipeline.set_pages(window);
                 pipeline.set_progress(reporter.page_hook());
+                // What an earlier conversion that failed half-way left (#1210).
+                let _ = pipeline.take_ocr_status();
                 let outcome = pipeline.convert_outcome(&src.bytes, password.as_deref(), &src.name);
                 pipeline.set_progress(None);
+                reporter.note_ocr_status(pipeline.take_ocr_status());
                 pipeline.set_pages(default_window);
                 // docling's PARTIAL_SUCCESS (#497): a spent budget leaves the
                 // pages done so far and says so in `errors`.
@@ -1218,7 +1240,11 @@ impl PyDocumentConverter {
                 let redaction = converter
                     .redact(&mut c.document)
                     .map_err(conversion_error)?;
+                let (ocr_status, ocr_unavailable_reason) =
+                    ocr_status_fields(reporter.take_ocr_status());
                 Ok(PyNativeResult {
+                    ocr_status,
+                    ocr_unavailable_reason,
                     status: if errors.is_empty() {
                         "success"
                     } else {
@@ -1346,7 +1372,10 @@ fn native_result(r: docling::ConversionResult) -> PyNativeResult {
     }
     .to_string();
     let document_json = r.document.export_to_json();
+    let (ocr_status, ocr_unavailable_reason) = ocr_status_fields(r.ocr_status);
     PyNativeResult {
+        ocr_status,
+        ocr_unavailable_reason,
         status,
         input_name: r.input_name,
         metadata_json: metadata_json(&r.document),

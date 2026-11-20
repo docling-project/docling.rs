@@ -97,6 +97,14 @@
 //! - `pdf_report_repairs` — report what the PDF reader repaired to read the
 //!   input (#934): `X-Docling-Pdf-Repairs` on a single response, a
 //!   `pdf_repairs` list on a batch / async item; off by default
+//!
+//! A conversion that needed OCR says whether it had it (#1210):
+//! `X-Docling-Ocr-Status: available | unavailable` on a single response (the
+//! load error in `X-Docling-Ocr-Unavailable-Reason` when it is printable), an
+//! `ocr_status` object (`{"status": "unavailable", "reason": "…"}`) on a
+//! batch / async item. Absent when nothing asked for OCR. An unavailable
+//! OCR model keeps the status `success` — the conversion degrades (#244) —
+//! so this is how a client tells an empty scan from a document with no text.
 //! - `pdf_keep_typography` — keep a PDF's typographic punctuation (`„ “`,
 //!   `‚ ‘`, dashes, `…`) as drawn instead of folding it to ASCII (#921)
 //! - `ocr_textline_orientation` — RapidOCR's text-line orientation
@@ -1662,6 +1670,7 @@ async fn job_result(
                 confidence: stored.confidence.clone(),
                 redaction: stored.redaction.clone(),
                 pdf_repairs: stored.pdf_repairs.clone(),
+                ocr_status: stored.ocr_status.clone(),
                 body: stored.body.clone(),
             }
             .into_response(),
@@ -1683,6 +1692,9 @@ struct StoredResponse {
     /// The `X-Docling-Pdf-Repairs` list (#934), when the request asked
     /// `pdf_report_repairs` and the input is a PDF.
     pdf_repairs: Option<header::HeaderValue>,
+    /// The `X-Docling-Ocr-Status` headers (#1210), when the conversion
+    /// asked for OCR: the tag, and the load error when it was unavailable.
+    ocr_status: Option<Vec<(&'static str, header::HeaderValue)>>,
     body: Vec<u8>,
     /// The problems the conversion survived (#497) — a non-empty list is a
     /// `partial_success`, announced in `X-Docling-Status` / `X-Docling-Errors`
@@ -1699,6 +1711,7 @@ impl StoredResponse {
                 errors: self.errors,
                 redaction: None,
                 pdf_repairs: None,
+                ocr_status: None,
             };
             response.headers_mut().insert(
                 "x-docling-status",
@@ -1723,6 +1736,9 @@ impl StoredResponse {
         }
         if let Some(v) = self.pdf_repairs {
             response.headers_mut().insert("x-docling-pdf-repairs", v);
+        }
+        for (name, v) in self.ocr_status.into_iter().flatten() {
+            response.headers_mut().insert(name, v);
         }
         response
     }
@@ -1781,6 +1797,7 @@ fn run_conversion(
                 confidence: None,
                 redaction: None,
                 pdf_repairs: None,
+                ocr_status: None,
                 body: serde_json::to_vec_pretty(&json!({ "pages": pages }))
                     .expect("page JSON serializes"),
             });
@@ -1790,6 +1807,7 @@ fn run_conversion(
         let mut stored = render_stored(state, to, image_mode, &name, &converted.document, options)?;
         stored.redaction = converted.redaction_header();
         stored.pdf_repairs = converted.pdf_repairs_header();
+        stored.ocr_status = converted.ocr_status_headers();
         stored.errors = converted.errors;
         return Ok(stored);
     }
@@ -1843,6 +1861,7 @@ fn run_conversion(
         confidence: None,
         redaction: None,
         pdf_repairs: None,
+        ocr_status: None,
         body: serde_json::to_vec_pretty(&json!({ "results": items }))
             .expect("batch JSON serializes"),
     })
@@ -1946,6 +1965,7 @@ fn run_conversion_to_target(
         confidence: None,
         redaction: None,
         pdf_repairs: None,
+        ocr_status: None,
         // Upstream's RemoteTargetResult is the bare kind ("no content, the
         // result has been pushed to a remote target"); the credential-free
         // target display and per-item outcomes ride along as extra keys.
@@ -2013,6 +2033,7 @@ fn run_conversion_to_zip(
         confidence: None,
         redaction: None,
         pdf_repairs: None,
+        ocr_status: None,
         body: docling::dclx::zip_bytes(entry_refs),
     })
 }
@@ -2098,6 +2119,7 @@ fn run_conversion_to_put(
         confidence: None,
         redaction: None,
         pdf_repairs: None,
+        ocr_status: None,
         // The echoed target drops the query string: pre-signed URLs carry
         // their signature there, and the ack may transit logs and proxies.
         body: serde_json::to_vec_pretty(&json!({
@@ -2298,6 +2320,7 @@ fn render_stored(
             confidence,
             redaction: None,
             pdf_repairs: None,
+            ocr_status: None,
             body: markdown_string(state, document, image_mode, options).into_bytes(),
         },
         "json" => {
@@ -2319,6 +2342,7 @@ fn render_stored(
                 confidence,
                 redaction: None,
                 pdf_repairs: None,
+                ocr_status: None,
                 body,
             }
         }
@@ -2340,6 +2364,7 @@ fn render_stored(
                 confidence,
                 redaction: None,
                 pdf_repairs: None,
+                ocr_status: None,
                 body: serde_json::to_vec(&records).expect("chunk records serialize"),
             }
         }
@@ -2350,6 +2375,7 @@ fn render_stored(
             confidence,
             redaction: None,
             pdf_repairs: None,
+            ocr_status: None,
             body: docling::dclx::to_dclx_bytes(document),
         },
         // #317: a text body like Markdown (no download disposition).
@@ -2360,6 +2386,7 @@ fn render_stored(
             confidence,
             redaction: None,
             pdf_repairs: None,
+            ocr_status: None,
             body: document.export_to_latex().into_bytes(),
         },
         // #613: docling's `--to text`, a text body like Markdown.
@@ -2370,6 +2397,7 @@ fn render_stored(
             confidence,
             redaction: None,
             pdf_repairs: None,
+            ocr_status: None,
             body: text_string(state, document, options).into_bytes(),
         },
         // #614: docling's `--to vtt`, a text body like Markdown.
@@ -2380,6 +2408,7 @@ fn render_stored(
             confidence,
             redaction: None,
             pdf_repairs: None,
+            ocr_status: None,
             body: document.export_to_vtt().into_bytes(),
         },
         // #515: Pandoc's AST, for `pandoc -f json`; pictures follow
@@ -2391,6 +2420,7 @@ fn render_stored(
             confidence,
             redaction: None,
             pdf_repairs: None,
+            ocr_status: None,
             body: pandoc_string(document, image_mode, options).into_bytes(),
         },
         // #492: docling-core's HTML serializer; pictures follow `images`
@@ -2402,6 +2432,7 @@ fn render_stored(
             confidence,
             redaction: None,
             pdf_repairs: None,
+            ocr_status: None,
             body: html_string(document, image_mode).into_bytes(),
         },
         _ => unreachable!("validated above"),
@@ -2421,6 +2452,9 @@ fn mark_partial(item: &mut serde_json::Value, converted: &Converted) {
     }
     if let Some(repairs) = &converted.pdf_repairs {
         item["pdf_repairs"] = json!(repairs);
+    }
+    if let Some(ocr) = &converted.ocr_status {
+        item["ocr_status"] = json!(ocr);
     }
 }
 
@@ -2628,6 +2662,7 @@ fn text_batch(
         confidence: None,
         redaction: None,
         pdf_repairs: None,
+        ocr_status: None,
         body: body.into_bytes(),
     }
 }
@@ -3031,9 +3066,32 @@ struct Converted {
     /// request asked `pdf_report_repairs` — `X-Docling-Pdf-Repairs` on a
     /// single response, `pdf_repairs` on a batch / async item.
     pdf_repairs: Option<Vec<docling::PdfRepair>>,
+    /// Whether the conversion had the OCR it asked for (#1210) —
+    /// `X-Docling-Ocr-Status` on a single response, `ocr_status` on a batch
+    /// / async item; `None` when nothing asked for OCR.
+    ocr_status: Option<docling_core::OcrStatus>,
 }
 
 impl Converted {
+    /// The `X-Docling-Ocr-Status` header (#1210) — `available` /
+    /// `unavailable` — and, for an unavailable engine, the load error in
+    /// `X-Docling-Ocr-Unavailable-Reason` (left out when it is not a valid
+    /// header value; the batch item's `ocr_status` always carries it).
+    fn ocr_status_headers(&self) -> Option<Vec<(&'static str, header::HeaderValue)>> {
+        let status = self.ocr_status.as_ref()?;
+        let mut headers = vec![(
+            "x-docling-ocr-status",
+            header::HeaderValue::from_static(status.as_str()),
+        )];
+        if let docling_core::OcrStatus::Unavailable { reason } = status {
+            let one_line = reason.split_whitespace().collect::<Vec<_>>().join(" ");
+            if let Ok(v) = header::HeaderValue::from_str(&one_line) {
+                headers.push(("x-docling-ocr-unavailable-reason", v));
+            }
+        }
+        Some(headers)
+    }
+
     /// The `X-Docling-Pdf-Repairs` value: the list as JSON.
     fn pdf_repairs_header(&self) -> Option<header::HeaderValue> {
         let repairs = self.pdf_repairs.as_ref()?;
@@ -3169,6 +3227,7 @@ fn convert_document_inner(
                     errors: result.errors,
                     redaction,
                     pdf_repairs: None,
+                    ocr_status: None,
                 })
             });
     }
@@ -3222,6 +3281,8 @@ fn convert_document_inner(
             let reporter = Arc::new(finish.reporter(1, &source.name, None));
             reporter.document_started();
             pipeline.set_progress(reporter.page_hook());
+            // What an earlier request that failed half-way left (#1210).
+            let _ = pipeline.take_ocr_status();
             let converted = match source.format {
                 InputFormat::Pdf => pipeline
                     .convert_outcome(&source.bytes, o.password.as_deref(), &source.name)
@@ -3243,6 +3304,7 @@ fn convert_document_inner(
                             document: c.document,
                             redaction: None,
                             pdf_repairs: None,
+                            ocr_status: None,
                         }
                     }),
                 _ => pipeline
@@ -3252,9 +3314,11 @@ fn convert_document_inner(
                         errors: Vec::new(),
                         redaction: None,
                         pdf_repairs: None,
+                        ocr_status: None,
                     }),
             };
             pipeline.set_progress(None);
+            reporter.note_ocr_status(pipeline.take_ocr_status());
             // The picture enrichment pass `convert` would have run (#896):
             // `keep_picture_images=false` and the picture description
             // reached every other format but never a PDF or image.
@@ -3280,6 +3344,7 @@ fn convert_document_inner(
             converted.pdf_repairs = (source.format == InputFormat::Pdf
                 && finish.reports_pdf_repairs())
             .then(|| docling::pdf_repairs(&source.bytes));
+            converted.ocr_status = reporter.take_ocr_status();
             Ok(converted)
         }
         _ => {
@@ -3291,6 +3356,7 @@ fn convert_document_inner(
                     errors: r.errors,
                     redaction: r.redaction,
                     pdf_repairs: r.pdf_repairs,
+                    ocr_status: r.ocr_status,
                 })
                 .map_err(|e| conversion_api_error(&e))
         }
@@ -3606,6 +3672,7 @@ fn stream_one(
                     eprintln!("docling-serve: partial document: {}", e.describe());
                 }
                 let repairs = converted.pdf_repairs_header();
+                let ocr = converted.ocr_status_headers();
                 let mut doc = converted.document;
                 doc.strict_markdown = options.convert.strict.unwrap_or(st.cfg.strict);
                 doc.page_break_placeholder = options.convert.page_break_placeholder.clone();
@@ -3625,6 +3692,7 @@ fn stream_one(
                     if let Some(v) = repairs {
                         headers.push(("x-docling-pdf-repairs", v));
                     }
+                    headers.extend(ocr.into_iter().flatten());
                 }
                 tx.send(Ok((md, headers)))
             }

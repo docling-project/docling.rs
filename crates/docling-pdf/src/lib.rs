@@ -1188,6 +1188,10 @@ struct Worker {
     /// `None` when `no_ocr` skips layout entirely — no model load, no inference.
     layout: Option<layout::LayoutModel>,
     ocr: OcrSlot,
+    /// What this worker's OCR requests met since the pipeline last asked
+    /// (#1210): set by [`Self::ocr_model`] whenever a page wants OCR, read
+    /// and cleared by [`Pipeline::take_ocr_status`]. `None` = no request.
+    ocr_status: Option<docling_core::OcrStatus>,
     det: SharedDet,
     /// Text-detector results computed ahead of a page's OCR pass (#429), keyed
     /// by page index: the detector reads nothing but the page image, so it
@@ -1240,11 +1244,13 @@ struct Worker {
 /// The worker's lazily-loaded OCR recognition model. `Missing` records a
 /// failed load (#244: degradation over failure — a deployment without the OCR
 /// model still gets layout + TableFormer, and OCR-dependent regions stay
-/// empty) so the load isn't retried per page.
+/// empty) so the load isn't retried per page. It keeps the load error: every
+/// later conversion that wants OCR reports it on its result (#1210), not
+/// only the first one the one-time warning reached.
 enum OcrSlot {
     Unloaded,
     Ready(Recognizer),
-    Missing,
+    Missing(String),
 }
 
 #[cfg(feature = "ml")]
@@ -1366,6 +1372,7 @@ impl Worker {
                 Some(layout::LayoutModel::load_with(intra).map_err(PdfError::Layout)?)
             },
             ocr: OcrSlot::Unloaded,
+            ocr_status: None,
             det,
             pending_det: BTreeMap::new(),
             intra,
@@ -1427,7 +1434,8 @@ impl Worker {
                     static WARNED: std::sync::Once = std::sync::Once::new();
                     let hint = match self.ocr_engine {
                         ocr::OcrEngine::PpOcr => {
-                            "run scripts/install/download_dependencies.sh for the model"
+                            "install the models with scripts/install/download_dependencies.sh, \
+                             or docling_rs.download_models() from Python"
                         }
                         ocr::OcrEngine::Tesseract => {
                             "install tesseract-ocr with the language pack, or use --ocr-engine ppocr"
@@ -1440,14 +1448,39 @@ impl Worker {
                              ({hint})"
                         );
                     });
-                    self.ocr = OcrSlot::Missing;
+                    self.ocr = OcrSlot::Missing(e.to_string());
                 }
             }
         }
+        // Every call is a page (or picture) asking for OCR — the callers
+        // reach here only once a text-less region needs reading — so the
+        // slot's state is what that request met (#1210).
+        let met = match &self.ocr {
+            OcrSlot::Ready(_) => docling_core::OcrStatus::Available,
+            OcrSlot::Missing(reason) => docling_core::OcrStatus::Unavailable {
+                reason: reason.clone(),
+            },
+            OcrSlot::Unloaded => unreachable!("loaded above"),
+        };
+        self.ocr_status = docling_core::OcrStatus::merge_opt(self.ocr_status.take(), Some(met));
         Ok(match &mut self.ocr {
             OcrSlot::Ready(model) => Some(model),
             _ => None,
         })
+    }
+
+    /// [`Self::ocr_model`] when `wanted`, else `None` without touching the
+    /// slot: the call sites that only *may* need OCR (a region left without
+    /// text, a picture-table) ask through here, so a page with nothing to
+    /// read neither loads the model nor counts as an OCR request on the
+    /// result's status (#1210) — a born-digital page needs no OCR, whatever
+    /// the engine's state.
+    fn ocr_model_if(&mut self, wanted: bool) -> Result<Option<&mut Recognizer>, PdfError> {
+        if wanted {
+            self.ocr_model()
+        } else {
+            Ok(None)
+        }
     }
 
     /// Run `f` on the shared text detector (#429/#945), loading it on first
@@ -2282,7 +2315,7 @@ impl Worker {
                     uncovered.len(),
                     detected.len()
                 );
-                if let (false, Some(ocr)) = (uncovered.is_empty(), self.ocr_model()?) {
+                if let Some(ocr) = self.ocr_model_if(!uncovered.is_empty())? {
                     let scored =
                         timing::timed("ocr.det_lines", || ocr.ocr_page(img, &uncovered, scl))
                             .map_err(|e| PdfError::Ocr(format!("page {}: {e}", n + 1)))?;
@@ -2307,7 +2340,7 @@ impl Worker {
             // text layer (#999, `bitmap_regions`).
             let mut empty = text_less_regions(&regions, &page.cells);
             empty.extend(bitmap_regions(&regions, &page.cells, &page.bitmaps));
-            if let (false, Some(_)) = (empty.is_empty(), self.ocr_model()?) {
+            if !empty.is_empty() && self.ocr_model()?.is_some() {
                 // A page with a text layer and no picture or table had its
                 // bitmap declined (#897); render it now — rare, and only
                 // for the page that needs it.
@@ -2428,7 +2461,7 @@ impl Worker {
                 .collect();
             // Speculative OCR (#244): with `skip_ocr` or no model, big bare
             // pictures simply stay pictures.
-            if let (false, Some(ocr)) = (bare.is_empty(), self.ocr_model()?) {
+            if let Some(ocr) = self.ocr_model_if(!bare.is_empty())? {
                 let (img, scl) = ocr_input(&mut ocr_view, &page.image, page.scale, ocr_scale);
                 let scored = timing::timed("ocr.pictures", || ocr.ocr_page(img, &bare, scl))
                     .map_err(|e| PdfError::Ocr(format!("page {}: {e}", n + 1)))?;
@@ -2523,7 +2556,7 @@ impl Worker {
                 .collect();
             // Same degradation as above: without OCR the in-picture table
             // keeps its structure (TableFormer is geometry-driven) minus text.
-            if let (false, Some(ocr)) = (pic_tables.is_empty(), self.ocr_model()?) {
+            if let Some(ocr) = self.ocr_model_if(!pic_tables.is_empty())? {
                 let (img, scl) = ocr_input(&mut ocr_view, &page.image, page.scale, ocr_scale);
                 let words = timing::timed("ocr.table_words", || {
                     ocr.ocr_table_words(img, &pic_tables, scl, None)
@@ -3134,6 +3167,27 @@ impl Pipeline {
                 worker.ocr = OcrSlot::Unloaded;
             }
         }
+    }
+
+    /// What the OCR requests of the conversions since the last call met
+    /// (#1210), and clear it: `None` when nothing asked for OCR (a digital
+    /// PDF, `skip_ocr`, `no_ocr`), [`OcrStatus::Available`] when the engine
+    /// read every request, [`OcrStatus::Unavailable`] — with the load error
+    /// — when one went without it because the engine could not load (the
+    /// #244 degradation: the conversion succeeds, the text OCR would have
+    /// read is missing). A caller reads it after each conversion; a warm
+    /// pipeline's caller also once before, to drop what an earlier
+    /// conversion that failed half-way left behind.
+    ///
+    /// [`OcrStatus::Available`]: docling_core::OcrStatus::Available
+    /// [`OcrStatus::Unavailable`]: docling_core::OcrStatus::Unavailable
+    pub fn take_ocr_status(&mut self) -> Option<docling_core::OcrStatus> {
+        self.primary
+            .iter_mut()
+            .chain(self.pool.iter_mut())
+            .fold(None, |acc, worker| {
+                docling_core::OcrStatus::merge_opt(acc, worker.ocr_status.take())
+            })
     }
 
     /// Tesseract's languages (#460): the `-l` argument, tessdata stems joined
@@ -5004,6 +5058,7 @@ mod tables_off_gate {
         Worker {
             layout: None,
             ocr: OcrSlot::Unloaded,
+            ocr_status: None,
             det: Arc::new(Mutex::new(DetSlot::Missing)),
             pending_det: Default::default(),
             intra: 1,
@@ -5025,6 +5080,35 @@ mod tables_off_gate {
             textline_orientation: false,
             images: ImageOutput::default(),
         }
+    }
+
+    /// #1210: a failed OCR load is reported for every request, and only for
+    /// a request — a page that may need OCR but has nothing to read does not
+    /// count, nor touch the slot.
+    #[test]
+    fn a_missing_ocr_model_is_recorded_per_request() {
+        let mut w = worker(None);
+        w.skip_ocr = false;
+        w.ocr = OcrSlot::Missing("no model".into());
+        assert!(w.ocr_model_if(false).unwrap().is_none());
+        assert_eq!(w.ocr_status, None, "nothing asked for OCR");
+        assert!(w.ocr_model().unwrap().is_none(), "degrades, not fails");
+        let unavailable = docling_core::OcrStatus::Unavailable {
+            reason: "no model".into(),
+        };
+        assert_eq!(w.ocr_status, Some(unavailable.clone()));
+        // The pipeline folds its workers' state and clears it.
+        let Ok(mut p) = super::Pipeline::new() else {
+            return;
+        };
+        p.primary = Some(w);
+        assert_eq!(p.take_ocr_status(), Some(unavailable));
+        assert_eq!(p.take_ocr_status(), None, "taken");
+        // `skip_ocr` never asks.
+        let mut skipped = worker(None);
+        skipped.ocr = OcrSlot::Missing("no model".into());
+        assert!(skipped.ocr_model().unwrap().is_none());
+        assert_eq!(skipped.ocr_status, None);
     }
 
     fn axle_page() -> (PdfPage, Vec<Region>) {

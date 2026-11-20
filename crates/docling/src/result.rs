@@ -114,4 +114,13 @@ pub struct ConversionResult {
     /// asked: empty for a well-formed file. `None` when not asked, for
     /// non-PDF input and on the VLM pipeline.
     pub pdf_repairs: Option<Vec<docling_core::PdfRepair>>,
+    /// Whether the conversion could OCR what it needed to (#1210): `None`
+    /// when nothing asked for OCR (a born-digital PDF, an Office file
+    /// without picture OCR, OCR switched off), `Available` when the engine
+    /// read it, `Unavailable` — with the load error — when the OCR model
+    /// could not be loaded and the conversion went on without it (#244):
+    /// the status stays `Success`, but scanned pages and text inside images
+    /// are missing from the document. The stderr warning says the same
+    /// once per process; this says it on every conversion it applies to.
+    pub ocr_status: Option<docling_core::OcrStatus>,
 }

@@ -34,6 +34,7 @@ mod markdown;
 mod mathml;
 pub mod memory;
 pub mod metadata;
+pub mod ocr_status;
 pub mod pandoc;
 pub mod pdf_repair;
 mod pixel_digest;
@@ -61,6 +62,7 @@ pub use latex::escape_latex;
 pub use limits::LimitExceeded;
 pub use markdown::{code_fence, code_span, longest_backtick_run, ImageMode, MarkdownStreamer};
 pub use metadata::{DocumentMetadata, GpsPosition, MetadataOutput};
+pub use ocr_status::OcrStatus;
 pub use pdf_repair::PdfRepair;
 pub use redact::{
     CustomPattern, ImageRedaction, PiiDetector, PiiKind, RedactionOptions, RedactionReport,

@@ -87,7 +87,7 @@ pub use docling_core::{
     HtmlExportOptions, ImageMode, MarkdownExportOptions, MarkdownStreamer, Node, PictureImage,
     QualityGrade, Table,
 };
-pub use docling_core::{DocumentMetadata, GpsPosition, MetadataOutput, PdfRepair};
+pub use docling_core::{DocumentMetadata, GpsPosition, MetadataOutput, OcrStatus, PdfRepair};
 pub use docling_core::{Revision, RevisionKind, TrackChanges};
 
 // The reusable PDF/image pipeline (models loaded once, reused across documents),

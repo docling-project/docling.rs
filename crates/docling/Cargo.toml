@@ -205,6 +205,10 @@ name = "textline_orientation_no_model"
 path = "tests/textline_orientation_no_model.rs"
 
 [[test]]
+name = "ocr_unavailable"
+path = "tests/ocr_unavailable.rs"
+
+[[test]]
 name = "youtube"
 path = "tests/youtube.rs"
 

@@ -199,6 +199,12 @@ pub struct ProgressReporter {
     document_index: usize,
     document_name: String,
     finished: Mutex<BTreeSet<usize>>,
+    /// What the conversion's OCR requests met (#1210), folded in by every
+    /// pipeline the conversion leases and by the picture-OCR pass; the
+    /// result's `ocr_status` is read off it. The reporter is the one value
+    /// every stage of one conversion already holds, so the fact rides it
+    /// instead of a new parameter through each backend.
+    ocr_status: Mutex<Option<docling_core::OcrStatus>>,
 }
 
 impl fmt::Debug for ProgressReporter {
@@ -226,7 +232,28 @@ impl ProgressReporter {
             document_index,
             document_name: document_name.into(),
             finished: Mutex::new(BTreeSet::new()),
+            ocr_status: Mutex::new(None),
         }
+    }
+
+    /// Fold what a stage's OCR requests met into the conversion's status
+    /// (#1210, see [`docling_core::OcrStatus::merge`]); `None` — the stage
+    /// asked for no OCR — leaves it as it is.
+    pub fn note_ocr_status(&self, status: Option<docling_core::OcrStatus>) {
+        if status.is_none() {
+            return;
+        }
+        let mut slot = self.ocr_status.lock().unwrap_or_else(|p| p.into_inner());
+        *slot = docling_core::OcrStatus::merge_opt(slot.take(), status);
+    }
+
+    /// The conversion's OCR status so far, cleared (#1210): `None` when
+    /// nothing asked for OCR.
+    pub fn take_ocr_status(&self) -> Option<docling_core::OcrStatus> {
+        self.ocr_status
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .take()
     }
 
     /// Whether anyone listens.
