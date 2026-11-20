@@ -19,6 +19,24 @@
     "children": [
       {
         "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/texts/6"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/texts/9"
+      },
+      {
+        "$ref": "#/texts/10"
       }
     ],
     "content_layer": "body",
@@ -160,6 +178,78 @@
         "strikethrough": false,
         "script": "baseline"
       }
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "notes",
+      "label": "text",
+      "prov": [],
+      "orig": "1. Floating/Anchored Drawing: Source Input Document",
+      "text": "1. Floating/Anchored Drawing: Source Input Document"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "notes",
+      "label": "text",
+      "prov": [],
+      "orig": "2. Inline Group Drawing: Process Box B1, Arrow A->B1, and Side Spec B2",
+      "text": "2. Inline Group Drawing: Process Box B1, Arrow A->B1, and Side Spec B2"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "notes",
+      "label": "text",
+      "prov": [],
+      "orig": "Background boundary rect",
+      "text": "Background boundary rect"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "notes",
+      "label": "text",
+      "prov": [],
+      "orig": "Shape B1: Target Processing Unit",
+      "text": "Shape B1: Target Processing Unit"
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "notes",
+      "label": "text",
+      "prov": [],
+      "orig": "Line A -> B1: connecting bottom of SourceDoc (Y=96px) to top of Processing Unit (Y=132px)",
+      "text": "Line A -> B1: connecting bottom of SourceDoc (Y=96px) to top of Processing Unit (Y=132px)"
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "notes",
+      "label": "text",
+      "prov": [],
+      "orig": "Shape B2: Side Validation Spec attached to the right of SourceDoc (X=132px, Y=84px)",
+      "text": "Shape B2: Side Validation Spec attached to the right of SourceDoc (X=132px, Y=84px)"
     }
   ],
   "pictures": [

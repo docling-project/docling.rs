@@ -64,6 +64,12 @@ impl DeclarativeBackend for DocxBackend {
         let document = pkg
             .read("word/document.xml")
             .ok_or_else(|| ConversionError::Parse("docx: no document.xml".into()))?;
+        // XML comments and processing instructions are stripped from every
+        // part before it is parsed (docling#4584, #1157), the main part's
+        // comments kept as notes-layer text after the reviewer comments.
+        let mut xml_notes = Vec::new();
+        let document = super::ooxml::strip_comments_and_pis_owned(document, Some(&mut xml_notes));
+        pkg.strip_comments_and_pis();
         let styles = pkg.read("word/styles.xml").unwrap_or_default();
         let numbering = pkg.read("word/numbering.xml").unwrap_or_default();
         let even_and_odd_headers = even_and_odd_headers(&mut pkg);
@@ -191,7 +197,7 @@ impl DeclarativeBackend for DocxBackend {
         // back-refs — is upstream's; the flat nodes above stay the source for
         // Markdown / DocLang / LaTeX.
         doc.tree = Some(super::docx_tree::build_tree(
-            &mut pkg, body, &ctx, &comments,
+            &mut pkg, body, &ctx, &comments, &xml_notes,
         ));
         for (id, text) in comments {
             doc.nodes.push(Node::CommentSection {
@@ -201,6 +207,16 @@ impl DeclarativeBackend for DocxBackend {
                 // group's, so replies to one comment group together.
                 refs_note_text: false,
                 grouped: true,
+            });
+        }
+        // The main part's XML comments (docling#4584): notes-layer text
+        // after the reviewer comments, which Markdown and LaTeX leave out.
+        for note in xml_notes {
+            doc.nodes.push(Node::Furniture {
+                layer: docling_core::ContentLayer::Notes,
+                inner: Box::new(Node::Paragraph {
+                    text: super::markdown::escape_html(&super::markdown::escape_underscores(&note)),
+                }),
             });
         }
         Ok(doc)

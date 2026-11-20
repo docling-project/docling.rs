@@ -216,12 +216,22 @@ pub(super) fn build_tree(
     body: XmlNode,
     ctx: &Ctx,
     comments: &[(String, String)],
+    xml_notes: &[String],
 ) -> ItemTree {
     let mut w = Walker::new();
     w.extract_comment_ranges(body);
     w.walk_linear(body, ctx);
     w.add_header_footer(pkg, body, ctx);
     w.add_comments(comments);
+    // docling#4584: the main part's XML comments, each a notes-layer text
+    // on the body, between the reviewer comments and the notes.
+    for note in xml_notes {
+        w.add(
+            None,
+            Some(ContentLayer::Notes),
+            text_kind("text", note, None, None),
+        );
+    }
     // `_add_footnotes_and_endnotes` (docling#4374): after the comments, each
     // note's body a furniture-layer `footnote` text on the body.
     let mut bodies: HashMap<(&'static str, String), (usize, String)> = HashMap::new();

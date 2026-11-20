@@ -30,6 +30,83 @@ pub(crate) fn open_zip<R: std::io::Read + std::io::Seek>(
     ZipArchive::with_config(at_zero, reader()).or_else(|_| ZipArchive::new(reader()))
 }
 
+/// `xml` without its XML comments and processing instructions — docling's
+/// `etree.strip_elements(root, Comment, ProcessingInstruction,
+/// with_tail=False)` on each part it reads (docling#4584, #1157). The text
+/// on either side joins (`<w:t>first <!-- x -->run</w:t>` reads `first
+/// run`): roxmltree keeps a comment as a node of its own and `text()` returns
+/// only the first text child, so the words after one were lost. The XML
+/// declaration stays, CDATA sections are copied untouched, and an
+/// unterminated comment or instruction is left for the parser to reject.
+/// `notes` collects the comments' texts, trimmed, blank ones left out, in
+/// document order (docling keeps those of the main document part as
+/// notes-layer text). Borrowed when there is nothing to strip.
+pub(crate) fn strip_comments_and_pis<'a>(
+    xml: &'a str,
+    mut notes: Option<&mut Vec<String>>,
+) -> std::borrow::Cow<'a, str> {
+    let is_declaration = |at: usize| {
+        let rest = &xml.as_bytes()[at + 2..];
+        rest.starts_with(b"xml")
+            && rest
+                .get(3)
+                .is_some_and(|b| b.is_ascii_whitespace() || *b == b'?')
+    };
+    if !xml.contains("<!--") && xml.match_indices("<?").all(|(at, _)| is_declaration(at)) {
+        return std::borrow::Cow::Borrowed(xml);
+    }
+    let mut out = String::with_capacity(xml.len());
+    let (mut copied, mut at) = (0, 0);
+    while let Some(off) = xml[at..].find('<') {
+        let start = at + off;
+        let rest = &xml[start..];
+        let cut = if let Some(comment) = rest.strip_prefix("<!--") {
+            let Some(end) = comment.find("-->") else {
+                break;
+            };
+            if let Some(notes) = notes.as_deref_mut() {
+                let text = comment[..end].trim();
+                if !text.is_empty() {
+                    notes.push(text.to_string());
+                }
+            }
+            Some(4 + end + 3)
+        } else if rest.starts_with("<![CDATA[") {
+            let Some(end) = rest.find("]]>") else {
+                break;
+            };
+            at = start + end + 3;
+            continue;
+        } else if rest.starts_with("<?") && !is_declaration(start) {
+            let Some(end) = rest.find("?>") else {
+                break;
+            };
+            Some(end + 2)
+        } else {
+            None
+        };
+        match cut {
+            Some(len) => {
+                out.push_str(&xml[copied..start]);
+                copied = start + len;
+                at = copied;
+            }
+            None => at = start + 1,
+        }
+    }
+    out.push_str(&xml[copied..]);
+    std::borrow::Cow::Owned(out)
+}
+
+/// [`strip_comments_and_pis`] over an owned part, reusing it when there is
+/// nothing to strip.
+pub(crate) fn strip_comments_and_pis_owned(xml: String, notes: Option<&mut Vec<String>>) -> String {
+    match strip_comments_and_pis(&xml, notes) {
+        std::borrow::Cow::Owned(s) => s,
+        std::borrow::Cow::Borrowed(_) => xml,
+    }
+}
+
 /// Hard cap on a single decompressed OOXML part (512 MiB). Real documents
 /// stay far below this; the limit only exists to stop a decompression-bomb
 /// part from exhausting memory. Override with `DOCLING_RS_MAX_PART_BYTES`.
@@ -51,6 +128,10 @@ pub struct Package<B: AsRef<[u8]> = std::sync::Arc<[u8]>> {
     /// The member paths, decoded once: zip 9 decodes a name on every
     /// `file_names()` call and hands it back as a `Result`.
     names: std::sync::Arc<[String]>,
+    /// Strip XML comments and processing instructions from every part
+    /// [`Self::read`] returns ([`strip_comments_and_pis`]; the DOCX
+    /// backend's choice, docling#4584).
+    strip_comments: bool,
 }
 
 impl Package {
@@ -79,7 +160,11 @@ impl<B: AsRef<[u8]>> Package<B> {
             .filter_map(Result::ok)
             .map(|n| n.into_owned())
             .collect();
-        Some(Self { zip, names })
+        Some(Self {
+            zip,
+            names,
+            strip_comments: false,
+        })
     }
 
     /// The package's member paths, in central-directory order (a name that
@@ -122,7 +207,17 @@ impl<B: AsRef<[u8]>> Package<B> {
             eprintln!("docling: {e}; part skipped");
             return None;
         }
-        Some(text)
+        Some(if self.strip_comments {
+            strip_comments_and_pis_owned(text, None)
+        } else {
+            text
+        })
+    }
+
+    /// From now on, strip XML comments and processing instructions from
+    /// every part [`Self::read`] returns.
+    pub fn strip_comments_and_pis(&mut self) {
+        self.strip_comments = true;
     }
 
     /// Read a part's raw bytes (e.g. an embedded image), or `None` if absent.

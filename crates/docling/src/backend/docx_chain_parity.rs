@@ -432,6 +432,12 @@ fn payloads() -> Vec<(&'static str, String)> {
             ),
         ),
         (
+            // #1157 (docling#4584): the text around an XML comment joins, an
+            // instruction leaves nothing.
+            "xml-comment",
+            para(r#"<!-- note --><w:r><w:t xml:space="preserve">joined <!-- x -->kilo</w:t></w:r><?producer note?><w:r><w:t xml:space="preserve"> lima</w:t></w:r>"#),
+        ),
+        (
             "line-break",
             para(&format!(
                 "{}<w:r><w:br/><w:t>after break tango</w:t></w:r>",

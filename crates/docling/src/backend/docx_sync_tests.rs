@@ -336,3 +336,204 @@ fn paragraph_outline_body_text_and_the_option() {
     assert_eq!(markdown_blocks(&doc), ["Outlined"]);
     assert_eq!(json(&doc)["texts"][0]["label"], "text");
 }
+
+/// The body docling's `_docx_with_xml_node` builds: a heading, a two-run
+/// paragraph and a 1×2 table.
+fn xml_node_body() -> String {
+    format!(
+        r#"<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Title</w:t></w:r></w:p><w:p><w:r><w:t xml:space="preserve">first run </w:t></w:r><w:r><w:t>second run</w:t></w:r></w:p><w:tbl><w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid><w:tr>{}{}</w:tr></w:tbl>"#,
+        tc("cell A"),
+        tc("cell B"),
+    )
+}
+
+fn heading_styles() -> (&'static str, String) {
+    (
+        "word/styles.xml",
+        format!(
+            r#"<w:styles xmlns:w="{W}"><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style></w:styles>"#
+        ),
+    )
+}
+
+const XML_COMMENT: &str = "<!-- Created by docx4j 8.2.8 (Apache licensed) -->";
+
+fn notes_texts(doc: &docling_core::DoclingDocument) -> Vec<String> {
+    json(doc)["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|t| t["content_layer"] == "notes")
+        .map(|t| t["text"].as_str().unwrap().to_string())
+        .collect()
+}
+
+/// docling#4584 (#1157, `test_xml_comments_and_processing_instructions_keep_body_text`):
+/// a comment or instruction anywhere in the document part keeps the body.
+#[test]
+fn xml_comments_and_processing_instructions_keep_body_text() {
+    let body = xml_node_body();
+    let cases: [(&str, String); 6] = [
+        ("body", format!("{XML_COMMENT}{body}")),
+        (
+            "paragraph",
+            body.replacen("<w:p>", &format!("<w:p>{XML_COMMENT}"), 1),
+        ),
+        (
+            "run",
+            body.replacen("<w:r>", &format!("<w:r>{XML_COMMENT}"), 1),
+        ),
+        (
+            "table-cell",
+            body.replacen("<w:tc>", &format!("<w:tc>{XML_COMMENT}"), 1),
+        ),
+        (
+            "table-row",
+            body.replacen("<w:tr>", &format!("<w:tr>{XML_COMMENT}"), 1),
+        ),
+        ("processing-instruction", format!("<?producer note?>{body}")),
+    ];
+    for (name, body) in cases {
+        let doc = convert(docx(&body, STYLES_REL, &[heading_styles()]));
+        let md = doc.export_to_markdown();
+        for text in ["Title", "first run", "second run", "cell A", "cell B"] {
+            assert!(md.contains(text), "{name}: {text} missing from {md}");
+        }
+        let v = json(&doc);
+        let cells: Vec<&str> = v["tables"][0]["data"]["table_cells"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["text"].as_str().unwrap())
+            .collect();
+        assert_eq!(cells, ["cell A", "cell B"], "{name}");
+    }
+}
+
+/// docling#4584 (`test_xml_comment_text_goes_to_notes`): the document
+/// part's comments are notes-layer text, a blank one dropped; the text
+/// around an inline comment joins; instructions leave nothing.
+#[test]
+fn xml_comment_text_goes_to_notes() {
+    let body = format!("{XML_COMMENT}<!--   -->{}", xml_node_body())
+        .replacen(
+            "<w:p>",
+            "<w:p xml:space=\"preserve\"><!-- indented -->\n  ",
+            1,
+        )
+        .replacen(">first run <", ">first <!-- inline -->run <", 1)
+        .replacen("<w:tc>", "<w:tc><?producer note?>", 1);
+    let doc = convert(docx(&body, STYLES_REL, &[heading_styles()]));
+    assert_eq!(
+        notes_texts(&doc),
+        [
+            "Created by docx4j 8.2.8 (Apache licensed)",
+            "indented",
+            "inline"
+        ]
+    );
+    let md = doc.export_to_markdown();
+    assert!(md.contains("# Title"), "{md}");
+    assert!(md.contains("first run second run"), "{md}");
+    for gone in ["docx4j", "indented", "inline", "producer"] {
+        assert!(!md.contains(gone), "{gone} in {md}");
+    }
+}
+
+/// docling#4584 (`test_xml_comments_in_footnotes_are_removed`): comments
+/// and instructions in the notes parts are removed, never notes text.
+#[test]
+fn xml_comments_in_footnotes_are_removed() {
+    let separators = r#"<w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>"#;
+    let footnotes = format!(
+        r#"<w:footnotes xmlns:w="{W}">{separators}<w:footnote w:id="2"><w:p><!-- note --><w:r><w:t xml:space="preserve">Smith, J. <!-- inline -->(2020).</w:t></w:r><?producer note?><w:r><w:t xml:space="preserve"> Example Study.</w:t></w:r></w:p></w:footnote></w:footnotes>"#
+    );
+    let endnotes = format!(
+        r#"<w:endnotes xmlns:w="{W}"><w:endnote w:id="2"><w:p><w:r><w:t>An endnote body.</w:t></w:r></w:p></w:endnote></w:endnotes>"#
+    );
+    let rels = r#"<Relationship Id="rIdF" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/><Relationship Id="rIdE" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>"#;
+    let body = r#"<w:p><w:r><w:t>This is a claim that needs support</w:t></w:r><w:r><w:footnoteReference w:id="2"/></w:r><w:r><w:endnoteReference w:id="2"/></w:r></w:p>"#;
+    let doc = convert(docx(
+        body,
+        rels,
+        &[
+            ("word/footnotes.xml", footnotes),
+            ("word/endnotes.xml", endnotes),
+        ],
+    ));
+    let v = json(&doc);
+    let notes: Vec<&str> = v["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|t| t["label"] == "footnote")
+        .map(|t| t["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        notes,
+        ["Smith, J. (2020). Example Study.", "An endnote body."]
+    );
+    assert!(notes_texts(&doc).is_empty());
+}
+
+/// docling#4584 (`test_xml_comments_in_charts_are_removed`): a chart part's
+/// comments and instructions keep its data.
+#[test]
+fn xml_comments_in_charts_are_removed() {
+    use std::io::{Read, Write};
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/data/docx/sources/drawingml.docx");
+    let bytes = std::fs::read(path).expect("drawingml.docx");
+    let mut zin = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+    let mut zw = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let opts = zip::write::SimpleFileOptions::default();
+    for i in 0..zin.len() {
+        let mut f = zin.by_index(i).unwrap();
+        let name = f.name().unwrap().to_string();
+        let mut data = Vec::new();
+        f.read_to_end(&mut data).unwrap();
+        if name == "word/charts/chart1.xml" {
+            let mut xml = String::from_utf8(data).unwrap();
+            for (old, new) in [
+                ("<c:plotArea>", "<c:plotArea><!-- x --><?producer note?>"),
+                ("<c:v>4.3</c:v>", "<c:v>4<!-- x -->.3</c:v>"),
+            ] {
+                assert_eq!(xml.matches(old).count(), 1, "{old}");
+                xml = xml.replace(old, new);
+            }
+            data = xml.into_bytes();
+        }
+        zw.start_file(name, opts).unwrap();
+        zw.write_all(&data).unwrap();
+    }
+    let doc = convert(zw.finish().unwrap().into_inner());
+    let md = doc.export_to_markdown();
+    let row = md
+        .lines()
+        .find(|l| l.contains("Category 1"))
+        .expect("the chart's data table");
+    let cells: Vec<&str> = row
+        .split('|')
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+        .collect();
+    assert_eq!(cells, ["Category 1", "4.3", "2.4", "2"]);
+}
+
+#[test]
+fn strip_comments_and_pis_shapes() {
+    use crate::backend::ooxml::strip_comments_and_pis as strip;
+    let decl = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#;
+    let plain = format!("{decl}<a><b>x</b></a>");
+    assert!(matches!(strip(&plain, None), std::borrow::Cow::Borrowed(_)));
+    let mut notes = Vec::new();
+    let xml =
+        format!("{decl}<a><!-- one --><b>x<!--two-->y</b><![CDATA[<!-- kept -->]]><?pi z?></a>");
+    assert_eq!(
+        strip(&xml, Some(&mut notes)),
+        format!("{decl}<a><b>xy</b><![CDATA[<!-- kept -->]]></a>")
+    );
+    assert_eq!(notes, ["one", "two"]);
+    // An unterminated comment is left for the parser.
+    assert_eq!(strip("<a><!-- open</a>", None), "<a><!-- open</a>");
+}
