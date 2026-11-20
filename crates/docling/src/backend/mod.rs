@@ -95,6 +95,9 @@ mod palmdoc;
 mod ppt;
 mod pptx;
 mod pptx_chart;
+mod pptx_chartex;
+#[cfg(test)]
+mod pptx_sync_tests;
 #[cfg(test)]
 mod pptx_upstream_unit;
 mod print_file;

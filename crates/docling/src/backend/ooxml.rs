@@ -114,6 +114,48 @@ pub(crate) fn max_part_bytes() -> u64 {
     docling_core::env::parse("DOCLING_RS_MAX_PART_BYTES").unwrap_or(512 * 1024 * 1024)
 }
 
+/// The package-wide limits a DOCX, PPTX or XLSX is checked against before
+/// any part is read (#1163; docling's `check_archive_limits`, DOCX/XLSX
+/// since docling#4977, PPTX since docling#5113): the sizes the central
+/// directory declares, one member and all together, and the member count.
+/// A package past one fails with the typed [`docling_core::LimitExceeded`],
+/// as docling fails it with `ArchiveLimitError`. The per-part read cap
+/// ([`max_part_bytes`]) still guards the bytes actually inflated, so a
+/// header that understates its member cannot get past both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PackageLimits {
+    /// Declared uncompressed bytes of one member (docling's
+    /// `max_file_bytes`, 128 MiB).
+    pub(crate) max_member_bytes: u64,
+    /// Declared uncompressed bytes of all members (`max_total_bytes`,
+    /// 512 MiB).
+    pub(crate) max_total_bytes: u64,
+    /// Members in the archive (`max_member_count`, 10 000).
+    pub(crate) max_members: usize,
+}
+
+pub(crate) const OOXML_MAX_MEMBER_MB_VAR: &str = "DOCLING_RS_OOXML_MAX_MEMBER_MB";
+pub(crate) const OOXML_MAX_TOTAL_MB_VAR: &str = "DOCLING_RS_OOXML_MAX_TOTAL_MB";
+pub(crate) const OOXML_MAX_MEMBERS_VAR: &str = "DOCLING_RS_OOXML_MAX_MEMBERS";
+
+impl PackageLimits {
+    /// docling's defaults, each overridable: `DOCLING_RS_OOXML_MAX_MEMBER_MB`
+    /// (128), `DOCLING_RS_OOXML_MAX_TOTAL_MB` (512),
+    /// `DOCLING_RS_OOXML_MAX_MEMBERS` (10 000).
+    pub(crate) fn from_env() -> Self {
+        let mb = |var: &str, default: u64| {
+            docling_core::env::parse::<u64>(var)
+                .unwrap_or(default)
+                .saturating_mul(1 << 20)
+        };
+        Self {
+            max_member_bytes: mb(OOXML_MAX_MEMBER_MB_VAR, 128),
+            max_total_bytes: mb(OOXML_MAX_TOTAL_MB_VAR, 512),
+            max_members: docling_core::env::parse(OOXML_MAX_MEMBERS_VAR).unwrap_or(10_000),
+        }
+    }
+}
+
 /// A read-only view over the parts of an OOXML package.
 ///
 /// Cloning is cheap (the file bytes are shared behind an `Arc`, the ZIP
@@ -171,6 +213,50 @@ impl<B: AsRef<[u8]>> Package<B> {
     /// is neither UTF-8 nor CP437 is left out).
     pub fn names(&self) -> impl Iterator<Item = &str> {
         self.names.iter().map(String::as_str)
+    }
+
+    /// Check the package against `limits` from its central directory alone
+    /// — nothing is inflated ([`PackageLimits`]).
+    pub(crate) fn check_limits(
+        &mut self,
+        limits: &PackageLimits,
+    ) -> Result<(), docling_core::LimitExceeded> {
+        let to_usize = |v: u64| usize::try_from(v).unwrap_or(usize::MAX);
+        let members = self.zip.len();
+        if members > limits.max_members {
+            return Err(docling_core::LimitExceeded {
+                variable: OOXML_MAX_MEMBERS_VAR,
+                limit: limits.max_members,
+                actual: members,
+                what: "the package".into(),
+            });
+        }
+        let mut total = 0u64;
+        for i in 0..members {
+            let Ok(file) = self.zip.by_index_raw(i) else {
+                continue;
+            };
+            let size = file.size();
+            if size > limits.max_member_bytes {
+                let name = file.name().map(|n| n.into_owned()).unwrap_or_default();
+                return Err(docling_core::LimitExceeded {
+                    variable: OOXML_MAX_MEMBER_MB_VAR,
+                    limit: to_usize(limits.max_member_bytes),
+                    actual: to_usize(size),
+                    what: format!("member {name}"),
+                });
+            }
+            total = total.saturating_add(size);
+            if total > limits.max_total_bytes {
+                return Err(docling_core::LimitExceeded {
+                    variable: OOXML_MAX_TOTAL_MB_VAR,
+                    limit: to_usize(limits.max_total_bytes),
+                    actual: to_usize(total),
+                    what: "the package's members together".into(),
+                });
+            }
+        }
+        Ok(())
     }
 
     /// Whether any member cannot be read because it is encrypted — docling's
@@ -657,4 +743,138 @@ pub(crate) fn alt_text_of(props: roxmltree::Node) -> Option<String> {
             .filter(|v| !v.is_empty())
             .map(str::to_string)
     })
+}
+
+/// #1163 (docling#5113 / docling#4977, `test_backend_archive_limits.py`):
+/// the package-wide limits of a DOCX, PPTX or XLSX.
+#[cfg(test)]
+mod package_limit_tests {
+    use super::{Package, PackageLimits};
+    use crate::backend::DeclarativeBackend;
+    use crate::format::InputFormat;
+    use crate::source::SourceDocument;
+    use std::io::Write;
+
+    fn fixture(rel: &str) -> Vec<u8> {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/data");
+        std::fs::read(root.join(rel)).expect(rel)
+    }
+
+    const FIXTURES: [(&str, &str); 3] = [
+        ("docx/sources/Transitional.docx", "word/document.xml"),
+        (
+            "pptx/sources/powerpoint_sample.pptx",
+            "ppt/slides/slide1.xml",
+        ),
+        ("xlsx/sources/xlsx_01.xlsx", "xl/worksheets/sheet1.xml"),
+    ];
+
+    #[test]
+    fn upstream_fixtures_are_within_the_default_limits() {
+        for (rel, _) in FIXTURES {
+            let mut pkg = Package::open(&fixture(rel)).unwrap();
+            assert_eq!(
+                pkg.check_limits(&PackageLimits::from_env()),
+                Ok(()),
+                "{rel}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_member_over_the_limit_is_named() {
+        for (rel, member) in FIXTURES {
+            let bytes = fixture(rel);
+            let mut pkg = Package::open(&bytes).unwrap();
+            let size = {
+                let mut zip = zip::ZipArchive::new(std::io::Cursor::new(&bytes)).unwrap();
+                let size = zip.by_name(member).unwrap().size();
+                size
+            };
+            // A limit just under that member's size, high enough for every
+            // member before it in the archive.
+            let largest_other = {
+                let mut zip = zip::ZipArchive::new(std::io::Cursor::new(&bytes)).unwrap();
+                let mut best = 0;
+                for i in 0..zip.len() {
+                    let f = zip.by_index_raw(i).unwrap();
+                    if f.name().unwrap() != member {
+                        best = best.max(f.size());
+                    }
+                }
+                best
+            };
+            if largest_other >= size {
+                continue; // another member is the largest; covered below
+            }
+            let limits = PackageLimits {
+                max_member_bytes: size - 1,
+                max_total_bytes: u64::MAX,
+                max_members: usize::MAX,
+            };
+            let err = pkg.check_limits(&limits).unwrap_err();
+            assert_eq!(err.variable, super::OOXML_MAX_MEMBER_MB_VAR, "{rel}");
+            assert_eq!(err.what, format!("member {member}"), "{rel}");
+            assert_eq!(err.actual, size as usize);
+            assert!(err.to_string().contains("bytes exceeds the limit"), "{err}");
+        }
+        // Whatever the largest member, a 1-byte cap names one, and a total
+        // cap under the package's size fails the package.
+        for (rel, _) in FIXTURES {
+            let mut pkg = Package::open(&fixture(rel)).unwrap();
+            let one = PackageLimits {
+                max_member_bytes: 1,
+                max_total_bytes: u64::MAX,
+                max_members: usize::MAX,
+            };
+            let err = pkg.check_limits(&one).unwrap_err();
+            assert!(err.what.starts_with("member "), "{rel}: {err}");
+            let total = PackageLimits {
+                max_member_bytes: u64::MAX,
+                max_total_bytes: 1024,
+                max_members: usize::MAX,
+            };
+            let err = pkg.check_limits(&total).unwrap_err();
+            assert_eq!(err.variable, super::OOXML_MAX_TOTAL_MB_VAR, "{rel}");
+        }
+    }
+
+    /// A package of 10 001 members fails every OOXML backend with the typed
+    /// limit, before any part is parsed.
+    #[test]
+    fn too_many_members_fail_the_conversion() {
+        let mut zw = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let opts = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        for i in 0..10_001 {
+            zw.start_file(format!("m/{i}.xml"), opts).unwrap();
+            zw.write_all(b"<a/>").unwrap();
+        }
+        let bytes = zw.finish().unwrap().into_inner();
+        let backends: [(InputFormat, &str, Box<dyn DeclarativeBackend>); 3] = [
+            (
+                InputFormat::Docx,
+                "t.docx",
+                Box::new(crate::backend::DocxBackend::default()),
+            ),
+            (
+                InputFormat::Pptx,
+                "t.pptx",
+                Box::new(crate::backend::PptxBackend),
+            ),
+            (
+                InputFormat::Xlsx,
+                "t.xlsx",
+                Box::new(crate::backend::XlsxBackend::default()),
+            ),
+        ];
+        for (format, name, backend) in backends {
+            let src = SourceDocument::from_bytes(name, format, bytes.clone());
+            let err = backend.convert(&src).unwrap_err();
+            let limit = err.limit().unwrap_or_else(|| panic!("{name}: {err}"));
+            assert_eq!(limit.variable, super::OOXML_MAX_MEMBERS_VAR);
+            assert_eq!((limit.limit, limit.actual), (10_000, 10_001));
+            assert!(err.to_string().contains("10001 members exceeds"), "{err}");
+        }
+    }
 }

@@ -389,8 +389,9 @@ fn attachment_runs(payload: &[u8], field: u32) -> Vec<(usize, u64)> {
 /// `iwa_link`: the address a hyperlink field points at.
 fn link(payload: &[u8]) -> Option<String> {
     let url = first_bytes(payload, LINK_URL_FIELD)?;
-    let url = String::from_utf8_lossy(url).trim().to_string();
-    (!url.is_empty()).then_some(url)
+    // docling's `_hyperlink` (docling#5384, #1164): an address `urlparse` /
+    // `AnyUrl` reject is dropped, its text kept.
+    super::odf::hyperlink_from_href(Some(&String::from_utf8_lossy(url)))
 }
 
 /// `iwa_list_style`: a list style as its per-depth label ladder.

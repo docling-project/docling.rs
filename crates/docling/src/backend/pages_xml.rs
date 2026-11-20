@@ -354,10 +354,13 @@ pub(crate) fn legacy_runs(
             } else {
                 fmt
             };
+            // docling's `_hyperlink` (docling#5384, #1164): an address
+            // `urlparse` / `AnyUrl` reject is dropped, its text kept.
             let nested = if is_sf(child, "link") {
-                sf_attr(child, "href")
-                    .map(str::to_string)
-                    .or_else(|| link.clone())
+                match sf_attr(child, "href") {
+                    Some(href) => super::odf::hyperlink_from_href(Some(href)),
+                    None => link.clone(),
+                }
             } else {
                 link.clone()
             };
@@ -640,6 +643,41 @@ mod tests {
                 },
                 Run::plain("."),
                 Run::plain(" end"),
+            ]
+        );
+    }
+
+    /// docling#5384 (#1164, `test_legacy_malformed_hyperlink_keeps_the_following_paragraph`):
+    /// a link `urlparse` / `AnyUrl` reject loses its target, not its text
+    /// nor the paragraphs after it; a URL and a relative file stay links.
+    #[test]
+    fn malformed_hyperlink_keeps_the_following_paragraph() {
+        let xml = format!(
+            r#"{HEAD}<sf:text-body>
+              <sf:p><sf:link href="https://[broken">Broken</sf:link></sf:p>
+              <sf:p><sf:link href="https://example.org/valid">Valid</sf:link></sf:p>
+              <sf:p><sf:link href="notes.docx">Notes</sf:link></sf:p>
+              <sf:p>After</sf:p>
+            </sf:text-body></sl:document>"#
+        );
+        let content = content_of(&xml);
+        let links: Vec<(String, Option<String>)> = content
+            .blocks
+            .iter()
+            .filter_map(|b| match b {
+                Block::Paragraph(p) => {
+                    Some((p.text(), p.runs.first().and_then(|r| r.link.clone())))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            links,
+            [
+                ("Broken".to_string(), None),
+                ("Valid".into(), Some("https://example.org/valid".into())),
+                ("Notes".into(), Some("notes.docx".into())),
+                ("After".into(), None),
             ]
         );
     }

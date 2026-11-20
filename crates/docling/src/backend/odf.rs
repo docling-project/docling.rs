@@ -685,7 +685,15 @@ pub(super) fn hyperlink_from_href(href: Option<&str>) -> Option<String> {
                 .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '.' | '-'))
     });
     let Some(k) = scheme_len else {
-        return Some(href.to_string()); // relative target: kept as a path
+        // A relative target is kept as a path — unless `urlsplit` would
+        // still read a network location (`//host…`) and reject it.
+        if let Some(authority) = href.strip_prefix("//") {
+            let end = authority.find(['/', '?', '#']).unwrap_or(authority.len());
+            if !brackets_parse(&authority[..end]) {
+                return None;
+            }
+        }
+        return Some(href.to_string());
     };
     let scheme = href[..k].to_ascii_lowercase();
     let rest = &href[k + 1..];
@@ -697,9 +705,10 @@ pub(super) fn hyperlink_from_href(href: Option<&str>) -> Option<String> {
     };
     let host_end = authority.find(['/', '?', '#']).unwrap_or(authority.len());
     let (host, tail) = authority.split_at(host_end);
-    // An empty host (`http://`) or an unterminated IPv6 literal (`http://[::1`)
-    // is a malformed absolute URL: dropped, never guessed at.
-    if host.is_empty() || (host.starts_with('[') && !host.contains(']')) {
+    // An empty host (`http://`), an unterminated IPv6 literal (`http://[::1`)
+    // or any authority `urlsplit` / `AnyUrl` reject (docling#5384, #1164) is
+    // a malformed absolute URL: dropped, never guessed at.
+    if host.is_empty() || !authority_parses(host) {
         return None;
     }
     // pydantic's `AnyUrl` normalization: lower-cased scheme/host, and a bare
@@ -709,6 +718,71 @@ pub(super) fn hyperlink_from_href(href: Option<&str>) -> Option<String> {
         "{scheme}://{}{slash}{tail}",
         host.to_ascii_lowercase()
     ))
+}
+
+/// Whether `urlsplit` accepts the brackets of a network location: none at
+/// all, or one `[…]` host that is an IPv6 address or an IPvFuture
+/// (`v1.x`), right after any `user@`, followed by nothing or a `:port`.
+/// Python raises "Invalid IPv6 URL" otherwise (unbalanced brackets, text
+/// before the bracket, a bracketed name).
+fn brackets_parse(netloc: &str) -> bool {
+    if netloc.contains('[') != netloc.contains(']') {
+        return false;
+    }
+    let hostport = netloc.rsplit_once('@').map_or(netloc, |(_, h)| h);
+    if !hostport.contains('[') {
+        return true;
+    }
+    let Some(bracketed) = hostport.strip_prefix('[') else {
+        return false;
+    };
+    let Some((host, after)) = bracketed.split_once(']') else {
+        return false;
+    };
+    let ipv_future = host.strip_prefix(['v', 'V']).is_some_and(|rest| {
+        rest.split_once('.').is_some_and(|(hex, tail)| {
+            !hex.is_empty() && hex.chars().all(|c| c.is_ascii_hexdigit()) && !tail.is_empty()
+        })
+    });
+    (host.parse::<std::net::Ipv6Addr>().is_ok() || ipv_future)
+        && (after.is_empty() || after.starts_with(':'))
+}
+
+/// Whether an absolute URL's authority (`user@host:port`) parses for
+/// docling: `urlsplit`'s bracket rules ([`brackets_parse`]), then pydantic's
+/// `AnyUrl` (the WHATWG parser of the `url` crate) — no IPvFuture host, no
+/// forbidden host code point (controls, space, `# / < > ? @ [ \ ] ^ |`),
+/// and a port of digits up to 65535.
+fn authority_parses(authority: &str) -> bool {
+    if !brackets_parse(authority) {
+        return false;
+    }
+    let hostport = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
+    let (host, port) = match hostport.strip_prefix('[') {
+        Some(bracketed) => {
+            let (ip, after) = bracketed.split_once(']').unwrap_or((bracketed, ""));
+            if ip.parse::<std::net::Ipv6Addr>().is_err() {
+                return false; // IPvFuture: `urlsplit` takes it, `AnyUrl` does not
+            }
+            (None, after.strip_prefix(':'))
+        }
+        None => match hostport.rsplit_once(':') {
+            Some((h, p)) => (Some(h), Some(p)),
+            None => (Some(hostport), None),
+        },
+    };
+    let port_ok = port.is_none_or(|p| {
+        p.is_empty()
+            || (p.chars().all(|c| c.is_ascii_digit())
+                && p.parse::<u32>().is_ok_and(|n| n <= 65_535))
+    });
+    let host_ok = host.is_none_or(|h| {
+        !h.is_empty()
+            && !h
+                .chars()
+                .any(|c| c.is_control() || " #/<>?@[\\]^|".contains(c))
+    });
+    port_ok && host_ok
 }
 
 /// Collect runs from a paragraph/heading element (recursing spans).
@@ -2290,12 +2364,20 @@ pub(super) fn table_has_content(table: XmlNode) -> bool {
 /// A plain cell's text: its paragraphs' unformatted text, blank-line-joined
 /// (docling's `str(cell.value)` — subscripts inline, no Markdown markers).
 pub(super) fn plain_cell_text(tc: XmlNode) -> String {
-    tc.children()
+    let text = tc
+        .children()
         .filter(|c| c.has_tag_name("p") || c.has_tag_name("h"))
         .map(para_plain_text)
         .filter(|t| !t.is_empty())
         .collect::<Vec<_>>()
-        .join("\n\n")
+        .join("\n\n");
+    if text.trim().is_empty() {
+        // docling#5232 (#1171): the typed value only without text.
+        if let Some(value) = typed_value_text(tc).filter(|v| !v.is_empty()) {
+            return value;
+        }
+    }
+    text
 }
 
 /// A paragraph's unformatted text, expanding `<text:s>`/`<text:tab>`/
@@ -2754,6 +2836,111 @@ pub(super) fn repeat(node: XmlNode, name: &str) -> usize {
 /// An ODS cell's plain text — its paragraphs' text, newline-joined (github tables
 /// are unescaped, matching docling's `_odf_cell_text` display).
 pub(super) fn ods_cell_text(cell: XmlNode) -> String {
+    let text = ods_cell_display_text(cell);
+    if text.is_empty() {
+        // docling#5232 (#1171): the typed value only for a cell that stores
+        // no text.
+        return typed_value_text(cell).unwrap_or_default();
+    }
+    text
+}
+
+/// A typed ODF cell's value as odfdo's `str(cell.value)` spells it — the
+/// text docling shows for a cell that stores no `text:p` (docling#5232,
+/// #1171): a number, percentage or currency as written, a whole number as
+/// an integer (`7`, `1e3` → `1000`, `1.50` stays); a date as Python's
+/// `date` / `datetime` (`2024-03-05`, `2024-03-05 10:30:00`); a time as a
+/// `timedelta` (`PT10H30M00S` → `10:30:00`); a boolean `True` / `False`; a
+/// string's `office:string-value`. `None` for an untyped cell or a value
+/// missing its attribute.
+pub(super) fn typed_value_text(cell: XmlNode) -> Option<String> {
+    match attr(cell, "value-type")? {
+        "float" | "percentage" | "currency" => {
+            let v = attr(cell, "value")?.trim();
+            let whole = v
+                .parse::<f64>()
+                .ok()
+                .filter(|f| f.is_finite() && f.fract() == 0.0 && f.abs() < 1e15);
+            Some(match whole {
+                Some(f) if v.contains(['.', 'e', 'E']) => format!("{}", f as i64),
+                _ => v.trim_start_matches('+').to_string(),
+            })
+        }
+        "date" => {
+            let v = attr(cell, "date-value")?.trim();
+            Some(match v.split_once('T') {
+                None => v.to_string(),
+                Some((date, time)) => {
+                    let time = if time.matches(':').count() == 1 {
+                        format!("{time}:00")
+                    } else {
+                        time.to_string()
+                    };
+                    format!("{date} {time}")
+                }
+            })
+        }
+        "time" => iso_duration_as_timedelta(attr(cell, "time-value")?.trim()),
+        "boolean" => Some(
+            if attr(cell, "boolean-value") == Some("true") {
+                "True"
+            } else {
+                "False"
+            }
+            .to_string(),
+        ),
+        "string" => Some(attr(cell, "string-value").unwrap_or("").to_string()),
+        _ => None,
+    }
+}
+
+/// An ISO-8601 duration (`PT10H30M00S`, `P1DT2H`) as Python's `timedelta`
+/// prints it: `10:30:00`, `1 day, 2:00:00`, fractions as microseconds.
+pub(super) fn iso_duration_as_timedelta(v: &str) -> Option<String> {
+    let negative = v.starts_with('-');
+    let body = v.trim_start_matches(['-', '+']).strip_prefix('P')?;
+    let (date, time) = body.split_once('T').unwrap_or((body, ""));
+    let mut secs = 0f64;
+    let mut num = String::new();
+    for (part, units) in [
+        (date, [('D', 86_400f64), ('\0', 0.0), ('\0', 0.0)]),
+        (time, [('H', 3_600.0), ('M', 60.0), ('S', 1.0)]),
+    ] {
+        for c in part.chars() {
+            if c.is_ascii_digit() || c == '.' || c == ',' {
+                num.push(if c == ',' { '.' } else { c });
+                continue;
+            }
+            let unit = units.iter().find(|(u, _)| *u == c)?.1;
+            secs += num.parse::<f64>().ok()? * unit;
+            num.clear();
+        }
+        if !num.is_empty() {
+            return None;
+        }
+    }
+    let micros = (secs * 1e6).round() as i64 * if negative { -1 } else { 1 };
+    let days = micros.div_euclid(86_400_000_000);
+    let rest = micros.rem_euclid(86_400_000_000);
+    let (h, m, s, us) = (
+        rest / 3_600_000_000,
+        rest / 60_000_000 % 60,
+        rest / 1_000_000 % 60,
+        rest % 1_000_000,
+    );
+    let mut out = String::new();
+    if days != 0 {
+        out = format!("{days} day{}, ", if days.abs() == 1 { "" } else { "s" });
+    }
+    out.push_str(&format!("{h}:{m:02}:{s:02}"));
+    if us != 0 {
+        out.push_str(&format!(".{us:06}"));
+    }
+    Some(out)
+}
+
+/// The text a spreadsheet cell displays: its non-blank `text:p` / `text:h`.
+fn ods_cell_display_text(cell: XmlNode) -> String {
     cell.children()
         .filter(|c| c.has_tag_name("p") || c.has_tag_name("h"))
         .map(|p| {
@@ -2906,16 +3093,28 @@ fn walk_slide(page: XmlNode, styles: &Styles, doc: &mut DoclingDocument) {
         if has_text {
             seen_text = true;
         }
-        if tag == "frame" {
-            walk_slide_frame(el, styles, doc, is_title);
-        } else {
-            walk_textbox_children(
-                el.children().filter(XmlNode::is_element),
-                styles,
-                doc,
-                is_title,
-            );
+        walk_slide_element(el, styles, doc, is_title);
+    }
+}
+
+/// `_walk_slide_element`: a frame, a text box — or a `draw:g` group, whose
+/// shapes, frames and nested groups are walked like the slide's own
+/// children, never as a title (docling#4747, #1170; a group used to be read
+/// as a text box, its shapes lost).
+fn walk_slide_element(el: XmlNode, styles: &Styles, doc: &mut DoclingDocument, is_title: bool) {
+    match el.tag_name().name() {
+        "g" => {
+            for child in el.children().filter(XmlNode::is_element) {
+                walk_slide_element(child, styles, doc, false);
+            }
         }
+        "frame" => walk_slide_frame(el, styles, doc, is_title),
+        _ => walk_textbox_children(
+            el.children().filter(XmlNode::is_element),
+            styles,
+            doc,
+            is_title,
+        ),
     }
 }
 
@@ -3205,6 +3404,22 @@ mod tests {
             ("guide.odt#part", "[linked text](guide.odt#part)"),
             ("#part", "[linked text](#part)"),
             ("https://example.com", "[linked text](https://example.com/)"),
+            // docling#5384 (#1164): what `urlsplit` / `AnyUrl` reject.
+            ("https://[broken", "linked text"),
+            ("https://broken]", "linked text"),
+            ("https://[not-ipv6]/", "linked text"),
+            ("https://[v1.x]/", "linked text"),
+            ("https://exa mple.com/", "linked text"),
+            ("https://a b", "linked text"),
+            ("https://example.com:99999/", "linked text"),
+            ("https://example.com:8x/", "linked text"),
+            ("//[broken/x", "linked text"),
+            ("https://[::1]/", "[linked text](https://[::1]/)"),
+            (
+                "https://user@example.com:8080/p",
+                "[linked text](https://user@example.com:8080/p)",
+            ),
+            ("notes.odt", "[linked text](notes.odt)"),
         ] {
             assert_eq!(
                 odt_markdown(&format!(
