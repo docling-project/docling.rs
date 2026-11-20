@@ -794,12 +794,20 @@ pub(super) fn paragraph_anchors(p: XmlNode, ctx: &Ctx) -> Vec<String> {
 /// resolves; else the bookmark `w:anchor` names, as `#id`. A relationship
 /// the part lacks and a bookmark the document lacks are diagnosed under
 /// `DOCLING_RS_DEBUG` and leave the text unlinked — never a failed
-/// conversion. `r:id` wins when both are present (Word writes both for a
-/// link into another file's bookmark; the file is the destination).
+/// conversion. With both present (Word writes both for a link into another
+/// file's bookmark) the file is the destination and the bookmark its
+/// fragment: `manual.docx#Installation`, `https://example.org/guide#top` —
+/// docling's `_get_hyperlink_target` (docling#5249, #1159); the fragment
+/// used to be dropped.
 pub(super) fn hyperlink_target(h: XmlNode, ctx: &Ctx) -> Option<String> {
     if let Some(id) = attr(h, "id") {
         match ctx.rels.get(id).filter(|t| !t.is_empty()) {
-            Some(target) => return Some(target.clone()),
+            Some(target) => {
+                return Some(match attr(h, "anchor").filter(|a| !a.is_empty()) {
+                    Some(fragment) => format!("{target}#{fragment}"),
+                    None => target.clone(),
+                })
+            }
             None => docling_core::debug_log!("docx: hyperlink relationship {id} is missing"),
         }
     }

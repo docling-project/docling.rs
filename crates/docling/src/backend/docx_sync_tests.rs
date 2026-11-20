@@ -49,11 +49,11 @@ fn tc(text: &str) -> String {
     format!("<w:tc>{}</w:tc>", p(text))
 }
 
-/// The JSON's first table as `(text, row, col, row_span, col_span)` cells
-/// and its size.
-fn table_cells(
-    doc: &docling_core::DoclingDocument,
-) -> (u64, u64, Vec<(String, u64, u64, u64, u64)>) {
+/// A table cell as `(text, row, col, row_span, col_span)`.
+type Cell = (String, u64, u64, u64, u64);
+
+/// The JSON's first table as its size and cells.
+fn table_cells(doc: &docling_core::DoclingDocument) -> (u64, u64, Vec<Cell>) {
     let v = json(doc);
     let data = &v["tables"][0]["data"];
     let mut cells: Vec<_> = data["table_cells"]
@@ -79,7 +79,7 @@ fn table_cells(
     )
 }
 
-fn cell(t: &str, r: u64, c: u64, rs: u64, cs: u64) -> (String, u64, u64, u64, u64) {
+fn cell(t: &str, r: u64, c: u64, rs: u64, cs: u64) -> Cell {
     (t.to_string(), r, c, rs, cs)
 }
 
@@ -162,5 +162,49 @@ fn wrapped_row_wider_than_the_declared_grid_widens_the_table() {
                 .any(|c| (c.0.as_str(), c.1, c.2) == (want.0.as_str(), want.1, want.2)),
             "{cells:?}"
         );
+    }
+}
+
+/// docling#5249 (#1159, `test_hyperlink_preserves_external_fragment`): an
+/// external hyperlink keeps its `w:anchor` fragment.
+#[test]
+fn hyperlink_preserves_external_fragment() {
+    for (target, anchor, want) in [
+        (
+            "https://example.org/guide",
+            "installation",
+            "https://example.org/guide#installation",
+        ),
+        ("manual.docx", "Installation", "manual.docx#Installation"),
+        (
+            "https://example.org/guide#installation",
+            "",
+            "https://example.org/guide#installation",
+        ),
+    ] {
+        let anchor_attr = if anchor.is_empty() {
+            String::new()
+        } else {
+            format!(r#" w:anchor="{anchor}""#)
+        };
+        let body = format!(
+            r#"<w:p><w:hyperlink r:id="rId5"{anchor_attr}><w:r><w:t>Install</w:t></w:r></w:hyperlink></w:p>"#
+        );
+        let rel = format!(
+            r#"<Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="{target}" TargetMode="External"/>"#
+        );
+        let doc = convert(docx(&body, &rel, &[]));
+        assert_eq!(
+            doc.export_to_markdown().trim(),
+            format!("[Install]({want})")
+        );
+        let v = json(&doc);
+        let link = v["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find_map(|t| t["hyperlink"].as_str())
+            .expect("a linked text");
+        assert_eq!(link, want);
     }
 }
