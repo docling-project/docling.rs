@@ -1487,16 +1487,27 @@ impl<'s> Walker<'s> {
             if has_text {
                 seen_text = true;
             }
-            if tag == "frame" {
-                self.walk_slide_frame(el, slide, is_title);
-            } else {
-                self.walk_textbox_children(
-                    el.children().filter(XmlNode::is_element),
-                    slide,
-                    is_title,
-                    None,
-                );
+            self.walk_slide_element(el, slide, is_title);
+        }
+    }
+
+    /// `_walk_slide_element` (docling#4747, #1170): a `draw:g` group's
+    /// shapes, frames and nested groups are walked like the slide's own
+    /// children, never as a title.
+    fn walk_slide_element(&mut self, el: XmlNode, slide: usize, is_title: bool) {
+        match el.tag_name().name() {
+            "g" => {
+                for child in el.children().filter(XmlNode::is_element) {
+                    self.walk_slide_element(child, slide, false);
+                }
             }
+            "frame" => self.walk_slide_frame(el, slide, is_title),
+            _ => self.walk_textbox_children(
+                el.children().filter(XmlNode::is_element),
+                slide,
+                is_title,
+                None,
+            ),
         }
     }
 
@@ -2150,6 +2161,64 @@ mod tests {
             "the slide name stands in for a title"
         );
         assert_eq!(t.body, vec![0, 3]);
+    }
+
+    /// docling#4747 (#1170, `test_odp_grouped_shapes_keep_their_text`): a
+    /// `draw:g` group's shapes, frames and nested groups keep their text, in
+    /// document order, in both walks.
+    #[test]
+    fn odp_grouped_shapes_keep_their_text() {
+        let shape = |t: &str| {
+            format!(
+                r#"<draw:custom-shape><text:p>{t}</text:p><draw:enhanced-geometry draw:type="rectangle"/></draw:custom-shape>"#
+            )
+        };
+        let frame = |t: &str| {
+            format!(
+                r#"<draw:frame><draw:text-box><text:p>{t}</text:p></draw:text-box></draw:frame>"#
+            )
+        };
+        let xml = format!(
+            r#"<office:document {NS}><office:body><office:presentation>
+              <draw:page draw:name="Slide One">{}<draw:g>{}{}<draw:g>{}</draw:g></draw:g>{}</draw:page>
+            </office:presentation></office:body></office:document>"#,
+            frame("Before"),
+            shape("Grouped shape"),
+            frame("Grouped frame"),
+            shape("Nested group"),
+            shape("After"),
+        );
+        let doc = convert(&xml, InputFormat::Odp);
+        let t = doc.tree.as_ref().expect("tree");
+        let texts: Vec<&str> = t
+            .items
+            .iter()
+            .filter(|it| label(it) == "text")
+            .map(text)
+            .collect();
+        assert_eq!(
+            texts,
+            [
+                "Before",
+                "Grouped shape",
+                "Grouped frame",
+                "Nested group",
+                "After"
+            ]
+        );
+        let md = doc.export_to_markdown();
+        let blocks: Vec<&str> = md.split("\n\n").map(str::trim).collect();
+        assert_eq!(
+            blocks,
+            [
+                "# Slide One",
+                "Before",
+                "Grouped shape",
+                "Grouped frame",
+                "Nested group",
+                "After"
+            ]
+        );
     }
 
     /// A spreadsheet: a `section` group `sheet: {name}` per sheet, each

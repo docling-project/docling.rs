@@ -2980,16 +2980,28 @@ fn walk_slide(page: XmlNode, styles: &Styles, doc: &mut DoclingDocument) {
         if has_text {
             seen_text = true;
         }
-        if tag == "frame" {
-            walk_slide_frame(el, styles, doc, is_title);
-        } else {
-            walk_textbox_children(
-                el.children().filter(XmlNode::is_element),
-                styles,
-                doc,
-                is_title,
-            );
+        walk_slide_element(el, styles, doc, is_title);
+    }
+}
+
+/// `_walk_slide_element`: a frame, a text box — or a `draw:g` group, whose
+/// shapes, frames and nested groups are walked like the slide's own
+/// children, never as a title (docling#4747, #1170; a group used to be read
+/// as a text box, its shapes lost).
+fn walk_slide_element(el: XmlNode, styles: &Styles, doc: &mut DoclingDocument, is_title: bool) {
+    match el.tag_name().name() {
+        "g" => {
+            for child in el.children().filter(XmlNode::is_element) {
+                walk_slide_element(child, styles, doc, false);
+            }
         }
+        "frame" => walk_slide_frame(el, styles, doc, is_title),
+        _ => walk_textbox_children(
+            el.children().filter(XmlNode::is_element),
+            styles,
+            doc,
+            is_title,
+        ),
     }
 }
 
