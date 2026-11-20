@@ -837,7 +837,10 @@ fn local_source_path(uri: &str) -> Result<PathBuf, String> {
     let local = authority.is_empty() || authority.eq_ignore_ascii_case("localhost");
     if !local {
         return if cfg!(windows) {
-            Ok(PathBuf::from(format!(r"\\{authority}{}", path.replace('/', "\\"))))
+            Ok(PathBuf::from(format!(
+                r"\\{authority}{}",
+                path.replace('/', "\\")
+            )))
         } else {
             Err("a file URI with a host other than localhost needs a Windows UNC path".into())
         };

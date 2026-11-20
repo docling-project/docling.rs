@@ -114,7 +114,10 @@ fn preformat_is_code_block() {
             .map(|(l, t)| (l.to_string(), t.to_string()));
         assert_eq!(items, want, "{body}");
         let md = doc.export_to_markdown();
-        assert!(md.contains(&format!("Run it:\n\n```\n{code}\n```\n\nDone.")), "{md}");
+        assert!(
+            md.contains(&format!("Run it:\n\n```\n{code}\n```\n\nDone.")),
+            "{md}"
+        );
     }
 }
 
@@ -294,7 +297,10 @@ fn author_footnotes_are_furniture() {
         &["Author contribution marker.", "Conflict statement marker."],
     ];
     for notes in cases {
-        let fns: String = notes.iter().map(|n| format!("<fn><p>{n}</p></fn>")).collect();
+        let fns: String = notes
+            .iter()
+            .map(|n| format!("<fn><p>{n}</p></fn>"))
+            .collect();
         let author_notes = if notes.is_empty() {
             String::new()
         } else {
@@ -314,7 +320,10 @@ fn author_footnotes_are_furniture() {
             .iter()
             .filter(|t| t["label"] == "footnote")
             .collect();
-        let texts: Vec<_> = footnotes.iter().map(|t| t["text"].as_str().unwrap()).collect();
+        let texts: Vec<_> = footnotes
+            .iter()
+            .map(|t| t["text"].as_str().unwrap())
+            .collect();
         assert_eq!(texts, notes);
         assert!(footnotes.iter().all(|t| t["content_layer"] == "furniture"));
         let want: Vec<_> = notes.iter().map(|n| runs(&[(n, None)])).collect();
@@ -359,10 +368,17 @@ fn author_footnote_preserves_formatting_link_formula_and_paragraphs() {
     assert_eq!(formula["content_layer"], "furniture");
     assert_eq!(disclosure["parent"], formula["parent"]);
     let group = disclosure["parent"]["$ref"].as_str().unwrap();
-    let group = &v["groups"][group.strip_prefix("#/groups/").unwrap().parse::<usize>().unwrap()];
+    let group = &v["groups"][group
+        .strip_prefix("#/groups/")
+        .unwrap()
+        .parse::<usize>()
+        .unwrap()];
     assert_eq!(group["label"], "inline");
     assert_eq!(group["content_layer"], "furniture");
-    assert_eq!(doc.export_to_markdown().trim_end(), "# Author Footnote Test");
+    assert_eq!(
+        doc.export_to_markdown().trim_end(),
+        "# Author Footnote Test"
+    );
     let md = md_with_furniture(&doc);
     assert!(!md.contains("Author Notes"), "{md}");
     assert!(md.contains("1 See"), "{md}");

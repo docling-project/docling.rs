@@ -139,8 +139,9 @@ impl DeclarativeBackend for EmailBackend {
         };
         if !calendars.is_empty() {
             let body_text = body_text.split_whitespace().collect::<Vec<_>>().join(" ");
-            doc.nodes
-                .extend(super::calendar::email_calendar_nodes(&calendars, &body_text));
+            doc.nodes.extend(super::calendar::email_calendar_nodes(
+                &calendars, &body_text,
+            ));
         }
         if self.list_attachments {
             let labels = match &projected {
@@ -210,13 +211,8 @@ impl EmailBackend {
             let resolver = MapImageResolver::new(cids.clone(), &self.images);
             // docling's `_convert_html_part` options (no title, no inferred
             // furniture), as on the paragraph path.
-            let html_doc = super::html::convert_html_opts(
-                "email-body.html",
-                &html,
-                &resolver,
-                false,
-                false,
-            );
+            let html_doc =
+                super::html::convert_html_opts("email-body.html", &html, &resolver, false, false);
             if html_doc
                 .nodes
                 .iter()

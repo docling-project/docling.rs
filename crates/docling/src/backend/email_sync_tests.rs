@@ -64,7 +64,9 @@ pub(super) fn texts(doc: &DoclingDocument) -> Vec<(String, String)> {
 }
 
 pub(super) fn pairs(v: &[(&str, &str)]) -> Vec<(String, String)> {
-    v.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect()
+    v.iter()
+        .map(|(a, b)| (a.to_string(), b.to_string()))
+        .collect()
 }
 
 /// `export_to_markdown(included_content_layers={BODY, FURNITURE})`.
@@ -126,8 +128,16 @@ fn html_body_keeps_furniture_outside_the_body() {
         );
         assert!(!md(&doc).contains("Footer:"));
         let all = md_all(&doc);
-        assert_eq!(all.matches("Footer: terms &amp; conditions, c\\_d.").count(), 1, "{all}");
-        assert!(all.contains("Body: 1 &lt; 2 &amp; 3 &gt; 2, a\\_b."), "{all}");
+        assert_eq!(
+            all.matches("Footer: terms &amp; conditions, c\\_d.")
+                .count(),
+            1,
+            "{all}"
+        );
+        assert!(
+            all.contains("Body: 1 &lt; 2 &amp; 3 &gt; 2, a\\_b."),
+            "{all}"
+        );
     }
 }
 
@@ -156,7 +166,11 @@ fn nonempty_plain_body_wins_over_html_furniture() {
         "Subject: Plain preferred\r\n",
         Some("alternative"),
         &[
-            ("text/plain; charset=\"utf-8\"", "", "Plain body.\r\n\r\nShared footer.\r\n"),
+            (
+                "text/plain; charset=\"utf-8\"",
+                "",
+                "Plain body.\r\n\r\nShared footer.\r\n",
+            ),
             (
                 "text/html; charset=\"utf-8\"",
                 "",
@@ -172,7 +186,10 @@ fn nonempty_plain_body_wins_over_html_furniture() {
             ("Shared footer.", "body"),
         ])
     );
-    assert_eq!(md_all(&doc), "# Plain preferred\n\nPlain body.\n\nShared footer.");
+    assert_eq!(
+        md_all(&doc),
+        "# Plain preferred\n\nPlain body.\n\nShared footer."
+    );
 }
 
 /// docling#5228 (`test_email_keeps_furniture_from_each_html_part_once`).
@@ -270,7 +287,9 @@ fn adds_the_events_of_an_inline_invitation() {
     );
     let md = md(&convert(eml.clone()));
     assert!(
-        md.ends_with(&format!("When: 20 November, 10:00.\n\n{INVITATION_MARKDOWN}")),
+        md.ends_with(&format!(
+            "When: 20 November, 10:00.\n\n{INVITATION_MARKDOWN}"
+        )),
         "{md}"
     );
     // Off, the section is gone and the body is the plain part alone.

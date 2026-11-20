@@ -141,8 +141,7 @@ pub(crate) fn convert_html_opts(
     add_title: bool,
 ) -> DoclingDocument {
     let mut doc = DoclingDocument::new(name);
-    let flattened =
-        append_fragment_with(html, &mut doc.nodes, images, infer_furniture, add_title);
+    let flattened = append_fragment_with(html, &mut doc.nodes, images, infer_furniture, add_title);
     // The flat nodes above drive Markdown / DocLang / LaTeX; the JSON export
     // takes docling's item tree, built by a call-for-call port of upstream's
     // walk ([`super::html_tree`]) so the JSON structure — heading nesting,

@@ -1133,7 +1133,9 @@ impl Writer {
     }
 
     fn add_text(&mut self, text: &str) {
-        self.doc.push(Node::Paragraph { text: self.md(text) });
+        self.doc.push(Node::Paragraph {
+            text: self.md(text),
+        });
         self.tree.add(None, None, text_kind("text", text, None));
     }
 

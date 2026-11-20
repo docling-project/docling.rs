@@ -22,8 +22,7 @@ use crate::source::SourceDocument;
 use docling_core::tree::{Formatting, ItemTree, ListMeta, TreeKind};
 use docling_core::{
     inline_paragraph_node, ContentLayer, DoclingDocument, InlineRun, ListItemDclx, Node,
-    PictureImage, Script,
-    Table, TableStructure,
+    PictureImage, Script, Table, TableStructure,
 };
 
 /// JATS backend. `images` at `Local` or above is docling's `JatsBackendOptions.fetch_images`
@@ -469,14 +468,21 @@ fn add_statements(
         };
         out.layer = Some(ContentLayer::Furniture);
         let start = out.doc.nodes.len();
-        emit_inline_labelled(out, root, segments, if footnote { "footnote" } else { "text" });
+        emit_inline_labelled(
+            out,
+            root,
+            segments,
+            if footnote { "footnote" } else { "text" },
+        );
         // The flat nodes of the statement: furniture, which Markdown and
         // LaTeX leave out by default and DocLang marks with its layer.
         let added: Vec<Node> = out.doc.nodes.drain(start..).collect();
-        out.doc.nodes.extend(added.into_iter().map(|inner| Node::Furniture {
-            layer: ContentLayer::Furniture,
-            inner: Box::new(inner),
-        }));
+        out.doc
+            .nodes
+            .extend(added.into_iter().map(|inner| Node::Furniture {
+                layer: ContentLayer::Furniture,
+                inner: Box::new(inner),
+            }));
         out.layer = None;
     }
 }

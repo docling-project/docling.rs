@@ -730,12 +730,17 @@ mod tests {
             .join("../../tests/data/xbrl/sources/grve_10q_htm.xml");
         let src = SourceDocument::from_file(&path).unwrap();
         let json = XbrlBackend.convert(&src).unwrap().export_to_json_value();
-        let cells = json["key_value_items"][0]["graph"]["cells"].as_array().unwrap();
+        let cells = json["key_value_items"][0]["graph"]["cells"]
+            .as_array()
+            .unwrap();
         let unit_of = |concept: &str| {
             let i = cells.iter().position(|c| c["orig"] == concept).unwrap();
             cells[i + 3]["text"].as_str().unwrap().to_string()
         };
-        assert_eq!(unit_of("us-gaap:EarningsPerShareDiluted"), "currency: USD / shares");
+        assert_eq!(
+            unit_of("us-gaap:EarningsPerShareDiluted"),
+            "currency: USD / shares"
+        );
         assert_eq!(unit_of("us-gaap:Assets"), "currency: USD");
     }
 

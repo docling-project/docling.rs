@@ -45,10 +45,8 @@ pub(crate) fn is_ixbrl(bytes: &[u8]) -> bool {
     else {
         return false;
     };
-    cached_regex!(
-        r#"\bxmlns:[\w.-]+\s*=\s*["']http://www\.xbrl\.org/(?:2008|2013)/inlineXBRL["']"#
-    )
-    .is_match(root.as_str())
+    cached_regex!(r#"\bxmlns:[\w.-]+\s*=\s*["']http://www\.xbrl\.org/(?:2008|2013)/inlineXBRL["']"#)
+        .is_match(root.as_str())
 }
 
 /// Whether a parsed root is an inline report: an `html` element declaring
@@ -119,19 +117,27 @@ fn inline_fact(node: XmlNode, continuations: &HashMap<&str, XmlNode>) -> Option<
         String::new()
     } else if numeric {
         let text = plain_text(node, &HashMap::new());
-        numeric_value(&text, format, node.attribute("scale"), node.attribute("sign"))
+        numeric_value(
+            &text,
+            format,
+            node.attribute("scale"),
+            node.attribute("sign"),
+        )
     } else if node
         .attribute("escape")
         .is_some_and(|v| matches!(v.trim(), "true" | "1"))
     {
         let mut html = String::new();
-        continued(node, continuations, |part| serialize_children(part, &mut html));
+        continued(node, continuations, |part| {
+            serialize_children(part, &mut html)
+        });
         html.trim().to_string()
     } else {
         let text = plain_text(node, continuations);
         match format {
-            Some(format) => transform_text(text.trim(), format)
-                .unwrap_or_else(|| TRANSFORM_ERROR.to_string()),
+            Some(format) => {
+                transform_text(text.trim(), format).unwrap_or_else(|| TRANSFORM_ERROR.to_string())
+            }
             None => text.trim().to_string(),
         }
     };
@@ -257,7 +263,12 @@ fn escape_into(text: &str, attribute: bool, out: &mut String) {
 /// `0.80`) — negated by `sign="-"`, an integral product written without its
 /// fraction unless the text held `.0`, then `"{:f}"`. Unreadable text gives
 /// arelle's `(ixTransformValueError)`.
-fn numeric_value(text: &str, format: Option<&str>, scale: Option<&str>, sign: Option<&str>) -> String {
+fn numeric_value(
+    text: &str,
+    format: Option<&str>,
+    scale: Option<&str>,
+    sign: Option<&str>,
+) -> String {
     let text = text.trim();
     let number = match format.map(|f| f.rsplit(':').next().unwrap_or(f)) {
         None => Some(text.to_string()).filter(|t| is_decimal(t)),
@@ -280,9 +291,15 @@ fn numeric_value(text: &str, format: Option<&str>, scale: Option<&str>, sign: Op
     }
     let point = digits.len() as i64 + exponent;
     let (mut int, mut frac) = if exponent >= 0 {
-        (format!("{digits}{}", "0".repeat(exponent as usize)), String::new())
+        (
+            format!("{digits}{}", "0".repeat(exponent as usize)),
+            String::new(),
+        )
     } else if point <= 0 {
-        (String::new(), format!("{}{digits}", "0".repeat((-point) as usize)))
+        (
+            String::new(),
+            format!("{}{digits}", "0".repeat((-point) as usize)),
+        )
     } else {
         (
             digits[..point as usize].to_string(),
@@ -356,7 +373,10 @@ fn transform_number(text: &str, format: &str) -> Option<String> {
         }
         "fixed-zero" | "zerodash" | "numdash" => Some("0".into()),
         "num-unit-decimal" | "numunitdecimal" => {
-            let groups: Vec<&str> = cached_regex!(r"\d+").find_iter(text).map(|m| m.as_str()).collect();
+            let groups: Vec<&str> = cached_regex!(r"\d+")
+                .find_iter(text)
+                .map(|m| m.as_str())
+                .collect();
             match groups.as_slice() {
                 [int] => Some(int.to_string()),
                 [int, frac] => Some(format!("{int}.{frac:0>2}")),
@@ -380,8 +400,25 @@ fn number_words(text: &str) -> Option<u64> {
         return Some(0);
     }
     const SMALL: [&str; 20] = [
-        "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
-        "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
+        "zero",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+        "eleven",
+        "twelve",
+        "thirteen",
+        "fourteen",
+        "fifteen",
+        "sixteen",
+        "seventeen",
+        "eighteen",
         "nineteen",
     ];
     const TENS: [&str; 8] = [
@@ -527,7 +564,10 @@ mod tests {
     #[test]
     fn numeric_values_are_transformed_scaled_and_signed() {
         let v = |t, f, s, g| numeric_value(t, Some(f), s, g);
-        assert_eq!(v("239,160,600", "ixt:num-dot-decimal", Some("0"), None), "239160600");
+        assert_eq!(
+            v("239,160,600", "ixt:num-dot-decimal", Some("0"), None),
+            "239160600"
+        );
         assert_eq!(v("1.2", "ixt:num-dot-decimal", Some("6"), None), "1200000");
         assert_eq!(v("5.5", "ixt:num-dot-decimal", Some("-2"), None), "0.055");
         // arelle's Decimal arithmetic: the canonical text, the exponent a
@@ -545,13 +585,19 @@ mod tests {
         assert_eq!(v("one", "ixt-sec:numwordsen", None, None), "1");
         assert_eq!(v("twenty-three", "ixt-sec:numwordsen", None, None), "23");
         assert_eq!(v("n/a", "ixt:num-dot-decimal", None, None), TRANSFORM_ERROR);
-        assert_eq!(numeric_value("1,5", Some("ixt:num-comma-decimal"), None, None), "1.5");
+        assert_eq!(
+            numeric_value("1,5", Some("ixt:num-comma-decimal"), None, None),
+            "1.5"
+        );
     }
 
     #[test]
     fn dates_and_flags_are_transformed() {
         let t = |text, f| transform_text(text, f).unwrap();
-        assert_eq!(t("December 31, 2025", "ixt:date-monthname-day-year-en"), "2025-12-31");
+        assert_eq!(
+            t("December 31, 2025", "ixt:date-monthname-day-year-en"),
+            "2025-12-31"
+        );
         assert_eq!(t("Dec. 31", "ixt:date-monthname-day-en"), "--12-31");
         assert_eq!(t("\u{2612}", "ixt-sec:boolballotbox"), "true");
         assert_eq!(t("No", "ixt:fixed-false"), "false");
@@ -580,7 +626,11 @@ mod filing_tests {
         for (name, page, want) in [
             ("report.htm", REPORT, InputFormat::XmlXbrl),
             ("report.html", REPORT, InputFormat::XmlXbrl),
-            ("plain.html", "<html><body>text</body></html>", InputFormat::Html),
+            (
+                "plain.html",
+                "<html><body>text</body></html>",
+                InputFormat::Html,
+            ),
         ] {
             let stream = SourceDocument::from_named_bytes(name, page.into(), None).unwrap();
             assert_eq!(stream.format, want, "{name}");
@@ -588,7 +638,11 @@ mod filing_tests {
             std::fs::create_dir_all(&dir).unwrap();
             let path = dir.join(name);
             std::fs::write(&path, page).unwrap();
-            assert_eq!(SourceDocument::from_file(&path).unwrap().format, want, "{name}");
+            assert_eq!(
+                SourceDocument::from_file(&path).unwrap().format,
+                want,
+                "{name}"
+            );
             let _ = std::fs::remove_dir_all(&dir);
         }
         // A nameless page is sniffed as HTML, then read by its root.
@@ -654,7 +708,10 @@ mod filing_tests {
         let inline = convert(data().join("ixbrl/mlac-20251231.htm"));
         let instance = convert(data().join("sources/mlac-20251231.xml"));
         assert_eq!(inline.export_to_markdown(), instance.export_to_markdown());
-        let (ij, xj) = (inline.export_to_json_value(), instance.export_to_json_value());
+        let (ij, xj) = (
+            inline.export_to_json_value(),
+            instance.export_to_json_value(),
+        );
         assert_eq!(ij["tables"].as_array().unwrap().len(), 23);
         assert_eq!(ij["tables"], xj["tables"]);
         assert_eq!(ij["texts"], xj["texts"]);
@@ -664,7 +721,12 @@ mod filing_tests {
         let float = ir.iter().find(|r| r.1 == "dei:EntityPublicFloat").unwrap();
         assert_eq!(
             float.2,
-            ["value: 239160600", "period: 2025-06-30", "currency: USD", "decimals: 0"]
+            [
+                "value: 239160600",
+                "period: 2025-06-30",
+                "currency: USD",
+                "decimals: 0"
+            ]
         );
         for concept in [
             "us-gaap:StockIssuedDuringPeriodSharesConversionOfUnits",
