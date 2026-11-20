@@ -426,6 +426,22 @@ fn parse_font(doc: &Document, name: &[u8], fdict: &Dictionary) -> Font {
                 }
             }
             default_width = 500.0;
+        } else {
+            // Any other simple font without `/Widths` (a non-embedded
+            // Georgia, Verdana, Tahoma …; the spec requires `/Widths`
+            // outside the standard 14, but such files exist, #1153) advanced
+            // 0 per glyph, and its zero-width line was dropped with all its
+            // text. docling-parse reads the face's AFM; without one, the
+            // descriptor's `/AvgWidth`, else a typical 500 units, keeps the
+            // text with approximate geometry.
+            default_width = fdict
+                .get(b"FontDescriptor")
+                .ok()
+                .and_then(|o| as_dict(doc, o))
+                .and_then(|d| d.get(b"AvgWidth").ok())
+                .and_then(num)
+                .filter(|w| *w > 0.0)
+                .unwrap_or(500.0);
         }
     }
     let fallback_names = if two_byte {
@@ -5706,6 +5722,44 @@ mod base14_fonts {
             .map(|c| c.text.as_str())
             .collect();
         assert_eq!(text, "АБВГ");
+    }
+
+    /// #1153: a simple font with no `/Widths` and no embedded program,
+    /// outside the standard-14 names, advanced 0 per glyph and its line was
+    /// dropped. docling-parse reads such faces by their AFM.
+    #[test]
+    fn widthless_fonts_outside_the_core_14_names_keep_their_text() {
+        // #1153: no `/Widths`, no embedded program. The Monotype PostScript
+        // names take the standard-14 metrics they substitute …
+        let line = |base: &str, descriptor: &str| {
+            let font = format!(
+                "<</Type/Font/Subtype/TrueType/BaseFont/{base}/Encoding/WinAnsiEncoding{descriptor}>>"
+            );
+            let cs = cells(&pdf_with_font(font.as_bytes(), b"Hello World"));
+            assert_eq!(cs.len(), 1, "{base}: {cs:?}");
+            assert_eq!(cs[0].text, "Hello World", "{base}");
+            cs[0].r - cs[0].l
+        };
+        // Helvetica's advances at 12 pt: docling-parse's ArialMT line is
+        // 64.2 pt wide (10.0..74.2 at 10 pt scales the same way).
+        let arial = line("ArialMT", "");
+        assert!((arial - line("Arial", "")).abs() < 1e-3, "{arial}");
+        for base in [
+            "TimesNewRomanPSMT",
+            "TimesNewRomanPS-BoldMT",
+            "CourierNewPSMT",
+        ] {
+            line(base, "");
+        }
+        // … any other face a descriptor's `/AvgWidth`, else 500 units.
+        let georgia = line("Georgia", "");
+        assert!((georgia - 11.0 * 6.0).abs() < 0.5, "{georgia}");
+        let avg = line(
+            "Tahoma",
+            "/FontDescriptor<</Type/FontDescriptor/FontName/Tahoma/Flags 32/AvgWidth 400\
+             /FontBBox[0 -200 1000 800]/Ascent 800/Descent -200/CapHeight 700>>",
+        );
+        assert!((avg - 11.0 * 4.8).abs() < 0.5, "{avg}");
     }
 
     /// A non-embedded ZapfDingbats or Symbol that names no encoding reads
