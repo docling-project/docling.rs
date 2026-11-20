@@ -231,3 +231,257 @@ fn rich_html_body_keeps_its_structure() {
          |   A |   B |  \n|-----|-----|  \n|   1 |   2 |"
     );
 }
+
+const INVITATION_ICS: &str = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n\
+    PRODID:-//Docling//Invitation test//EN\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\n\
+    UID:planning-2026@example.com\r\nSEQUENCE:0\r\nDTSTAMP:20261113T080000Z\r\n\
+    DTSTART;TZID=Europe/Berlin:20261120T100000\r\nDTEND;TZID=Europe/Berlin:20261120T110000\r\n\
+    SUMMARY:Quarterly planning\r\nLOCATION:Room 4\r\n\
+    ORGANIZER;CN=Alice Example:mailto:alice@example.com\r\n\
+    ATTENDEE;CN=Bob Example;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION:mailto:bob@example.com\r\n\
+    DESCRIPTION:Agenda: budget and hiring.\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+const INVITATION_MARKDOWN: &str = "### Calendar\n\n\
+    Message type: Invitation\n\n\
+    #### Quarterly planning\n\n\
+    Start: 2026-11-20 10:00 Europe/Berlin\n\n\
+    End: 2026-11-20 11:00 Europe/Berlin\n\n\
+    Location: Room 4\n\n\
+    Organizer: Alice Example &lt;alice@example.com&gt;\n\n\
+    Agenda: budget and hiring.\n\n\
+    ##### Attendees\n\n\
+    - Bob Example &lt;bob@example.com&gt; (required, awaiting response)";
+
+const INVITE_HEADERS: &str = "From: Alice Example <alice@example.com>\r\nTo: bob@example.com\r\n";
+const PLAIN: &str = "text/plain; charset=\"utf-8\"";
+const CALENDAR: &str = "text/calendar; charset=\"utf-8\"; method=\"REQUEST\"";
+
+/// docling#5357 (`test_email_adds_the_events_of_an_inline_invitation`):
+/// Outlook's `text/calendar` part beside the body is a Calendar section.
+#[test]
+fn adds_the_events_of_an_inline_invitation() {
+    let eml = message(
+        &format!("Subject: Quarterly planning\r\n{INVITE_HEADERS}"),
+        Some("alternative"),
+        &[
+            (PLAIN, "", "When: 20 November, 10:00.\r\n"),
+            (CALENDAR, "", INVITATION_ICS),
+        ],
+    );
+    let md = md(&convert(eml.clone()));
+    assert!(
+        md.ends_with(&format!("When: 20 November, 10:00.\n\n{INVITATION_MARKDOWN}")),
+        "{md}"
+    );
+    // Off, the section is gone and the body is the plain part alone.
+    let off = EmailBackend {
+        parse_calendar_invitations: false,
+        ..EmailBackend::default()
+    };
+    let md = super::email_sync_tests::md(&convert_with(eml, &off));
+    assert!(md.ends_with("When: 20 November, 10:00."), "{md}");
+}
+
+/// docling#5357 (`test_email_adds_an_invitation_sent_inline_and_attached_once`):
+/// Gmail's inline part and `invite.ics` attachment give the event once, and
+/// the inline part is no attachment.
+#[test]
+fn adds_an_invitation_sent_inline_and_attached_once() {
+    let eml = message(
+        &format!("Subject: Invitation: Quarterly planning\r\n{INVITE_HEADERS}"),
+        Some("mixed"),
+        &[
+            (PLAIN, "", "You are invited to Quarterly planning.\r\n"),
+            (
+                "text/html; charset=\"utf-8\"",
+                "",
+                "<p>You are invited to Quarterly planning.</p>",
+            ),
+            (CALENDAR, "", INVITATION_ICS),
+            (
+                "application/ics",
+                "Content-Disposition: attachment; filename=\"invite.ics\"\r\n",
+                INVITATION_ICS,
+            ),
+        ],
+    );
+    let backend = EmailBackend {
+        list_attachments: true,
+        ..EmailBackend::default()
+    };
+    let md = md(&convert_with(eml, &backend));
+    assert!(
+        md.ends_with(&format!(
+            "You are invited to Quarterly planning.\n\n{INVITATION_MARKDOWN}\
+             \n\n### Attachments\n\n- invite.ics (application/ics)"
+        )),
+        "{md}"
+    );
+}
+
+/// docling#5455 (`test_email_leaves_out_an_event_description_that_repeats_the_body`).
+#[test]
+fn leaves_out_an_event_description_that_repeats_the_body() {
+    let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\n\
+        UID:quarter@example.com\r\nDTSTART:20261120T090000Z\r\nSUMMARY:Quarter planning\r\n\
+        DESCRIPTION:Hi team,\\n\\nLet us plan the quarter.\\n\\nMicrosoft Teams\r\n  \
+        meeting\\nJoin: https://teams.example.com/l/1\\n\\n\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let md = md(&convert(message(
+        &format!("Subject: Quarter planning\r\n{INVITE_HEADERS}"),
+        Some("alternative"),
+        &[
+            (
+                PLAIN,
+                "",
+                "Hi team,\r\n\r\nLet us plan the quarter.\r\n\r\nMicrosoft Teams meeting\r\n\
+                 Join: https://teams.example.com/l/1\r\n",
+            ),
+            (CALENDAR, "", ics),
+        ],
+    )));
+    assert_eq!(md.matches("Let us plan the quarter.").count(), 1, "{md}");
+    assert!(
+        md.ends_with(
+            "Join: https://teams.example.com/l/1\n\n### Calendar\n\n\
+             Message type: Invitation\n\n#### Quarter planning\n\nStart: 2026-11-20 09:00 UTC"
+        ),
+        "{md}"
+    );
+}
+
+/// docling#5357 (`test_email_reads_a_calendar_attachment_from_its_bytes`):
+/// an `.ics` attachment is found by its name and unfolded before it is
+/// decoded (the fold splits the `ü`); its calendar name is no second title.
+#[test]
+fn reads_a_calendar_attachment_from_its_bytes() {
+    let ics = b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nX-WR-CALNAME:Team\r\nBEGIN:VEVENT\r\n\
+        UID:offsite@example.com\r\nDTSTART;VALUE=DATE:20270115\r\n\
+        SUMMARY:Planung f\xc3\r\n \xbcr 2027\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    use base64::Engine as _;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(ics);
+    let eml = message(
+        &format!("Subject: Team calendar\r\n{INVITE_HEADERS}"),
+        Some("mixed"),
+        &[
+            (PLAIN, "", "The calendar is attached.\r\n"),
+            (
+                "application/octet-stream",
+                "Content-Transfer-Encoding: base64\r\n\
+                 Content-Disposition: attachment; filename=\"team.ics\"\r\n",
+                &b64,
+            ),
+        ],
+    );
+    let doc = convert(eml);
+    let titles = texts(&doc)
+        .into_iter()
+        .filter(|(t, _)| t == "Team calendar" || t == "Team")
+        .count();
+    assert_eq!(titles, 1);
+    let md = md(&doc);
+    assert!(
+        md.ends_with(
+            "The calendar is attached.\n\n### Calendar\n\nCalendar name: Team\n\n\
+             #### Planung für 2027\n\nDate: 2027-01-15 (all day)"
+        ),
+        "{md}"
+    );
+}
+
+/// docling#5357 (`test_email_calendar_body_is_not_kept_as_raw_text`).
+#[test]
+fn calendar_body_is_not_kept_as_raw_text() {
+    let md = md(&convert(message(
+        "Subject: Quarterly planning\r\n",
+        None,
+        &[(CALENDAR, "", INVITATION_ICS)],
+    )));
+    assert_eq!(md, format!("# Quarterly planning\n\n{INVITATION_MARKDOWN}"));
+}
+
+/// docling#5357 (`test_email_backend_preserves_calendar_body_as_text`):
+/// with the option off, another text subtype is kept as text.
+#[test]
+fn calendar_body_is_kept_as_text_when_parsing_is_off() {
+    let calendar = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Docling//Email fallback test//EN\n\
+        BEGIN:VEVENT\nUID:synthetic@example.org\nDTSTAMP:20261107T000000Z\n\
+        DTSTART:20261108T090000Z\nDESCRIPTION:Review <terms> & conditions for a_b.\n\
+        END:VEVENT\nEND:VCALENDAR";
+    let off = EmailBackend {
+        parse_calendar_invitations: false,
+        ..EmailBackend::default()
+    };
+    let doc = convert_with(
+        message(
+            "Subject: Calendar body\r\n",
+            None,
+            &[("text/calendar; charset=\"utf-8\"", "", calendar)],
+        ),
+        &off,
+    );
+    assert_eq!(
+        texts(&doc),
+        pairs(&[("Calendar body", "body"), (calendar, "body")])
+    );
+    let escaped = calendar
+        .replace(
+            "<terms> & conditions for a_b.",
+            "&lt;terms&gt; &amp; conditions for a\\_b.",
+        )
+        .replace('\n', "  \n");
+    assert_eq!(md(&doc), format!("# Calendar body\n\n{escaped}"));
+}
+
+/// docling#5357 (`test_email_adds_the_name_of_a_calendar_without_entries`).
+#[test]
+fn adds_the_name_of_a_calendar_without_entries() {
+    let md = md(&convert(message(
+        "Subject: Team calendar\r\n",
+        None,
+        &[(
+            "text/calendar; charset=\"utf-8\"",
+            "",
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nX-WR-CALNAME:Team\r\n\
+             X-WR-CALDESC:Shared team dates.\r\nEND:VCALENDAR\r\n",
+        )],
+    )));
+    assert_eq!(
+        md,
+        "# Team calendar\n\n### Calendar\n\nCalendar name: Team\n\nShared team dates."
+    );
+}
+
+/// docling#5357 (`test_email_keeps_a_calendar_part_with_nothing_to_show_as_text`).
+#[test]
+fn keeps_a_calendar_part_with_nothing_to_show_as_text() {
+    let md = md(&convert(message(
+        "Subject: Time zone\r\n",
+        None,
+        &[(
+            "text/calendar; charset=\"utf-8\"",
+            "",
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTIMEZONE\r\nTZID:Europe/Berlin\r\n\
+             END:VTIMEZONE\r\nEND:VCALENDAR\r\n",
+        )],
+    )));
+    assert!(md.contains("TZID:Europe/Berlin"), "{md}");
+    assert!(!md.contains("### Calendar"), "{md}");
+}
+
+/// docling#5357 (`test_email_skips_a_calendar_part_that_cannot_be_decoded`).
+#[test]
+fn skips_a_calendar_part_that_cannot_be_decoded() {
+    let md = md(&convert(message(
+        &format!("Subject: Quarterly planning\r\n{INVITE_HEADERS}"),
+        Some("mixed"),
+        &[
+            (PLAIN, "", "See the invitation.\r\n"),
+            (
+                "text/calendar; charset=\"x-unknown\"",
+                "Content-Disposition: attachment; filename=\"invite.ics\"\r\n",
+                INVITATION_ICS,
+            ),
+        ],
+    )));
+    assert!(md.ends_with("See the invitation."), "{md}");
+}

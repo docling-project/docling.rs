@@ -99,6 +99,9 @@ pub struct ConvertOptions {
     pub min_image_bytes: Option<u64>,
     /// Email (.eml/.msg): append an Attachments section (#251).
     pub list_attachments: Option<bool>,
+    /// Email (.eml): append the events of its calendar invitations as a
+    /// Calendar section (docling#5357; default `true`).
+    pub parse_calendar_invitations: Option<bool>,
     /// Omit empty cells from sparse XLSX/XLS table grids (#271).
     pub skip_empty_cells: Option<bool>,
     /// EBCDIC copybook layout (#252): inline JSON or a file path.
@@ -596,6 +599,10 @@ pub const OPTIONS: &[OptionInfo] = &[
     row("max_image_total_mb"),
     row("min_image_bytes"),
     row("list_attachments"),
+    OptionInfo {
+        cli: Some("--no-calendar-invitations"),
+        ..row("parse_calendar_invitations")
+    },
     row("skip_empty_cells"),
     row("ebcdic_layout"),
     row("encoding"),
@@ -1337,6 +1344,9 @@ impl ConvertOptions {
         }
         if let Some(v) = self.list_attachments {
             c = c.list_attachments(v);
+        }
+        if let Some(v) = self.parse_calendar_invitations {
+            c = c.parse_calendar_invitations(v);
         }
         if let Some(v) = self.skip_empty_cells {
             c = c.skip_empty_cells(v);

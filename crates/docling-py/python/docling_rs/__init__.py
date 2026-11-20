@@ -396,6 +396,9 @@ class DocumentConverter:
       of a few typed-in form fields over scans).
     * ``list_attachments`` — email (.eml/.msg): append an Attachments section
       with names and content types (#251; the payload is never embedded).
+    * ``parse_calendar_invitations`` — email (.eml): append the events of its
+      calendar invitations as a Calendar section (docling#5357; default
+      ``True``); ``False`` keeps a calendar body as text.
     * ``ebcdic_layout`` — EBCDIC (#252): the copybook layout, inline
       ``EbcdicLayout`` JSON or a file path (default: the ``<stem>.layout.json``
       sidecar next to the source).
@@ -597,6 +600,7 @@ class DocumentConverter:
         use_embedded_picture_images: bool = False,
         text_layer_only: Union[bool, str] = False,
         list_attachments: bool = False,
+        parse_calendar_invitations: bool = True,
         ebcdic_layout: Optional[str] = None,
         video_frames: Optional[Union[int, str]] = None,
         video_scene_threshold: Optional[float] = None,
@@ -887,6 +891,7 @@ class DocumentConverter:
             use_embedded_picture_images=use_embedded_picture_images,
             text_layer_only=text_layer_only,
             list_attachments=list_attachments,
+            parse_calendar_invitations=parse_calendar_invitations,
             ebcdic_layout=ebcdic_layout,
             video_frames=video_frames,
             video_scene_threshold=video_scene_threshold,

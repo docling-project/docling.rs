@@ -161,6 +161,10 @@ pub struct ConverterOptions {
     /// Email (.eml/.msg): append an Attachments section — names and content
     /// types only, never the payload (#251). Default `false`.
     pub list_attachments: Option<bool>,
+    /// Email (.eml): append the events of its calendar invitations as a
+    /// Calendar section (docling#5357's `parse_calendar_invitations`).
+    /// Default `true`; `false` keeps a calendar body as text.
+    pub parse_calendar_invitations: Option<bool>,
     /// Omit empty cells from sparse XLSX/XLS table grids (#271; docling.rs
     /// extension). Default `false`.
     pub skip_empty_cells: Option<bool>,
@@ -527,6 +531,10 @@ pub struct ConvertOptions {
     /// Email (.eml/.msg): append an Attachments section — names and content
     /// types only, never the payload (#251). Default `false`.
     pub list_attachments: Option<bool>,
+    /// Email (.eml): append the events of its calendar invitations as a
+    /// Calendar section (docling#5357's `parse_calendar_invitations`).
+    /// Default `true`; `false` keeps a calendar body as text.
+    pub parse_calendar_invitations: Option<bool>,
     /// Omit empty cells from sparse XLSX/XLS table grids (#271). Default
     /// `false`.
     pub skip_empty_cells: Option<bool>,

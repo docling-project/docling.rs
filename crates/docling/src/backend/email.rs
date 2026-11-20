@@ -23,6 +23,7 @@
 //! every conversion at the default tier, takes docling's paragraph path, so
 //! the default output is unchanged.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use mail_parser::{Address, Message, MessageParser, MimeHeaders, PartType};
@@ -34,7 +35,6 @@ use crate::error::ConversionError;
 use crate::source::SourceDocument;
 use docling_core::{DoclingDocument, Node, PictureImage};
 
-#[derive(Default)]
 pub struct EmailBackend {
     /// Append an `Attachments` section (names + content types, never the
     /// payload) — docling's opt-in `list_attachments`.
@@ -43,6 +43,21 @@ pub struct EmailBackend {
     /// `cid:` parts and `data:` URIs under `Embedded` and above; none by
     /// default (see the module docs).
     pub images: ImagePolicy,
+    /// Append the events of the message's calendar parts, inline or
+    /// attached, as a `Calendar` section — docling's
+    /// `EmailBackendOptions.parse_calendar_invitations` (docling#5357, on
+    /// by default). Off, a calendar body is kept as text.
+    pub parse_calendar_invitations: bool,
+}
+
+impl Default for EmailBackend {
+    fn default() -> Self {
+        Self {
+            list_attachments: false,
+            images: ImagePolicy::default(),
+            parse_calendar_invitations: true,
+        }
+    }
 }
 
 impl DeclarativeBackend for EmailBackend {
@@ -80,10 +95,33 @@ impl DeclarativeBackend for EmailBackend {
                 text: escape_text(&format!("Date: {date}")),
             });
         }
-        match self.body_with_images(source, &msg, projected.as_ref()) {
-            Some(nodes) => doc.nodes.extend(nodes),
+        let calendar_parts = if self.parse_calendar_invitations {
+            calendar_parts(&msg)
+        } else {
+            Vec::new()
+        };
+        let (shown_parts, calendars) = super::calendar::merge_calendar_parts(calendar_parts);
+        // The body's own text, whitespace-collapsed: a calendar description
+        // it holds is left out (docling#5455).
+        let body_text = match self.body_with_images(source, &msg, projected.as_ref()) {
+            Some(nodes) => {
+                let text = DoclingDocument {
+                    nodes: nodes.clone(),
+                    ..DoclingDocument::new("body")
+                }
+                .export_to_text();
+                doc.nodes.extend(nodes);
+                text
+            }
             None => {
-                for (para, furniture) in body_paragraphs(&text_parts(&msg)) {
+                let paragraphs = body_paragraphs(&text_parts(&msg), &shown_parts);
+                let text = paragraphs
+                    .iter()
+                    .filter(|(_, furniture)| !furniture)
+                    .map(|(p, _)| p.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                for (para, furniture) in paragraphs {
                     let text = escape_text(&para);
                     // A furniture paragraph is docling's furniture-layer text
                     // item: in the JSON, out of the default Markdown.
@@ -96,7 +134,13 @@ impl DeclarativeBackend for EmailBackend {
                         Node::Paragraph { text }
                     });
                 }
+                text
             }
+        };
+        if !calendars.is_empty() {
+            let body_text = body_text.split_whitespace().collect::<Vec<_>>().join(" ");
+            doc.nodes
+                .extend(super::calendar::email_calendar_nodes(&calendars, &body_text));
         }
         if self.list_attachments {
             let labels = match &projected {
@@ -232,10 +276,13 @@ fn msg_cid_images(bytes: &[u8]) -> HashMap<String, PictureImage> {
 
 /// Attachment display labels for a parsed `.eml`: `name (type/subtype)`,
 /// falling back to `attachment-N` for nameless parts — docling's
-/// `_get_attachment_labels`.
+/// `_get_attachment_labels`, over the parts mailparser counts as
+/// attachments ([`is_attachment`]; an inline calendar alternative is not
+/// one, docling#5357's `invite.ics` test).
 fn eml_attachment_labels(msg: &Message) -> Vec<String> {
     use mail_parser::MimeHeaders;
     msg.attachments()
+        .filter(|part| is_attachment(part))
         .enumerate()
         .map(|(i, part)| {
             // Header-derived, so single-line like every header (docling#4242).
@@ -314,6 +361,70 @@ fn format_addresses(addr: Option<&Address>) -> String {
         .join(", ")
 }
 
+/// The calendar file extensions (docling's `FormatToExtensions[CALENDAR]`).
+const CALENDAR_EXTENSIONS: &[&str] = &["ics", "ical", "icalendar", "ifb"];
+
+/// docling's `_is_calendar_part`: `text/calendar` or `application/ics` (as
+/// Gmail sends the `invite.ics` copy), or a file name with a calendar
+/// extension.
+fn is_calendar_part(part: &mail_parser::MessagePart) -> bool {
+    let typed = part.content_type().is_some_and(|ct| {
+        let mime = format!("{}/{}", ct.ctype(), ct.subtype().unwrap_or("")).to_ascii_lowercase();
+        mime == "text/calendar" || mime == "application/ics"
+    });
+    typed
+        || part.attachment_name().is_some_and(|name| {
+            std::path::Path::new(name)
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| CALENDAR_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
+        })
+}
+
+/// The bytes of a part as sent, the transfer encoding undone but no charset
+/// applied — mail-parser's own text would already be decoded, and a folded
+/// iCalendar line may split a UTF-8 character.
+fn part_bytes<'m>(msg: &'m Message, part: &'m mail_parser::MessagePart) -> Cow<'m, [u8]> {
+    let raw = msg
+        .raw_message()
+        .get(part.offset_body as usize..part.offset_end as usize)
+        .unwrap_or_default();
+    let decoded = match part.encoding {
+        mail_parser::Encoding::Base64 => mail_parser::decoders::base64::base64_decode(raw),
+        mail_parser::Encoding::QuotedPrintable => {
+            mail_parser::decoders::quoted_printable::quoted_printable_decode(raw)
+        }
+        mail_parser::Encoding::None => None,
+    };
+    match decoded {
+        Some(bytes) => Cow::Owned(bytes),
+        None => Cow::Borrowed(raw),
+    }
+}
+
+/// docling's `_get_calendar_parts`: each calendar part of the message,
+/// inline or attached, parsed from its bytes with its charset; a part that
+/// cannot be decoded is skipped with a warning, one without a calendar
+/// component left out.
+fn calendar_parts(msg: &Message) -> Vec<Vec<super::calendar::Component>> {
+    let mut out = Vec::new();
+    for part in &msg.parts {
+        if part.is_multipart()
+            || matches!(part.body, PartType::Message(_))
+            || !is_calendar_part(part)
+        {
+            continue;
+        }
+        let charset = part.content_type().and_then(|ct| ct.attribute("charset"));
+        match super::calendar::email_calendar_part(&part_bytes(msg, part), charset) {
+            Ok(Some(components)) => out.push(components),
+            Ok(None) => {}
+            Err(e) => eprintln!("docling: skipped a calendar part that cannot be decoded: {e}"),
+        }
+    }
+    out
+}
+
 /// The delimiter mailparser puts between the parts of its whole-message
 /// `body`, the last-resort text.
 const MAILPARSER_BODY_DELIMITER: &str = "\n--- mail_boundary ---\n";
@@ -335,6 +446,31 @@ struct TextParts {
     other: Vec<String>,
 }
 
+/// A part's content subtype, lower-cased; `plain` without a content type
+/// (Python's `get_content_subtype()`).
+fn subtype(part: &mail_parser::MessagePart) -> String {
+    part.content_type()
+        .map(|c| c.subtype().unwrap_or("").to_ascii_lowercase())
+        .unwrap_or_else(|| "plain".into())
+}
+
+fn disposition(part: &mail_parser::MessagePart) -> Option<String> {
+    part.content_disposition()
+        .map(|d| d.ctype().to_ascii_lowercase())
+}
+
+/// mailparser's attachment rule: a file name, a `Content-ID` on a subtype
+/// other than html/plain, the `rtf` subtype, or `Content-Disposition:
+/// attachment`. An inline `text/calendar` alternative is none of these —
+/// it is body text, which mail-parser's own attachment list counts.
+fn is_attachment(part: &mail_parser::MessagePart) -> bool {
+    let subtype = subtype(part);
+    part.attachment_name().is_some()
+        || (part.content_id().is_some() && !matches!(subtype.as_str(), "plain" | "html"))
+        || subtype == "rtf"
+        || disposition(part).as_deref() == Some("attachment")
+}
+
 fn text_parts(msg: &Message) -> TextParts {
     let mut out = TextParts::default();
     for part in &msg.parts {
@@ -345,21 +481,13 @@ fn text_parts(msg: &Message) -> TextParts {
             }
             PartType::Message(_) | PartType::Multipart(_) => continue,
         };
-        let ct = part.content_type();
-        let subtype = ct
-            .map(|c| c.subtype().unwrap_or("").to_ascii_lowercase())
-            .unwrap_or_else(|| "plain".into());
-        let body_type = ct.is_none_or(|c| c.ctype().eq_ignore_ascii_case("text"))
+        let subtype = subtype(part);
+        let body_type = part
+            .content_type()
+            .is_none_or(|c| c.ctype().eq_ignore_ascii_case("text"))
             && matches!(subtype.as_str(), "plain" | "html");
-        let disposition = part
-            .content_disposition()
-            .map(|d| d.ctype().to_ascii_lowercase());
-        let inline_body = body_type && disposition.as_deref() == Some("inline");
-        let attachment = part.attachment_name().is_some()
-            || (part.content_id().is_some() && !matches!(subtype.as_str(), "plain" | "html"))
-            || subtype == "rtf"
-            || disposition.as_deref() == Some("attachment");
-        if (attachment && !inline_body) || payload.is_empty() {
+        let inline_body = body_type && disposition(part).as_deref() == Some("inline");
+        if (is_attachment(part) && !inline_body) || payload.is_empty() {
             continue;
         }
         match subtype.as_str() {
@@ -395,7 +523,10 @@ type BodyParagraph = (String, bool);
 /// exported as unescaped Markdown and split (docling#5228: a `<footer>`
 /// stays furniture, out of the default export); else mailparser's whole
 /// body.
-fn body_paragraphs(parts: &TextParts) -> Vec<BodyParagraph> {
+fn body_paragraphs(
+    parts: &TextParts,
+    shown_calendars: &[Vec<super::calendar::Component>],
+) -> Vec<BodyParagraph> {
     let mut plain = Vec::new();
     for text in &parts.plain {
         split_paragraphs(text, &mut plain);
@@ -435,11 +566,19 @@ fn body_paragraphs(parts: &TextParts) -> Vec<BodyParagraph> {
     if !out.is_empty() {
         return out;
     }
+    // mailparser puts a calendar part in its body too: one that parses to a
+    // calendar part shown in the `Calendar` section is left out, so its text
+    // is never lost and never doubled (docling#5357's `_get_fallback_body`).
     let body: Vec<&str> = parts
         .plain
         .iter()
         .chain(&parts.html)
-        .chain(&parts.other)
+        .chain(
+            parts
+                .other
+                .iter()
+                .filter(|t| !super::calendar::is_shown_calendar(t, shown_calendars)),
+        )
         .map(String::as_str)
         .collect();
     let mut fallback = Vec::new();
@@ -460,6 +599,7 @@ mod tests {
         let md = EmailBackend {
             list_attachments: false,
             images: ImagePolicy::default(),
+            parse_calendar_invitations: true,
         }
         .convert(&src)
         .unwrap()
@@ -489,6 +629,7 @@ mod tests {
         let md = EmailBackend {
             list_attachments: false,
             images: ImagePolicy::default(),
+            parse_calendar_invitations: true,
         }
         .convert(&src)
         .unwrap()
@@ -517,6 +658,7 @@ mod tests {
         let md = EmailBackend {
             list_attachments: true,
             images: ImagePolicy::default(),
+            parse_calendar_invitations: true,
         }
         .convert(&src)
         .unwrap()
@@ -526,6 +668,7 @@ mod tests {
         let md_off = EmailBackend {
             list_attachments: false,
             images: ImagePolicy::default(),
+            parse_calendar_invitations: true,
         }
         .convert(&src)
         .unwrap()

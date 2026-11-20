@@ -163,6 +163,8 @@
 //!   unset (the default) keeps docling's break-free Markdown
 //! - `list_attachments` — email (.eml/.msg): append an Attachments section
 //!   with names and content types (#251; payload bytes are never embedded)
+//! - `parse_calendar_invitations` — email (.eml): the events of its calendar
+//!   invitations as a Calendar section (docling#5357; default `true`)
 //! - `ebcdic_layout` — EBCDIC (#252): the copybook layout as inline
 //!   `EbcdicLayout` JSON (mandatory for the format — the bytes are
 //!   meaningless without it)

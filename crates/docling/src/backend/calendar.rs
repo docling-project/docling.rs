@@ -22,6 +22,7 @@
 //! case (`attendees`, `reminders`, `free/busy periods`).
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 
 use docling_core::tree::{ItemTree, TreeKind};
 use docling_core::{DoclingDocument, Node};
@@ -54,6 +55,8 @@ impl DeclarativeBackend for CalendarBackend {
             doc: DoclingDocument::new(&source.name),
             tree: ItemTree::default(),
             level: 1,
+            name_as_title: true,
+            escape_html: false,
         };
         for component in &components {
             if component.name == "VCALENDAR" {
@@ -91,6 +94,181 @@ pub(crate) fn looks_like_calendar(bytes: &[u8]) -> bool {
         .chars()
         .next()
         .is_some_and(|c| c.is_alphanumeric() || c == '_')
+}
+
+// ------------------------------------------------- email invitations
+
+/// The top-level components a calendar root may be (docling's
+/// `_CALENDAR_ROOTS`).
+const CALENDAR_ROOTS: &[&str] = &["VCALENDAR", "VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"];
+
+/// docling's `holds_calendar`: a top-level calendar or calendar entry.
+fn holds_calendar(components: &[Component]) -> bool {
+    components
+        .iter()
+        .any(|c| CALENDAR_ROOTS.contains(&c.name.as_str()))
+}
+
+/// One calendar part of an email (docling#5357's `_get_calendar_parts`):
+/// its bytes as sent (transfer encoding undone, the charset not yet
+/// applied, so a fold that splits a UTF-8 character still joins) decoded
+/// with the part's charset. `Err` when they cannot be decoded — the caller
+/// warns and skips the part; `Ok(None)` when it holds no calendar.
+pub(super) fn email_calendar_part(
+    raw: &[u8],
+    charset: Option<&str>,
+) -> Result<Option<Vec<Component>>, ConversionError> {
+    let components = parse_components(&read_calendar_text(raw, charset)?);
+    Ok(holds_calendar(&components).then_some(components))
+}
+
+/// Whether a text part of the message's whole body is one of the calendar
+/// parts shown (`parse_components(unfold_text(text)) in shown_parts`), so
+/// the fallback body leaves it out.
+pub(super) fn is_shown_calendar(text: &str, shown: &[Vec<Component>]) -> bool {
+    let components = parse_components(&unfold_text(text));
+    shown.contains(&components)
+}
+
+/// `_is_new_entry`: an entry without a UID is always new; otherwise the
+/// first copy of each `(UID, RECURRENCE-ID, SEQUENCE)` wins.
+fn is_new_entry(entry: &Component, seen: &mut HashSet<(String, String, String)>) -> bool {
+    let uid = py_strip(entry.text("UID"));
+    if uid.is_empty() {
+        return true;
+    }
+    seen.insert((
+        uid.to_string(),
+        py_strip(entry.text("RECURRENCE-ID")).to_string(),
+        py_strip(entry.text("SEQUENCE")).to_string(),
+    ))
+}
+
+/// The properties of a calendar that are shown when it has no entry.
+const CALENDAR_LABELS: &[&str] = &["X-WR-CALNAME", "NAME", "X-WR-CALDESC", "DESCRIPTION"];
+
+/// `_new_components`: the components of one part that add something — a
+/// calendar with an unseen entry (its seen entries dropped), a calendar
+/// without entries that has a name or a description, an unseen entry.
+fn new_components(
+    components: &[Component],
+    seen: &mut HashSet<(String, String, String)>,
+) -> Vec<Component> {
+    let mut kept = Vec::new();
+    for component in components {
+        if component.name == "VCALENDAR" {
+            let has_entries = component
+                .components
+                .iter()
+                .any(|c| RENDERED_ENTRIES.contains(&c.name.as_str()));
+            if !has_entries {
+                if CALENDAR_LABELS
+                    .iter()
+                    .any(|n| !py_strip(component.text(n)).is_empty())
+                {
+                    kept.push(component.clone());
+                }
+                continue;
+            }
+            let children: Vec<Component> = component
+                .components
+                .iter()
+                .filter(|c| !RENDERED_ENTRIES.contains(&c.name.as_str()) || is_new_entry(c, seen))
+                .cloned()
+                .collect();
+            if children
+                .iter()
+                .any(|c| RENDERED_ENTRIES.contains(&c.name.as_str()))
+            {
+                kept.push(Component {
+                    components: children,
+                    ..component.clone()
+                });
+            }
+        } else if RENDERED_ENTRIES.contains(&component.name.as_str())
+            && is_new_entry(component, seen)
+        {
+            kept.push(component.clone());
+        }
+    }
+    kept
+}
+
+/// `_merge_calendar_parts`: Gmail sends an invitation twice, inline and as
+/// an `invite.ics` attachment, so the parts are joined keeping the first
+/// copy of each entry. Returns the parts that add something (the fallback
+/// body leaves those out) and the components to show.
+pub(super) fn merge_calendar_parts(
+    parts: Vec<Vec<Component>>,
+) -> (Vec<Vec<Component>>, Vec<Component>) {
+    let mut seen = HashSet::new();
+    let mut shown = Vec::new();
+    let mut merged = Vec::new();
+    for components in parts {
+        let kept = new_components(&components, &mut seen);
+        if !kept.is_empty() {
+            shown.push(components);
+            merged.extend(kept);
+        }
+    }
+    (shown, merged)
+}
+
+/// `_without_repeated_descriptions` (docling#5455): Outlook copies the whole
+/// plain body of an invitation into the event's DESCRIPTION, so a
+/// description whose whitespace-collapsed text the body (`body_text`,
+/// collapsed the same way) holds is left out.
+fn without_repeated_descriptions(components: &[Component], body_text: &str) -> Vec<Component> {
+    components
+        .iter()
+        .map(|component| {
+            if component.name == "VCALENDAR" {
+                Component {
+                    components: without_repeated_descriptions(&component.components, body_text),
+                    ..component.clone()
+                }
+            } else if RENDERED_ENTRIES.contains(&component.name.as_str()) {
+                Component {
+                    properties: component
+                        .properties
+                        .iter()
+                        .filter(|p| {
+                            p.name != "DESCRIPTION" || !body_text.contains(&one_line(p.value()))
+                        })
+                        .cloned()
+                        .collect(),
+                    ..component.clone()
+                }
+            } else {
+                component.clone()
+            }
+        })
+        .collect()
+}
+
+/// The `### Calendar` section an email appends (docling#5357): the heading
+/// at docling level 2, each entry at level 3 and its attendees, reminders
+/// and attachments at 4; a calendar name is a `Calendar name:` line (the
+/// email has its title); descriptions the body repeats are left out; the
+/// text escaped like the rest of the message. Flat nodes only — the email
+/// backend builds no item tree.
+pub(super) fn email_calendar_nodes(components: &[Component], body_text: &str) -> Vec<Node> {
+    let mut writer = Writer {
+        doc: DoclingDocument::new("calendar"),
+        tree: ItemTree::default(),
+        level: 3,
+        name_as_title: false,
+        escape_html: true,
+    };
+    writer.add_heading("Calendar", 2);
+    for component in without_repeated_descriptions(components, body_text) {
+        if component.name == "VCALENDAR" {
+            writer.add_calendar(&component);
+        } else if RENDERED_ENTRIES.contains(&component.name.as_str()) {
+            writer.add_entry(&component);
+        }
+    }
+    writer.doc.nodes
 }
 
 // ---------------------------------------------------------------- reading
@@ -159,7 +337,7 @@ fn unfold_text(text: &str) -> String {
 /// A content line: its upper-case name, its parameters (several values
 /// joined by commas) and its values — TEXT already unescaped, list
 /// properties one entry per item.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 struct Property {
     name: String,
     params: Vec<(String, String)>,
@@ -186,8 +364,8 @@ impl Property {
 }
 
 /// A BEGIN/END block with its properties and nested components.
-#[derive(Debug, Clone, Default)]
-struct Component {
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(super) struct Component {
     name: String,
     properties: Vec<Property>,
     components: Vec<Component>,
@@ -899,6 +1077,12 @@ struct Writer {
     tree: ItemTree,
     /// The heading level of each entry (docling's `base_level`).
     level: u8,
+    /// Whether a calendar's name is the document title, or — inside a
+    /// document that has one, an email — a `Calendar name:` line.
+    name_as_title: bool,
+    /// Escape `& < >` in the flat text too, as the email backend's text is
+    /// (an `.ics` prints them verbatim, as upstream's groundtruth does).
+    escape_html: bool,
 }
 
 fn text_kind(label: &str, text: &str, level: Option<u8>) -> TreeKind {
@@ -923,10 +1107,18 @@ fn md(text: &str) -> String {
 }
 
 impl Writer {
+    fn md(&self, text: &str) -> String {
+        if self.escape_html {
+            crate::backend::markdown::escape_text(text)
+        } else {
+            md(text)
+        }
+    }
+
     fn add_title(&mut self, text: &str) {
         self.doc.push(Node::Heading {
             level: 1,
-            text: md(text),
+            text: self.md(text),
         });
         self.tree.add(None, None, text_kind("title", text, None));
     }
@@ -934,14 +1126,14 @@ impl Writer {
     fn add_heading(&mut self, text: &str, level: u8) {
         self.doc.push(Node::Heading {
             level: level + 1,
-            text: md(text),
+            text: self.md(text),
         });
         self.tree
             .add(None, None, text_kind("section_header", text, Some(level)));
     }
 
     fn add_text(&mut self, text: &str) {
-        self.doc.push(Node::Paragraph { text: md(text) });
+        self.doc.push(Node::Paragraph { text: self.md(text) });
         self.tree.add(None, None, text_kind("text", text, None));
     }
 
@@ -963,7 +1155,7 @@ impl Writer {
                 ordered: false,
                 number: 0,
                 first_in_list: i == 0,
-                text: md(item),
+                text: self.md(item),
                 level: 0,
                 marker: None,
                 location: None,
@@ -986,8 +1178,10 @@ impl Writer {
                 n
             })
         };
-        if !name.is_empty() {
+        if !name.is_empty() && self.name_as_title {
             self.add_title(&name);
+        } else if !name.is_empty() {
+            self.add_text(&format!("Calendar name: {name}"));
         }
         let description = {
             let d = calendar.text("X-WR-CALDESC");
