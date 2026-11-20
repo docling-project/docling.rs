@@ -1219,6 +1219,86 @@ pub(crate) fn page_box(doc: &Document, page_id: lopdf::ObjectId) -> PageBox {
     }
 }
 
+/// A content stream's decoded bytes — a page's, a Form XObject's or a Type 3
+/// glyph procedure's — keeping what a damaged Flate stream inflates before
+/// its error (#1154). lopdf's decoder loses the output of the read that
+/// failed, so a short stream (all of it one read) comes back empty, and a
+/// stream it cannot decode at all comes back raw from `get_page_content` —
+/// compressed bytes the tokenizer rejects with the rest of the content.
+/// docling-parse (`qpdf_stream_decoder::decode_damaged_stream`, per stream
+/// since docling-parse#451) and pdfium keep the intact prefix; so does this.
+/// `None` only for a Flate stream nothing can be read from.
+pub(crate) fn content_stream_bytes(stream: &lopdf::Stream) -> Option<Vec<u8>> {
+    let predictor = stream
+        .dict
+        .get(b"DecodeParms")
+        .ok()
+        .and_then(|o| o.as_dict().ok())
+        .and_then(|d| d.get(b"Predictor").ok())
+        .and_then(|o| o.as_i64().ok())
+        .unwrap_or(1);
+    let plain_flate = predictor <= 1
+        && matches!(
+            stream.filters().unwrap_or_default().as_slice(),
+            [f] if *f == b"FlateDecode" || *f == b"Fl"
+        );
+    if plain_flate {
+        let out = inflate_prefix(&stream.content);
+        if !out.is_empty() {
+            return Some(out);
+        }
+    }
+    // Everything else — and a Flate stream without a zlib header, which
+    // lopdf retries as raw deflate — as lopdf decodes it.
+    match stream.decompressed_content() {
+        Ok(data) => Some(data),
+        Err(_) if plain_flate => None,
+        // Anything else as lopdf has always handed it over.
+        Err(_) => Some(stream.content.clone()),
+    }
+}
+
+/// zlib inflate up to the first error, keeping everything before it —
+/// pdfium's `FlateModule`. Stepped through `Decompress` because a
+/// `read::ZlibDecoder` drops what the failing read had already inflated.
+pub(crate) fn inflate_prefix(data: &[u8]) -> Vec<u8> {
+    let mut dec = flate2::Decompress::new(true);
+    let mut out = Vec::new();
+    let mut buf = vec![0u8; 1 << 16];
+    loop {
+        let (in_before, out_before) = (dec.total_in(), dec.total_out());
+        let input = &data[(in_before as usize).min(data.len())..];
+        let status = dec.decompress(input, &mut buf, flate2::FlushDecompress::None);
+        let written = (dec.total_out() - out_before) as usize;
+        out.extend_from_slice(&buf[..written]);
+        match status {
+            Ok(flate2::Status::Ok) if written > 0 || dec.total_in() > in_before => {}
+            _ => break,
+        }
+    }
+    out
+}
+
+/// A page's content — every stream of its `/Contents`, decoded by
+/// [`content_stream_bytes`], each followed by a newline as lopdf's
+/// `get_page_content` joins them. An undecodable stream drops out instead of
+/// spilling its raw bytes into the content of the others.
+pub(crate) fn page_content(doc: &Document, page_id: lopdf::ObjectId) -> Vec<u8> {
+    let mut content = Vec::new();
+    for id in doc.get_page_contents(page_id) {
+        if let Some(data) = doc
+            .get_object(id)
+            .and_then(Object::as_stream)
+            .ok()
+            .and_then(content_stream_bytes)
+        {
+            content.extend_from_slice(&data);
+            content.push(b'\n');
+        }
+    }
+    content
+}
+
 /// Page size (width, height) in PDF points — the display box's, like pdfium's
 /// `FPDF_GetPageWidthF/HeightF`.
 fn page_size(doc: &Document, page_id: lopdf::ObjectId) -> (f32, f32) {
@@ -1240,7 +1320,7 @@ pub fn content_diagnosis(bytes: &[u8]) -> String {
     let mut out = String::new();
     let mut caches = DocCaches::default();
     for (n, pid) in pages.into_iter().take(4) {
-        let content_bytes = doc.get_page_content(pid);
+        let content_bytes = page_content(&doc, pid);
         let ops = lopdf::content::Content::decode(&content_bytes)
             .map(|c| c.operations.len())
             .ok();
@@ -1430,7 +1510,7 @@ fn has_page_content(doc: &Document) -> bool {
     doc.get_pages()
         .into_values()
         .take(4)
-        .any(|pid| !doc.get_page_content(pid).is_empty())
+        .any(|pid| !page_content(&doc, pid).is_empty())
 }
 
 /// Correct `/Length` values that disagree with where `endstream` actually is.
@@ -2129,9 +2209,9 @@ fn page_glyphs_and_inks(
 ) {
     let mut out = Vec::new();
     let mut inks = Vec::new();
-    // get_page_content returns the assembled content-stream bytes directly
-    // (an empty Vec when the page has none).
-    let content_bytes = doc.get_page_content(page_id);
+    // The assembled content-stream bytes (an empty Vec when the page has
+    // none), damaged Flate streams read as far as they inflate (#1154).
+    let content_bytes = page_content(doc, page_id);
     let Ok(content) = lopdf::content::Content::decode(&content_bytes) else {
         return (out, inks, Vec::new(), PageShapes::default());
     };
@@ -3152,7 +3232,7 @@ fn run_content(
                 let form_content = match cached {
                     Some(c) => c,
                     None => {
-                        let Ok(data) = stream.decompressed_content() else {
+                        let Some(data) = content_stream_bytes(stream) else {
                             continue;
                         };
                         let Ok(c) = lopdf::content::Content::decode(&data) else {
@@ -4567,14 +4647,20 @@ mod page_box_frame {
 
     /// One page whose `/Contents` is an array of separate streams.
     fn pdf_content_streams(contents: &[&[u8]]) -> Vec<u8> {
+        pdf_with_streams(
+            contents
+                .iter()
+                .map(|content| lopdf::Stream::new(Dictionary::new(), content.to_vec()))
+                .collect(),
+        )
+    }
+
+    /// [`pdf_content_streams`] with the streams' dictionaries spelled out.
+    fn pdf_with_streams(contents: Vec<lopdf::Stream>) -> Vec<u8> {
         let mut doc = Document::with_version("1.5");
         let streams = contents
-            .iter()
-            .map(|content| {
-                Object::Reference(
-                    doc.add_object(lopdf::Stream::new(Dictionary::new(), content.to_vec())),
-                )
-            })
+            .into_iter()
+            .map(|stream| Object::Reference(doc.add_object(stream)))
             .collect::<Vec<_>>();
         let font_id = doc.add_object(dictionary! {
             "Type" => "Font",
@@ -4684,6 +4770,41 @@ mod page_box_frame {
             b"BT /F1 14 Tf 40 300 Td (Second stream text) Tj ET",
         ]));
         assert_eq!(text(&glyphs), "Second stream text");
+    }
+
+    /// A FlateDecode stream whose data breaks off mid-way (a truncated or
+    /// corrupted download) — #1154. qpdf and pdfium keep what inflated
+    /// before the damage; lopdf's `decompressed_content` fails and its
+    /// `get_page_content` then spliced the *compressed* bytes into the
+    /// content, which tokenized as garbage. The prefix reads, alone or
+    /// between intact streams.
+    #[test]
+    fn a_damaged_flate_stream_keeps_its_inflated_prefix() {
+        use std::io::Write as _;
+        // A sync-flushed deflate of the text, then bytes that are no valid
+        // deflate block: flate2 fails inside the one read that would have
+        // returned the text, so lopdf's decoder ends up with nothing.
+        let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        z.write_all(b"BT /F1 14 Tf 40 200 Td (Partial) Tj ET\n")
+            .expect("deflate");
+        z.flush().expect("sync flush");
+        let mut data = z.get_ref().clone();
+        data.extend_from_slice(b"\x07garbage\n");
+        let damaged =
+            || lopdf::Stream::new(dictionary! { "Filter" => "FlateDecode" }, data.clone());
+        let plain = |s: &[u8]| lopdf::Stream::new(Dictionary::new(), s.to_vec());
+
+        let (_, alone) = only_page(&pdf_with_streams(vec![damaged()]));
+        assert!(text(&alone).starts_with("Partial"), "{:?}", text(&alone));
+
+        let (_, glyphs) = only_page(&pdf_with_streams(vec![
+            plain(b"BT /F1 14 Tf 40 300 Td (Before) Tj ET"),
+            damaged(),
+            plain(b"BT /F1 14 Tf 40 100 Td (After) Tj ET"),
+        ]));
+        let t = text(&glyphs);
+        assert!(t.starts_with("Before") && t.ends_with("After"), "{t:?}");
+        assert!(t.contains("Partial"), "{t:?}");
     }
 
     /// The containment test is docling-parse's: the whole char box (advance

@@ -1337,7 +1337,7 @@ impl<'a> Interp<'a> {
         let Ok(Object::Stream(proc_stream)) = self.doc.get_object(*id) else {
             return;
         };
-        let Ok(content) = proc_stream.decompressed_content() else {
+        let Some(content) = crate::textparse::content_stream_bytes(proc_stream) else {
             return;
         };
         let mut gst = st.clone();
@@ -1417,7 +1417,7 @@ impl<'a> Interp<'a> {
             }
         }
         let res = get_dict(doc, d, b"Resources").or(parent_res);
-        let Ok(content) = stream.decompressed_content() else {
+        let Some(content) = crate::textparse::content_stream_bytes(stream) else {
             return;
         };
         self.run(&content, res, gst, depth);
@@ -2102,7 +2102,7 @@ impl<'a> Interp<'a> {
             return;
         };
         tile.fill(tiny_skia::Color::TRANSPARENT);
-        let Ok(content) = stream.decompressed_content() else {
+        let Some(content) = crate::textparse::content_stream_bytes(stream) else {
             return;
         };
         let res = get_dict(doc, &stream.dict, b"Resources").or(resources);
