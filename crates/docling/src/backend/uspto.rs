@@ -1368,7 +1368,11 @@ fn math_italic_char(c: char) -> char {
         'e' => '\u{1D452}',
         'f' => '\u{1D453}',
         'g' => '\u{1D454}',
-        'h' => '\u{1D455}',
+        // U+1D455 is a hole in the Mathematical Italic block — the italic
+        // small h was already encoded as U+210E PLANCK CONSTANT — so the
+        // letter maps there (docling#5233; the old table, ours included,
+        // wrote the unassigned code point).
+        'h' => '\u{210E}',
         'i' => '\u{1D456}',
         'j' => '\u{1D457}',
         'k' => '\u{1D458}',
@@ -1666,6 +1670,34 @@ mod tests {
         assert!(abstract_.contains("\u{3c2}j is a constant"));
         assert!(abstract_.contains("each \u{3c3}j is a relative prime number"));
         assert!(NAMED_ENTITIES.windows(2).all(|w| w[0].0 < w[1].0));
+    }
+
+    /// docling#5233 (`test_patent_uspto_grant_v2_italic_h`): an italic `h`
+    /// is the Planck constant sign U+210E, never the unassigned U+1D455.
+    #[test]
+    fn italic_h_is_the_planck_constant() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/data/uspto/sources/pg06442728.xml");
+        let xml = std::fs::read_to_string(path).unwrap().replace(
+            "<ITALIC><PDAT>modP</PDAT></ITALIC>",
+            "<ITALIC><PDAT>modh</PDAT></ITALIC>",
+        );
+        let src =
+            SourceDocument::from_bytes("pg06442728.xml", InputFormat::XmlUspto, xml.into_bytes());
+        let doc = UsptoBackend.convert(&src).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+        let claim = v["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|t| t["text"].as_str())
+            .find(|t| t.starts_with("1. "))
+            .unwrap();
+        assert!(
+            claim.contains("\u{1D45A}\u{1D45C}\u{1D451}\u{210E})"),
+            "{claim}"
+        );
+        assert!(!claim.contains('\u{1D455}'));
     }
 
     /// ICE claims are one paragraph per `<claim>`: nested `<claim-text>`s cut
