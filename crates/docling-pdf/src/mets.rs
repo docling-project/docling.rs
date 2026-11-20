@@ -17,7 +17,7 @@ use tar::Archive;
 use docling_core::DoclingDocument;
 
 use crate::pdfium_backend::{PdfPage, TextCell};
-use crate::{convert_pages_with_options, PdfError};
+use crate::PdfError;
 
 pub fn convert_mets_gbs(bytes: &[u8], name: &str) -> Result<DoclingDocument, PdfError> {
     convert_mets_gbs_with_options(
@@ -42,14 +42,12 @@ pub fn convert_mets_gbs_with_options(
     no_text_panels: bool,
     enrich: crate::EnrichmentOptions,
 ) -> Result<DoclingDocument, PdfError> {
-    convert_pages_with_options(
-        mets_pages(bytes)?,
-        name,
-        no_table_former,
-        no_ocr,
-        no_text_panels,
-        enrich,
-    )
+    let mut pipeline = crate::Pipeline::new()?
+        .no_table_former(no_table_former)
+        .no_text_panels(no_text_panels)
+        .no_ocr(no_ocr)
+        .enrichments(enrich);
+    convert_mets_gbs_with_pipeline(bytes, name, &mut pipeline)
 }
 
 /// Like [`convert_mets_gbs_with_options`], but driving a caller-configured
@@ -60,24 +58,40 @@ pub fn convert_mets_gbs_with_pipeline(
     name: &str,
     pipeline: &mut crate::Pipeline,
 ) -> Result<DoclingDocument, PdfError> {
-    pipeline.process_pages(mets_pages(bytes)?, name)
+    let (pages, skipped) = mets_pages(bytes)?;
+    let mut doc = pipeline.process_numbered_pages(pages, name)?;
+    // docling's `PARTIAL_SUCCESS` with `Page N failed to parse.` (#1147).
+    doc.notices.extend(
+        skipped
+            .into_iter()
+            .map(|(page_no, why)| docling_core::Notice::page_skipped(page_no, why)),
+    );
+    Ok(doc)
 }
 
 /// Parse a METS-GBS archive (tar.gz of per-page hOCR + TIFF) into pipeline
-/// pages, in page order.
-fn mets_pages(bytes: &[u8]) -> Result<Vec<PdfPage>, PdfError> {
+/// pages, numbered in page order, and the pages left out with the reason
+/// (docling#5484, #1147): one whose image does not decode, or whose image
+/// or hOCR page size is over the image cap — `DOCLING_RS_MAX_IMAGE_PIXELS`
+/// per side, where docling caps `max_image_pixels` (89.5 MP) in total.
+/// The hOCR size was never checked: a page declaring 20000 × 20000 was
+/// converted with geometry its image contradicts. One bad page used to fail
+/// the whole archive; the others now convert.
+type MetsPages = (Vec<(usize, PdfPage)>, Vec<(usize, String)>);
+
+fn mets_pages(bytes: &[u8]) -> Result<MetsPages, PdfError> {
     let mut html: BTreeMap<String, String> = BTreeMap::new();
     let mut tiff: BTreeMap<String, Vec<u8>> = BTreeMap::new();
 
     let mut archive = Archive::new(GzDecoder::new(bytes));
     let entries = archive
         .entries()
-        .map_err(|e| PdfError::Pdfium(format!("mets tar: {e}")))?;
+        .map_err(|e| PdfError::Document(format!("mets tar: {e}")))?;
     for entry in entries {
-        let mut entry = entry.map_err(|e| PdfError::Pdfium(format!("mets tar: {e}")))?;
+        let mut entry = entry.map_err(|e| PdfError::Document(format!("mets tar: {e}")))?;
         let path = entry
             .path()
-            .map_err(|e| PdfError::Pdfium(format!("mets tar: {e}")))?
+            .map_err(|e| PdfError::Document(format!("mets tar: {e}")))?
             .to_string_lossy()
             .into_owned();
         let base = path.rsplit('/').next().unwrap_or(&path);
@@ -102,40 +116,64 @@ fn mets_pages(bytes: &[u8]) -> Result<Vec<PdfPage>, PdfError> {
 
     // BTreeMap iterates stems in sorted (page) order.
     let mut pages = Vec::new();
+    let mut skipped = Vec::new();
+    let max_side = crate::max_image_side();
+    let mut page_no = 0usize;
     for (stem, hocr) in &html {
         let Some(img_bytes) = tiff.get(stem) else {
             continue;
         };
-        let image = crate::decode_image_limited(img_bytes)
-            .map_err(|e| PdfError::Pdfium(format!("mets image {stem}: {e}")))?;
+        page_no += 1;
+        let image = match crate::decode_image_limited(img_bytes) {
+            Ok(image) => image,
+            Err(e) => {
+                let why = format!("image {stem} cannot be read: {e}");
+                eprintln!("docling: mets-gbs: page {page_no}: {why}; skipped");
+                skipped.push((page_no, why));
+                continue;
+            }
+        };
         let (width, height, cells) = parse_hocr(hocr, &image);
-        pages.push(PdfPage {
-            width,
-            height,
-            scale: 1.0,
-            cells,
-            code_cells: Vec::new(),
-            checkboxes: Vec::new(),
-            bitmaps: Vec::new(),
-            shapes: Default::default(),
-            word_cells: Vec::new(),
-            image,
-            image_layout: None,
-            links: Vec::new(),
-            rotation: 0,
-            keep_typography: false,
-            #[cfg(feature = "render")]
-            embedded_images: Vec::new(),
-            #[cfg(feature = "ml")]
-            pending_image: None,
-        });
-    }
-    if pages.is_empty() {
-        return Err(PdfError::Pdfium(
-            "mets: no hOCR/TIFF page pairs found in archive".into(),
+        if width > max_side as f32 || height > max_side as f32 {
+            let why = format!(
+                "hOCR page of {width}x{height} pixels exceeds the limit of {max_side} \
+                 pixels per side (DOCLING_RS_MAX_IMAGE_PIXELS)"
+            );
+            eprintln!("docling: mets-gbs: page {page_no}: {why}; skipped");
+            skipped.push((page_no, why));
+            continue;
+        }
+        pages.push((
+            page_no,
+            PdfPage {
+                width,
+                height,
+                scale: 1.0,
+                cells,
+                code_cells: Vec::new(),
+                checkboxes: Vec::new(),
+                bitmaps: Vec::new(),
+                shapes: Default::default(),
+                word_cells: Vec::new(),
+                image,
+                image_layout: None,
+                links: Vec::new(),
+                rotation: 0,
+                keep_typography: false,
+                #[cfg(feature = "render")]
+                embedded_images: Vec::new(),
+                #[cfg(feature = "ml")]
+                pending_image: None,
+            },
         ));
     }
-    Ok(pages)
+    if pages.is_empty() {
+        return Err(PdfError::Document(match skipped.first() {
+            Some((n, why)) => format!("mets: no page could be read (page {n}: {why})"),
+            None => "mets: no hOCR/TIFF page pairs found in archive".into(),
+        }));
+    }
+    Ok((pages, skipped))
 }
 
 /// Parse an hOCR page: the `ocr_page` bbox gives the page geometry (cells are in

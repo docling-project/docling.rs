@@ -1615,6 +1615,7 @@ exact, 450 diff lines** against the groundtruth, 6 / 18 and 414 against live doc
 **Status:** the same pipeline, image as a single page
 
 - docling#4247 (2.128): the EXIF orientation tag is applied when the frame is loaded (`ImageOps.exif_transpose`), so a portrait photo no longer reaches layout and OCR on its side
+- #1149 (docling#4511, docling#5248): a transparent image input is composited onto white (`to_rgb`) — the alpha channel was dropped, so a transparent PNG holding dark text became a black page for layout and OCR; a PNG `tRNS` key counts, a 16-bit one included. 16-bit samples scale to 8 bits by truncation (`v >> 8`, Pillow's `value / 256`: 60000 → 234, 4000 → 15) where the `image` crate rounded `v / 257` one off. The wasm `ocr_image` input reads the same way
 - #981: a detected line is cropped out of the detector's rotated rectangle (RapidOCR's `get_rotate_crop_image`), not its axis-aligned bounding box — on a scan skewed by 0.6° the box of a 700 px line of 12 px print was a third taller than the line, and the recognizer, fed the line squeezed and slanted, dropped letters and glued words along every long line (`Baccalaatpoesne accurlatci usgers`) while RapidOCR read the same page clean with the identical models; the recognizer input width is no longer capped at 2400 px either (RapidOCR has no cap)
 - #570: OCR reads an image at docling's effective resolution (3 px/pt within RapidOCR's 2000 px longer side) and recognizes the text detector's boxes
   - on FUNSD's 199 scanned forms word recall against the annotations (the issue's `funsd_repro.py` scoring, `text_items`) is **0.896**, median 0.933, 29 forms under 0.8 (docling-rs 1.96: 0.613 / 150 under 0.8; Python docling 2.133 with RapidOCR: 0.852 / 39 under 0.8)
@@ -1629,6 +1630,7 @@ exact, 450 diff lines** against the groundtruth, 6 / 18 and 414 against live doc
 **Status:** `.tar.gz` of per-page hOCR + TIFF → cells from hOCR → the same layout+assembly path
 
 - no OCR needed
+- #1147 (docling#5484): a page whose image does not decode, or whose image or hOCR page size is over the image cap, is left out with a warning; the other pages convert, keep their numbers, and the result is `PartialSuccess` with a `Page N failed to parse` error for the page. One bad page image used to fail the whole archive, and the hOCR size was never checked (a page declaring 20000 × 20000 converted with geometry its image contradicts). **Deliberate difference:** the cap is `DOCLING_RS_MAX_IMAGE_PIXELS`, 30000 px *per side*, as for every image input, where docling's `max_image_pixels` caps the total (89.5 MP); a 20000 × 20000 page passes here. An archive whose pages all fail still errors
 
 #### Audio (wav/mp3/flac/ogg/aac/m4a) and video audio tracks (mp4/mov/mkv/webm — docling's `InputFormat.VIDEO`, Phase 1 of #138)
 
@@ -2110,7 +2112,12 @@ pointed at the wrong item).
   included) and is always held to the private-address block-list. Per-document
   limits (`max_image_bytes` 32 MiB, `max_images`, `max_image_total_mb`,
   `min_image_bytes`; `DOCLING_RS_MAX_IMAGE*` / `DOCLING_RS_MIN_IMAGE_BYTES`)
-  leave a picture a placeholder rather than failing. **Markdown** images
+  leave a picture a placeholder rather than failing. A resolved picture
+  follows its EXIF orientation tag (#1148, docling#5246's
+  `ImageOps.exif_transpose` in the resource loader and the MHTML branch): a
+  tagged image is stored upright as PNG, width and height swapped for
+  orientations 5–8; an untagged one keeps its bytes. The office backends'
+  embedded pictures are read as before, as docling's are. **Markdown** images
   (`![alt](data:…)`, inline `<img src="data:…">`, embedded HTML blocks) resolve
   under the same policy — docling's Markdown backend resolves none; the JSON
   tree's `PictureItem` carries the bytes, and in the flat chain a paragraph
@@ -2557,7 +2564,18 @@ These are deliberate or unavoidable divergences, not bugs.
     carry no style signal (docling reads OCR cell heights), and enabling
     the stage buffers a streaming Markdown conversion into one chunk (the
     stage needs the whole assembled document; streamed output stays
-    byte-identical to buffered).
+    byte-identical to buffered). The keyword markers are docling#5474's
+    `KeywordLexicon` (#1145): the built-in English words merged with
+    `numbering_keywords` (family → words; a new family ranks by
+    `numbering_schemes`, a built-in word listed there moves to that family)
+    and `numbering_number_words`, matched NFC-normalized and
+    case-insensitively, longest first (`Capítulo II`, `ROZDZIAŁ I`,
+    `Art.5`); bookmark matching strips the added markers too. The Rust
+    library honours the sub-options (`DocumentConverter::heading_hierarchy_options`,
+    validated as docling validates them); the CLI, serve and the bindings
+    set the switch alone, with the default sub-options — the Python
+    facade's `HeadingHierarchyOptions` accepts the fields so docling code
+    constructs unchanged.
 
 18. **Image outputs** (#518–#520): docling's `images_scale` and
     `generate_page_images` act on every surface (`--images-scale` /
@@ -2897,7 +2915,19 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
   text kept) is a `pipeline`/`VlmPipeline` error item with its `page_no`
   and a `partial_success`; only a document with no page output fails.
   `ErrorItem.page_no` is exposed on every surface (serve JSON `page_no`,
-  Node `pageNo`, Python `ErrorItem.page_no`). (**Audio/ASR is now done** — see §2; Opus and AVI,
+  Node `pageNo`, Python `ErrorItem.page_no`). Since #1146 (docling#4498)
+  the output carries its pages and provenance as docling's does: each
+  page's answer is parsed on its own and the pages concatenated
+  (`_concatenate_page_documents`), each behind its source page number and
+  size, so the JSON `pages` hold exactly the pages converted (`--pages 3-4`
+  → 3 and 4; a failed page leaves the numbers after it unchanged) and a
+  DocTags `loc_` box becomes the item's `prov` on its page (the 0–500 grid
+  rescaled to the 0–511 one the export denormalizes). Markdown is
+  unchanged. A DocLang answer's JSON now comes from its flat nodes, not the
+  reader's item tree (one tree per page does not concatenate). Not ported:
+  a DocTags `key_value_region` is flat `field_key` / `field_value` text
+  here, where docling-core builds a `KeyValueItem` with graph cells.
+  (**Audio/ASR is now done** — see §2; Opus and AVI,
   which symphonia cannot decode, use the optional ffmpeg fallback. The **enrichment
   models are now done** too: DocumentFigureClassifier-v2.5 for
   `do_picture_classification` and CodeFormulaV2 — an Idefics3-class VLM,

@@ -107,9 +107,22 @@ pub enum NoticeKind {
         variable: &'static str,
         limit: usize,
     },
+    /// A page of a multi-page source could not be read and was left out
+    /// (#1147: a METS-GBS page whose image does not decode, or whose image
+    /// or hOCR size is over the image cap); the other pages convert. The
+    /// page keeps its number, so the pages after it keep theirs.
+    PageSkipped { page_no: usize },
 }
 
 impl Notice {
+    /// A [`NoticeKind::PageSkipped`] notice: page `page_no` left out, and why.
+    pub fn page_skipped(page_no: usize, reason: impl Into<String>) -> Self {
+        Notice {
+            kind: NoticeKind::PageSkipped { page_no },
+            message: format!("Page {page_no} failed to parse: {}", reason.into()),
+        }
+    }
+
     /// A [`NoticeKind::DepthLimit`] notice for `what` (the format read).
     pub fn depth_limit(what: &str, variable: &'static str, limit: usize) -> Self {
         Notice {

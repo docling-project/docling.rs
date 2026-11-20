@@ -36,6 +36,7 @@ use std::collections::HashMap;
 
 use docling_core::Node;
 
+use crate::numbering_lexicon::KeywordLexicon;
 use crate::outline::OutlineItem;
 
 /// Options for the heading-hierarchy stage (docling's
@@ -67,6 +68,16 @@ pub struct HeadingHierarchyOptions {
     /// `article`, `roman_u`, `arabic`,
     /// `alpha_u`, `alpha_l`, `roman_l`. `None` = the default legal ordering.
     pub numbering_schemes: Option<Vec<String>>,
+    /// Extra keyword markers, family → words (docling#5474, #1145):
+    /// `{"chapter": ["Rozdział"], "article": ["Art."]}`. A built-in family
+    /// (`part`, `chapter`, `division`, `subdivision`, `article`) gains the
+    /// words; a new family must be listed in `numbering_schemes`, which ranks
+    /// it; a built-in word listed here moves to that family. Empty by
+    /// default (the default levels are unchanged). See [`Self::validate`].
+    pub numbering_keywords: std::collections::BTreeMap<String, Vec<String>>,
+    /// Extra number words accepted as the enumerator after a keyword
+    /// (`DZIAŁ PIERWSZY`), besides the English `one` … `twentieth`.
+    pub numbering_number_words: Vec<String>,
 }
 
 impl Default for HeadingHierarchyOptions {
@@ -81,6 +92,8 @@ impl Default for HeadingHierarchyOptions {
             max_level: 6,
             bookmark_match_threshold: 0.8,
             numbering_schemes: None,
+            numbering_keywords: Default::default(),
+            numbering_number_words: Vec::new(),
         }
     }
 }
@@ -93,6 +106,30 @@ impl HeadingHierarchyOptions {
             ..Self::default()
         }
     }
+
+    /// docling's validation of the keyword options: no empty family or
+    /// word, no numeral scheme (`roman_u`, `arabic`, `alpha_u`, `alpha_l`,
+    /// `roman_l`, `dotted`) as a family, no word in two families, and a new
+    /// family listed in `numbering_schemes`.
+    pub fn validate(&self) -> Result<(), String> {
+        crate::numbering_lexicon::validate(
+            &self.numbering_keywords,
+            &self.numbering_number_words,
+            self.numbering_schemes.as_deref(),
+        )
+    }
+
+    /// The keyword lexicon these options describe.
+    fn lexicon(&self) -> KeywordLexicon {
+        KeywordLexicon::new(&self.numbering_keywords, &self.numbering_number_words)
+    }
+}
+
+/// The built-in lexicon, for the callers that have no options.
+#[cfg(test)]
+fn default_lexicon() -> &'static KeywordLexicon {
+    static LEX: std::sync::OnceLock<KeywordLexicon> = std::sync::OnceLock::new();
+    LEX.get_or_init(KeywordLexicon::default)
 }
 
 /// One text-layer glyph's box and style, in top-left page points — the
@@ -154,6 +191,11 @@ impl Marker {
     }
 }
 
+/// [`is_roman`] for the keyword lexicon.
+pub(crate) fn is_roman_token(token: &str) -> bool {
+    is_roman(token)
+}
+
 /// Canonical Roman-numeral validator (1..3999), case-insensitive — the
 /// hand-rolled equivalent of `M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})
 /// (IX|IV|V?I{0,3})` on a non-empty token.
@@ -212,6 +254,7 @@ fn is_roman(token: &str) -> bool {
 }
 
 /// Whether `text` starts with `word` as a whole word (ASCII case-insensitive).
+#[cfg(test)]
 fn starts_with_word(text: &str, word: &str) -> bool {
     // `word.len()` is a byte count taken from a *different* string, so it can
     // land inside a multi-byte char of `text` — `Note 1\u{a0}Overview` against
@@ -265,183 +308,23 @@ fn classify_letter(token: &str) -> Option<Marker> {
     None
 }
 
-/// What docling's `_KW_TAIL` (docling#5154) matches after a part/chapter/
-/// article keyword: `Some(None)` when the keyword stands alone — the end, or
-/// `.` `:` `–` `—` or `- ` after optional whitespace (`APPENDIX`, `Annex:`,
-/// `Appendix – Data`) — `Some(Some(token))` for the whitespace-separated
-/// token that follows (`[^\s.,:;)\]–—-]+`), `None` when the keyword is not
-/// a whole word there (`Part-Year`, `Parts`, `Chapter, …`).
-fn keyword_tail<'a>(s: &'a str, kw: &str) -> Option<Option<&'a str>> {
-    // `get`: the keyword's byte length may fall inside a multi-byte char (#377).
-    let head = s.get(..kw.len())?;
-    if !head.eq_ignore_ascii_case(kw) {
-        return None;
-    }
-    let rest = &s[kw.len()..];
-    let after = rest.trim_start();
-    if after.len() < rest.len() {
-        let tok_len = after.find(keyword_token_end).unwrap_or(after.len());
-        if tok_len > 0 {
-            return Some(Some(&after[..tok_len]));
-        }
-    }
-    let mut chars = after.chars();
-    match chars.next() {
-        None | Some('.' | ':' | '\u{2013}' | '\u{2014}') => Some(None),
-        Some('-') if chars.next().is_some_and(char::is_whitespace) => Some(None),
-        _ => None,
-    }
-}
-
-/// The characters that end a keyword's enumerator token: whitespace and
-/// docling's `.,:;)]–—-`.
-fn keyword_token_end(c: char) -> bool {
-    c.is_whitespace()
-        || matches!(
-            c,
-            '.' | ',' | ':' | ';' | ')' | ']' | '\u{2013}' | '\u{2014}' | '-'
-        )
-}
-
-/// docling's `_NUMBER_WORDS` (docling#5154): `CHAPTER ONE`, `ARTICLE FIRST`.
-const NUMBER_WORDS: [&str; 47] = [
-    "one",
-    "two",
-    "three",
-    "four",
-    "five",
-    "six",
-    "seven",
-    "eight",
-    "nine",
-    "ten",
-    "eleven",
-    "twelve",
-    "thirteen",
-    "fourteen",
-    "fifteen",
-    "sixteen",
-    "seventeen",
-    "eighteen",
-    "nineteen",
-    "twenty",
-    "thirty",
-    "forty",
-    "fifty",
-    "sixty",
-    "seventy",
-    "eighty",
-    "ninety",
-    "first",
-    "second",
-    "third",
-    "fourth",
-    "fifth",
-    "sixth",
-    "seventh",
-    "eighth",
-    "ninth",
-    "tenth",
-    "eleventh",
-    "twelfth",
-    "thirteenth",
-    "fourteenth",
-    "fifteenth",
-    "sixteenth",
-    "seventeenth",
-    "eighteenth",
-    "nineteenth",
-    "twentieth",
-];
-
-/// docling's `_keyword_marker` (docling#5154): part/chapter/article keywords
-/// are ordinary words too (`Rule Definition`, `Chapter Summary`, `Schedule of
-/// Fees`), so one is numbering only when it stands alone or the next token
-/// holds a digit (`Chapter 2D`, `Rule 12(b)`), is one letter, a valid Roman
-/// numeral or a number word — otherwise the plain word would outrank the
-/// heading's real `1.` / `2.1` numbering.
-fn keyword_marker(tail: Option<Option<&str>>) -> bool {
-    match tail {
-        None => false,
-        Some(None) => true,
-        Some(Some(tok)) => {
-            tok.chars().any(char::is_numeric)
-                || tok.chars().count() == 1
-                || is_roman(tok)
-                || NUMBER_WORDS.contains(&tok.to_lowercase().as_str())
-        }
-    }
-}
-
-/// docling's `_KW_ENUM` + `_keyword_enumerator` (docling#4473): `Division`
-/// / `Subdivision` are stricter still — an Arabic index, a single letter or a
-/// valid Roman numeral must follow, terminated by whitespace, the end or
-/// separator punctuation (so the French elision `Division d'appel` and
-/// `Division Civil Remedies` are not markers).
-fn keyword_enumerator(s: &str, kw: &str) -> bool {
-    let Some(head) = s.get(..kw.len()) else {
-        return false;
-    };
-    if !head.eq_ignore_ascii_case(kw) {
-        return false;
-    }
-    let rest = &s[kw.len()..];
-    let after = rest.trim_start();
-    if after.len() == rest.len() {
-        return false;
-    }
-    let tok = &after[..after.find(keyword_token_end).unwrap_or(after.len())];
-    !tok.is_empty()
-        && (tok.bytes().all(|b| b.is_ascii_digit())
-            || (tok.len() == 1 && tok.as_bytes()[0].is_ascii_alphabetic())
-            || is_roman(tok))
-}
-
-/// docling's `_KW_CHAPTER` lookahead: a statute citation such as `Chapter
-/// A-15` (letter-dash-digit) is not a chapter heading.
-fn chapter_citation(s: &str) -> bool {
-    let Some(rest) = s.get("chapter".len()..) else {
-        return false;
-    };
-    let after = rest.trim_start();
-    let b = after.as_bytes();
-    after.len() < rest.len()
-        && b.len() >= 3
-        && b[0].is_ascii_alphabetic()
-        && b[1] == b'-'
-        && after[2..].starts_with(|c: char| c.is_numeric())
-}
-
 /// Extract the leading numbering marker from a heading, or `None`.
+#[cfg(test)]
 fn parse_marker(text: &str) -> Option<Marker> {
+    parse_marker_with(text, default_lexicon())
+}
+
+/// [`parse_marker`] with the keyword markers of `lex` (docling#5474): a
+/// part / chapter / division / subdivision / article keyword of any
+/// configured language, under docling#5154's rules (it stands alone or an
+/// enumerator follows; `Division` needs one).
+fn parse_marker_with(text: &str, lex: &KeywordLexicon) -> Option<Marker> {
     let s = text.trim();
     if s.is_empty() {
         return None;
     }
-
-    // docling's order: part, division, subdivision, chapter, article.
-    if ["part", "title", "book"]
-        .iter()
-        .any(|kw| keyword_marker(keyword_tail(s, kw)))
-    {
-        return Some(Marker::family("part"));
-    }
-    if keyword_enumerator(s, "division") {
-        return Some(Marker::family("division"));
-    }
-    if keyword_enumerator(s, "subdivision") {
-        return Some(Marker::family("subdivision"));
-    }
-    if keyword_marker(keyword_tail(s, "chapter")) && !chapter_citation(s) {
-        return Some(Marker::family("chapter"));
-    }
-    if [
-        "article", "section", "clause", "schedule", "annex", "appendix", "rule",
-    ]
-    .iter()
-    .any(|kw| keyword_marker(keyword_tail(s, kw)))
-    {
-        return Some(Marker::family("article"));
+    if let Some(family) = lex.family(s) {
+        return Some(Marker::family(family));
     }
     // § 1 / §§ 1.2
     if s.starts_with('§') {
@@ -657,7 +540,11 @@ fn infer_from_numbering(
         .numbering_schemes
         .clone()
         .unwrap_or_else(|| DEFAULT_FAMILY_ORDER.iter().map(|s| s.to_string()).collect());
-    let mut markers: Vec<Option<Marker>> = heading_texts.iter().map(|t| parse_marker(t)).collect();
+    let lex = options.lexicon();
+    let mut markers: Vec<Option<Marker>> = heading_texts
+        .iter()
+        .map(|t| parse_marker_with(t, &lex))
+        .collect();
     resolve_ambiguous(&mut markers);
     resolve_bare_arabic(heading_texts, &mut markers);
 
@@ -848,9 +735,15 @@ fn norm(text: &str) -> String {
 /// Strip one leading numbering marker before fuzzy-matching a title, so a
 /// bookmark "Definitions" matches an on-page heading "1.1 Definitions" (the
 /// port of docling's `_LEADING_MARKER`).
+#[cfg(test)]
 fn strip_marker(text: &str) -> String {
+    strip_marker_with(text, default_lexicon())
+}
+
+/// [`strip_marker`] with the keyword markers of `lex`.
+fn strip_marker_with(text: &str, lex: &KeywordLexicon) -> String {
     let s = text.trim_start();
-    let matched_len = leading_marker_len(s);
+    let matched_len = leading_marker_len(s, lex);
     match matched_len {
         Some(n) => {
             let rest = &s[n..];
@@ -864,38 +757,10 @@ fn strip_marker(text: &str) -> String {
 }
 
 /// Byte length of the leading marker in `s`, `None` when there is none.
-fn leading_marker_len(s: &str) -> Option<usize> {
+fn leading_marker_len(s: &str, lex: &KeywordLexicon) -> Option<usize> {
     // Keyword + optional `[\s.:]*[0-9ivxlcdm]*` tail.
-    for kw in [
-        "chapter",
-        "article",
-        "section",
-        "clause",
-        "schedule",
-        "annex",
-        "appendix",
-        "rule",
-        "part",
-        "title",
-        "book",
-        "division",
-        "subdivision",
-    ] {
-        if starts_with_word(s, kw) {
-            let mut i = kw.len();
-            let bytes = s.as_bytes();
-            while i < bytes.len()
-                && (bytes[i].is_ascii_whitespace() || bytes[i] == b'.' || bytes[i] == b':')
-            {
-                i += 1;
-            }
-            while i < bytes.len()
-                && (bytes[i].is_ascii_digit() || b"ivxlcdmIVXLCDM".contains(&bytes[i]))
-            {
-                i += 1;
-            }
-            return Some(i);
-        }
+    if let Some(n) = lex.leading_keyword_len(s) {
+        return Some(n);
     }
     // §+ \s* [0-9.]+
     if s.starts_with('§') {
@@ -1013,9 +878,15 @@ fn similarity(a: &str, b: &str) -> f32 {
 /// Both are compared with and without their leading numbering marker, and
 /// containment of one normalized title in the other boosts the score
 /// (bookmarks are frequently truncated).
+#[cfg(test)]
 fn match_score(cand_text: &str, bm_title: &str) -> f32 {
-    let mut variants_a = vec![norm(cand_text), norm(&strip_marker(cand_text))];
-    let mut variants_b = vec![norm(bm_title), norm(&strip_marker(bm_title))];
+    match_score_with(cand_text, bm_title, default_lexicon())
+}
+
+/// [`match_score`] with the keyword markers of `lex`.
+fn match_score_with(cand_text: &str, bm_title: &str, lex: &KeywordLexicon) -> f32 {
+    let mut variants_a = vec![norm(cand_text), norm(&strip_marker_with(cand_text, lex))];
+    let mut variants_b = vec![norm(bm_title), norm(&strip_marker_with(bm_title, lex))];
     variants_a.retain(|v| !v.is_empty());
     variants_b.retain(|v| !v.is_empty());
     variants_a.dedup();
@@ -1141,6 +1012,7 @@ fn infer_from_bookmarks(
     outline: &[OutlineItem],
     options: &HeadingHierarchyOptions,
 ) -> HashMap<usize, usize> {
+    let lex = options.lexicon();
     let mut claimed: Vec<bool> = vec![false; candidates.len()];
     let mut matches: Vec<(usize, usize)> = Vec::new(); // (candidate, raw level)
 
@@ -1165,7 +1037,7 @@ fn infer_from_bookmarks(
                     continue;
                 }
             }
-            let score = match_score(&cand.text, title);
+            let score = match_score_with(&cand.text, title, &lex);
             if score < threshold {
                 continue;
             }
@@ -1549,6 +1421,181 @@ mod tests {
         assert!(match_score("1.1 Definitions", "Definitions") >= 0.9);
         assert!(match_score("ARTICLE 5 Payment Terms", "Payment Terms") >= 0.9);
         assert!(match_score("Introduction", "Conclusion") < 0.8);
+    }
+
+    /// docling#5474 (#1145): keyword markers of other languages, through
+    /// the options. docling's `test_heading_hierarchy.py` cases.
+    fn opts(keywords: &[(&str, &[&str])]) -> HeadingHierarchyOptions {
+        HeadingHierarchyOptions {
+            numbering_keywords: keywords
+                .iter()
+                .map(|(f, w)| (f.to_string(), w.iter().map(|w| w.to_string()).collect()))
+                .collect(),
+            ..HeadingHierarchyOptions::default()
+        }
+    }
+
+    fn levels_of(texts: &[&str], o: &HeadingHierarchyOptions) -> Vec<(usize, usize)> {
+        let mut v: Vec<_> = infer_from_numbering(texts, o).into_iter().collect();
+        v.sort_unstable();
+        v
+    }
+
+    #[test]
+    fn keywords_of_another_language() {
+        let expected = vec![(0, 1), (1, 2), (2, 2), (3, 1), (4, 2), (5, 2)];
+        let english = [
+            "Chapter 1",
+            "Article 1",
+            "Article 2",
+            "Chapter 2",
+            "Article 3",
+            "Article 4",
+        ];
+        let polish = [
+            "Rozdział 1",
+            "Art. 1",
+            "Art. 2",
+            "Rozdział 2",
+            "Art. 3",
+            "Art. 4",
+        ];
+        let none = HeadingHierarchyOptions::default();
+        assert_eq!(levels_of(&english, &none), expected);
+        assert!(levels_of(&polish, &none).is_empty());
+        let o = opts(&[
+            ("chapter", &["rozdział"]),
+            ("article", &["art.", "artykuł"]),
+        ]);
+        assert_eq!(levels_of(&polish, &o), expected);
+        // The model through `apply`: semantic 1/2 render as Markdown 2/3.
+        let mut nodes = vec![page(1)];
+        for (i, t) in polish.iter().enumerate() {
+            let y = 10 + 30 * i as u16;
+            nodes.push(heading([10, y, 200, y + 10], t));
+        }
+        let o = HeadingHierarchyOptions {
+            enabled: true,
+            use_style: false,
+            ..o
+        };
+        apply(&mut nodes, &[], &HashMap::new(), &o);
+        assert_eq!(levels(&nodes), vec![2, 3, 3, 2, 3, 3]);
+    }
+
+    #[test]
+    fn added_keywords_follow_the_rules_of_the_built_in_ones() {
+        let o = opts(&[
+            ("chapter", &["rozdział", "capítulo"]),
+            ("article", &["art.", "załącznik"]),
+            ("division", &["oddział"]),
+        ]);
+        let lex = o.lexicon();
+        let family = |t: &str| parse_marker_with(t, &lex).map(|m| m.family);
+        assert_eq!(family("ROZDZIAŁ I"), Some("chapter"));
+        assert_eq!(
+            family("Capi\u{301}tulo II"),
+            Some("chapter"),
+            "a combining accent"
+        );
+        assert_eq!(family("Art. 5"), Some("article"));
+        assert_eq!(family("Art.5"), Some("article"));
+        assert_eq!(family("Załącznik"), Some("article"));
+        assert_eq!(family("Załącznik: wzór wniosku"), Some("article"));
+        assert_eq!(family("Oddział 2"), Some("division"));
+        assert_eq!(family("Chapter 1"), Some("chapter"));
+        // The added words are ordinary words too.
+        assert_eq!(family("Art. Deco influences"), None);
+        assert_eq!(family("Rozdział ogólny"), None);
+        assert_eq!(family("Rozdziały 1"), None);
+        // A `division` word needs an enumerator, as `Division` does.
+        assert_eq!(family("Oddział"), None);
+        assert_eq!(family("Oddział Kardiologii"), None);
+        // Bookmark matching strips the added markers as well.
+        assert_eq!(
+            strip_marker_with("Rozdział 1 Przepisy ogólne", &lex),
+            "Przepisy ogólne"
+        );
+        assert!(match_score("Rozdział 1 Cel", "Cel") < 0.8);
+        assert!((match_score_with("Rozdział 1 Cel", "Cel", &lex) - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn new_keyword_families_take_their_place_from_numbering_schemes() {
+        let mut o = opts(&[
+            ("tytul", &["tytuł"]),
+            ("dzial", &["dział"]),
+            ("rozdzial", &["rozdział"]),
+            ("oddzial", &["oddział"]),
+            ("article", &["art."]),
+        ]);
+        o.numbering_schemes = Some(
+            ["tytul", "dzial", "rozdzial", "oddzial", "article"]
+                .map(String::from)
+                .to_vec(),
+        );
+        assert!(o.validate().is_ok());
+        let texts = [
+            "Tytuł I",
+            "Dział I",
+            "Rozdział 1",
+            "Oddział 1",
+            "Art. 1",
+            "Art. 2",
+            "Dział II",
+        ];
+        assert_eq!(
+            levels_of(&texts, &o),
+            vec![(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 5), (6, 2)]
+        );
+    }
+
+    #[test]
+    fn keyword_option_moves_a_built_in_word() {
+        let texts = ["Section 1", "Article 1", "Article 2", "Section 2"];
+        let flat = vec![(0, 1), (1, 1), (2, 1), (3, 1)];
+        assert_eq!(levels_of(&texts, &HeadingHierarchyOptions::default()), flat);
+        let mut o = opts(&[("section", &["section"])]);
+        o.numbering_schemes = Some(
+            ["part", "chapter", "section", "article"]
+                .map(String::from)
+                .to_vec(),
+        );
+        assert_eq!(levels_of(&texts, &o), vec![(0, 1), (1, 2), (2, 2), (3, 1)]);
+    }
+
+    #[test]
+    fn number_words_of_another_language() {
+        let texts = ["DZIAŁ PIERWSZY", "1. Zakres", "DZIAŁ DRUGI"];
+        let mut o = opts(&[("part", &["dział"])]);
+        assert_eq!(levels_of(&texts, &o), vec![(1, 1)]);
+        o.numbering_number_words = vec!["pierwszy".into(), "drugi".into()];
+        assert_eq!(levels_of(&texts, &o), vec![(0, 1), (1, 2), (2, 1)]);
+    }
+
+    #[test]
+    fn keyword_options_are_validated() {
+        let cases: [(HeadingHierarchyOptions, &str); 5] = [
+            (opts(&[("tytul", &["tytuł"])]), "numbering_schemes"),
+            (opts(&[("arabic", &["nr"])]), "numeral scheme"),
+            (opts(&[("chapter", &[" "])]), "empty word"),
+            (
+                opts(&[("part", &["Dział"]), ("chapter", &["DZIAŁ"])]),
+                "in the families",
+            ),
+            (
+                HeadingHierarchyOptions {
+                    numbering_number_words: vec![String::new()],
+                    ..HeadingHierarchyOptions::default()
+                },
+                "empty word",
+            ),
+        ];
+        for (o, message) in cases {
+            let err = o.validate().expect_err(message);
+            assert!(err.contains(message), "{err:?} lacks {message:?}");
+        }
+        assert!(HeadingHierarchyOptions::default().validate().is_ok());
     }
 
     #[test]

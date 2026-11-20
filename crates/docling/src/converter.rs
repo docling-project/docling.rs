@@ -348,6 +348,12 @@ pub struct DocumentConverter {
     /// `HeadingHierarchyModel`): bookmarks > numbering > font style. Off by
     /// default — heading levels then stay exactly as detected.
     heading_hierarchy: bool,
+    /// The stage's sub-options (#1145: `numbering_schemes`,
+    /// `numbering_keywords`, `numbering_number_words`, …) — see
+    /// [`Self::heading_hierarchy_options`]; `None` = docling's defaults.
+    /// Only the ML pipeline reads it, so only a `pdf` build carries it.
+    #[cfg(feature = "pdf")]
+    heading_hierarchy_options: Option<docling_pdf::HeadingHierarchyOptions>,
     use_web_browser: bool,
     /// Named Whisper model preset for audio sources (docling's ASR model
     /// specs, PR #3741): English-only / Distil-Whisper variants under
@@ -685,6 +691,8 @@ impl Default for DocumentConverter {
             generate_page_images: false,
             use_embedded_picture_images: false,
             heading_hierarchy: false,
+            #[cfg(feature = "pdf")]
+            heading_hierarchy_options: None,
             use_web_browser: false,
             asr_model: None,
             asr_lang: None,
@@ -848,6 +856,11 @@ impl DocumentConverter {
         &self,
         reporter: &'r std::sync::Arc<ProgressReporter>,
     ) -> Result<ReportingLease<'_, 'r>, docling_pdf::PdfError> {
+        if let Some(options) = &self.heading_hierarchy_options {
+            options
+                .validate()
+                .map_err(|e| docling_pdf::PdfError::Document(format!("heading hierarchy: {e}")))?;
+        }
         let switches = PipelineSwitches::of(self);
         let mut lease = match &self.warm {
             None => PipelineLease::Fresh(Box::new(switches.build()?)),
@@ -886,9 +899,10 @@ impl DocumentConverter {
             page_images: self.generate_page_images,
             embedded_pictures: self.use_embedded_picture_images,
         });
-        p.set_heading_hierarchy(docling_pdf::HeadingHierarchyOptions::enabled(
-            self.heading_hierarchy,
-        ));
+        p.set_heading_hierarchy(docling_pdf::HeadingHierarchyOptions {
+            enabled: self.heading_hierarchy,
+            ..self.heading_hierarchy_options.clone().unwrap_or_default()
+        });
         p.set_document_timeout(self.document_timeout);
         // The PDF route sets these two for itself; every other route reads
         // the whole input with OCR left to the layout.
@@ -2260,6 +2274,26 @@ impl DocumentConverter {
     /// ignore it (their backends carry real heading levels already).
     pub fn heading_hierarchy(mut self, enable: bool) -> Self {
         self.heading_hierarchy = enable;
+        self
+    }
+
+    /// The heading-hierarchy stage with all of docling's
+    /// `HeadingHierarchyOptions` — the switch (`enabled`, as
+    /// [`Self::heading_hierarchy`] sets it) and the sub-options, among them
+    /// keyword markers of other languages (#1145, docling#5474):
+    /// `numbering_keywords` (family → words; a new family must be listed in
+    /// `numbering_schemes`) and `numbering_number_words`. Options that fail
+    /// [`docling_pdf::HeadingHierarchyOptions::validate`] fail the PDF /
+    /// image conversion with the reason. The CLI, serve and the bindings
+    /// set only the switch. A `pdf` build only: without the ML pipeline
+    /// there is no stage to configure.
+    #[cfg(feature = "pdf")]
+    pub fn heading_hierarchy_options(
+        mut self,
+        options: docling_pdf::HeadingHierarchyOptions,
+    ) -> Self {
+        self.heading_hierarchy = options.enabled;
+        self.heading_hierarchy_options = Some(options);
         self
     }
 
