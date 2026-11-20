@@ -551,9 +551,164 @@ impl Cx {
 #[derive(Default)]
 struct Builder {
     tree: ItemTree,
+    /// `_list_item_lines` (docling#4518, #1182): the open line of a list
+    /// item — the `inline` group a formula starting the item opened, which
+    /// takes the text that follows until a blank line or other content.
+    item_lines: HashMap<usize, usize>,
 }
 
+/// `_ITEM_TEXT_LABELS`: body text that can become a list item's text or go
+/// on its line.
+const ITEM_TEXT_LABELS: [&str; 3] = ["text", "paragraph", "list_item"];
+
 impl Builder {
+    /// `parent` when it is a list item.
+    fn list_item(&self, parent: Option<usize>) -> Option<usize> {
+        parent.filter(|&p| self.label(p) == Some("list_item"))
+    }
+
+    /// `doc.add_list_item(text="", enumerated=…)`.
+    fn add_list_item(&mut self, parent: Option<usize>, enumerated: bool) -> usize {
+        let id = self.add_text(parent, "list_item", "");
+        self.set_enumerated(id, enumerated);
+        id
+    }
+
+    fn set_enumerated(&mut self, id: usize, enumerated: bool) {
+        if let TreeKind::Text {
+            list: Some(meta), ..
+        } = &mut self.tree.items[id].kind
+        {
+            meta.enumerated = enumerated;
+        }
+    }
+
+    /// `_is_empty_list_item`: no text, no children but footnotes.
+    fn is_empty_list_item(&self, item: usize) -> bool {
+        matches!(&self.tree.items[item].kind, TreeKind::Text { text, .. } if text.is_empty())
+            && self.tree.items[item]
+                .children
+                .iter()
+                .all(|&c| self.label(c) == Some("footnote"))
+    }
+
+    /// `_open_item_line`: the item's line while content can still go on it —
+    /// its last child but footnotes; anything else added after it ends it.
+    fn open_item_line(&mut self, item: usize) -> Option<usize> {
+        let line = *self.item_lines.get(&item)?;
+        let last = self.tree.items[item]
+            .children
+            .iter()
+            .rev()
+            .find(|&&c| self.label(c) != Some("footnote"))
+            .copied();
+        if last == Some(line) {
+            return Some(line);
+        }
+        self.item_lines.remove(&item);
+        None
+    }
+
+    /// `_start_item_line`: open the empty item's line, ahead of the
+    /// footnotes attached to it (the Markdown export puts only a first
+    /// inline group on the item's line).
+    fn start_item_line(&mut self, item: usize) -> usize {
+        let line = self.add_group(Some(item), "group", "inline");
+        let children = &mut self.tree.items[item].children;
+        if let Some(pos) = children.iter().position(|&c| c == line) {
+            children.remove(pos);
+            children.insert(0, line);
+        }
+        self.item_lines.insert(item, line);
+        line
+    }
+
+    fn end_item_line(&mut self, parent: Option<usize>) {
+        if let Some(p) = parent {
+            self.item_lines.remove(&p);
+        }
+    }
+
+    /// `_add_text`: `text` under `parent`, or — under a list item — the
+    /// item's own text while it is empty, on its open line, or a child;
+    /// split at blank lines, which would end the list in Markdown.
+    fn add_body_text(&mut self, parent: Option<usize>, label: &str, text: &str) {
+        let Some(item) = self
+            .list_item(parent)
+            .filter(|_| ITEM_TEXT_LABELS.contains(&label))
+        else {
+            self.add_text(parent, label, text.trim());
+            return;
+        };
+        let blank_lines = cached_regex!(r"\n\s*\n");
+        for (i, paragraph) in blank_lines.split(text.trim_end()).enumerate() {
+            if i > 0 {
+                self.item_lines.remove(&item);
+            }
+            if let Some(line) = self.open_item_line(item) {
+                // The runs of an inline group join without a separator, so
+                // text that continues the line keeps one leading space.
+                let stripped = paragraph.trim();
+                if !stripped.is_empty() {
+                    let text = if paragraph.starts_with(char::is_whitespace) {
+                        format!(" {stripped}")
+                    } else {
+                        stripped.to_string()
+                    };
+                    self.add_text(Some(line), label, &text);
+                }
+                continue;
+            }
+            let paragraph = paragraph.trim();
+            if paragraph.is_empty() {
+                continue;
+            }
+            if self.is_empty_list_item(item) {
+                if let TreeKind::Text { text, .. } = &mut self.tree.items[item].kind {
+                    *text = paragraph.to_string();
+                }
+            } else {
+                self.add_text(Some(item), label, paragraph);
+            }
+        }
+    }
+
+    /// `_open_inline_group`: the group for a paragraph with inline math —
+    /// in a list item its open line, or a new one if the item is empty;
+    /// elsewhere in a new empty text item. The flag: it continues a line.
+    fn open_inline_group(&mut self, parent: Option<usize>, label: &str) -> (usize, bool) {
+        if let Some(item) = self
+            .list_item(parent)
+            .filter(|_| ITEM_TEXT_LABELS.contains(&label))
+        {
+            if let Some(line) = self.open_item_line(item) {
+                return (line, true);
+            }
+            if self.is_empty_list_item(item) {
+                return (self.start_item_line(item), false);
+            }
+        }
+        let paragraph = self.add_text(parent, label, "");
+        (self.add_group(Some(paragraph), "group", "inline"), false)
+    }
+
+    /// `_add_formula`: a display formula; one starting a list item opens
+    /// the item's line, which takes the text that follows.
+    fn add_formula(&mut self, parent: Option<usize>, text: &str) {
+        let mut parent = parent;
+        if let Some(item) = self.list_item(parent) {
+            let line = match self.open_item_line(item) {
+                Some(line) => Some(line),
+                None if self.is_empty_list_item(item) => Some(self.start_item_line(item)),
+                None => None,
+            };
+            if line.is_some() {
+                parent = line;
+            }
+        }
+        self.add_text(parent, "formula", text);
+    }
+
     fn add_text(&mut self, parent: Option<usize>, label: &str, text: &str) -> usize {
         let list = (label == "list_item").then(ListMeta::default);
         self.tree.add(
@@ -765,6 +920,12 @@ impl Flat<'_> {
     /// items one level deeper, spliced into the enclosing list's run.
     fn nodes(&self, id: usize, first_in_list: bool, list_level: u8) -> Vec<Node> {
         let item = &self.tree.items[id];
+        if item.kind_label() == Some("list_item")
+            && item.layer != Some(ContentLayer::Furniture)
+            && !self.claimed.contains(&id)
+        {
+            return self.list_item_nodes(id, first_in_list, list_level.saturating_sub(1));
+        }
         if let TreeKind::Group { label, .. } = &item.kind {
             if label == "list" && list_level > 0 {
                 return item
@@ -777,6 +938,75 @@ impl Flat<'_> {
         self.node(id, first_in_list, list_level.saturating_sub(1))
             .into_iter()
             .collect()
+    }
+
+    /// A list item as docling-core's list serializer prints it (docling#4518,
+    /// #1182): the item's line — its text, or the inline group a formula
+    /// starting it opened — numbered by its position among its group's items
+    /// when the list is enumerated; then its children, each a line of the
+    /// list run (`Node::ListText`, unindented, as docling-core writes a text
+    /// child), a nested list one level deeper, anything else after the list.
+    fn list_item_nodes(&self, id: usize, first_in_list: bool, level: u8) -> Vec<Node> {
+        let item = &self.tree.items[id];
+        let TreeKind::Text { text, list, .. } = &item.kind else {
+            return Vec::new();
+        };
+        let ordered = list.as_ref().is_some_and(|m| m.enumerated);
+        let number = item.parent.map_or(1, |p| {
+            self.tree.items[p]
+                .children
+                .iter()
+                .take_while(|&&c| c != id)
+                .filter(|&&c| self.tree.items[c].kind_label() == Some("list_item"))
+                .count() as u64
+                + 1
+        });
+        let is_inline = |c: usize| matches!(&self.tree.items[c].kind, TreeKind::Group { label, .. } if label == "inline");
+        let line = item
+            .children
+            .first()
+            .copied()
+            .filter(|&c| text.is_empty() && is_inline(c));
+        let md = match line {
+            Some(group) => self.render_inline(group).0,
+            None => escape_text(text),
+        };
+        let mut out = vec![Node::ListItem {
+            ordered,
+            number,
+            first_in_list,
+            text: md,
+            level,
+            marker: None,
+            location: None,
+            split: None,
+            dclx: None,
+            href: None,
+            layer: None,
+        }];
+        for &c in &item.children {
+            if Some(c) == line || self.claimed.contains(&c) {
+                continue;
+            }
+            let child = &self.tree.items[c];
+            match &child.kind {
+                TreeKind::Group { label, .. } if label == "list" => {
+                    out.extend(self.nodes(c, false, level + 1));
+                }
+                TreeKind::Text { .. } | TreeKind::Group { .. } => {
+                    let text = self.item_md(c);
+                    if !text.is_empty() {
+                        out.push(Node::ListText {
+                            level: 0,
+                            text,
+                            glue: false,
+                        });
+                    }
+                }
+                _ => out.extend(self.node(c, false, level)),
+            }
+        }
+        out
     }
 
     /// One item's node; `level` is a list item's nesting depth.
@@ -1511,25 +1741,31 @@ impl Converter {
                     Part::Formula(_) => "",
                 })
                 .collect();
-            let combined = combined.trim();
-            if !combined.is_empty() {
+            if !combined.trim().is_empty() {
                 match cx.heading {
                     Some(level) => {
-                        self.doc.add_heading(cx.parent, combined, level);
+                        self.doc.add_heading(cx.parent, combined.trim(), level);
                     }
                     None => {
                         self.doc
-                            .add_text(cx.parent, cx.label.unwrap_or("text"), combined);
+                            .add_body_text(cx.parent, cx.label.unwrap_or("text"), &combined);
                     }
                 }
             }
             return;
         }
-        let paragraph = match cx.heading {
-            Some(level) => self.doc.add_heading(cx.parent, "", level),
-            None => self.doc.add_text(cx.parent, cx.label.unwrap_or("text"), ""),
+        let (group, continues_line) = match cx.heading {
+            Some(level) => {
+                let paragraph = self.doc.add_heading(cx.parent, "", level);
+                (
+                    self.doc.add_group(Some(paragraph), "group", "inline"),
+                    false,
+                )
+            }
+            None => self
+                .doc
+                .open_inline_group(cx.parent, cx.label.unwrap_or("text")),
         };
-        let group = self.doc.add_group(Some(paragraph), "group", "inline");
         let mut merged: Vec<Part> = Vec::new();
         for part in parts {
             match (part, merged.last_mut()) {
@@ -1537,7 +1773,9 @@ impl Converter {
                 (part, _) => merged.push(part),
             }
         }
-        if let Some(Part::Text(t)) = merged.first_mut() {
+        // Text that continues a list item's line keeps its leading
+        // whitespace: the runs of an inline group join without a separator.
+        if let Some(Part::Text(t)) = merged.first_mut().filter(|_| !continues_line) {
             *t = t.trim_start().to_string();
         }
         if let Some(Part::Text(t)) = merged.last_mut() {
@@ -1566,11 +1804,12 @@ impl Converter {
             let parts: Vec<&str> = text.split("\n\n").collect();
             buf.push(Part::Text(parts[0].to_string()));
             self.flush(buf, cx);
+            self.doc.end_item_line(cx.parent);
             for part in &parts[1..parts.len() - 1] {
                 let stripped = part.trim();
                 if !stripped.is_empty() {
                     self.doc
-                        .add_text(cx.parent, cx.label.unwrap_or("paragraph"), stripped);
+                        .add_body_text(cx.parent, cx.label.unwrap_or("paragraph"), stripped);
                 }
             }
             buf.push(Part::Text(parts[parts.len() - 1].to_string()));
@@ -1687,7 +1926,7 @@ impl Converter {
         if is_display {
             self.flush(buf, cx);
             let math = self.clean_math(verbatim, "display");
-            self.doc.add_text(cx.parent, "formula", &math);
+            self.doc.add_formula(cx.parent, &math);
         } else {
             let math = self.clean_math(verbatim, "inline");
             if !math.is_empty() {
@@ -1926,27 +2165,51 @@ impl Converter {
     /// `\input` / `\include`: the file parsed in place, relative to the
     /// source file, `.tex` implied, kept inside the source's directory.
     fn process_input(&mut self, filepath: &str, cx: Cx) {
-        let Some(base_dir) = self.base_dir.clone() else {
+        let Some((resolved, nodes)) = self.read_input(filepath) else {
             return;
         };
+        self.input_stack.insert(resolved.clone());
+        self.process_nodes(&nodes, cx);
+        self.input_stack.remove(&resolved);
+    }
+
+    /// `_read_input`: an `\input` file's resolved path and nodes — `None`
+    /// outside the base directory, in a cycle, past the depth cap, or
+    /// unreadable.
+    fn read_input(&self, filepath: &str) -> Option<(PathBuf, Vec<N>)> {
+        let base_dir = self.base_dir.clone()?;
         let mut input_path = base_dir.join(filepath);
         if input_path.extension().is_none() {
             input_path.set_extension("tex");
         }
-        let Some(resolved) = within(&base_dir, &input_path) else {
-            return;
-        };
+        let resolved = within(&base_dir, &input_path)?;
         if self.input_stack.contains(&resolved) || self.input_stack.len() >= MAX_INPUT_DEPTH {
-            return;
+            return None;
         }
-        let Ok(bytes) = std::fs::read(&input_path) else {
-            return;
-        };
-        let content = decode_latex(&bytes);
-        self.input_stack.insert(resolved.clone());
-        let nodes = parse(&content);
-        self.process_nodes(&nodes, cx);
-        self.input_stack.remove(&resolved);
+        let bytes = std::fs::read(&input_path).ok()?;
+        Some((resolved, parse(&decode_latex(&bytes))))
+    }
+
+    /// `_splice_list_inputs` (docling#5413): each `\input` of a list body
+    /// replaced by its file's nodes — plain text inclusion, so an `\item`
+    /// in the file starts a new item of the enclosing list.
+    fn splice_list_inputs(&mut self, nodes: &[N]) -> Vec<N> {
+        let mut spliced = Vec::new();
+        for n in nodes {
+            if !matches!(n.macro_name(), Some("input" | "include")) {
+                spliced.push(n.clone());
+                continue;
+            }
+            let filepath = self.extract_macro_arg(n);
+            let Some((resolved, sub)) = self.read_input(&filepath) else {
+                continue;
+            };
+            self.input_stack.insert(resolved.clone());
+            let inner = self.splice_list_inputs(&sub);
+            self.input_stack.remove(&resolved);
+            spliced.extend(inner);
+        }
+        spliced
     }
 
     /// `\includegraphics`: a raster file becomes the picture's PNG payload
@@ -2028,7 +2291,7 @@ impl Converter {
             }
             _ if ENV_MATH.contains(&unstarred.as_str()) || name == "math" => {
                 let math = self.clean_math(node.verbatim(), name);
-                self.doc.add_text(cx.parent, "formula", &math);
+                self.doc.add_formula(cx.parent, &math);
             }
             "subequations" => self.process_nodes(nodelist, body),
             _ if ENV_THEOREM.contains(&unstarred.as_str()) => {
@@ -2046,7 +2309,9 @@ impl Converter {
                 }
             }
             _ if ENV_QUOTE.contains(&name) => self.process_nodes(nodelist, body),
-            _ if ENV_LIST.contains(&name) => self.process_list(nodelist, cx.parent),
+            _ if ENV_LIST.contains(&name) => {
+                self.process_list(nodelist, cx.parent, name == "enumerate")
+            }
             "tabular" | "tabular*" | "tabularx" | "longtable" => {
                 if let Some(parsed) = self.parse_table(node) {
                     let table = self.doc.add_table(cx.parent, parsed.table);
@@ -2118,29 +2383,58 @@ impl Converter {
             Some((node.verbatim().to_string(), "Tikz".to_string()));
     }
 
-    fn process_list(&mut self, nodelist: &[N], parent: Option<usize>) {
+    /// `_process_list` (docling#4518, #1182): every `\item` adds exactly one
+    /// list item — docling-core numbers an item by its position among its
+    /// group's children — even an empty one, `enumerated` in an `enumerate`;
+    /// the item's content goes inside it ([`Self::process_list_item`]).
+    /// Before the first `\item`, whitespace, comments and macros such as
+    /// `\setlength` add nothing and stray text is an item. `\input` files
+    /// are spliced into the body first (docling#5413).
+    fn process_list(&mut self, nodelist: &[N], parent: Option<usize>, enumerated: bool) {
         let group = self.doc.add_group(parent, "list", "list");
+        let mut leading: Vec<N> = Vec::new();
         let mut items: Vec<Vec<N>> = Vec::new();
-        let mut current: Vec<N> = Vec::new();
-        for n in nodelist {
+        for n in self.splice_list_inputs(nodelist) {
             if n.macro_name() == Some("item") {
-                if !current.is_empty() {
-                    items.push(std::mem::take(&mut current));
-                }
                 // The `\item` node itself stays when it has an argument list.
-                if n.has_args() {
-                    current.push(n.clone());
-                }
+                items.push(if n.has_args() { vec![n] } else { Vec::new() });
+            } else if let Some(item) = items.last_mut() {
+                item.push(n);
             } else {
-                current.push(n.clone());
+                leading.push(n);
             }
         }
-        if !current.is_empty() {
-            items.push(current);
+        self.process_nodes(&leading, Cx::new(Some(group), Some("list_item")));
+        let strays: Vec<usize> = self.doc.tree.items[group].children.clone();
+        for stray in strays {
+            if self.doc.label(stray) == Some("list_item") {
+                self.doc.set_enumerated(stray, enumerated);
+            }
         }
         for item in items {
-            self.process_nodes(&item, Cx::new(Some(group), Some("list_item")));
+            self.process_list_item(item, group, enumerated);
         }
+    }
+
+    /// `_process_list_item`: one `\item` as one list item, its content
+    /// inside it — the first paragraph its text, later paragraphs, display
+    /// math, quotes and nested lists its children. A `\newline` before any
+    /// content has nothing to break and is dropped.
+    fn process_list_item(&mut self, item_nodes: Vec<N>, group: usize, enumerated: bool) {
+        let mut nodes = Vec::new();
+        let mut content_seen = false;
+        for n in item_nodes {
+            if !content_seen {
+                if n.macro_name() == Some("newline") {
+                    continue;
+                }
+                let blank = matches!(&n.kind, K::Chars(t) if t.trim().is_empty());
+                content_seen = !(n.macro_name() == Some("item") || blank);
+            }
+            nodes.push(n);
+        }
+        let item = self.doc.add_list_item(Some(group), enumerated);
+        self.process_nodes(&nodes, Cx::new(Some(item), None));
     }
 
     /// `_process_bibliography`: one `[key] text` list item per `\bibitem`.
