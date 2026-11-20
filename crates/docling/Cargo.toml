@@ -218,6 +218,7 @@ path = "tests/regression.rs"
 
 [dev-dependencies]
 criterion = "0.5"
+tar = "0.4"
 
 [[bench]]
 name = "parse"

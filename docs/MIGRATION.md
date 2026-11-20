@@ -1630,6 +1630,7 @@ exact, 450 diff lines** against the groundtruth, 6 / 18 and 414 against live doc
 **Status:** `.tar.gz` of per-page hOCR + TIFF → cells from hOCR → the same layout+assembly path
 
 - no OCR needed
+- #1147 (docling#5484): a page whose image does not decode, or whose image or hOCR page size is over the image cap, is left out with a warning; the other pages convert, keep their numbers, and the result is `PartialSuccess` with a `Page N failed to parse` error for the page. One bad page image used to fail the whole archive, and the hOCR size was never checked (a page declaring 20000 × 20000 converted with geometry its image contradicts). **Deliberate difference:** the cap is `DOCLING_RS_MAX_IMAGE_PIXELS`, 30000 px *per side*, as for every image input, where docling's `max_image_pixels` caps the total (89.5 MP); a 20000 × 20000 page passes here. An archive whose pages all fail still errors
 
 #### Audio (wav/mp3/flac/ogg/aac/m4a) and video audio tracks (mp4/mov/mkv/webm — docling's `InputFormat.VIDEO`, Phase 1 of #138)
 

@@ -71,14 +71,16 @@ impl ErrorItem {
     /// [`docling_core::Notice`]) — a limit it hit, named with its effective
     /// value — as the `document_backend` component's error.
     pub fn notice(notice: &docling_core::Notice) -> Self {
-        let module = match notice.kind {
-            docling_core::NoticeKind::DepthLimit { variable, .. } => variable,
+        let (module, page_no) = match notice.kind {
+            docling_core::NoticeKind::DepthLimit { variable, .. } => (variable, None),
+            // docling's backend error for a page it could not parse.
+            docling_core::NoticeKind::PageSkipped { page_no } => ("page", Some(page_no)),
         };
         ErrorItem {
             component_type: "document_backend".into(),
             module_name: module.into(),
             error_message: notice.message.clone(),
-            page_no: None,
+            page_no,
         }
     }
 
