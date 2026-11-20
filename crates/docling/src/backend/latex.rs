@@ -2378,9 +2378,13 @@ impl Converter {
         };
         let mut parts = Vec::new();
         for arg in args.iter().flatten() {
-            let text = match arg.group_list() {
-                Some(list) => self.nodes_to_text(list),
-                None => arg
+            let text = match (arg.group_list(), &arg.kind) {
+                (Some(list), _) => self.nodes_to_text(list),
+                // A characters argument — `\verb`'s content — is kept as is:
+                // its own braces and spaces are the text (docling#5190,
+                // #1183; `\verb|{x}|` read `x`).
+                (None, K::Chars(chars)) => chars.clone(),
+                (None, _) => arg
                     .verbatim()
                     .trim_matches(|c| "{} ".contains(c))
                     .to_string(),
@@ -3421,10 +3425,16 @@ fn extract_verbatim_content(latex: &str, env: &str) -> String {
         return latex.to_string();
     };
     let mut body_start = start + begin.len();
-    // An optional `[…]` right after `\begin{env}` (non-greedy, may span lines).
-    if latex[body_start..].starts_with('[') {
-        if let Some(close) = latex[body_start..].find(']') {
-            body_start += close + 1;
+    // An optional `[…]` right after `\begin{env}`, whose braced values may
+    // hold brackets (`caption={A [nested] cap}`), then minted's mandatory
+    // `{language}` (docling#4544, #1183: both used to start the code).
+    if let Some(len) = optional_argument_len(&latex[body_start..]) {
+        body_start += len;
+    }
+    if env == "minted" {
+        match braced_group_len(&latex[body_start..]) {
+            Some(len) => body_start += len,
+            None => return latex.to_string(),
         }
     }
     let Some(stop) = latex[body_start..].find(&end) else {
@@ -3443,6 +3453,51 @@ fn extract_verbatim_content(latex: &str, env: &str) -> String {
         }
     }
     body.trim_end().to_string()
+}
+
+/// The length of a `{…}` group at the start of `s` that holds text and
+/// at most one level of nested groups — upstream's `_BRACED_GROUP`
+/// (`\{(?:[^{}]|\{[^{}]*\})*\}`); `None` when `s` does not start with one.
+fn braced_group_len(s: &str) -> Option<usize> {
+    let b = s.as_bytes();
+    if b.first() != Some(&b'{') {
+        return None;
+    }
+    let mut i = 1;
+    while i < b.len() {
+        match b[i] {
+            b'}' => return Some(i + 1),
+            b'{' => {
+                let close = b[i + 1..].iter().position(|&c| c == b'}' || c == b'{')?;
+                if b[i + 1 + close] == b'{' {
+                    return None;
+                }
+                i += close + 2;
+            }
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+/// The length of an optional `[…]` argument at the start of `s` whose
+/// braced values may hold brackets — upstream's `_OPTIONAL_ARGUMENT`
+/// (`\[(?:[^\[\]{}]|<braced group>)*\]`); `None` when there is none.
+fn optional_argument_len(s: &str) -> Option<usize> {
+    let b = s.as_bytes();
+    if b.first() != Some(&b'[') {
+        return None;
+    }
+    let mut i = 1;
+    while i < b.len() {
+        match b[i] {
+            b']' => return Some(i + 1),
+            b'[' | b'}' => return None,
+            b'{' => i += braced_group_len(&s[i..])?,
+            _ => i += 1,
+        }
+    }
+    None
 }
 
 fn validate_tikz_nodelist(nodes: &[N], depth: usize) -> bool {

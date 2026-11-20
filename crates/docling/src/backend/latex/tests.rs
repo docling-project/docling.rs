@@ -648,3 +648,48 @@ A \href{https://example.com}{} b \href{}{only text} c.
         )]
     );
 }
+
+/// docling#4544 (#1183, `test_latex_code_environment_skips_its_arguments`):
+/// an environment's arguments are markup, not the first line of its code —
+/// minted's `{language}`, and an optional argument whose braced value holds
+/// brackets.
+#[test]
+fn latex_code_environment_skips_its_arguments() {
+    for opening in [
+        "\\begin{minted}{python}",
+        "\\begin{minted}[linenos, frame=lines]{python}",
+        "\\begin{lstlisting}[language=Python, caption={A [nested] cap}]",
+    ] {
+        let env = &opening["\\begin{".len()..opening.find('}').unwrap()];
+        let tex = format!(
+            "\\documentclass{{article}}\n\\begin{{document}}\n{opening}\n    x = 1\n\\end{{{env}}}\n\\end{{document}}\n"
+        );
+        let codes: Vec<String> = body_texts(&json(&tex))
+            .into_iter()
+            .filter(|(l, _)| l == "code")
+            .map(|(_, t)| t)
+            .collect();
+        assert_eq!(codes, ["    x = 1"], "{opening}");
+    }
+}
+
+/// docling#5190 (`test_latex_verb_keeps_braces_and_spaces`): `\verb`
+/// content keeps its own braces, in body text and in headings.
+#[test]
+fn latex_verb_keeps_braces_and_spaces() {
+    let tex = r"
+    \documentclass{article}
+    \begin{document}
+    \section{The \verb|{x}| key}
+    Start a section with \verb|\section{Intro}| and write an empty group as \verb|{}|.
+    \end{document}
+    ";
+    let texts: Vec<String> = body_texts(&json(tex)).into_iter().map(|(_, t)| t).collect();
+    assert_eq!(
+        texts,
+        [
+            "The {x} key",
+            "Start a section with \\section{Intro} and write an empty group as {}."
+        ]
+    );
+}
