@@ -2326,7 +2326,20 @@ fn drop_shadow_runs(glyphs: &mut Vec<Glyph>) {
     let mut j = 0;
     while j < n {
         let b = &glyphs[j];
-        let start = pen(b).filter(|p| p[2] > 0.0 && !b.ch.is_whitespace());
+        // A copy starts where a run starts: not on a glyph that continues
+        // the one drawn just before it (its pen within an em ahead on the
+        // same baseline). `PAT` drawn 0.3 pt off `BAT` repeats its `AT`
+        // at one shift, and lost both letters (#1151); docling-parse keeps
+        // the word, a different text. A shadow's first glyph follows the
+        // original's last one — far ahead of it, or behind.
+        let continues = j > 0
+            && match (pen(b), pen(&glyphs[j - 1])) {
+                (Some([xb, yb, sb]), Some([xp, yp, _])) => {
+                    (yb - yp).abs() <= NEAR_EM * sb && xb > xp && xb - xp <= sb
+                }
+                _ => false,
+            };
+        let start = pen(b).filter(|p| p[2] > 0.0 && !b.ch.is_whitespace() && !continues);
         let mut copy = 0;
         if let Some([xj, yj, sj]) = start {
             let lo = j.saturating_sub(LOOKBACK);
@@ -6024,6 +6037,151 @@ mod base14_fonts {
         // A TrueType face without an encoding keeps the WinAnsi stand-in.
         let tt = b"<</Type/Font/Subtype/TrueType/BaseFont/Helvetica>>";
         assert_eq!(read(tt, b"x\xe1y"), "xáy");
+    }
+
+    /// docling-parse 7.26's duplicate passes (docling-parse#367, #1151):
+    /// its `test_unit_overprinted_text.py` cases with docling-parse 7.27's
+    /// line cells. Exact copies go wherever they fall, near copies on their
+    /// own line within `min(0.5, 0.5 × width)`, and a word or line drawn
+    /// again after other text within `min(0.5, 0.1 × its size)`; a copy 1 pt
+    /// off its line — `shift1pt` — is the documented exception: docling-parse
+    /// keeps both, the shadow pass ([`drop_shadow_runs`]) drops it.
+    #[test]
+    fn overprinted_text_reads_once() {
+        const H: &[u8] =
+            b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>";
+        const HB: &[u8] =
+            b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold/Encoding/WinAnsiEncoding>>";
+        const A: &str = "ALPHA BETA GAMMA";
+        const D: &str = "DELTA EPSILON ZETA";
+        let lines = |fonts: &[&[u8]], content: &str| -> Vec<String> {
+            cells(&pdf_with_fonts(fonts, content.as_bytes()))
+                .into_iter()
+                .map(|c| c.text)
+                .collect()
+        };
+        let draws = |ds: &[(f32, f32, &str)]| -> String {
+            ds.iter()
+                .map(|(x, y, t)| format!("BT /F1 12 Tf {x} {y} Td ({t}) Tj ET\n"))
+                .collect()
+        };
+        let cases: [(&str, String, Vec<&str>); 13] = [
+            ("line3x", draws(&[(72.0, 700.0, A); 3]), vec![A]),
+            ("exact2", draws(&[(72.0, 700.0, A); 2]), vec![A]),
+            (
+                "block3x",
+                draws(&[(72.0, 700.0, A), (72.0, 660.0, D)].repeat(3)),
+                vec![A, D],
+            ),
+            (
+                "two_positions",
+                draws(&[(72.0, 700.0, A), (72.0, 660.0, A)]),
+                vec![A, A],
+            ),
+            (
+                "nearby2",
+                draws(&[(72.0, 700.0, A), (72.3, 700.0, A)]),
+                vec![A],
+            ),
+            (
+                "shift1pt",
+                draws(&[(72.0, 700.0, A), (73.0, 700.0, A)]),
+                vec![A],
+            ),
+            (
+                "bat_pat",
+                draws(&[(72.0, 700.0, "BAT"), (72.0, 660.0, D), (72.3, 700.0, "PAT")]),
+                vec!["BAT", D, "PAT"],
+            ),
+            (
+                "shifted_after",
+                draws(&[(72.0, 700.0, A), (72.0, 660.0, D), (72.01, 700.01, A)]),
+                vec![A, D],
+            ),
+            (
+                "block_shift001",
+                draws(&[
+                    (72.0, 700.0, A),
+                    (72.0, 660.0, D),
+                    (72.01, 700.01, A),
+                    (72.01, 660.01, D),
+                ]),
+                vec![A, D],
+            ),
+            (
+                "token_alpha_beta",
+                draws(&[
+                    (72.0, 700.0, "TOKEN ALPHA"),
+                    (72.0, 660.0, D),
+                    (72.01, 700.01, "TOKEN BETA"),
+                ]),
+                vec!["TOKEN ALPHA", D, "TOKEN BETA"],
+            ),
+            (
+                "rotated",
+                "BT /F1 12 Tf 0 1 -1 0 300 200 Tm (ALPHA BETA) Tj ET\n\
+                 BT /F1 12 Tf 0 1 -1 0 320 200 Tm (OTHER LINE) Tj ET\n\
+                 BT /F1 12 Tf 0 1 -1 0 300.01 200.01 Tm (ALPHA BETA) Tj ET\n"
+                    .to_string(),
+                vec!["ALPHA BETA", "OTHER LINE"],
+            ),
+            (
+                "small_partial",
+                "BT /F1 1 Tf 72 700 Td (WORD) Tj ET\nBT /F1 12 Tf 72 660 Td (OTHER LINE) Tj ET\n\
+                 BT /F1 1 Tf 72.25 700.25 Td (WORD) Tj ET\n"
+                    .to_string(),
+                vec!["WORD", "OTHER LINE", "WORD"],
+            ),
+            (
+                "fonts",
+                "BT /F1 12 Tf 72 700 Td (.) Tj ET\nBT /F1 12 Tf 72 660 Td (OTHER LINE) Tj ET\n\
+                 BT /F2 12 Tf 72.01 700.01 Td (.) Tj ET\n"
+                    .to_string(),
+                vec![".", "OTHER LINE", "."],
+            ),
+        ];
+        for (name, content, want) in cases {
+            assert_eq!(lines(&[H, HB], &content), want, "{name}");
+        }
+    }
+
+    /// docling-parse's `test_small_text_keeps_repeated_letters`: a line at
+    /// 12, 2, 1, 0.8 and 0.5 pt, drawn once or twice (`1 Tr` then `0 Tr`,
+    /// fake bold), reads its letters once each — the doubled `mm` / `tt` /
+    /// `ee` of `Committee` included, which a fixed 0.5 pt near-copy window
+    /// took for re-stamps in the smallest sizes (#1151). The word spaces
+    /// at ≤ 2 pt are docling-parse#437's em-based gap, not ported; only the
+    /// letters are compared there.
+    #[test]
+    fn small_text_keeps_repeated_letters() {
+        const T: &[u8] =
+            b"<</Type/Font/Subtype/Type1/BaseFont/Times-Roman/Encoding/WinAnsiEncoding>>";
+        const TEXT: &str = "Committee Participant benefits illegible";
+        for size in ["12", "2", "1", "0.8", "0.5"] {
+            for copies in [1, 2] {
+                let run = format!("/F1 {size} Tf 50 400 Td ({TEXT}) Tj");
+                let mut content = format!("BT 0 Tr {run} ET\n");
+                if copies == 2 {
+                    content = format!("BT 1 Tr {run} ET\n{content}");
+                }
+                let text: String = cells(&pdf_with_content(T, content.as_bytes()))
+                    .iter()
+                    .map(|c| c.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if size == "12" {
+                    assert_eq!(text, TEXT, "{size} pt × {copies}");
+                } else {
+                    let letters =
+                        |s: &str| s.chars().filter(|c| !c.is_whitespace()).collect::<String>();
+                    assert_eq!(
+                        letters(&text),
+                        letters(TEXT),
+                        "{size} pt × {copies}: {text:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// #728: one face bound under two resource keys — `/F1` Helvetica in

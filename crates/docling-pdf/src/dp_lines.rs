@@ -11,6 +11,8 @@
 //! its four transformed corners r0=bottom-left, r1=bottom-right, r2=top-right,
 //! r3=top-left, exactly like `page_cell.h`.
 
+use std::collections::HashMap;
+
 use crate::pdfium_backend::{Glyph, TextCell};
 
 // config.h: the factors that actually bind for line cells.
@@ -373,8 +375,16 @@ fn build_cells(glyphs: &[Glyph], euclidean: bool) -> Vec<Cell> {
         // the x span alone glued those into one `345678` cell carrying the
         // first tick's box (#609), where docling-parse keeps six.
         if let Some(last) = cells.last_mut() {
-            let near =
-                |ax: f64, ay: f64, bx: f64, by: f64| (ax - bx).abs() < 0.5 && (ay - by).abs() < 0.5;
+            // The window is docling-parse's near-copy tolerance (#1151,
+            // docling-parse#367): 0.5 pt, but never more than half the
+            // earlier glyph's width — in 0.5 pt text a whole advance is under
+            // 0.5 pt, and `Committee`'s doubled `m`/`t`/`e` were taken for
+            // re-stamps of the letter before.
+            let tol = DUP_EPS.min(0.5 * last.length());
+            let near = |ax: f64, ay: f64, bx: f64, by: f64| {
+                let d = (ax - bx).hypot(ay - by);
+                d < tol || d == 0.0
+            };
             if near(last.rx0, last.ry0, q[0], q[1]) && near(last.rx1, last.ry1, q[2], q[3]) {
                 // Overprint duplicate: the *same* character re-stamped, offset by a
                 // fraction of its width (a kashida/elongation segment re-drawn for
@@ -432,7 +442,128 @@ fn build_cells(glyphs: &[Glyph], euclidean: bool) -> Vec<Cell> {
             spaced: g.spaced,
         });
     }
+    remove_duplicate_cells(&mut cells);
     cells
+}
+
+/// docling-parse's overprint tolerance, in points (`remove_duplicate_cells`
+/// and `remove_overlapping_text_cells` are both called with 0.5).
+const DUP_EPS: f64 = 0.5;
+
+/// docling-parse 7.26's `remove_duplicate_cells` over the char cells, before
+/// any contraction (docling-parse#367, `do_remove_duplicate_cells`, #1151).
+/// A producer paints text twice — a heading over its own shadow at the same
+/// place, a block re-stamped for weight (`1 Tr` then `0 Tr`), a whole page
+/// drawn again — and every copy read twice (`ALPHA BETA GAMMA ALPHA BETA
+/// GAMMA`). Two passes:
+/// - a char equal to an earlier one in text, font and all four corners is
+///   dropped wherever it falls on the page (copies interleaved with other
+///   lines included);
+/// - a later char on the same line (the scan stops at the first cell more
+///   than 0.5 pt off the baseline) with the same text and font is dropped
+///   when each corner is within `min(0.5, 0.5 × the earlier char's width)`
+///   of the earlier one's — the half width keeps tiny text's doubled
+///   letters.
+///
+/// A copy shifted further than that, or off its line, is left to the word
+/// and line pass ([`overlapping_copies`]).
+fn remove_duplicate_cells(cells: &mut Vec<Cell>) {
+    let quad = |c: &Cell| [c.rx0, c.ry0, c.rx1, c.ry1, c.rx2, c.ry2, c.rx3, c.ry3];
+    let mut keep = vec![true; cells.len()];
+    let mut painted: std::collections::HashSet<(&str, u64, [u64; 8])> =
+        std::collections::HashSet::new();
+    for (i, c) in cells.iter().enumerate() {
+        if !painted.insert((c.text.as_str(), c.font, quad(c).map(f64::to_bits))) {
+            keep[i] = false;
+        }
+    }
+    for i in 0..cells.len() {
+        if !keep[i] {
+            continue;
+        }
+        let a = &cells[i];
+        let tol = DUP_EPS.min(0.5 * a.length());
+        let close = |d: f64| d < tol || d == 0.0;
+        let (qa, mut dropped) = (quad(a), Vec::new());
+        for (j, b) in cells.iter().enumerate().skip(i + 1) {
+            if (a.ry0 - b.ry0).abs() > DUP_EPS {
+                break;
+            }
+            if !keep[j] || a.font != b.font || a.text != b.text {
+                continue;
+            }
+            let qb = quad(b);
+            if (0..4).all(|k| close((qa[2 * k] - qb[2 * k]).hypot(qa[2 * k + 1] - qb[2 * k + 1]))) {
+                dropped.push(j);
+            }
+        }
+        for j in dropped {
+            keep[j] = false;
+        }
+    }
+    if keep.iter().all(|&k| k) {
+        return;
+    }
+    let mut it = keep.into_iter();
+    cells.retain(|_| it.next().unwrap_or(true));
+}
+
+/// docling-parse 7.26's `remove_overlapping_text_cells(…, 0.5)` over the
+/// contracted word cells and line cells (docling-parse#367, #1151): a cell
+/// is a copy of an earlier one with the same text, font and writing
+/// direction whose every corner is closer than `min(0.5, 0.1 × the smallest
+/// width or height of the two)` (0 always counts) — the copy of a line drawn
+/// again after other text, a rotated line stamped twice. The first copy is
+/// kept, the order preserved; a partial match or an overlap alone never
+/// counts. Candidates are bucketed by text, font and a 0.5 pt grid of the
+/// first corner, so a copy is looked for in the 3 × 3 buckets around its
+/// own. docling-parse also asks for the same widget state and clip; the
+/// clip is not tracked here yet (#1150). Returns the keep mask.
+fn overlapping_copies(cells: &[(&str, u64, bool, [f64; 8])]) -> Vec<bool> {
+    let mut keep = vec![true; cells.len()];
+    // (text, font, grid column, grid row) → the earlier cells there, each
+    // with its width and height.
+    type Bucket<'a> = (&'a str, u64, i64, i64);
+    let mut buckets: HashMap<Bucket, Vec<(usize, f64, f64)>> = HashMap::new();
+    for (i, &(text, font, ltr, q)) in cells.iter().enumerate() {
+        if text.is_empty() {
+            continue;
+        }
+        let (col, row) = ((q[0] / DUP_EPS).floor(), (q[1] / DUP_EPS).floor());
+        let w = (q[2] - q[0]).hypot(q[3] - q[1]);
+        let h = (q[6] - q[0]).hypot(q[7] - q[1]);
+        if !(col.is_finite() && row.is_finite() && w.is_finite() && h.is_finite()) {
+            continue;
+        }
+        let (col, row) = (col as i64, row as i64);
+        let copy = (-1..=1).any(|dx| {
+            (-1..=1).any(|dy| {
+                buckets
+                    .get(&(text, font, col + dx, row + dy))
+                    .is_some_and(|earlier| {
+                        earlier.iter().any(|&(k, pw, ph)| {
+                            let (_, _, pltr, p) = cells[k];
+                            let tol = DUP_EPS.min(0.1 * w.min(h).min(pw).min(ph));
+                            pltr == ltr
+                                && (0..4).all(|c| {
+                                    let d =
+                                        (q[2 * c] - p[2 * c]).hypot(q[2 * c + 1] - p[2 * c + 1]);
+                                    d < tol || d == 0.0
+                                })
+                        })
+                    })
+            })
+        });
+        if copy {
+            keep[i] = false;
+        } else {
+            buckets
+                .entry((text, font, col, row))
+                .or_default()
+                .push((i, w, h));
+        }
+    }
+    keep
 }
 
 /// Build line cells from a page's glyph stream under the process's word-gap
@@ -526,11 +657,27 @@ fn line_and_word_cells_cut(
     let mut word_run: Vec<Cell> = built.clone();
     let mut cells = built;
     contract(&mut cells, euclidean, LINE_FACTORS);
+    drop_overlapping_cells(&mut cells);
     let lines = to_text_cells(cells, to_text_cell);
     contract(&mut word_run, euclidean, WORD_FACTORS);
     word_run.retain(|c| !c.text.trim().is_empty());
+    drop_overlapping_cells(&mut word_run);
     let words = to_text_cells(word_run, to_text_cell);
     (lines, words)
+}
+
+/// [`overlapping_copies`] over contracted [`Cell`]s.
+fn drop_overlapping_cells(cells: &mut Vec<Cell>) {
+    let keys: Vec<_> = cells
+        .iter()
+        .map(|c| {
+            let q = [c.rx0, c.ry0, c.rx1, c.ry1, c.rx2, c.ry2, c.rx3, c.ry3];
+            (c.text.as_str(), c.font, c.ltr, q)
+        })
+        .collect();
+    let keep = overlapping_copies(&keys);
+    let mut it = keep.into_iter();
+    cells.retain(|_| it.next().unwrap_or(true));
 }
 
 /// Map the contracted cells into a freshly allocated, exactly sized vector.
@@ -1132,6 +1279,9 @@ struct Agg {
     /// (#992, a deliberate divergence from docling-parse's `( 1 )`; the
     /// word cell is still its own).
     glued: bool,
+    /// The first glyph's font — a contracted cell's `font_name` in
+    /// docling-parse, which the duplicate pass compares.
+    font: u64,
 }
 
 impl Agg {
@@ -1141,6 +1291,7 @@ impl Agg {
             ltr: c.ltr,
             q: [c.rx0, c.ry0, c.rx1, c.ry1, c.rx2, c.ry2, c.rx3, c.ry3],
             glued,
+            font: c.font,
         }
     }
 
@@ -1436,15 +1587,27 @@ fn contract_runs(
             ltr: first.ltr,
             q: first.q,
             glued: false,
+            font: first.font,
         };
-        words_out.push(first.into_cell(page_h));
+        words_out.push(first);
         for w in it {
             line.append(&w.text, w.ltr, &w.q, !w.glued);
-            words_out.push(w.into_cell(page_h));
+            words_out.push(w);
         }
-        lines_out.push(line.into_cell(page_h));
+        lines_out.push(line);
     }
-    (lines_out, words_out)
+    let cells = |aggs: Vec<Agg>| {
+        let keys: Vec<_> = aggs
+            .iter()
+            .map(|a| (a.text.as_str(), a.font, a.ltr, a.q))
+            .collect();
+        let keep = overlapping_copies(&keys);
+        aggs.into_iter()
+            .zip(keep)
+            .filter_map(|(a, k)| k.then(|| a.into_cell(page_h)))
+            .collect::<Vec<_>>()
+    };
+    (cells(lines_out), cells(words_out))
 }
 
 #[cfg(test)]

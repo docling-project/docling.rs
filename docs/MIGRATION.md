@@ -2778,12 +2778,16 @@ These are deliberate or unavoidable divergences, not bugs.
     `text_layer_only` conversions. Off by default, so nothing changes
     unless it is asked for.
 
-25. **A text shadow reads once** (a divergence from docling-parse 7.24.2 on
-    purpose). A word processor exports a heading with a shadow effect as the
+25. **A text shadow reads once** (a divergence from docling-parse on
+    purpose, for shifts of 0.5 pt and more). A word processor exports a heading with a shadow effect as the
     same run drawn twice — the shadow, then the text over it, shifted by a
     fraction of a point (0.5–0.8 pt up and left, black under the coloured
-    text, in the equipment manuals that showed it). docling-parse keeps both
-    copies, so docling with its default backend reads `## Safety
+    text, in the equipment manuals that showed it). docling-parse 7.26
+    drops a copy within 0.5 pt of its original (docling-parse#367, ported
+    by #1151 — `dp_lines::remove_duplicate_cells` / `overlapping_copies`:
+    exact copies anywhere on the page, near copies on their line within
+    `min(0.5, 0.5 × width)`, a word or line drawn again within `min(0.5,
+    0.1 × its size)`); a shadow shifted further it keeps, so docling with its default backend reads `## Safety
     instructions Safety instructions`; with its pypdfium2 backend it reads
     `## Safety instructions`, because pdfium's text page drops the second
     copy, and that is what the page shows. `textparse::drop_shadow_runs`
@@ -2796,10 +2800,16 @@ These are deliberate or unavoidable divergences, not bugs.
     the next table cell); a run of one character set tighter than the
     offset (dot leaders squeezed by `Tc`) steps less than it shifts; the
     characters one glyph expands to share its pen and are not a copy; and
-    the per-glyph re-stamp the sanitizer already folds is untouched. On the
+    the per-glyph re-stamp the sanitizer already folds is untouched; nor
+    does a copy start on a glyph that continues the one before it on its
+    line (`PAT` drawn 0.3 pt off `BAT` repeats its `AT` at one shift and
+    lost both letters before #1151; docling-parse keeps the word). On the
     corpus: the text layer of every PDF is byte-identical
     (`--text-layer-only --to json`), so the PDF groundtruth and the
-    snapshots are unchanged too.
+    snapshots are unchanged too. The one docling-parse case this still
+    reads differently is a line drawn again 1 pt to its right
+    (`test_unit_overprinted_text.py`'s `shift1pt`): two copies there, one
+    here.
 
 26. **An image input's page is sized from its resolution, its models read
     its pixels** (#1093). docling sizes an image's page `pixels × 72 / dpi`
