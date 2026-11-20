@@ -43,8 +43,9 @@ use ego_tree::{NodeId, NodeRef};
 use scraper::{ElementRef, Html, Node as HtmlNode, Selector};
 
 use super::html::{
-    checkbox_label_text, detect_field_region, is_hidden, is_rich_cell, normalize_url, normalize_ws,
-    pre_line_breaks, resolve_line_breaks, subtree_text, text_with_breaks,
+    cell_header_flags, checkbox_label_text, detect_field_region, is_hidden, is_rich_cell,
+    normalize_url, normalize_ws, pre_line_breaks, resolve_line_breaks, subtree_text,
+    text_with_breaks,
 };
 use super::images::ImageResolver;
 
@@ -2083,9 +2084,11 @@ impl<'a> Walker<'a> {
                         }
                     }
                 }
-                let is_th = cell.value().name() == "th";
                 // docling#4216: a row-header row's cells label the rows they
-                // span into — row headers, not column headers.
+                // span into — row headers, not column headers; a `<th
+                // scope>` says which it heads (docling#5446, #1174).
+                let (column_header, is_row_header) =
+                    cell_header_flags(cell.value(), col_header, row_header);
                 cells.push(TableCell {
                     text: text.clone(),
                     bbox: None,
@@ -2093,8 +2096,8 @@ impl<'a> Walker<'a> {
                     start_col: col_idx,
                     row_span,
                     col_span,
-                    column_header: col_header && !row_header,
-                    row_header: row_header || (!col_header && is_th),
+                    column_header,
+                    row_header: is_row_header,
                     row_section,
                 });
                 if let Some(gid) = rich_group {

@@ -286,6 +286,35 @@ fn mark_leading_furniture(nodes: &mut [Node]) {
 /// are honored beyond that — a full CSS cascade (class/stylesheet-driven
 /// visibility, e.g. Wikipedia's collapsed menus) still needs a real browser and
 /// is out of scope, as is docling's `_has_rendered_presence` zero-size check.
+/// docling's `_get_cell_header_flags` (docling#5446, #1174): a cell's
+/// `(column_header, row_header)`. A `<th>` whose `scope` is `col` /
+/// `colgroup` heads its column, `row` / `rowgroup` its row, in any case;
+/// any other cell keeps the row-based flags — a header row (`col_header`:
+/// no `<td>` in it) heads columns unless it is a row-header row, and a
+/// `<th>` beside data cells heads its row.
+pub(super) fn cell_header_flags(
+    cell: &scraper::node::Element,
+    col_header: bool,
+    row_header: bool,
+) -> (bool, bool) {
+    let is_th = cell.name() == "th";
+    if is_th {
+        match cell
+            .attr("scope")
+            .map(|s| s.trim().to_ascii_lowercase())
+            .as_deref()
+        {
+            Some("col" | "colgroup") => return (true, false),
+            Some("row" | "rowgroup") => return (false, true),
+            _ => {}
+        }
+    }
+    (
+        col_header && !row_header,
+        row_header || (!col_header && is_th),
+    )
+}
+
 pub(super) fn is_hidden(e: &scraper::node::Element) -> bool {
     if e.attr("hidden").is_some() {
         return true;
@@ -2576,8 +2605,7 @@ fn parse_table_cells(
             // into, so they are *row* headers — flagging them `column_header`
             // (as docling did until 2.126) made docling-core 2.96 fold the
             // first data row into the Markdown header (`Year - 2025`).
-            let is_th = all_th && !row_header;
-            let is_rh = row_header || (!all_th && cell.value().name() == "th");
+            let (is_th, is_rh) = cell_header_flags(cell.value(), all_th, row_header);
             any_rich |= !cell_nodes.is_empty();
             let mut anchor_filled = false;
             for r in start_row_span..start_row_span + rowspan {
@@ -3281,6 +3309,82 @@ mod tests {
             let md = doc.export_to_markdown();
             assert!(md.contains("Caption text\n\n<!-- image -->"), "{md}");
         }
+    }
+
+    /// `(text, column_header, row_header)` of the first table's cells.
+    fn header_flags(doc: &DoclingDocument) -> Vec<(String, bool, bool)> {
+        doc.export_to_json_value()["tables"][0]["data"]["table_cells"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                (
+                    c["text"].as_str().unwrap().to_string(),
+                    c["column_header"].as_bool().unwrap(),
+                    c["row_header"].as_bool().unwrap(),
+                )
+            })
+            .collect()
+    }
+
+    /// docling#5446 (#1174, `test_table_th_scope_sets_the_header_flags`,
+    /// the W3C "two headers" table): a `<th scope>` names what it heads, in
+    /// the JSON and in the flat table's structure.
+    #[test]
+    fn table_th_scope_sets_the_header_flags() {
+        let head = r#"<tr><td></td><th scope="col">Monday</th><th scope="col">Tuesday</th></tr>"#;
+        let body = r#"<tr><th scope="row">09:00 - 11:00</th><td>Closed</td><td>Open</td></tr><tr><th scope="row">11:00 - 13:00</th><td>Open</td><td>Closed</td></tr>"#;
+        let plain = format!("{head}{body}");
+        for table in [
+            plain.clone(),
+            format!("<thead>{head}</thead><tbody>{body}</tbody>"),
+            plain
+                .replace(r#""col""#, r#""COLGROUP""#)
+                .replace(r#""row""#, r#""RowGroup""#),
+            plain.replace(">Monday<", "><b>Monday</b><"),
+        ] {
+            let doc = convert(&format!("<table>{table}</table>"));
+            let flags = header_flags(&doc);
+            let of = |t: &str| {
+                let c = flags
+                    .iter()
+                    .find(|c| c.0 == t)
+                    .unwrap_or_else(|| panic!("{t}: {flags:?}"));
+                (c.1, c.2)
+            };
+            for day in ["Monday", "Tuesday"] {
+                assert_eq!(of(day), (true, false), "{table}");
+            }
+            for slot in ["09:00 - 11:00", "11:00 - 13:00"] {
+                assert_eq!(of(slot), (false, true), "{table}");
+            }
+            // The flat table's structure carries the same flags.
+            let Some(Node::Table(t)) = doc.nodes.iter().find(|n| matches!(n, Node::Table(_)))
+            else {
+                panic!("no table");
+            };
+            let st = t.structure.as_ref().unwrap();
+            assert!(st.col_header[0][1] && !st.row_header[0][1], "{table}");
+            assert!(!st.col_header[1][0] && st.row_header[1][0], "{table}");
+        }
+    }
+
+    /// `test_table_th_without_scope_keeps_the_row_based_flags`.
+    #[test]
+    fn table_th_without_scope_keeps_the_row_based_flags() {
+        let doc = convert(
+            "<table><tr><th>Day</th><th>Hours</th></tr><tr><th>Monday</th><td>09:00 - 17:00</td></tr></table>",
+        );
+        let f = |t: &str, c, r| (t.to_string(), c, r);
+        assert_eq!(
+            header_flags(&doc),
+            [
+                f("Day", true, false),
+                f("Hours", true, false),
+                f("Monday", false, true),
+                f("09:00 - 17:00", false, false)
+            ]
+        );
     }
 
     fn texts_and_layers(doc: &DoclingDocument) -> Vec<(String, String)> {
