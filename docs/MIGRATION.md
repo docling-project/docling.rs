@@ -1039,6 +1039,7 @@ converted once more as that format with a warning.
   - numeric facts → the `key_value_items[0]` `GraphData` (key cell + value/period/unit/decimals cells, `to_child` concept hierarchy from the presentation linkbase, `summation-item` arcs with `weight:` cells)
 - The taxonomy is discovered offline from the `xbrl_taxonomy` directory (schemaRef → xsd → imports/linkbaseRefs; remote URLs through taxonomy packages' `META-INF/catalog.xml`)
 - #1192 (cf. docling#5406, which confines arelle's web cache): a local taxonomy reference reads only a file inside the taxonomy directory, on every platform — `\` is a separator, a root, drive or UNC prefix and any `..` are refused, and the canonical path must lie under the canonical directory (the check was lexical and `/`-only, so on Windows `C:/…` replaced the directory and `..\..\…` climbed out of it). There is no web cache to confine: remote references resolve only through the directory's taxonomy packages
+- docling#4483 (2.149, ported in the 2026-11 sync, #1208): a period prints its dates as the context declares them (`period: 2025-06-30`, `2025-01-01 - 2025-12-31`) — docling used to print arelle's datetime reading, which takes a date-only instant or end date as the start of the next day, and we copied it (`2025-07-01`, `… - 2026-01-01`); the mirrored groundtruth had moved, and our JSON's 361 + period cells differed from it
 
 #### YouTube URL
 

@@ -463,9 +463,11 @@ impl Graph {
 }
 
 /// Each context's period as docling prints it: an instant as its date, a
-/// duration as `start - end`. arelle reads a date-only instant or end date as
-/// the end of that day — the start of the next — so both come out one day
-/// later than written; a `forever` period prints nothing.
+/// duration as `start - end`, each date as the context declares it
+/// (docling#4483: `instantDate` / `endDate`, where arelle's datetimes read a
+/// date-only instant or end date as the start of the next day, which docling
+/// used to print — one day later than written); a `forever` period prints
+/// nothing.
 fn periods(root: XmlNode) -> HashMap<String, String> {
     let mut out = HashMap::new();
     for context in root.children().filter(|n| is_xbrli(*n, "context")) {
@@ -483,9 +485,9 @@ fn periods(root: XmlNode) -> HashMap<String, String> {
                 .map(str::trim)
         };
         let text = if let Some(instant) = child_text("instant") {
-            end_of_day(instant)
+            date_part(instant).to_string()
         } else if let (Some(start), Some(end)) = (child_text("startDate"), child_text("endDate")) {
-            format!("{} - {}", date_part(start), end_of_day(end))
+            format!("{} - {}", date_part(start), date_part(end))
         } else {
             String::new()
         };
@@ -521,43 +523,6 @@ fn is_xbrli(node: XmlNode, name: &str) -> bool {
 /// The `YYYY-MM-DD` of an XML date or dateTime.
 fn date_part(text: &str) -> &str {
     text.split('T').next().unwrap_or(text)
-}
-
-/// arelle's reading of a date at the end of a period: a bare date means the
-/// whole day, so the instant is the next day's start; a dateTime is exact.
-fn end_of_day(text: &str) -> String {
-    if text.contains('T') {
-        return date_part(text).to_string();
-    }
-    let mut parts = text.splitn(3, '-');
-    let parsed = (
-        parts.next().and_then(|y| y.parse::<i64>().ok()),
-        parts.next().and_then(|m| m.parse::<u32>().ok()),
-        parts.next().and_then(|d| d.parse::<u32>().ok()),
-    );
-    let (Some(year), Some(month), Some(day)) = parsed else {
-        return text.to_string();
-    };
-    let (y, m, d) = next_day(year, month, day);
-    format!("{y:04}-{m:02}-{d:02}")
-}
-
-fn next_day(year: i64, month: u32, day: u32) -> (i64, u32, u32) {
-    let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-    let days_in_month = match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 if leap => 29,
-        2 => 28,
-        _ => return (year, month, day),
-    };
-    if day < days_in_month {
-        (year, month, day + 1)
-    } else if month < 12 {
-        (year, month + 1, 1)
-    } else {
-        (year + 1, 1, 1)
-    }
 }
 
 /// Whether a generic `.xml` is XBRL (financial facts), used by the converter's
@@ -628,12 +593,12 @@ mod tests {
             &[
                 "Assets",
                 "value: 1000",
-                "period: 2024-03-01",
+                "period: 2024-02-29",
                 "currency: USD",
                 "decimals: -3",
                 "Revenues",
                 "value: 50",
-                "period: 2025-01-01 - 2026-01-01",
+                "period: 2025-01-01 - 2025-12-31",
                 "currency: USD",
                 ""
             ]
@@ -650,11 +615,14 @@ mod tests {
             && l["target_cell_id"] == 0));
     }
 
+    /// docling#4483 (its refreshed groundtruth): an
+    /// instant and a duration print their dates as the context declares
+    /// them, not arelle's next-day reading of a date-only end.
     #[test]
-    fn a_date_only_period_end_is_read_as_the_next_day() {
-        assert_eq!(end_of_day("2024-02-29"), "2024-03-01");
-        assert_eq!(end_of_day("2025-12-31"), "2026-01-01");
-        assert_eq!(end_of_day("2025-06-30"), "2025-07-01");
-        assert_eq!(end_of_day("2025-06-30T00:00:00"), "2025-06-30");
+    fn period_dates_are_reported_as_declared() {
+        let dom = Document::parse(INSTANCE).unwrap();
+        let periods = periods(dom.root_element());
+        assert_eq!(periods["c0"], "2025-01-01 - 2025-12-31");
+        assert_eq!(periods["c1"], "2024-02-29");
     }
 }
