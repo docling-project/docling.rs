@@ -156,7 +156,7 @@ fn check_strict_quoting(text: &str, delimiter: u8) -> Result<(), String> {
 const DELIMITERS: [u8; 5] = *b",;\t|:";
 
 /// Excel's `sep=<char>` line (docling#5200): when the first non-blank line
-/// is exactly `sep=` plus one character, that character is the delimiter
+/// is exactly `sep=` (in any letter case) plus one character, that character is the delimiter
 /// and the line is no row — Excel writes it for files whose values hold the
 /// delimiter the sniffer would pick (decimal commas in a `;` file). Returns
 /// the delimiter and the text after the line, from which the strict-quoting
@@ -173,7 +173,12 @@ fn excel_sep_line(text: &str) -> Option<(char, &str)> {
             rest = &rest[end..];
             continue;
         }
-        let mut chars = body.strip_prefix("sep=")?.chars();
+        // In any letter case (docling#5261, #1186: `SEP=;`, `Sep=;`).
+        let mut chars = body
+            .get(..4)
+            .filter(|p| p.eq_ignore_ascii_case("sep="))
+            .map(|_| &body[4..])?
+            .chars();
         let sep = chars.next()?;
         return chars.next().is_none().then_some((sep, &rest[end..]));
     }
@@ -513,6 +518,19 @@ mod tests {
             (
                 "\n\nsep=;\nName;Price\nApple;1,50\n",
                 ["Name", "Price", "Apple", "1,50"],
+            ),
+            // docling#5261 (#1186): in any letter case.
+            (
+                "SEP=;\nName;Price\nApple;1,50\n",
+                ["Name", "Price", "Apple", "1,50"],
+            ),
+            (
+                "Sep=;\nName;Price\nApple;1,50\n",
+                ["Name", "Price", "Apple", "1,50"],
+            ),
+            (
+                "\u{feff}SEP=|\nName|Price\nApple|1.50\n",
+                ["Name", "Price", "Apple", "1.50"],
             ),
         ] {
             let doc = convert(csv.as_bytes());
