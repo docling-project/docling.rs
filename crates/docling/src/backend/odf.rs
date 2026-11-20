@@ -2364,12 +2364,20 @@ pub(super) fn table_has_content(table: XmlNode) -> bool {
 /// A plain cell's text: its paragraphs' unformatted text, blank-line-joined
 /// (docling's `str(cell.value)` — subscripts inline, no Markdown markers).
 pub(super) fn plain_cell_text(tc: XmlNode) -> String {
-    tc.children()
+    let text = tc
+        .children()
         .filter(|c| c.has_tag_name("p") || c.has_tag_name("h"))
         .map(para_plain_text)
         .filter(|t| !t.is_empty())
         .collect::<Vec<_>>()
-        .join("\n\n")
+        .join("\n\n");
+    if text.trim().is_empty() {
+        // docling#5232 (#1171): the typed value only without text.
+        if let Some(value) = typed_value_text(tc).filter(|v| !v.is_empty()) {
+            return value;
+        }
+    }
+    text
 }
 
 /// A paragraph's unformatted text, expanding `<text:s>`/`<text:tab>`/
@@ -2828,6 +2836,111 @@ pub(super) fn repeat(node: XmlNode, name: &str) -> usize {
 /// An ODS cell's plain text — its paragraphs' text, newline-joined (github tables
 /// are unescaped, matching docling's `_odf_cell_text` display).
 pub(super) fn ods_cell_text(cell: XmlNode) -> String {
+    let text = ods_cell_display_text(cell);
+    if text.is_empty() {
+        // docling#5232 (#1171): the typed value only for a cell that stores
+        // no text.
+        return typed_value_text(cell).unwrap_or_default();
+    }
+    text
+}
+
+/// A typed ODF cell's value as odfdo's `str(cell.value)` spells it — the
+/// text docling shows for a cell that stores no `text:p` (docling#5232,
+/// #1171): a number, percentage or currency as written, a whole number as
+/// an integer (`7`, `1e3` → `1000`, `1.50` stays); a date as Python's
+/// `date` / `datetime` (`2024-03-05`, `2024-03-05 10:30:00`); a time as a
+/// `timedelta` (`PT10H30M00S` → `10:30:00`); a boolean `True` / `False`; a
+/// string's `office:string-value`. `None` for an untyped cell or a value
+/// missing its attribute.
+pub(super) fn typed_value_text(cell: XmlNode) -> Option<String> {
+    match attr(cell, "value-type")? {
+        "float" | "percentage" | "currency" => {
+            let v = attr(cell, "value")?.trim();
+            let whole = v
+                .parse::<f64>()
+                .ok()
+                .filter(|f| f.is_finite() && f.fract() == 0.0 && f.abs() < 1e15);
+            Some(match whole {
+                Some(f) if v.contains(['.', 'e', 'E']) => format!("{}", f as i64),
+                _ => v.trim_start_matches('+').to_string(),
+            })
+        }
+        "date" => {
+            let v = attr(cell, "date-value")?.trim();
+            Some(match v.split_once('T') {
+                None => v.to_string(),
+                Some((date, time)) => {
+                    let time = if time.matches(':').count() == 1 {
+                        format!("{time}:00")
+                    } else {
+                        time.to_string()
+                    };
+                    format!("{date} {time}")
+                }
+            })
+        }
+        "time" => iso_duration_as_timedelta(attr(cell, "time-value")?.trim()),
+        "boolean" => Some(
+            if attr(cell, "boolean-value") == Some("true") {
+                "True"
+            } else {
+                "False"
+            }
+            .to_string(),
+        ),
+        "string" => Some(attr(cell, "string-value").unwrap_or("").to_string()),
+        _ => None,
+    }
+}
+
+/// An ISO-8601 duration (`PT10H30M00S`, `P1DT2H`) as Python's `timedelta`
+/// prints it: `10:30:00`, `1 day, 2:00:00`, fractions as microseconds.
+pub(super) fn iso_duration_as_timedelta(v: &str) -> Option<String> {
+    let negative = v.starts_with('-');
+    let body = v.trim_start_matches(['-', '+']).strip_prefix('P')?;
+    let (date, time) = body.split_once('T').unwrap_or((body, ""));
+    let mut secs = 0f64;
+    let mut num = String::new();
+    for (part, units) in [
+        (date, [('D', 86_400f64), ('\0', 0.0), ('\0', 0.0)]),
+        (time, [('H', 3_600.0), ('M', 60.0), ('S', 1.0)]),
+    ] {
+        for c in part.chars() {
+            if c.is_ascii_digit() || c == '.' || c == ',' {
+                num.push(if c == ',' { '.' } else { c });
+                continue;
+            }
+            let unit = units.iter().find(|(u, _)| *u == c)?.1;
+            secs += num.parse::<f64>().ok()? * unit;
+            num.clear();
+        }
+        if !num.is_empty() {
+            return None;
+        }
+    }
+    let micros = (secs * 1e6).round() as i64 * if negative { -1 } else { 1 };
+    let days = micros.div_euclid(86_400_000_000);
+    let rest = micros.rem_euclid(86_400_000_000);
+    let (h, m, s, us) = (
+        rest / 3_600_000_000,
+        rest / 60_000_000 % 60,
+        rest / 1_000_000 % 60,
+        rest % 1_000_000,
+    );
+    let mut out = String::new();
+    if days != 0 {
+        out = format!("{days} day{}, ", if days.abs() == 1 { "" } else { "s" });
+    }
+    out.push_str(&format!("{h}:{m:02}:{s:02}"));
+    if us != 0 {
+        out.push_str(&format!(".{us:06}"));
+    }
+    Some(out)
+}
+
+/// The text a spreadsheet cell displays: its non-blank `text:p` / `text:h`.
+fn ods_cell_display_text(cell: XmlNode) -> String {
     cell.children()
         .filter(|c| c.has_tag_name("p") || c.has_tag_name("h"))
         .map(|p| {

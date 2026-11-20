@@ -883,7 +883,7 @@ converted once more as that format with a warning.
   - a list a `list` group whose items carry `enumerated` and `{counter}{num-suffix}` markers (`.` by default), continue across sibling lists and nest under the previous item
   - a table's cells all recorded (empty ones too) with spans and `column_header` on row 0
   - a cell holding lists, several paragraphs, images or a nested table a `RichTableCell` whose content walks into a `rich_cell_group_{tables−1}_{col}_{row}` group under the table
-  - a typed cell's text `str(cell.value)`
+  - a cell's text is its `text:p` — what the application displays (`0.33`, `12.50%`, `$1,234.50`, `TRUE`, `03/05/24`) — and a typed cell's `str(cell.value)` (odfdo's spelling: `7.25`, `1e3` → `1000`, `2024-03-05 10:30:00`, `10:30:00`, `True`) only when it stores no text, in both walks (#1171, docling#5232; the JSON used to print the value first: `0.3333333333333333`, `2024-03-05T00:00:00`, and the Markdown dropped a typed cell without text). A string-typed cell reads its cleaned lines like any other, so `text_document_03`'s ` Column A` header loses its leading space — live docling 2.151.1's reading; upstream's committed groundtruth predates the change
   - an embedded chart a classified picture with `tabular_chart` data
   - a bitmap part a picture *with* its `image` payload (the package's `Pictures/` parts are decoded for the tree; the flat nodes keep their unloaded placeholders)
   - a presentation one `chapter` group per slide (`slide-{n}`, the slide name as `title` when no element is one)

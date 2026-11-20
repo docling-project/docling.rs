@@ -459,10 +459,11 @@ fn cell_has_content(cell: XmlNode) -> bool {
 }
 
 /// `_odf_cell_text`: a rich cell's child lines (image placeholders
-/// stripped); a typed cell's `str(cell.value)` — a string cell's paragraph
-/// text as written, a number/percentage/currency's `office:value`, a date or
-/// time's value attribute, a boolean as Python spells it; otherwise the
-/// cell's child lines, or nothing.
+/// stripped); else the cell's child lines — the text the application
+/// displays, a rounded number, a percentage, a currency or date format
+/// (docling#5232, #1171) — then, for a cell storing no text, its typed
+/// value as `str(cell.value)` ([`super::odf::typed_value_text`]);
+/// otherwise nothing.
 fn cell_text(cell: XmlNode) -> String {
     let lines: Vec<String> = cell
         .children()
@@ -477,33 +478,11 @@ fn cell_text(cell: XmlNode) -> String {
             .collect();
         return strip_image_refs(&child_text, &images);
     }
-    if let Some(value_type) = attr(cell, "value-type") {
-        let value = match value_type {
-            "string" => Some(
-                cell.children()
-                    .filter(|c| c.has_tag_name("p") || c.has_tag_name("h"))
-                    .map(para_plain_text)
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            ),
-            "float" | "percentage" | "currency" => attr(cell, "value").map(str::to_string),
-            "date" => attr(cell, "date-value").map(str::to_string),
-            "time" => attr(cell, "time-value").map(str::to_string),
-            "boolean" => attr(cell, "boolean-value").map(|b| {
-                if b == "true" {
-                    "True".to_string()
-                } else {
-                    "False".to_string()
-                }
-            }),
-            _ => None,
-        };
-        if let Some(v) = value {
-            return v;
-        }
-    }
     if !child_text.is_empty() {
         return child_text;
+    }
+    if let Some(value) = super::odf::typed_value_text(cell) {
+        return value;
     }
     if cell.children().any(|c| c.is_element()) {
         return String::new();
@@ -2219,6 +2198,95 @@ mod tests {
                 "After"
             ]
         );
+    }
+
+    /// docling#5232 (#1171, `test_ods_typed_cells_keep_their_displayed_text`):
+    /// a typed cell shows its `text:p`, the typed value only as the fallback
+    /// of a cell that stores no text — spelled as odfdo's `str(cell.value)`.
+    #[test]
+    fn ods_typed_cells_keep_their_displayed_text() {
+        let typed = |ty: &str, value: &str, text: Option<&str>| {
+            let body = text.map_or(String::new(), |t| format!("<text:p>{t}</text:p>"));
+            format!(
+                r#"<table:table-cell office:value-type="{ty}" {value}>{body}</table:table-cell>"#
+            )
+        };
+        let shown = [
+            typed(
+                "float",
+                r#"office:value="0.3333333333333333""#,
+                Some("0.33"),
+            ),
+            typed("percentage", r#"office:value="0.125""#, Some("12.50%")),
+            typed(
+                "currency",
+                r#"office:value="1234.5" office:currency="USD""#,
+                Some("$1,234.50"),
+            ),
+            typed("boolean", r#"office:boolean-value="true""#, Some("TRUE")),
+            typed(
+                "date",
+                r#"office:date-value="2024-03-05T00:00:00""#,
+                Some("03/05/24"),
+            ),
+        ]
+        .concat();
+        let bare = [
+            typed("float", r#"office:value="7.25""#, None),
+            typed("float", r#"office:value="1e3""#, None),
+            typed("date", r#"office:date-value="2024-03-05""#, None),
+            typed("date", r#"office:date-value="2024-03-05T10:30:00""#, None),
+            typed("time", r#"office:time-value="PT10H30M00S""#, None),
+        ]
+        .concat();
+        let xml = format!(
+            r#"<office:document {NS}><office:body><office:spreadsheet>
+              <table:table table:name="S"><table:table-row>{shown}</table:table-row><table:table-row>{bare}</table:table-row></table:table>
+            </office:spreadsheet></office:body></office:document>"#
+        );
+        let doc = convert(&xml, InputFormat::Ods);
+        let v: serde_json::Value = serde_json::from_str(&doc.export_to_json()).unwrap();
+        let cells: Vec<&str> = v["tables"][0]["data"]["table_cells"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["text"].as_str().unwrap())
+            .collect();
+        let want = [
+            "0.33",
+            "12.50%",
+            "$1,234.50",
+            "TRUE",
+            "03/05/24",
+            "7.25",
+            "1000",
+            "2024-03-05",
+            "2024-03-05 10:30:00",
+            "10:30:00",
+        ];
+        assert_eq!(cells, want);
+        let md = doc.export_to_markdown();
+        for text in want {
+            assert!(md.contains(text), "{text} missing from {md}");
+        }
+    }
+
+    #[test]
+    fn typed_values_are_spelled_as_odfdo_does() {
+        let durations = [
+            ("PT10H30M00S", "10:30:00"),
+            ("PT0S", "0:00:00"),
+            ("PT25H", "1 day, 1:00:00"),
+            ("P2DT1H", "2 days, 1:00:00"),
+            ("PT1.5S", "0:00:01.500000"),
+        ];
+        for (iso, want) in durations {
+            assert_eq!(
+                super::super::odf::iso_duration_as_timedelta(iso).as_deref(),
+                Some(want),
+                "{iso}"
+            );
+        }
     }
 
     /// A spreadsheet: a `section` group `sheet: {name}` per sheet, each
