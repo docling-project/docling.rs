@@ -161,6 +161,10 @@
 //!   `<!-- page break -->`).
 //!   A break lands only between two rendered blocks on different pages;
 //!   unset (the default) keeps docling's break-free Markdown
+//! - `formatting_fallback_mode` (alias `md_formatting_fallback_mode`) — how
+//!   the Markdown renders underline and sub/superscript (docling-core's
+//!   `MarkdownParams.formatting_fallback_mode`, #1205): `none` (default)
+//!   drops them, `html` writes `<u>`, `<sub>`, `<sup>`
 //! - `list_attachments` — email (.eml/.msg): append an Attachments section
 //!   with names and content types (#251; payload bytes are never embedded)
 //! - `parse_calendar_invitations` — email (.eml): the events of its calendar

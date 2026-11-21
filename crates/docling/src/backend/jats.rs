@@ -1452,9 +1452,13 @@ fn seg_markdown_core(s: &Seg, text: &str) -> String {
     if s.fmt.italic {
         out = format!("*{out}*");
     }
+    // The Markdown formatting fallback (#1205): `<u>`, then strikethrough,
+    // then `<sub>`/`<sup>`, docling-core's order.
+    out = docling_core::fallback::underline(out, s.fmt.underline);
     if s.fmt.strike {
         out = format!("~~{out}~~");
     }
+    out = docling_core::fallback::script(out, s.fmt.script);
     if let Some(url) = &s.hyperlink {
         out = docling_core::hyperlink::markdown_link(&out, url);
     }

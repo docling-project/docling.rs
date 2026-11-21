@@ -387,7 +387,10 @@ class DocumentConverter:
       is upstream docling-core's own option here and works off the items'
       ``prov.page_no`` in the engine's JSON (PDF and DjVu pages, slides, sheets); the
       engine-side ``--page-break-placeholder`` of the CLI / serve / Node is
-      not a kwarg of this wrapper.
+      not a kwarg of this wrapper. So is the Markdown formatting fallback:
+      ``document.export_to_markdown(formatting_fallback_mode=…)`` (docling-core
+      ≥ 2.107) reads the runs' ``formatting`` in the engine's JSON; the
+      engine-side ``formatting_fallback_mode`` is not a kwarg here.
     * ``text_layer_only`` — skip the whole PDF ML stack and read the embedded
       text layer only (the docling.rs fast path behind the CLI's ``--text-layer-only``).
       ``"auto"`` decides per document: the text layer alone when it carries

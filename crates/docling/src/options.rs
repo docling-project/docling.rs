@@ -67,6 +67,12 @@ pub struct ConvertOptions {
     /// spelling `md_page_break_placeholder` is accepted as an alias.
     #[serde(alias = "md_page_break_placeholder")]
     pub page_break_placeholder: Option<String>,
+    /// How the Markdown export renders underline and sub/superscript
+    /// (docling-core's `MarkdownParams.formatting_fallback_mode`, #1205):
+    /// `none` (default) drops them, `html` writes `<u>` / `<sub>` / `<sup>`
+    /// ([`DocumentConverter::markdown_formatting_fallback`]).
+    #[serde(alias = "md_formatting_fallback_mode")]
+    pub formatting_fallback_mode: Option<String>,
 
     // --- declarative formats -------------------------------------------------
     /// Resolve external `<img src>` for HTML/EPUB/MHTML/JATS (network access)
@@ -592,6 +598,13 @@ pub const OPTIONS: &[OptionInfo] = &[
         python: Some(""),
         ..row("page_break_placeholder")
     },
+    // Python: `export_to_markdown(formatting_fallback_mode=…)`, docling-
+    // core's own signature, not a converter kwarg.
+    OptionInfo {
+        aliases: &["md_formatting_fallback_mode"],
+        python: Some(""),
+        ..row("formatting_fallback_mode")
+    },
     row("fetch_images"),
     row("image_sources"),
     row("image_hosts"),
@@ -832,6 +845,21 @@ impl ConvertOptions {
             .transpose()
     }
 
+    /// The Markdown formatting fallback `formatting_fallback_mode` names
+    /// (#1205); `None` when unset (the converter's default, `none`).
+    pub fn formatting_fallback_mode(
+        &self,
+    ) -> Result<Option<docling_core::FormattingFallback>, OptionsError> {
+        self.formatting_fallback_mode
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .map(|s| {
+                s.parse::<docling_core::FormattingFallback>()
+                    .map_err(|e| OptionsError::new("formatting_fallback_mode", e))
+            })
+            .transpose()
+    }
+
     /// The notebook outputs `ipynb_outputs` names (#673); `None` when unset
     /// (the converter's default, `none`).
     pub fn ipynb_outputs(&self) -> Result<Option<crate::IpynbOutputs>, OptionsError> {
@@ -1045,6 +1073,7 @@ impl ConvertOptions {
         self.page_range()?;
         self.document_timeout()?;
         self.ipynb_outputs()?;
+        self.formatting_fallback_mode()?;
         self.track_changes()?;
         self.extract_diagrams()?;
         self.metadata_output()?;
@@ -1321,6 +1350,9 @@ impl ConvertOptions {
         }
         if self.page_break_placeholder.is_some() {
             c = c.page_break_placeholder(self.page_break_placeholder.clone());
+        }
+        if let Some(mode) = self.formatting_fallback_mode()? {
+            c = c.markdown_formatting_fallback(mode);
         }
         if let Some(v) = self.fetch_images {
             c = c.fetch_images(v);

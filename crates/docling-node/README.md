@@ -503,6 +503,10 @@ constructor; output options (`to`, `imageMode`, `artifactsDir`) are per call.
   sheets and DjVu pages; a break lands only between two rendered blocks on
   different pages (never first or last). Unset: no page breaks, docling's
   default. Markdown only.
+- `formattingFallbackMode`: `"html"` writes underline and sub/superscript as
+  `<u>`, `<sub>`, `<sup>` in the Markdown (docling-core's
+  `formatting_fallback_mode`, #1205); `"none"` (default) drops them. Markdown
+  only; a converter option (`ConverterOptions` / `ConvertOptions`).
 - `strict`: cleaner, more conformant Markdown instead of docling's byte-for-byte
   legacy output (Markdown only).
 - `fetchImages`: for HTML/EPUB, resolve and embed external `<img src>`. Off by

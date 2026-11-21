@@ -375,9 +375,20 @@ fn decorate(text: &str, item: &Value) -> String {
     if fmt["italic"].as_bool() == Some(true) {
         res = format!("*{res}*");
     }
+    // The Markdown formatting fallback (#1205): `<u>`, then strikethrough,
+    // then `<sub>`/`<sup>`, docling-core's order.
+    res = docling_core::fallback::underline(res, fmt["underline"].as_bool() == Some(true));
     if fmt["strikethrough"].as_bool() == Some(true) {
         res = format!("~~{res}~~");
     }
+    res = docling_core::fallback::script(
+        res,
+        match fmt["script"].as_str() {
+            Some("sub") => docling_core::Script::Sub,
+            Some("super") => docling_core::Script::Super,
+            _ => docling_core::Script::Baseline,
+        },
+    );
     if let Some(url) = item["hyperlink"].as_str() {
         res = docling_core::hyperlink::markdown_link(&res, url);
     }

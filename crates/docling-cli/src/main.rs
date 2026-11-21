@@ -187,6 +187,11 @@
 //!                      lands only between two rendered blocks on different
 //!                      pages — never first or last, empty pages collapse. Off
 //!                      by default: docling's Markdown carries no page breaks.
+//!   --formatting-fallback-mode none|html
+//!                      how the Markdown renders underline and sub/superscript
+//!                      (docling-core's `formatting_fallback_mode`): none
+//!                      (default) drops them, html writes <u>, <sub>, <sup>.
+//!                      Markdown only; the plain text drops them still.
 //!   --layers body|all|LIST, --traverse-pictures
 //!                      docling's `export_to_markdown(included_content_layers=…,
 //!                      traverse_pictures=…)`: layers for md/text/html (default
@@ -932,6 +937,15 @@ fn main() -> ExitCode {
                 Some(v) => opts.page_break_placeholder = Some(v),
                 None => {
                     eprintln!("error: --page-break-placeholder needs the text to insert");
+                    return ExitCode::from(2);
+                }
+            },
+            // docling-core#661 (#1205): underline and sub/superscript in the
+            // Markdown as HTML tags.
+            "--formatting-fallback-mode" => match args.next() {
+                Some(v) => opts.formatting_fallback_mode = Some(v),
+                None => {
+                    eprintln!("error: --formatting-fallback-mode needs none or html");
                     return ExitCode::from(2);
                 }
             },

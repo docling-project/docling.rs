@@ -21,6 +21,7 @@ pub mod doctags;
 mod document;
 mod encryption;
 pub mod env;
+pub mod fallback;
 mod html;
 pub mod hyperlink;
 pub mod image_dpi;
@@ -54,6 +55,7 @@ pub use document::{
     PictureImage, Script, ScriptRun, ScriptRunProv, Table, TableCell, TableStructure,
 };
 pub use encryption::EncryptionError;
+pub use fallback::FormattingFallback;
 #[doc(hidden)]
 pub use html::to_html_with_picture_refs;
 pub use json::{code_language_label, text_char_len};

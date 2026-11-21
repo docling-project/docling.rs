@@ -298,6 +298,9 @@ pub struct DocumentConverter {
     /// docling-core's `MarkdownParams.page_break_placeholder`: text inserted
     /// between pages in the Markdown export; `None` (default) omits breaks.
     page_break_placeholder: Option<String>,
+    /// docling-core's `MarkdownParams.formatting_fallback_mode` (#1205). See
+    /// [`Self::markdown_formatting_fallback`].
+    formatting_fallback: docling_core::FormattingFallback,
     /// EBCDIC copybook layout (#252): inline JSON or a file path. `None`
     /// falls back to the `<stem>.layout.json` sidecar.
     ebcdic_layout: Option<String>,
@@ -674,6 +677,7 @@ impl Default for DocumentConverter {
             picture_alt_text: false,
             metadata_output: Default::default(),
             page_break_placeholder: None,
+            formatting_fallback: docling_core::FormattingFallback::None,
             ebcdic_layout: None,
             no_table_former: false,
             no_text_panels: false,
@@ -1676,6 +1680,25 @@ impl DocumentConverter {
     /// default export is. Markdown only; JSON carries pages in `prov`.
     pub fn page_break_placeholder(mut self, placeholder: Option<String>) -> Self {
         self.page_break_placeholder = placeholder;
+        self
+    }
+
+    /// How the Markdown export renders the formatting Markdown has no syntax
+    /// for — docling-core's `MarkdownParams.formatting_fallback_mode`
+    /// (docling-core#661, #1205): [`FormattingFallback::None`] (the default,
+    /// docling's) drops underline and sub/superscript;
+    /// [`FormattingFallback::Html`] writes them as `<u>`, `<sub>` and
+    /// `<sup>` (`Water is H<sub>2</sub>O`). Markdown only — the plain-text
+    /// export drops them still, and every other export is unchanged. Decided
+    /// at conversion time: the Markdown the backends render (HTML, MHTML,
+    /// EPUB and email bodies, DOCX, ODF, JATS, WebVTT, docling JSON) has no
+    /// other record of a run's underline or script (see
+    /// [`docling_core::fallback`]).
+    ///
+    /// [`FormattingFallback::None`]: docling_core::FormattingFallback::None
+    /// [`FormattingFallback::Html`]: docling_core::FormattingFallback::Html
+    pub fn markdown_formatting_fallback(mut self, mode: docling_core::FormattingFallback) -> Self {
+        self.formatting_fallback = mode;
         self
     }
 
@@ -3000,6 +3023,17 @@ impl DocumentConverter {
         result
     }
 
+    /// [`Self::convert_as`] with the Markdown formatting fallback's marks on
+    /// when it is asked for (#1205): the backends' run renderers consult it.
+    fn convert_marked(
+        &self,
+        source: &SourceDocument,
+        reporter: &std::sync::Arc<ProgressReporter>,
+    ) -> Result<ConversionResult, ConversionError> {
+        let on = self.formatting_fallback == docling_core::FormattingFallback::Html;
+        docling_core::fallback::with_fallback(on, || self.convert_as(source, reporter))
+    }
+
     fn convert_reporting(
         &self,
         source: SourceDocument,
@@ -3014,9 +3048,9 @@ impl DocumentConverter {
         // A source a registered backend claims (#680) is that backend's:
         // its failure is not retried as the content's built-in format.
         if self.claims(&source) {
-            return self.convert_as(&source, reporter);
+            return self.convert_marked(&source, reporter);
         }
-        let err = match self.convert_as(&source, reporter) {
+        let err = match self.convert_marked(&source, reporter) {
             Ok(result) => return Ok(result),
             Err(err) => err,
         };
@@ -3034,7 +3068,7 @@ impl DocumentConverter {
         // The retry's error replaces the first one only when it says the
         // file is encrypted (#624) — an encrypted `.ppt` named `.pptx` is
         // better reported as encrypted than as a bad ZIP.
-        let result = self.convert_as(&retry, reporter).map_err(|e| {
+        let result = self.convert_marked(&retry, reporter).map_err(|e| {
             if crate::backend::offcrypto::is_encryption_error(&e) {
                 e
             } else {

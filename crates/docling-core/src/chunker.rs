@@ -115,11 +115,25 @@ impl HierarchicalChunker {
     /// The walk itself, its refs in the flat nodes' numbering — what
     /// [`HybridChunker`] splits and merges before the refs are mapped.
     fn walk_nodes(doc: &DoclingDocument, sink: &mut dyn FnMut(DocChunk) -> bool) {
+        // The Markdown-fallback marks (#1205) are the Markdown export's alone.
+        let strip = crate::fallback::any_marks();
+        let mut sink = |mut c: DocChunk| {
+            if strip {
+                c.text = crate::fallback::strip_owned(std::mem::take(&mut c.text));
+                for h in c.headings.iter_mut().flatten() {
+                    *h = crate::fallback::strip_owned(std::mem::take(h));
+                }
+                for it in &mut c.doc_items {
+                    it.text = crate::fallback::strip_owned(std::mem::take(&mut it.text));
+                }
+            }
+            sink(c)
+        };
         let mut w = Walker {
             alloc: Alloc::default(),
             headings: BTreeMap::new(),
             stopped: false,
-            sink,
+            sink: &mut sink,
         };
         w.walk(&doc.nodes);
     }
