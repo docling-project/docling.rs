@@ -315,7 +315,9 @@ A DOCX or PPTX full of screenshots, an HTML page whose figures are images
 of text, the sampled frames of a video — docling leaves the words inside
 those pictures unread, since only its PDF/image pipeline runs OCR. Opt in
 and the same OCR models read every embedded picture of a non-PDF document
-(#645; PDF/image/METS pages are OCR'd by the pipeline already and are left
+(#645) and every picture of a PDF page that has a text layer (#1219 — a
+lab report's accreditation seal, a photo's rating label; scanned PDF pages,
+image and METS inputs are OCR'd by the pipeline already and are left
 alone), and the text lands on the picture as docling's description
 annotation — exactly where upstream's picture-description (VLM captioning)
 models put theirs: Markdown prints it between the caption and the image

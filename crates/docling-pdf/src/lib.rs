@@ -1022,6 +1022,9 @@ struct Prepared {
     ocr_confs: Vec<f32>,
     ocr_cells: Vec<docling_core::OcrCellConfidence>,
     parse: Option<f64>,
+    /// The OCR lines read inside the pictures of a text-layer page under
+    /// `picture_ocr` (#1219), hung on the assembled pictures.
+    picture_text: Vec<pdfium_backend::TextCell>,
 }
 
 #[cfg(feature = "ml")]
@@ -1228,6 +1231,9 @@ struct Worker {
     /// broken, that page only (#1006). See
     /// [`Pipeline::replace_broken_text_layer`].
     replace_broken_text_layer: bool,
+    /// Read the pictures of a text-layer page (#1219). See
+    /// [`Pipeline::picture_ocr`].
+    picture_ocr: bool,
     /// Keep text-panel pictures as pictures instead of demoting them to
     /// paragraphs. See [`Pipeline::no_text_panels`].
     no_text_panels: bool,
@@ -1394,6 +1400,7 @@ impl Worker {
             force_full_page_ocr,
             // Set by the pipeline after loading (`sync_ocr_config`).
             replace_broken_text_layer: false,
+            picture_ocr: false,
             no_text_panels,
             ocr_lang,
             ocr_engine,
@@ -1512,6 +1519,68 @@ impl Worker {
     /// Whether the text detector is there to run (loading it on first use).
     fn det_available(&mut self) -> bool {
         self.with_det(|_| ()).is_some()
+    }
+
+    /// OCR one picture of a text-layer page (#1219, `picture_ocr`) the way
+    /// the picture OCR of the other formats reads an embedded image
+    /// (`Pipeline::ocr_picture`): the region's own crop of the page render,
+    /// the text detector's boxes on that crop as the line crops when the
+    /// detector is installed — a photo's label or a seal's ring of text is
+    /// no stack of horizontal strips, which is all the ink projection can
+    /// cut — and the recognizer's lines mapped back to page points. Empty
+    /// without the recognizer (its one-time warning says why) or `skip_ocr`.
+    fn read_picture_region(
+        &mut self,
+        page: &PdfPage,
+        r: &layout::Region,
+        ocr_scale: Option<f32>,
+    ) -> Result<Vec<pdfium_backend::TextCell>, String> {
+        let s = page.scale;
+        let (iw, ih) = (page.image.width(), page.image.height());
+        let x0 = ((r.l * s).floor().max(0.0) as u32).min(iw);
+        let y0 = ((r.t * s).floor().max(0.0) as u32).min(ih);
+        let x1 = ((r.r * s).ceil().max(0.0) as u32).min(iw);
+        let y1 = ((r.b * s).ceil().max(0.0) as u32).min(ih);
+        if x1 <= x0 + 1 || y1 <= y0 + 1 {
+            return Ok(Vec::new());
+        }
+        let crop = image::imageops::crop_imm(&page.image, x0, y0, x1 - x0, y1 - y0).to_image();
+        let mut cache = None;
+        let (view, scale) = ocr_input(&mut cache, &crop, s, ocr_scale);
+        let (ox, oy) = (x0 as f32 / s, y0 as f32 / s);
+        let region = layout::Region {
+            label: "text",
+            score: 1.0,
+            l: 0.0,
+            t: 0.0,
+            r: (x1 - x0) as f32 / s,
+            b: (y1 - y0) as f32 / s,
+        };
+        // A detector that cannot run costs the picture its detected lines,
+        // not the conversion: the projection strips read it instead.
+        let detected = self
+            .with_det(|det| det.detect(view))
+            .and_then(Result::ok)
+            .filter(|d| ocr::det_lines() && !d.is_empty());
+        let Some(model) = self.ocr_model().map_err(|e| e.to_string())? else {
+            return Ok(Vec::new());
+        };
+        let cells = model.ocr_page_with(
+            view,
+            std::slice::from_ref(&region),
+            scale,
+            detected.as_deref(),
+        )?;
+        Ok(cells
+            .into_iter()
+            .map(|(mut c, _)| {
+                c.l += ox;
+                c.r += ox;
+                c.t += oy;
+                c.b += oy;
+                c
+            })
+            .collect())
     }
 
     /// Run layout (+ OCR for cell-less pages) + TableFormer and assemble page `n`
@@ -2532,6 +2601,32 @@ impl Worker {
                 })
             }));
         }
+        // `picture_ocr` (#1219): on a text-layer page, every picture that
+        // stayed a picture is read — the small ones the 5 % threshold skips
+        // (a seal, a stamp) and the big ones whose speculative lines were just
+        // discarded (a photo's rating label) — and its lines become the
+        // picture's description after assembly. Each is read on its own crop
+        // with the detector's line boxes (`read_picture_region`), not reusing
+        // the speculative pass's lines: those are the ink-projection strips a
+        // text panel splits into, which read a label inside a photo as
+        // nothing. The lines never join `page.cells`: the text layer and the
+        // layout stay exactly as without the option, only the pictures gain
+        // an annotation.
+        let mut picture_text: Vec<pdfium_backend::TextCell> = Vec::new();
+        if self.picture_ocr && !ocred {
+            let todo: Vec<layout::Region> = regions
+                .iter()
+                .filter(|r| r.label == "picture")
+                .cloned()
+                .collect();
+            for r in &todo {
+                let cells = timing::timed("ocr.picture_text", || {
+                    self.read_picture_region(page, r, ocr_scale)
+                })
+                .map_err(|e| PdfError::Ocr(format!("page {}: {e}", n + 1)))?;
+                picture_text.extend(cells);
+            }
+        }
         // A text-less *table* detected inside a picture on a digital page — a
         // screenshot of a table (2203's Figure 10) — has no text layer and no
         // scanned-path OCR to feed it, so its grid used to serialize empty and
@@ -2596,6 +2691,7 @@ impl Worker {
             ocr_confs,
             ocr_cells,
             parse,
+            picture_text,
         })
     }
 
@@ -2613,6 +2709,7 @@ impl Worker {
             ocr_confs,
             ocr_cells,
             parse,
+            picture_text,
         } = prepared;
         // The crops and the page image below read the bitmap (#897).
         self.ensure_bitmap(page, &regions)?;
@@ -2749,9 +2846,16 @@ impl Worker {
             .map(|(r, _)| r.clone())
             .collect();
         let conf = quality::page_confidence(parse, &elements, &ocr_confs);
-        let (nodes, links) = timing::timed("assemble_page", || {
+        let (mut nodes, links) = timing::timed("assemble_page", || {
             assemble::assemble_page(page, regions, &table_rows, &enrich_out, self.images.scale)
         });
+        if !picture_text.is_empty() {
+            let provenance = match self.ocr_engine {
+                ocr::OcrEngine::PpOcr => "ppocr",
+                ocr::OcrEngine::Tesseract => "tesseract",
+            };
+            picture::describe_pictures(&mut nodes, page, &picture_text, provenance);
+        }
         Ok((nodes, links, conf, self.page_image(n, page), ocr_cells))
     }
 }
@@ -2896,6 +3000,9 @@ pub struct Pipeline {
     /// OCR only the pages whose text layer is broken (#1006). See
     /// [`Pipeline::replace_broken_text_layer`].
     replace_broken_text_layer: bool,
+    /// Read the pictures of a text-layer page (#1219). See
+    /// [`Pipeline::picture_ocr`].
+    picture_ocr: bool,
     /// Mark superscripts and subscripts (#1005). See
     /// [`Pipeline::script_positions`].
     script_positions: bool,
@@ -2962,6 +3069,7 @@ impl Pipeline {
             skip_ocr: false,
             force_full_page_ocr: false,
             replace_broken_text_layer: false,
+            picture_ocr: false,
             script_positions: false,
             no_text_panels: false,
             enrich: EnrichmentOptions::default(),
@@ -3393,6 +3501,33 @@ impl Pipeline {
         self.sync_ocr_config();
     }
 
+    /// Read the text inside the pictures of a page that has a text layer
+    /// (#1219) — the PDF side of `do_picture_ocr`. By default such a page
+    /// OCRs only the bare pictures that cover ≥ 5 % of it (docling's
+    /// `bitmap_area_threshold`) and keeps their lines only when the
+    /// picture demotes to a text panel; a seal, a stamp or a photo's
+    /// rating label keeps no text at all. With this on, every picture that
+    /// stays a picture is OCR'd on its own crop, with the text detector's
+    /// line boxes when `ocr_det.onnx` is installed, and its lines land on it as docling's `description`
+    /// annotation (`provenance` = the OCR engine), where the picture OCR of
+    /// the other formats puts them — Markdown prints it under the caption,
+    /// JSON writes `meta.description`. Docling instead nests the OCR cells
+    /// under the picture as children, which Markdown prints only with
+    /// `traverse_pictures`; the annotation keeps one shape for every
+    /// format. Scanned pages are unchanged — the page OCR reads their
+    /// pictures already. Off by default: same output, same time. Ignored
+    /// under [`no_ocr`](Self::no_ocr) / [`skip_ocr`](Self::skip_ocr).
+    pub fn picture_ocr(mut self, enable: bool) -> Self {
+        self.set_picture_ocr(enable);
+        self
+    }
+
+    /// In-place variant of [`picture_ocr`](Self::picture_ocr).
+    pub fn set_picture_ocr(&mut self, enable: bool) {
+        self.picture_ocr = enable;
+        self.sync_ocr_config();
+    }
+
     /// See [`set_force_full_page_ocr`](Self::set_force_full_page_ocr).
     pub fn set_ocr_mode(&mut self, mode: Option<ocr::OcrMode>) {
         self.ocr_mode = mode.unwrap_or_else(ocr::OcrMode::from_env);
@@ -3505,9 +3640,11 @@ impl Pipeline {
         let scale = self.ocr_scale;
         let orient = self.textline_orientation;
         let replace = self.replace_broken_text_layer;
+        let pictures = self.picture_ocr;
         for worker in self.primary.iter_mut().chain(self.pool.iter_mut()) {
             worker.force_full_page_ocr = force;
             worker.replace_broken_text_layer = replace;
+            worker.picture_ocr = pictures;
             worker.ocr_scale = scale;
             worker.set_textline_orientation(orient);
         }
@@ -3706,6 +3843,7 @@ impl Pipeline {
             )?);
             if let Some(w) = self.primary.as_mut() {
                 w.replace_broken_text_layer = self.replace_broken_text_layer;
+                w.picture_ocr = self.picture_ocr;
             }
         }
         Ok(self.primary.as_mut().unwrap())
@@ -4479,6 +4617,7 @@ impl Pipeline {
         for w in loaded {
             let mut w = w?;
             w.replace_broken_text_layer = self.replace_broken_text_layer;
+            w.picture_ocr = self.picture_ocr;
             self.pool.push(w);
         }
         Ok(())
@@ -5096,6 +5235,7 @@ mod tables_off_gate {
             no_ocr: false,
             force_full_page_ocr: false,
             replace_broken_text_layer: false,
+            picture_ocr: false,
             no_text_panels: true,
             // No recognizer in the test. The scanned-page test covers the
             // cells `ocr_table_words` would have appended before the release.

@@ -3173,8 +3173,20 @@ deliberate scope boundary or a cosmetic, single-fixture polish gap.
   `keep_picture_images=false` drops the image bytes after the pass. Off by
   default — the default exports of every fixture are byte-identical — and a
   picture without text, `no_ocr` / `text_layer_only`, or a missing model
-  attaches nothing (one warning). PDF/image/METS inputs are untouched: their
-  pages went through the OCR pipeline already. The dedupe is by image bytes,
+  attaches nothing (one warning). Scanned PDF pages and image/METS inputs
+  are untouched: their pages went through the OCR pipeline already. A PDF
+  page *with* a text layer reads its pictures under the same switch
+  (#1219): by default it OCRs only the bare pictures over docling's 5 %
+  `bitmap_area_threshold` and keeps their lines only when the picture
+  demotes to a text panel, so a seal, a stamp or a photo's rating label
+  loses its text; with `do_picture_ocr` every picture that stays a picture
+  is read on its own crop of the page render (the detector's line boxes on
+  that crop) and the lines become its description — the classifier / size
+  filters apply to embedded images only. Deliberate divergence: docling
+  nests such OCR cells under the picture as children, which its Markdown
+  prints only with `traverse_pictures`; the description keeps one shape
+  for every format and reaches Markdown, JSON and the chunks alike. Off,
+  the output and the time are unchanged (`tests/fixtures/picture_text/`). The dedupe is by image bytes,
   so a DOCX (walked into both the flat nodes and the item tree) or a slide
   master's logo is read once. `picture_ocr.docx` (a 720 × 180 two-line
   screenshot and a 16 × 16 icon) is the fixture; the e2e test also reads

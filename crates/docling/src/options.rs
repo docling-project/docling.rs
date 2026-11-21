@@ -248,8 +248,9 @@ pub struct ConvertOptions {
     pub do_code_enrichment: Option<bool>,
     /// Enrichment: decode display formulas to LaTeX with CodeFormulaV2 (#423).
     pub do_formula_enrichment: Option<bool>,
-    /// Enrichment: OCR the embedded pictures of non-PDF documents (#645);
-    /// the text becomes the picture's description annotation.
+    /// Enrichment: OCR the embedded pictures of non-PDF documents (#645)
+    /// and the pictures of text-layer PDF pages (#1219); the text becomes
+    /// the picture's description annotation.
     pub do_picture_ocr: Option<bool>,
     /// Comma-separated DocumentFigureClassifier labels a picture must be
     /// classified as to be OCR'd (#645); unset/empty = every picture.

@@ -90,6 +90,9 @@ pub(crate) struct StreamSettings {
     pub password: Option<String>,
     pub force_full_page_ocr: bool,
     pub replace_broken_text_layer: bool,
+    /// Read the text inside a text-layer PDF page's pictures (#1219); see
+    /// `docling_pdf::Pipeline::picture_ocr`.
+    pub picture_ocr: bool,
     pub enrich: docling_pdf::EnrichmentOptions,
     pub page_range: Option<(usize, usize)>,
     pub ocr_lang: Option<docling_pdf::OcrLang>,
@@ -289,6 +292,7 @@ fn run_pdf(
             .skip_ocr(settings.no_ocr)
             .force_full_page_ocr(settings.force_full_page_ocr)
             .replace_broken_text_layer(settings.replace_broken_text_layer)
+            .picture_ocr(settings.picture_ocr)
             .ocr_lang(settings.ocr_lang)
             .ocr_engine(settings.ocr_engine)
             .tesseract_lang(settings.tesseract_lang.clone())

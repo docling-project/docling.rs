@@ -389,3 +389,89 @@ fn the_pass_reports_its_ocr_status() {
     let off = DocumentConverter::new().convert(source()).expect("convert");
     assert_eq!(off.ocr_status, None);
 }
+
+/// #1219: the layout model, a recognizer pair and the text detector are
+/// installed (the PDF fixture's pictures are read on their own crops with
+/// the detector's line boxes); CWD moves to the repo root.
+fn pdf_models_ready() -> bool {
+    let models = repo_root().join(".models");
+    models.join("layout_heron.onnx").exists()
+        && models.join("ocr_det.onnx").exists()
+        && ocr_models_ready()
+}
+
+fn pdf_fixture() -> SourceDocument {
+    SourceDocument::from_file(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/picture_text/picture_text.pdf"),
+    )
+    .expect("fixture")
+}
+
+/// #1219: on a PDF page with a text layer, `do_picture_ocr` reads the text
+/// inside its pictures — the photo's rating label (a picture over the 5 %
+/// threshold whose speculative OCR is discarded) and the small seal (under
+/// it, never OCR'd) — onto each picture's description. Off, neither picture
+/// carries text and the Markdown is the "on" output without the two
+/// descriptions: the text layer and the layout are untouched.
+#[test]
+fn pdf_pictures_on_a_text_layer_page_are_read() {
+    if !pdf_models_ready() {
+        eprintln!("skipping: layout/OCR models not found");
+        return;
+    }
+    let on = DocumentConverter::new()
+        .do_picture_ocr(true)
+        .convert(pdf_fixture())
+        .expect("convert")
+        .document;
+    let descriptions: Vec<Option<String>> =
+        pictures(&json(&on)).into_iter().map(|(d, _)| d).collect();
+    assert_eq!(
+        descriptions,
+        [
+            Some("MODEL DEMO-123\nLOT 12-34567-8".to_string()),
+            Some("LAB\n1234".to_string()),
+        ]
+    );
+    let on_md = on.export_to_markdown();
+    assert!(
+        on_md.contains("MODEL DEMO-123  \nLOT 12-34567-8\n\n<!-- image -->"),
+        "{on_md}"
+    );
+    assert!(on_md.contains("LAB  \n1234\n\n<!-- image -->"), "{on_md}");
+
+    let off = DocumentConverter::new()
+        .convert(pdf_fixture())
+        .expect("convert")
+        .document;
+    assert!(pictures(&json(&off)).iter().all(|(d, _)| d.is_none()));
+    let off_md = off.export_to_markdown();
+    let stripped = on_md
+        .replace("MODEL DEMO-123  \nLOT 12-34567-8\n\n", "")
+        .replace("LAB  \n1234\n\n", "");
+    assert_eq!(off_md, stripped);
+}
+
+/// #1219: a warm `Pipeline` (serve, the CLI batch, the bindings) takes the
+/// switch per conversion and drops it again.
+#[test]
+fn warm_pipeline_takes_pdf_picture_ocr_per_conversion() {
+    if !pdf_models_ready() {
+        eprintln!("skipping: layout/OCR models not found");
+        return;
+    }
+    let bytes = std::fs::read(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/picture_text/picture_text.pdf"),
+    )
+    .expect("fixture");
+    let mut p = docling::Pipeline::new().expect("pipeline");
+    let md = |p: &mut docling::Pipeline| {
+        p.convert(&bytes, None, "picture_text.pdf")
+            .expect("convert")
+            .export_to_markdown()
+    };
+    p.set_picture_ocr(true);
+    assert!(md(&mut p).contains("LAB  \n1234"));
+    p.set_picture_ocr(false);
+    assert!(!md(&mut p).contains("1234"));
+}

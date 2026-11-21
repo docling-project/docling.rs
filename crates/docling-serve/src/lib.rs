@@ -3266,6 +3266,7 @@ fn convert_document_inner(
             pipeline.set_tesseract_lang(o.tesseract_lang().map_err(bad)?);
             pipeline.set_force_full_page_ocr(o.force_full_page_ocr.unwrap_or(false));
             pipeline.set_replace_broken_text_layer(o.replace_broken_text_layer.unwrap_or(false));
+            pipeline.set_picture_ocr(o.do_picture_ocr.unwrap_or(false));
             pipeline.set_ocr_mode(o.ocr_mode().map_err(bad)?);
             pipeline.set_ocr_scale(o.ocr_scale);
             pipeline.set_word_gap(o.pdf_word_gap().map_err(bad)?);
