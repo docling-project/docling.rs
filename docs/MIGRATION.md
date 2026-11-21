@@ -844,6 +844,7 @@ converted once more as that format with a warning.
 
 - `list_attachments`: docling 2.119's `EmailBackendOptions.list_attachments`, plumbed as lib builder / CLI `--list-attachments` / serve `list_attachments` / py kwarg / Node `listAttachments`
 - `.eml` `Date:` now spells UTC as `+00:00` like Python's `isoformat()` (was `Z`)
+- docling#4505 (before the `bcb3678` sync base, ported in the 2026-11 sync, #1208): a `Cc:` line follows `To:`, its recipients formatted like the others (display names quoted when they hold a special, `"Smith, Carol" <carol@example.com>`); a `.msg` gets it from the projection's `Cc` header (its MAPI Cc recipients). Bcc stays out, as upstream's
 - docling#4242/#4248 (2.128–2.129): header values are collapsed to one line of single-spaced text (`" ".join(value.split())` — subject, display names, attachment names/types)
   - a display name holding an RFC 5322 special (`()<>[]:;@,\"`) is quoted with `\` and `"` escaped so `Name <email>` parses back
   - CRLF / a lone CR in a body are normalised before the paragraph split

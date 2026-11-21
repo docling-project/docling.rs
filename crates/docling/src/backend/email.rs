@@ -79,7 +79,10 @@ impl DeclarativeBackend for EmailBackend {
                 text: escape_text(&subject),
             });
         }
-        for (label, addrs) in [("From", msg.from()), ("To", msg.to())] {
+        // `Cc:` after `To:` (docling#4505): the copied recipients are part of
+        // who the message was addressed to. A `.msg` gets the line from its
+        // projection, which writes the MAPI Cc recipients as a `Cc` header.
+        for (label, addrs) in [("From", msg.from()), ("To", msg.to()), ("Cc", msg.cc())] {
             let text = format_addresses(addrs);
             if !text.is_empty() {
                 doc.push(Node::Paragraph {

@@ -91,6 +91,33 @@ pub(super) fn md(doc: &DoclingDocument) -> String {
     doc.export_to_markdown().trim_end().to_string()
 }
 
+/// docling#4505 (`test_email_backend_keeps_cc_recipients`): the Cc
+/// recipients follow `To:`, formatted like it.
+#[test]
+fn keeps_cc_recipients() {
+    let eml = b"From: Alice Example <alice@example.com>\r\nTo: Bob Example <bob@example.com>\r\n\
+        Cc: Carol Example <carol@example.com>, dave@example.com\r\nSubject: Copied Email\r\n\
+        Date: Tue, 20 May 2026 10:30:00 +0000\r\nMIME-Version: 1.0\r\n\
+        Content-Type: text/plain; charset=\"utf-8\"\r\n\r\nHello all.\r\n";
+    let doc = convert(eml.to_vec());
+    let got: Vec<String> = texts(&doc).into_iter().map(|(t, _)| t).collect();
+    assert_eq!(
+        got,
+        [
+            "Copied Email",
+            "From: Alice Example <alice@example.com>",
+            "To: Bob Example <bob@example.com>",
+            "Cc: Carol Example <carol@example.com>, dave@example.com",
+            "Date: 2026-05-20T10:30:00+00:00",
+            "Hello all.",
+        ]
+    );
+    assert!(md(&doc).contains(
+        "To: Bob Example &lt;bob@example.com&gt;\n\n\
+         Cc: Carol Example &lt;carol@example.com&gt;, dave@example.com\n\n"
+    ));
+}
+
 const HTML: &str = "<html><body><p>Body: 1 &lt; 2 &amp; 3 &gt; 2, a_b.</p>\
                     <footer>Footer: terms &amp; conditions, c_d.</footer></body></html>";
 
