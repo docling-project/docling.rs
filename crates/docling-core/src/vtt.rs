@@ -232,6 +232,26 @@ struct Cue {
     text: String,
 }
 
+/// docling-core's `_cue_timings` (docling-core#1014): both ends in
+/// milliseconds; a segment that rounds onto a zero-length range — a track
+/// source accepts any end after its start, a WebVTT timestamp carries
+/// milliseconds only — is stretched by the smallest step, 1 ms, and the
+/// loss of precision reported, instead of writing `11.000 --> 11.000`
+/// (upstream used to raise for the whole document).
+fn cue_timings(start_s: f64, end_s: f64) -> (u64, u64) {
+    let (start, end) = (millis(start_s), millis(end_s));
+    if end > start {
+        return (start, end);
+    }
+    crate::debug_log!(
+        "vtt: track segment {start_s}..{end_s} collapses onto {} at WebVTT millisecond \
+         precision, extending the cue end to {}",
+        format_timestamp(start, false),
+        format_timestamp(start + 1, false)
+    );
+    (start, start + 1)
+}
+
 /// `WebVTTDocSerializer.serialize_doc` with `WebVTTFile.format`.
 fn serialize_doc(parts: &[Part], options: &VttExportOptions) -> String {
     let mut title: Option<&str> = None;
@@ -258,10 +278,11 @@ fn serialize_doc(parts: &[Part], options: &VttExportOptions) -> String {
             let joined = format!("{}\n{}", cue.text.trim_end(), part.text);
             cue.text = remove_pairs_until_stable(joined);
         } else {
+            let (start, end) = cue_timings(start_s, end_s);
             cues.push(Cue {
                 identifier,
-                start: millis(start_s),
-                end: millis(end_s),
+                start,
+                end,
                 text: part.text.clone(),
             });
         }
@@ -542,6 +563,21 @@ mod tests {
                 text: format!("[time: {start}-{end}] {words}"),
             }),
         }
+    }
+
+    /// docling-core#1014
+    /// (`test_webvtt_cue_shorter_than_a_millisecond_stays_serializable`): a
+    /// sub-millisecond segment keeps a 1 ms cue; the next cue is unchanged.
+    #[test]
+    fn sub_millisecond_cue_stays_serializable() {
+        let mut doc = DoclingDocument::new("sub-millisecond-cue");
+        doc.push(segment(11.00001, 11.00002, "short cue"));
+        doc.push(segment(12.0, 13.5, "normal cue"));
+        assert_eq!(
+            doc.export_to_vtt(),
+            "WEBVTT\n\n00:00:11.000 --> 00:00:11.001\nshort cue\n\n\
+             00:00:12.000 --> 00:00:13.500\nnormal cue"
+        );
     }
 
     /// The flat (ASR) path against docling-core 2.101: the same segments as
