@@ -2362,12 +2362,22 @@ pub(super) fn table_has_content(table: XmlNode) -> bool {
 }
 
 /// A plain cell's text: its paragraphs' unformatted text, blank-line-joined
-/// (docling's `str(cell.value)` — subscripts inline, no Markdown markers).
+/// (docling's `str(cell.value)` — subscripts inline, no Markdown markers),
+/// each paragraph's lines stripped as docling's cleaned lines are and the
+/// item tree's cell text is (#1171, docling#5232: a string cell's
+/// ` Column A` reads `Column A` — the flat walk kept the space).
 pub(super) fn plain_cell_text(tc: XmlNode) -> String {
     let text = tc
         .children()
         .filter(|c| c.has_tag_name("p") || c.has_tag_name("h"))
-        .map(para_plain_text)
+        .map(|p| {
+            para_plain_text(p)
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
         .filter(|t| !t.is_empty())
         .collect::<Vec<_>>()
         .join("\n\n");
