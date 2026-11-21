@@ -818,6 +818,11 @@ converted once more as that format with a warning.
   - text after a multi-line voice span stays in reading order (docling#4105)
   - bare CR / CRLF line terminators parse (docling-core#749, docling#4157)
 - a span still open at the end of a cue is closed there and keeps its text, a stray end tag is ignored, a misnested cue is still dropped (docling-core#875, 2.102; #761 — `unclosed_spans.vtt`) — pinned by unit tests
+- the 2026-11 upstream sync (#1198) ports docling-core 2.107's reader fixes:
+  - docling-core#926: every HTML character reference in cue text and annotations resolves as Python's `html.unescape` does — the HTML5 named table (html5ever's, with the legacy semicolon-less names: `&copy`), decimal and hex (the C1 range as windows-1252) — `It&#39;s`, `Caf&eacute;`, `<v Ren&eacute;>`; an unknown one stays literal (`R&foo;d &`); a cue whose reference resolves to a line terminator (`&#10;`) is dropped. We decoded none (`It&amp;#39;s`), and an annotation holding `&` lost its voice
+  - docling-core#975: blocks split at empty lines only; a whitespace-only line is cue text — the `" "` line every YouTube caption cue opens with, whose first cue we lost — unless the next cue's timings follow within two lines. The YouTube backend reads through the same code
+  - docling-core#935: `<ruby>` and `<rt>` are spans, so a ruby base and each annotation are runs of their own (`漢字`, `かんじ`, ` is the Japanese word for kanji.` in an inline group); an `<rt>` counts only directly inside a `<ruby>`, `</ruby>` closes an open `<rt>`, a mismatched end tag still drops the cue. They were unknown tags whose text ran together
+  - checked against docling 2.151.1 on upstream's test cues and docling-core's `webvtt_example_05.vtt` (`crates/docling/tests/data/webvtt/sources/`): Markdown and JSON identical; the four mirrored fixtures unchanged
 
 #### EBCDIC (.ebc)
 
@@ -1955,7 +1960,7 @@ pointed at the wrong item).
   - upstream's two tag-merging rules ported (its regexes use backreferences)
   - a document without timed text is the `WEBVTT [title]` header, as upstream writes it
 - **4/4 mirrored WebVTT inputs byte-identical** to docling 2.135 (both `save_as_vtt` and `export_to_vtt` defaults).
-- Deliberate divergence: cue text is escaped (`&amp;`, `&lt;`) where upstream re-parses it and fails on a raw `&` or `<`.
+- cue text escapes `&` and `<`, a voice `&` and `>`, as docling-core#926 / #972 write them (once a deliberate divergence: upstream re-parsed the text and failed on a raw `&` or `<`); a file read back resolves them, so `R&foo;d &` round-trips as `R&amp;foo;d &amp;`.
 
 ### LaTeX (`.tex`)
 

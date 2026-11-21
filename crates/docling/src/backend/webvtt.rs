@@ -61,6 +61,11 @@ enum Tag {
     /// `<c>` and `<lang>`: no metadata of their own (docling-core parses the
     /// class list / language but the backend ignores both).
     Transparent,
+    /// `<ruby>` and `<rt>` (docling-core#935): transparent like `<c>`, so a
+    /// ruby base and each annotation become runs of their own, as docling's
+    /// backend reads them. Kept apart for the nesting rules.
+    Ruby,
+    RubyText,
 }
 
 /// Nesting depth past which a span is flattened into its parent (its tag
@@ -111,7 +116,7 @@ pub(crate) fn append_cues(doc: &mut DoclingDocument, tree: &mut ItemTree, body: 
         if block.starts_with("NOTE") || block.starts_with("STYLE") || block.starts_with("REGION") {
             continue;
         }
-        let Some(cue) = parse_cue_block(block) else {
+        let Some(cue) = parse_cue_block(&block) else {
             continue;
         };
         let mut paras: Vec<Vec<Run>> = vec![Vec::new()];
@@ -174,26 +179,33 @@ fn text_kind(label: &str, text: &str, formatting: Option<Formatting>) -> TreeKin
     }
 }
 
-/// Split on blank (whitespace-only) lines — `re.split(r"\n\s*\n", body.strip())`.
-fn blank_line_blocks(body: &str) -> Vec<&str> {
-    let mut blocks = Vec::new();
-    let mut start: Option<usize> = None;
-    let mut offset = 0;
-    for line in body.split_inclusive('\n') {
-        let end = offset + line.len();
-        if line.trim().is_empty() {
-            if let Some(s) = start.take() {
-                blocks.push(body[s..offset].trim());
-            }
-        } else if start.is_none() {
-            start = Some(offset);
+/// docling-core's `WebVTTFile._split_blocks` (docling-core#975): blocks are
+/// split at empty lines. A line holding only whitespace is cue text — the
+/// `" "` line every cue of a YouTube caption file starts with — unless the
+/// next cue starts right after it (its timings on the next line, or on the
+/// one after an identifier), when it still separates the two. Splitting at
+/// every whitespace-only line lost a YouTube file's first cue.
+fn blank_line_blocks(body: &str) -> Vec<String> {
+    let lines: Vec<&str> = body.trim().split('\n').collect();
+    let mut blocks: Vec<Vec<&str>> = vec![Vec::new()];
+    for (index, line) in lines.iter().enumerate() {
+        let separates = line.is_empty()
+            || (line.trim().is_empty()
+                && lines[index + 1..]
+                    .iter()
+                    .take(2)
+                    .any(|following| following.contains("-->")));
+        if separates {
+            blocks.push(Vec::new());
+        } else {
+            blocks.last_mut().expect("a block").push(line);
         }
-        offset = end;
-    }
-    if let Some(s) = start {
-        blocks.push(body[s..].trim());
     }
     blocks
+        .into_iter()
+        .filter(|b| !b.is_empty())
+        .map(|b| b.join("\n"))
+        .collect()
 }
 
 /// docling-core's `WebVTTCueBlock.parse`: an optional identifier line, the
@@ -281,21 +293,27 @@ fn parse_components(cue_text: &str) -> Vec<Comp> {
     let mut buf = String::new();
     let mut rest = cue_text;
 
-    let flush = |buf: &mut String, target: &mut Vec<Comp>| {
+    // A text run, its character references resolved (docling-core#926);
+    // `false` when one resolves to a line terminator, which rejects the cue.
+    let flush = |buf: &mut String, target: &mut Vec<Comp>| -> bool {
         if buf.is_empty() {
-            return;
+            return true;
         }
         let text = std::mem::take(buf);
         let pieces: Vec<&str> = text.split('\n').collect();
         let n = pieces.len();
         for (i, line) in pieces.iter().enumerate() {
             if !line.is_empty() {
+                let Some(text) = html_unescape(line) else {
+                    return false;
+                };
                 target.push(Comp::Text {
-                    text: line.to_string(),
+                    text,
                     terminator: i + 1 < n,
                 });
             }
         }
+        true
     };
 
     while let Some(lt) = rest.find('<') {
@@ -318,28 +336,152 @@ fn parse_components(cue_text: &str) -> Vec<Comp> {
             continue;
         };
         buf.push_str(&rest[..lt]);
-        flush(&mut buf, stack.last_mut().map_or(&mut root, |s| &mut s.2));
+        if !flush(&mut buf, stack.last_mut().map_or(&mut root, |s| &mut s.2)) {
+            return Vec::new();
+        }
         rest = after;
+        // WebVTT 1, 6.4 (docling-core#935): an `<rt>` applies only directly
+        // inside a `<ruby>` — elsewhere its start tag, and its end tag when
+        // no `<rt>` is open, are ignored; `</ruby>` closes an open `<rt>`
+        // (its end tag may be omitted, 4.2.2).
+        let top = stack.last().and_then(|s| s.0);
         if closing {
             // A stray end tag (nothing open) is ignored.
-            if let Some(open) = stack.pop() {
-                if open.0.is_some_and(|t| t != kind) {
-                    // Mismatched end tag: upstream rejects the cue block.
-                    return Vec::new();
-                }
+            if stack.is_empty() || (kind == Tag::RubyText && top != Some(Tag::RubyText)) {
+                continue;
+            }
+            if kind == Tag::Ruby && top == Some(Tag::RubyText) {
+                let open = stack.pop().expect("an open rt");
                 close_span(open, stack.last_mut().map_or(&mut root, |s| &mut s.2));
             }
+            let open = stack.pop().expect("an open span");
+            if open.0.is_some_and(|t| t != kind) {
+                // Mismatched end tag: upstream rejects the cue block.
+                return Vec::new();
+            }
+            close_span(open, stack.last_mut().map_or(&mut root, |s| &mut s.2));
         } else {
+            if kind == Tag::RubyText && top != Some(Tag::Ruby) {
+                continue;
+            }
+            let annotation = match annotation.map(|a| html_unescape(&a)) {
+                Some(Some(a)) => Some(a),
+                Some(None) => return Vec::new(),
+                None => None,
+            };
             let tag = (stack.len() < MAX_SPAN_DEPTH).then_some(kind);
             stack.push((tag, annotation, Vec::new()));
         }
     }
     buf.push_str(rest);
-    flush(&mut buf, stack.last_mut().map_or(&mut root, |s| &mut s.2));
+    if !flush(&mut buf, stack.last_mut().map_or(&mut root, |s| &mut s.2)) {
+        return Vec::new();
+    }
     while let Some(open) = stack.pop() {
         close_span(open, stack.last_mut().map_or(&mut root, |s| &mut s.2));
     }
     root
+}
+
+/// Python's `html.unescape` (docling-core#926 reads cue text and
+/// annotations through it): every HTML5 character reference resolves —
+/// named (`&eacute;`, legacy names without `;` too, `&copy` — the longest
+/// name that matches), decimal and hex (`&#39;`, `&#xE9;`, the C1 range
+/// read as windows-1252, a surrogate or out-of-range number as U+FFFD, a
+/// noncharacter dropped); one that does not resolve stays as written
+/// (`R&foo;d &`). `None` when a reference resolves to a line terminator
+/// (`&#10;`, `&#13;`): the value would be written back across two lines, so
+/// upstream rejects the cue.
+fn html_unescape(text: &str) -> Option<String> {
+    if !text.contains('&') {
+        return Some(text.to_string());
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(amp) = rest.find('&') {
+        out.push_str(&rest[..amp]);
+        let tail = &rest[amp + 1..];
+        let (decoded, used) = char_reference(tail);
+        if decoded.contains(['\n', '\r']) {
+            return None;
+        }
+        out.push_str(&decoded);
+        rest = &tail[used..];
+    }
+    out.push_str(rest);
+    Some(out)
+}
+
+/// One reference after its `&`: the replacement and the bytes it consumed
+/// (`&` kept and nothing consumed when none matches).
+fn char_reference(tail: &str) -> (String, usize) {
+    if let Some(num) = tail.strip_prefix('#') {
+        let (hex, digits) = match num.strip_prefix(['x', 'X']) {
+            Some(h) => (true, h),
+            None => (false, num),
+        };
+        let len = digits
+            .bytes()
+            .take_while(|b| if hex { b.is_ascii_hexdigit() } else { b.is_ascii_digit() })
+            .count();
+        if len == 0 {
+            return ("&".into(), 0);
+        }
+        let consumed = 1 + usize::from(hex) + len + usize::from(digits[len..].starts_with(';'));
+        let n = u32::from_str_radix(&digits[..len], if hex { 16 } else { 10 }).unwrap_or(u32::MAX);
+        return (numeric_reference(n), consumed);
+    }
+    // `[^\t\n\f <&#;]{1,32};?`
+    let len = tail
+        .char_indices()
+        .take_while(|(i, c)| *i < 128 && !matches!(c, '\t' | '\n' | '\x0c' | ' ' | '<' | '&' | '#' | ';'))
+        .take(32)
+        .map(|(i, c)| i + c.len_utf8())
+        .last()
+        .unwrap_or(0);
+    if len == 0 {
+        return ("&".into(), 0);
+    }
+    let with_semi = len + usize::from(tail[len..].starts_with(';'));
+    // The table also lists every prefix of a name, as `(0, 0)` (the
+    // tokenizer's lookahead): those are not references.
+    let entity = |name: &str| {
+        web_atoms::NAMED_ENTITIES.get(name).filter(|&&(a, _)| a != 0).map(|&(a, b)| {
+            [a, b]
+                .into_iter()
+                .filter(|&c| c != 0)
+                .filter_map(char::from_u32)
+                .collect::<String>()
+        })
+    };
+    if let Some(v) = entity(&tail[..with_semi]) {
+        return (v, with_semi);
+    }
+    // The longest prefix that is a (legacy, semicolon-less) name.
+    let ends: Vec<usize> = tail[..with_semi].char_indices().map(|(i, _)| i).skip(2).collect();
+    for &end in ends.iter().rev() {
+        if let Some(v) = entity(&tail[..end]) {
+            return (v, end);
+        }
+    }
+    ("&".into(), 0)
+}
+
+/// `html._replace_charref` for a number: NUL → U+FFFD, CR kept, the C1
+/// range as windows-1252, surrogates and numbers past U+10FFFF → U+FFFD,
+/// the other invalid code points dropped.
+fn numeric_reference(n: u32) -> String {
+    match n {
+        0 => "\u{fffd}".into(),
+        0x0d => "\r".into(),
+        0x80..=0x9f => web_atoms::C1_REPLACEMENTS[(n - 0x80) as usize]
+            .unwrap_or_else(|| char::from_u32(n).expect("a C1 control"))
+            .to_string(),
+        0xd800..=0xdfff | 0x110000.. => "\u{fffd}".into(),
+        0x1..=0x8 | 0xb | 0xe..=0x1f | 0x7f | 0xfdd0..=0xfdef => String::new(),
+        n if n & 0xfffe == 0xfffe => String::new(),
+        n => char::from_u32(n).map(String::from).unwrap_or_default(),
+    }
 }
 
 /// Append a closed span to its parent's components; one past
@@ -373,6 +515,8 @@ fn parse_tag(tag: &str) -> Option<(bool, Tag, Option<String>)> {
         "u" => Tag::Underline,
         "v" => Tag::Voice,
         "c" | "lang" => Tag::Transparent,
+        "ruby" => Tag::Ruby,
+        "rt" => Tag::RubyText,
         _ => return None,
     };
     // Class list: `.name` segments without whitespace, `&`, `<`, `>` or `.`.
@@ -385,11 +529,13 @@ fn parse_tag(tag: &str) -> Option<(bool, Tag, Option<String>)> {
         }
         after = &cls[len..];
     }
+    // The annotation may hold `&`: its character references resolve
+    // (docling-core#926), which [`parse_components`] checks.
     let annotation = match after.chars().next() {
         None => None,
         Some(' ' | '\t') => {
             let a = &after[1..];
-            if a.contains(['\n', '\r', '&']) {
+            if a.contains(['\n', '\r']) {
                 return None;
             }
             let a = a.trim();
@@ -437,7 +583,7 @@ fn extract_components(comps: &[Comp], parents: &mut Vec<Meta>, paras: &mut Vec<V
                             .underline = true
                     }
                     Tag::Voice => meta.voice = annotation.clone(),
-                    Tag::Transparent => {}
+                    Tag::Transparent | Tag::Ruby | Tag::RubyText => {}
                 }
                 parents.push(meta);
                 extract_components(children, parents, paras);
@@ -479,6 +625,81 @@ mod tests {
 
     fn md(vtt: &str) -> String {
         convert(vtt).export_to_markdown()
+    }
+
+    /// The JSON texts of a cue file.
+    fn texts(vtt: &str) -> Vec<String> {
+        let v = convert(vtt).export_to_json_value();
+        v["texts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["text"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    /// docling-core#926 (`test_webvtt_cue_html_character_references`):
+    /// every HTML character reference in cue text and annotations resolves;
+    /// an unknown one stays literal, one that is a line terminator drops the
+    /// cue.
+    #[test]
+    fn character_references_resolve() {
+        let vtt = "WEBVTT\n\n00:01.000 --> 00:03.000\nIt&#39;s raining.\n\n\
+                   00:03.000 --> 00:05.000\nCaf&eacute; or caf&#xE9;?\n\n\
+                   00:05.000 --> 00:07.000\n<v Ren&eacute;>Tom &amp; Jerry</v>\n\n\
+                   00:07.000 --> 00:09.000\nR&foo;d &\n\n\
+                   00:09.000 --> 00:10.000\nbroken a&#10;b\n";
+        assert_eq!(
+            texts(vtt),
+            ["It's raining.", "Café or café?", "Tom & Jerry", "R&foo;d &"]
+        );
+        let v = convert(vtt).export_to_json_value();
+        assert_eq!(v["texts"][2]["source"][0]["voice"], "René");
+        assert_eq!(
+            html_unescape("Ask &copy and &amp; me &notit; &#128512; &#x80; &#0;").as_deref(),
+            Some("Ask © and & me ¬it; 😀 € \u{fffd}")
+        );
+        assert_eq!(html_unescape("a&#13;b"), None);
+        // `test_webvtt_export_keeps_text_literal`: written back escaped once.
+        let out = convert(vtt).export_to_vtt();
+        assert!(out.contains("\nIt's raining.\n"), "{out}");
+        assert!(out.ends_with("\nR&amp;foo;d &amp;"), "{out}");
+        assert!(out.contains("<v René>Tom &amp; Jerry"), "{out}");
+    }
+
+    /// docling-core#975 (`test_webvtt_parse_whitespace_only_line`): a
+    /// whitespace-only line is cue text unless the next cue follows it.
+    #[test]
+    fn whitespace_only_line_is_cue_text() {
+        let youtube = "WEBVTT\n\n00:00:00.160 --> 00:00:02.869 align:start position:0%\n \n\
+                       hello<00:00:00.640><c> everyone</c>\n\n\
+                       00:00:02.879 --> 00:00:05.110 align:start position:0%\nhello everyone\nwelcome back\n";
+        assert_eq!(
+            texts(youtube),
+            ["hello", " everyone", "hello everyone", "welcome back"]
+        );
+        let separated = "WEBVTT\n\n1\n00:01.000 --> 00:02.000\none\n \n2\n00:02.000 --> 00:03.000\n\
+                         two\n \n00:03.000 --> 00:04.000\nthree\n";
+        assert_eq!(texts(separated), ["one", "two", "three"]);
+        let v = convert(separated).export_to_json_value();
+        assert_eq!(v["texts"][0]["source"][0]["identifier"], "1");
+        assert!(v["texts"][2]["source"][0].get("identifier").is_none_or(|i| i.is_null()));
+    }
+
+    /// docling-core#935 (`test_webvtt_ruby_spans` and the two `rt` rules):
+    /// a ruby base and each annotation are runs of their own.
+    #[test]
+    fn ruby_spans_keep_their_runs() {
+        let runs = |cue: &str| texts(&format!("WEBVTT\n\n00:01.000 --> 00:02.000\n{cue}\n"));
+        assert_eq!(runs("<ruby>漢字<rt>かんじ</rt></ruby> is kanji"), ["漢字", "かんじ", " is kanji"]);
+        assert_eq!(runs("<ruby>漢字<rt>かんじ</ruby> is kanji"), ["漢字", "かんじ", " is kanji"]);
+        assert_eq!(runs("<ruby>日<rt>に</rt>本<rt>ほん</ruby>"), ["日", "に", "本", "ほん"]);
+        // The `<rt>` start tag inside an open `<rt>` is ignored: its text
+        // stays in the first annotation (two runs there, as docling reads it).
+        assert_eq!(runs("<ruby>日<rt>に<rt>ほん</rt></ruby>"), ["日", "に", "ほん"]);
+        assert_eq!(runs("<rt>x</rt> and <i><rt>y</rt></i>"), ["x", " and ", "y"]);
+        // A mismatched end tag over an open inner span still drops the cue.
+        assert!(runs("<ruby>a<rt>b<i>c</ruby>").is_empty());
     }
 
     #[test]

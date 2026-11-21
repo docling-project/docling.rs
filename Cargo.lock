@@ -1488,6 +1488,7 @@ dependencies = [
  "unicode-normalization",
  "ureq",
  "url",
+ "web_atoms",
  "zip",
 ]
 
