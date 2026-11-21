@@ -62,6 +62,9 @@ enum Program {
         has_glyf: bool,
         /// Glyph names of a CFF-flavoured sfnt, for name lookups.
         names: HashMap<String, u16>,
+        /// A "tricky" TrueType font's hinting (docling-parse#478, #1155):
+        /// `None` for every other font.
+        hinted: Option<Hinted>,
     },
     /// A bare CFF program.
     Cff {
@@ -801,6 +804,7 @@ impl LoadedFont {
                 has_cmap,
                 has_glyf,
                 names,
+                hinted,
                 ..
             } => {
                 let gid = if self.composite {
@@ -815,7 +819,10 @@ impl LoadedFont {
                 } else {
                     self.sfnt_simple_gid(font, names, code, *has_cmap, *has_glyf)?
                 };
-                outline_glyph(font, gid)
+                match hinted {
+                    Some(h) => h.glyph(font, gid).or_else(|| outline_glyph(font, gid)),
+                    None => outline_glyph(font, gid),
+                }
             }
             Program::Fallback { face, .. } => {
                 let gid = self.fallback_gid(&face.font, code, cid)?;
@@ -1132,6 +1139,79 @@ fn outline_glyph(font: &Font, gid: GlyphId) -> Option<GlyphPath> {
     Some(GlyphPath { path, advance })
 }
 
+/// The hinting of a "tricky" TrueType font — one whose glyphs are assembled
+/// from components only its bytecode puts in place (DFKai-SB, MingLiU,
+/// PMingLiU, …; FreeType's `FT_FACE_FLAG_TRICKY`, skrifa's
+/// `require_interpreter`): drawn unhinted, such a glyph comes out as
+/// scattered strokes. docling-parse 7.27 (docling-parse#478) draws these
+/// through FreeType, the glyph loaded hinted at one pixel per font unit
+/// (`FT_Set_Char_Size(units_per_EM * 64, 72 dpi)`) and the advance the linear
+/// one; here skrifa's TrueType interpreter runs at the same size
+/// (`ppem = unitsPerEm`), so the hinted outline is in font units like every
+/// other, and the advance stays `hmtx`'s. FreeType places a hinted glyph by
+/// its phantom points, so the `glyf` side-bearing shift of the unhinted path
+/// (`glyf_lsb_shift`) is not undone here.
+pub(crate) struct Hinted {
+    instance: skrifa::outline::HintingInstance,
+}
+
+impl Hinted {
+    /// The hinting for `font`, when it is a TrueType font that needs it.
+    fn for_font(font: &Font) -> Option<Self> {
+        if !font.is_hint_reliant() {
+            return None;
+        }
+        let font_ref = font_ref(font)?;
+        let outlines = skrifa::outline::OutlineGlyphCollection::new(&font_ref);
+        let instance = skrifa::outline::HintingInstance::new(
+            &outlines,
+            skrifa::instance::Size::new(f32::from(font.units_per_em())),
+            skrifa::instance::LocationRef::default(),
+            skrifa::outline::HintingOptions {
+                // What skrifa prescribes for a hint-reliant font: FreeType's
+                // TrueType interpreter at its full (v35, mono) strength.
+                engine: skrifa::outline::Engine::Interpreter,
+                target: skrifa::outline::Target::Mono,
+            },
+        )
+        .ok()?;
+        docling_core::debug_log!("render: a tricky TrueType font, drawn hinted");
+        Some(Hinted { instance })
+    }
+
+    /// The hinted outline of `gid`; `None` when the program fails for it
+    /// (the caller then draws it unhinted).
+    fn glyph(&self, font: &Font, gid: GlyphId) -> Option<GlyphPath> {
+        if gid.to_u32() >= font.num_glyphs() {
+            return None;
+        }
+        let font_ref = font_ref(font)?;
+        let outlines = skrifa::outline::OutlineGlyphCollection::new(&font_ref);
+        let glyph = outlines.get(gid)?;
+        let mut b = Builder(tiny_skia::PathBuilder::new());
+        glyph
+            .draw(
+                skrifa::outline::DrawSettings::hinted(&self.instance, false),
+                &mut b,
+            )
+            .ok()?;
+        // `linearHoriAdvance`: the unhinted advance, as docling-parse takes it.
+        let advance = f64::from(font.glyph_metrics().h_advance(gid));
+        Some(GlyphPath {
+            path: b.0.finish(),
+            advance,
+        })
+    }
+}
+
+/// A table-level view of the font's bytes, for skrifa's hinting API.
+fn font_ref(font: &Font) -> Option<skrifa::FontRef<'_>> {
+    match font.source() {
+        skrifa::font::Source::Blob(blob) => skrifa::FontRef::new(blob.as_ref()).ok(),
+        _ => None,
+    }
+}
+
 /// How far read-fonts moved a `glyf` outline from its stored coordinates:
 /// like FreeType, it translates every TrueType glyph so that its xMin lands
 /// on `hmtx`'s left side bearing (the first phantom point, `lsb − xMin`).
@@ -1185,6 +1265,11 @@ fn sfnt_program(mut data: Vec<u8>) -> Option<Program> {
         _ => (None, HashMap::new()),
     };
     let matrix = em_matrix(&font);
+    let hinted = if has_glyf {
+        Hinted::for_font(&font)
+    } else {
+        None
+    };
     Some(Program::Sfnt {
         font,
         matrix,
@@ -1192,6 +1277,7 @@ fn sfnt_program(mut data: Vec<u8>) -> Option<Program> {
         has_cmap,
         has_glyf,
         names,
+        hinted,
     })
 }
 
@@ -1295,6 +1381,93 @@ fn _unused(_: &Dictionary) -> Option<&[u8]> {
 mod tests {
     use super::LoadedFont;
     use lopdf::{dictionary, Document, Object};
+
+    /// `sfnt` with its `name` table replaced by one naming the family
+    /// `family` (a Windows English record), the other tables kept.
+    fn renamed(sfnt: &[u8], family: &str) -> Vec<u8> {
+        let be16 = |o: usize| u16::from_be_bytes([sfnt[o], sfnt[o + 1]]) as usize;
+        let be32 = |o: usize| u32::from_be_bytes(sfnt[o..o + 4].try_into().unwrap()) as usize;
+        let utf16: Vec<u8> = family.encode_utf16().flat_map(u16::to_be_bytes).collect();
+        let mut name = Vec::new();
+        for v in [0u16, 1, 18, 3, 1, 0x409, 1, utf16.len() as u16, 0] {
+            name.extend_from_slice(&v.to_be_bytes());
+        }
+        name.extend_from_slice(&utf16);
+        let n = be16(4);
+        let mut tables: Vec<([u8; 4], Vec<u8>)> = (0..n)
+            .map(|i| {
+                let r = 12 + 16 * i;
+                let tag: [u8; 4] = sfnt[r..r + 4].try_into().unwrap();
+                let (off, len) = (be32(r + 8), be32(r + 12));
+                let data = if &tag == b"name" {
+                    name.clone()
+                } else {
+                    sfnt[off..off + len].to_vec()
+                };
+                (tag, data)
+            })
+            .collect();
+        tables.sort_by_key(|(tag, _)| *tag);
+        let mut out = sfnt[..12].to_vec();
+        let mut offset = 12 + 16 * n;
+        let mut body = Vec::new();
+        for (tag, data) in &tables {
+            out.extend_from_slice(tag);
+            out.extend_from_slice(&0u32.to_be_bytes());
+            out.extend_from_slice(&(offset as u32).to_be_bytes());
+            out.extend_from_slice(&(data.len() as u32).to_be_bytes());
+            let padded = (data.len() + 3) & !3;
+            body.extend_from_slice(data);
+            body.resize(body.len() + padded - data.len(), 0);
+            offset += padded;
+        }
+        out.extend_from_slice(&body);
+        out
+    }
+
+    /// #1155 (docling-parse#478): a TrueType font FreeType calls "tricky" —
+    /// here a host font renamed into the list (`MingLiU`), as skrifa's own
+    /// test does with Tinos — is drawn through its hinting program, at one
+    /// pixel per font unit: the outline stays in font units, the advance is
+    /// the unhinted one. Any other font draws unhinted, as before.
+    #[test]
+    fn tricky_truetype_draws_hinted_in_font_units() {
+        let path = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
+        let Ok(sfnt) = std::fs::read(path) else {
+            eprintln!("skipping: no {path}");
+            return;
+        };
+        let plain = super::sfnt_program(sfnt.clone()).expect("an sfnt");
+        let tricky = super::sfnt_program(renamed(&sfnt, "MingLiU")).expect("an sfnt");
+        let super::Program::Sfnt { hinted: None, .. } = &plain else {
+            panic!("a plain font is not hinted");
+        };
+        let super::Program::Sfnt {
+            font,
+            hinted: Some(hinted),
+            ..
+        } = &tricky
+        else {
+            panic!("a tricky font is hinted");
+        };
+        let gid = font.charmap().map_unicode('H').expect("H");
+        let hinted_glyph = hinted.glyph(font, gid).expect("a hinted outline");
+        let unhinted = super::outline_glyph(font, gid).expect("an outline");
+        assert_eq!(hinted_glyph.advance, unhinted.advance);
+        let (a, b) = (
+            hinted_glyph.path.expect("ink").bounds(),
+            unhinted.path.expect("ink").bounds(),
+        );
+        // Hinted at ppem = unitsPerEm (2048), a point moves by a unit or so.
+        for (x, y) in [
+            (a.left(), b.left()),
+            (a.top(), b.top()),
+            (a.right(), b.right()),
+            (a.bottom(), b.bottom()),
+        ] {
+            assert!((x - y).abs() <= 4.0, "{a:?} vs {b:?}");
+        }
+    }
 
     #[test]
     #[cfg(feature = "cid-collections")]

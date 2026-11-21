@@ -176,6 +176,17 @@ says `… and the password is wrong`).
   untouched), the Type 2 `dotsection` operator stripped first
   (`dotsection.rs`, #531 — it used to abandon the glyph, so FrameMaker
   index pages lost their dot leaders and heron read them as one table),
+  a "tricky" TrueType — one FreeType flags `FT_FACE_FLAG_TRICKY` (DFKai-SB,
+  MingLiU, PMingLiU, …: glyphs assembled from components only the font's
+  bytecode puts in place) — through skrifa's TrueType interpreter at one
+  pixel per font unit, the advance the unhinted one, as docling-parse 7.27
+  draws it through FreeType (docling-parse#478, #1155; `mod.rs` `Hinted`):
+  drawn unhinted its Chinese text came out as scattered strokes. On
+  docling-parse's regression page `1530ae26884967ac_0004.pdf` (a Taiwanese
+  bank form set in DFKai-SB and PMingLiU) the render's mean absolute error
+  against pypdfium2 at scale 2 falls from 11.38 to 4.24 (changed-pixel
+  ratio 0.151 → 0.115; docling-parse's own: 10.33 → 4.83); no corpus PDF
+  embeds such a font, so every corpus render is unchanged,
   Type 1 through an own charstring interpreter (`type1.rs`),
   Type 3 through the glyph procedures, selected per ISO 32000-1 9.6.6 /
   9.7.4 (`/Differences`, base encodings, `cmap` subtable rules, `post`
