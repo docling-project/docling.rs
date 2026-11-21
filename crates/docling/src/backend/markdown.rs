@@ -1282,7 +1282,10 @@ impl MarkdownBackend {
                     } else {
                         unescape_entities(t)
                     };
-                    runs.push(docling_core::code_span(&content));
+                    // docling's backend strips a code span's text
+                    // (`str(element.children).strip()`), as the item tree
+                    // does — `` `  x  ` `` is the code `x`.
+                    runs.push(docling_core::code_span(content.trim()));
                     *i += 1;
                 }
                 Event::Start(Tag::Emphasis) => {

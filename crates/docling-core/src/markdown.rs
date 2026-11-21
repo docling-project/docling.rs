@@ -665,12 +665,22 @@ pub fn longest_backtick_run(text: &str) -> usize {
 /// ``` ``a`b`` ``` and `` `x `` is ``` `` `x `` ```.
 pub fn code_span(text: &str) -> String {
     let ticks = "`".repeat(longest_backtick_run(text) + 1);
-    let pad = if text.starts_with('`') || text.ends_with('`') {
+    let pad = if text.starts_with('`') || text.ends_with('`') || needs_space_pad(text) {
         " "
     } else {
         ""
     };
     format!("{ticks}{pad}{text}{pad}{ticks}")
+}
+
+/// docling-core#981: CommonMark normalizes a code span's line endings to
+/// spaces, then strips one space from each end when both ends hold one and
+/// the content is not all spaces — so a code text with a space at each edge
+/// (`" x "`) gets one pad space per side (`` `  x  ` ``) to survive the
+/// reading. Tabs and no-break spaces are not stripped and need none.
+fn needs_space_pad(text: &str) -> bool {
+    let normalized = text.replace("\r\n", "\n").replace(['\r', '\n'], " ");
+    normalized.starts_with(' ') && normalized.ends_with(' ') && normalized.trim_matches(' ') != ""
 }
 
 /// A fenced code block whose fence out-lengths every backtick run in `body`
@@ -685,10 +695,11 @@ pub fn code_fence(language: &str, body: &str) -> String {
 /// The code span (or flattened fence) opening at `chars[i]`, a run of
 /// backticks: `(content start, content end, index after the closing run)`.
 /// The closing run is the first later run of exactly the same length — a
-/// run of another length is literal inside the span, as in CommonMark. A
-/// span of two or more backticks sheds the one-space pad [`code_span`]
-/// adds; a single-backtick span keeps its content as it stands, the shape
-/// every reader of the baked text relied on.
+/// run of another length is literal inside the span, as in CommonMark. The
+/// span sheds the one-space pad [`code_span`] adds — CommonMark's rule: a
+/// space (or line ending) at each end, the content not all spaces. A
+/// single-backtick span gets one since docling-core#981 (`` `  x  ` ``
+/// is the code `" x "`).
 pub(crate) fn code_span_bounds(chars: &[char], i: usize) -> Option<(usize, usize, usize)> {
     let n = chars[i..].iter().take_while(|&&c| c == '`').count();
     if n == 0 {
@@ -703,11 +714,11 @@ pub(crate) fn code_span_bounds(chars: &[char], i: usize) -> Option<(usize, usize
         let run = chars[k..].iter().take_while(|&&c| c == '`').count();
         if run == n {
             let (mut s, mut e) = (i + n, k);
-            if n > 1
-                && e - s >= 2
-                && chars[s] == ' '
-                && chars[e - 1] == ' '
-                && chars[s..e].iter().any(|&c| c != ' ')
+            let space = |c: char| matches!(c, ' ' | '\n' | '\r');
+            if e - s >= 2
+                && space(chars[s])
+                && space(chars[e - 1])
+                && chars[s..e].iter().any(|&c| !space(c))
             {
                 s += 1;
                 e -= 1;
@@ -2890,6 +2901,39 @@ mod tests {
         assert_eq!(code_span("a ``` b"), "````a ``` b````");
         assert_eq!(code_span("`x"), "`` `x ``");
         assert_eq!(code_span("x`"), "`` x` ``");
+        // docling-core#981 (`test_markdown_inline_code_span_preserves_spaces`,
+        // all 19 cases): edge spaces survive CommonMark's strip.
+        let cases = [
+            (" x ", "`  x  `"),
+            ("  x  ", "`   x   `"),
+            (" ", "` `"),
+            ("   ", "`   `"),
+            (" x", "` x`"),
+            ("x ", "`x `"),
+            (" \t ", "`  \t  `"),
+            (" \u{a0} ", "`  \u{a0}  `"),
+            ("\tx\t", "`\tx\t`"),
+            ("\u{a0}x\u{a0}", "`\u{a0}x\u{a0}`"),
+            (" `x` ", "``  `x`  ``"),
+            ("\nx ", "` \nx  `"),
+            (" x\n", "`  x\n `"),
+            ("\nx\n", "` \nx\n `"),
+            ("\r\nx\r\n", "` \r\nx\r\n `"),
+            ("\rx\r", "` \rx\r `"),
+            (" x\ny ", "`  x\ny  `"),
+            (" \n ", "` \n `"),
+            (" \r\n ", "` \r\n `"),
+        ];
+        for (code, want) in cases {
+            assert_eq!(code_span(code), want, "{code:?}");
+            // And the readers of baked spans get the code back.
+            let chars: Vec<char> = want.chars().collect();
+            let (s, e, after) = code_span_bounds(&chars, 0).unwrap();
+            assert_eq!(after, chars.len());
+            if !code.contains(['\n', '\r']) {
+                assert_eq!(chars[s..e].iter().collect::<String>(), code, "{want:?}");
+            }
+        }
         for (span, text) in [
             ("`x`", "x"),
             ("``a`b``", "a`b"),
