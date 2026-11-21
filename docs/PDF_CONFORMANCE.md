@@ -7,7 +7,9 @@ references, both run the way docling's `tests/test_e2e_conversion.py` runs
 
 * **upstream's committed groundtruth** — `tests/data/pdf/groundtruth/*.md`
   mirrors docling's own `tests/data/pdf/groundtruth` (mirrored at docling
-  `a7760ab`, 2026-11-11). `scripts/conformance/pdf_groundtruth.sh`
+  `f93ee6bc`, 2026-11-20 — #1143; docling#4387 regenerated `2203.01017v2`,
+  `2206.01062`, `2305.03393v1` and `newspaper-00` since the `a7760ab`
+  mirror of 2026-11-11). `scripts/conformance/pdf_groundtruth.sh`
   scores it with no docling install: `--skip-ocr --compact-tables`, the
   model inputs rendered by docling-parse's renderer
   (`DOCLING_RS_RENDERER=docling-parse`, #478) and the conformance model set
@@ -33,7 +35,10 @@ matches the headline below.
 ## Current state
 
 **9 / 21 strict** against upstream's groundtruth — **450 diff lines**
-(measured 2026-11-17; snapshots 101/101 exact). The mirror refresh at
+(re-measured 2026-11-21 on the `f93ee6bc` mirror, after the PDF part of the
+upstream sync — #1144's docling#4387 hyphens and the docling-parse 7.26/7.27
+ports, #1150–#1155 — every file's count as on 2026-11-17; snapshots 101/101
+exact). The mirror refresh at
 docling `a7760ab` added three fixtures — `acroform_sample` (16),
 `elsevier-00` (287), `newspaper-00` (26) — and changed none of the others;
 the 18 files scored before went 180 → 168 with docling-parse's outline
@@ -47,11 +52,18 @@ not. docling-parse's char box — the font's descent and ascent scaled by
 `elsevier-00` 287 → 236 and `table_misidentified_as_form` 38 → 28, the
 other 19 unmoved.
 
-Against **live docling 2.150.0** (docling-parse 7.25.0, docling-core
-2.106.0, docling-ibm-models 4.0.4) the 18 upstream fixtures score **6 / 18
-strict, 414 diff lines** (the three `base14_fonts_rot*` files are our own
-fixtures, not run there). Live docling no longer reproduces upstream's
-committed groundtruth on five files (60 lines): docling-parse 7.25's word
+Against **live docling 2.151.1** (docling-parse 7.27.0, docling-core
+2.107.1, docling-ibm-models 4.0.4, torch 2.15 CPU; measured 2026-11-21) the
+18 upstream fixtures score **6 / 18 strict, 386 diff lines** — 2.150.0 scored
+6 / 18 and 414: `multi_page` became exact (docling-parse 7.26's `SymbolMT`
+bullet, below) and `2305.03393v1` stopped being, live 2.151.1 cutting two
+author/affiliation blocks after a comma (`… Christoph Auer[…] ,` /
+`and Peter Staar[…]`) that the groundtruth and we keep whole. The three
+`base14_fonts_rot*` files, our own fixtures, are exact against it too.
+Live docling 2.151.1 differs from upstream's committed groundtruth on seven
+files (96 lines): the five below and `2305.03393v1` (4), `elsevier-00` (2,
+`## ARTICLE INFO` where the groundtruth letter-spaces it). Live docling no longer reproduces upstream's
+committed groundtruth on those five (the 2.150 observation, 60 lines then): docling-parse 7.25's word
 segmentation (docling-parse#437 — word gaps judged in em, no per-line
 k-means) now splits the pairs docling-parse 7.22–7.24 glued and we already
 split (`Khurram Azeem Hashmi`, `RELATED WORK`, `mAP @`, `Chefredaktorin
@@ -61,15 +73,15 @@ private-use Symbol arrows as `→` where the groundtruth reads `3` / `7` and
 U+F0AE — ported here (#1113). The upstream groundtruth will move to that
 when docling regenerates it.
 
-| PDF | vs groundtruth | vs live 2.150 | dominant remaining blocker |
+| PDF | vs groundtruth | vs live 2.151.1 | dominant remaining blocker |
 |---|---:|---:|---|
 | picture_classification | **exact** | **exact** | — |
 | 2305.03393v1-pg9 | **exact** | **exact** | — (TableFormer table, cell for cell) |
 | amt_handbook_sample | **exact** | **exact** | — |
 | code_and_formula | **exact** | **exact** | — |
 | right_to_left_03 | **exact** | **exact** | — |
-| 2305.03393v1 | **exact** | **exact** | — (the figure file names' underscores: outline boxes, a cell assigned once) |
-| base14_fonts_rot90 / _rot180 / _rot270 | **exact** | — | — (`/Rotate` display-frame normalization, docling#4008; our fixtures, groundtruth = the unrotated upstream file) |
+| 2305.03393v1 | **exact** | 4 | — (the figure file names' underscores: outline boxes, a cell assigned once); live 2.151.1 cuts two author/affiliation blocks after a comma, which its groundtruth does not |
+| base14_fonts_rot90 / _rot180 / _rot270 | **exact** | **exact** | — (`/Rotate` display-frame normalization, docling#4008; our fixtures, groundtruth = the unrotated upstream file) |
 | right_to_left_01 | 2 | 2 | docling-parse cuts `أيضًا` before its tanween (`أيض ً`); we keep the word. `DOCLING_RS_PDF_ZERO_ADVANCE_RUN=1` cuts it as docling-parse does, and the file is then exact |
 | right_to_left_02 | 2 | 2 | one word's place at a line start (`ووف`), the same cut: exact under `DOCLING_RS_PDF_ZERO_ADVANCE_RUN=1` |
 | normal_4pages | 8 | 8 | docling folds the page-number glyph into the heading (`## 들어가며 1`), we emit it as its own item; one paragraph docling breaks before its last line |
@@ -77,7 +89,7 @@ when docling regenerates it.
 | 2206.01062 | 24 | 12 | `tildelow10%` (docling-parse's glyph-name mapping; we read `~10%`), the author block and one paragraph in another place; the groundtruth's glued words (`RELATEDWORK`, `mAP@`) and live's `mAP @ 0.5` vs our `mAP @0.5` |
 | acroform_sample | 16 | 16 | AcroForm widgets: docling's `extract_form_fields` turns the field value (`Ada Lovelace`) and the check boxes (`- [x]` / `- [ ]`) into form items and links the last line; not ported — we read the drawn labels as one paragraph |
 | newspaper-00 | 26 | 24 | line-end hyphens docling fuses (`Subventionier-`/`te`); the groundtruth glues words before a capital (`ChefredaktorinDésiréePomper`), live splits them like us — but where live splits a lowercase word from a following `W` (`unseren Werbekunden`, `im Wettbewerb`) we still glue it (docling-parse#437's em-based gap, not ported yet); `Co-Geschäftsleiterin Hug AG` one block there, two here, and a paragraph docling breaks before its last line |
-| multi_page | 32 | **exact** (2.151.1) | only the groundtruth's `∞` list bullets (`- ∞ IBM MT/ST …`), docling-parse ≤ 7.25's reading of the MacRoman `SymbolMT` bullet; docling-parse 7.26 (docling-parse#370, #1152) reads `•` and docling drops it as the marker, as we do |
+| multi_page | 32 | **exact** | only the groundtruth's `∞` list bullets (`- ∞ IBM MT/ST …`), docling-parse ≤ 7.25's reading of the MacRoman `SymbolMT` bullet; docling-parse 7.26 (docling-parse#370, #1152) reads `•` and docling drops it as the marker, as we do |
 | redp5110_sampled | 28 | 26 | monospace code docling-parse spaces around punctuation (`EMPLOYEES .`, `( SESSION_USER , 'MGR' )`); a list bullet docling-parse reads as its CID (`r`), we as `�`; the groundtruth's private-use arrows (`\uF0AE HR\_SCHEMA`), which live docling reads like us — `→ HR\_SCHEMA→` (#1113) |
 | table_mislabeled_as_picture | 24 | 24 | the survey over-detected as tables; blank cells docling keeps |
 | table_misidentified_as_form | 28 | 28 | the form container's nested table / picture (docling#4064): docling nests them in the form region and keeps the heading, we flatten the region |
