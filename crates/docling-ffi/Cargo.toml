@@ -25,7 +25,7 @@ publish = false
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-docling = { path = "../docling", version = "2.86.9" }
+docling = { path = "../docling", version = "2.86.10" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
