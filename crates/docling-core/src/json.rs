@@ -3567,6 +3567,7 @@ mod tests {
         ];
         doc.push(Node::Table(crate::Table {
             footnotes: Vec::new(),
+            footnotes_as_runs: false,
             rows,
             location: None,
             structure: Some(crate::TableStructure {
@@ -4023,6 +4024,7 @@ mod tests {
         });
         doc.push(Node::Table(Table {
             footnotes: Vec::new(),
+            footnotes_as_runs: false,
             rows: vec![vec!["A".into(), "B".into()]],
             location: None,
             structure: None,

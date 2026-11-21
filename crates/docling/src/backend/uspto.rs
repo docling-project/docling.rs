@@ -1252,6 +1252,7 @@ fn parse_table(table: XmlNode) -> Option<Table> {
     }
     Some(Table {
         footnotes: Vec::new(),
+        footnotes_as_runs: false,
         rows,
         location: None,
         structure: Some(TableStructure {

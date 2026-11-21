@@ -1178,6 +1178,12 @@ pub struct Table {
     /// the grid, one paragraph each; JSON emits `footnote` text items under
     /// the table that its `footnotes` list references (docling-core#675).
     pub footnotes: Vec<String>,
+    /// The footnotes are docling's empty `footnote` items holding an inline
+    /// group of runs (the JATS table notes, docling#4818) rather than items
+    /// with their own text. docling-core's LaTeX footnote pass serializes a
+    /// note's text inside the table's float (docling-core#897), so it skips
+    /// these and its walk writes their runs after the table — LaTeX only.
+    pub footnotes_as_runs: bool,
     /// Optional per-cell bounding boxes, same shape as [`Self::rows`]: `[l, t,
     /// r, b]` in page points with a **top-left** origin (the PDF pipeline's
     /// native space). Set by the ML pipeline's TableFormer paths — a spanned

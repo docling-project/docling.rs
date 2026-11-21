@@ -472,6 +472,7 @@ pub fn build_chart_grid(
     }
     Some(docling_core::Table {
         footnotes: Vec::new(),
+        footnotes_as_runs: false,
         rows,
         location: None,
         structure: Some(docling_core::TableStructure {
@@ -530,6 +531,7 @@ pub fn chart_table(
     }
     Some(docling_core::Table {
         footnotes: Vec::new(),
+        footnotes_as_runs: false,
         rows,
         location: None,
         structure: Some(docling_core::TableStructure {

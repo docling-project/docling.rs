@@ -2044,6 +2044,8 @@ fn add_table_grid(out: &mut Out, parent: Option<usize>, node: XmlNode) -> bool {
     );
     add_rich_cells(out, table_id, &mut table, rich);
     table.footnotes = add_table_footnotes(out, table_id, node);
+    // Empty `footnote` items over inline groups (docling#4818).
+    table.footnotes_as_runs = true;
     // The label+caption becomes the table's own caption (docling attaches it to
     // the `TableItem` rather than emitting a standalone paragraph before it).
     // Stored escaped, matching the backend's text-node convention.
@@ -2222,6 +2224,7 @@ fn parse_jats_table(table: XmlNode) -> Option<(Table, Vec<RichCell>)> {
     Some((
         Table {
             footnotes: Vec::new(),
+            footnotes_as_runs: false,
             rows: grid,
             location: None,
             structure,

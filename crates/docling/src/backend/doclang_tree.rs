@@ -1765,6 +1765,7 @@ fn is_simple_virtual_text(nodes: &[XmlNode]) -> bool {
 fn empty_table() -> Table {
     Table {
         footnotes: Vec::new(),
+        footnotes_as_runs: false,
         rows: Vec::new(),
         location: None,
         structure: None,
@@ -1793,6 +1794,7 @@ pub(super) fn table_from_cells(cells: Vec<TableCell>, num_rows: usize, num_cols:
     }
     Table {
         footnotes: Vec::new(),
+        footnotes_as_runs: false,
         rows,
         location: None,
         structure: None,

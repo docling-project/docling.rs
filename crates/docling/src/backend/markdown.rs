@@ -1195,6 +1195,7 @@ impl MarkdownBackend {
         if !rows.is_empty() {
             out.push(Node::Table(Table {
                 footnotes: Vec::new(),
+                footnotes_as_runs: false,
                 rows,
                 location: None,
                 structure: None,

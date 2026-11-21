@@ -897,6 +897,7 @@ fn parse_table(el: XmlNode) -> Option<Table> {
         .collect();
     Some(Table {
         footnotes: Vec::new(),
+        footnotes_as_runs: false,
         rows,
         location: None,
         structure: Some(TableStructure {

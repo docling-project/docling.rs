@@ -2352,6 +2352,7 @@ mod tests {
         doc.compact_tables = true;
         doc.push(Node::Table(Table {
             footnotes: Vec::new(),
+            footnotes_as_runs: false,
             rows: vec![vec!["a".into(), "b".into()], vec!["1".into(), "2".into()]],
             location: None,
             structure: None,
@@ -2371,6 +2372,7 @@ mod tests {
         let mut doc = DoclingDocument::new("t");
         doc.push(Node::Table(Table {
             footnotes: Vec::new(),
+            footnotes_as_runs: false,
             rows: vec![vec!["a".into(), "b".into()], vec!["1".into(), "2".into()]],
             location: None,
             structure: None,
@@ -2498,6 +2500,7 @@ mod tests {
         });
         doc.push(Node::Table(Table {
             footnotes: Vec::new(),
+            footnotes_as_runs: false,
             rows: vec![vec!["a".into(), "b".into()], vec!["1".into(), "2".into()]],
             location: None,
             structure: None,

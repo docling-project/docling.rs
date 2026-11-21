@@ -4463,6 +4463,7 @@ pub fn assemble_page(
                     loc,
                     Node::Table(Table {
                         footnotes: Vec::new(),
+                        footnotes_as_runs: false,
                         rows,
                         location: None,
                         structure,

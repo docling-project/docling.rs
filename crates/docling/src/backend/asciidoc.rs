@@ -1233,6 +1233,7 @@ impl Parser<'_> {
             }
             let table = Table {
                 footnotes: Vec::new(),
+                footnotes_as_runs: false,
                 rows,
                 location: None,
                 structure: None,

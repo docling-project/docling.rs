@@ -468,6 +468,18 @@ fn footnotes_of(item: &Value, root: &Value) -> Vec<String> {
         .collect()
 }
 
+/// Whether every footnote of `item` is an empty item holding runs (see
+/// [`Table::footnotes_as_runs`]); `false` for a table without notes.
+fn footnotes_are_runs(item: &Value, root: &Value) -> bool {
+    let notes: Vec<&Value> = item["footnotes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|r| resolve(r, root))
+        .collect();
+    !notes.is_empty() && notes.iter().all(|n| n["text"].as_str().unwrap_or("").is_empty())
+}
+
 /// A picture's or code item's footnotes as standalone `footnote` items
 /// after it: the flat [`Node::Picture`] / [`Node::Code`] carry no list of
 /// their own, so the Markdown matches docling's (one paragraph each, after
@@ -1122,7 +1134,13 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
                 .push(flags(cells, |c| past(c, "start_row_offset_idx", r)));
         }
     }
-    if !rows.is_empty() {
+    // A table without cells is still kept for its caption or its notes
+    // (docling-core#897's `test_table_with_only_footnotes`: the LaTeX float
+    // and the Markdown carry them); one with neither renders nothing.
+    let keep = !rows.is_empty()
+        || caption_of(item, root).is_some()
+        || !footnotes_of(item, root).is_empty();
+    if keep {
         let has_structure = structure.col_header.iter().flatten().any(|&b| b)
             || structure.row_header.iter().flatten().any(|&b| b)
             || structure.col_continuation.iter().flatten().any(|&b| b)
@@ -1142,6 +1160,10 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
             caption_parent: caption_parent_of(item, root),
             caption_location: None,
             footnotes: footnotes_of(item, root),
+            // Notes that are empty items over inline groups (a JATS table's,
+            // docling#4818) are written after the table in LaTeX, as
+            // docling-core's walk does; a note with text goes in the float.
+            footnotes_as_runs: footnotes_are_runs(item, root),
             // A table of contents keeps its label through the round trip.
             document_index: item["label"].as_str() == Some("document_index"),
         }));
