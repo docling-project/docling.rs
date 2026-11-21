@@ -113,6 +113,8 @@ console.log(content) // Markdown
 
 // Convert in-memory bytes (e.g. an upload) — pass the format explicitly.
 const md = convert({ name: 'notes', data: Buffer.from('# Hi\n'), format: 'md' })
+// `sourceUri` (a path or `file:` URI, docling#5017) names where the bytes live,
+// so local figures/images resolve under `imageSources: 'local'`.
 
 // docling-core JSON instead of Markdown.
 const json = convertFile('report.docx', { to: 'json' })

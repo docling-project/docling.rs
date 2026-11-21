@@ -52,6 +52,8 @@ mod docx_upstream_unit;
 mod dos_codepage;
 mod ebcdic;
 mod email;
+#[cfg(test)]
+mod email_sync_tests;
 pub(crate) mod epub;
 pub mod feed;
 mod html;
@@ -64,6 +66,8 @@ pub(crate) mod iwork;
 mod iwork_cells;
 mod iwork_charts;
 pub(crate) mod jats;
+#[cfg(test)]
+mod jats_sync_tests;
 mod keynote;
 mod keynote_iwa;
 mod keynote_xml;
@@ -125,6 +129,8 @@ mod wpd;
 mod wps;
 pub(crate) mod xbrl;
 mod xbrl_dts;
+mod xbrl_inline;
+pub(crate) use xbrl_inline::is_ixbrl;
 mod xls;
 mod xlsx;
 mod xlsx_drawings;

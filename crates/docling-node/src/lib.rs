@@ -161,6 +161,10 @@ pub struct ConverterOptions {
     /// Email (.eml/.msg): append an Attachments section — names and content
     /// types only, never the payload (#251). Default `false`.
     pub list_attachments: Option<bool>,
+    /// Email (.eml): append the events of its calendar invitations as a
+    /// Calendar section (docling#5357's `parse_calendar_invitations`).
+    /// Default `true`; `false` keeps a calendar body as text.
+    pub parse_calendar_invitations: Option<bool>,
     /// Omit empty cells from sparse XLSX/XLS table grids (#271; docling.rs
     /// extension). Default `false`.
     pub skip_empty_cells: Option<bool>,
@@ -527,6 +531,10 @@ pub struct ConvertOptions {
     /// Email (.eml/.msg): append an Attachments section — names and content
     /// types only, never the payload (#251). Default `false`.
     pub list_attachments: Option<bool>,
+    /// Email (.eml): append the events of its calendar invitations as a
+    /// Calendar section (docling#5357's `parse_calendar_invitations`).
+    /// Default `true`; `false` keeps a calendar body as text.
+    pub parse_calendar_invitations: Option<bool>,
     /// Omit empty cells from sparse XLSX/XLS table grids (#271). Default
     /// `false`.
     pub skip_empty_cells: Option<bool>,
@@ -665,6 +673,11 @@ pub struct ConvertInput {
     /// Format id or extension (e.g. `"md"`, `"pdf"`, `".html"`). Omit to infer
     /// from an extension on `name`.
     pub format: Option<String>,
+    /// Where the bytes live on disk — a path or a `file:` URI (docling's
+    /// `source_uri`, docling#5017): a JATS figure or an HTML image next to
+    /// the original resolves under `imageSources: "local"`. The file need
+    /// not exist; `file:///` is refused with a warning.
+    pub source_uri: Option<String>,
 }
 
 /// One extracted image file, returned for the `referenced` image mode.
@@ -1203,6 +1216,15 @@ fn run_convert_archive(bytes: Vec<u8>, cfg: &ConvertConfig) -> Result<Vec<RawArc
 
 /// Load a [`SourceDocument`] from an in-memory [`ConvertInput`].
 fn source_from_input(input: ConvertInput) -> Result<SourceDocument> {
+    let source_uri = input.source_uri.clone();
+    let source = source_from_bytes(input)?;
+    Ok(match source_uri {
+        Some(uri) => source.with_source_uri(&uri),
+        None => source,
+    })
+}
+
+fn source_from_bytes(input: ConvertInput) -> Result<SourceDocument> {
     match &input.format {
         Some(f) => {
             let format = parse_format(f)?;

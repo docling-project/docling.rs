@@ -125,6 +125,7 @@ paths:
         - { $ref: "#/components/parameters/pandoc_api_version" }
         - { $ref: "#/components/parameters/pandoc_heading_depth" }
         - { $ref: "#/components/parameters/list_attachments" }
+        - { $ref: "#/components/parameters/parse_calendar_invitations" }
         - { $ref: "#/components/parameters/ebcdic_layout" }
         - { $ref: "#/components/parameters/pages" }
         - { $ref: "#/components/parameters/scale" }
@@ -225,6 +226,7 @@ paths:
                 compact_tables: { type: boolean }
                 picture_alt_text: { type: boolean }
                 list_attachments: { type: boolean }
+                parse_calendar_invitations: { type: boolean }
                 ebcdic_layout: { type: string }
                 page_break_placeholder: { type: string, examples: ["<!-- page break -->"] }
                 md_page_break_placeholder: { type: string, description: "Alias of page_break_placeholder." }
@@ -1155,6 +1157,13 @@ components:
           description: >
             Email (.eml/.msg) — append an Attachments section listing names and
             content types; the attachments' bytes are never embedded.
+        parse_calendar_invitations:
+          type: boolean
+          default: true
+          description: >
+            Email (.eml) — append the events of the message's calendar parts
+            (inline or attached invitations) as a Calendar section, each entry
+            once (docling#5357); false keeps a calendar body as text.
         fetch_images:
           type: boolean
           default: false
@@ -1766,6 +1775,8 @@ components:
       { name: pandoc_heading_depth, in: query, schema: { type: string, enum: [docling, source] } }
     list_attachments:
       { name: list_attachments, in: query, schema: { type: boolean } }
+    parse_calendar_invitations:
+      { name: parse_calendar_invitations, in: query, schema: { type: boolean, default: true } }
     ebcdic_layout:
       { name: ebcdic_layout, in: query, schema: { type: string } }
     pages:

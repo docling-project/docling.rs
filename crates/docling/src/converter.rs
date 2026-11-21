@@ -281,6 +281,8 @@ pub struct DocumentConverter {
     image_hosts: Vec<String>,
     image_limits: ImageLimitOverrides,
     list_attachments: bool,
+    /// See [`Self::parse_calendar_invitations`].
+    parse_calendar_invitations: bool,
     /// Omit empty cells from sparse spreadsheet table grids (#271, XLSX/XLS
     /// family; opt-in docling.rs extension).
     skip_empty_cells: bool,
@@ -666,6 +668,7 @@ impl Default for DocumentConverter {
             image_hosts: Vec::new(),
             image_limits: ImageLimitOverrides::default(),
             list_attachments: false,
+            parse_calendar_invitations: true,
             skip_empty_cells: false,
             compact_tables: false,
             picture_alt_text: false,
@@ -1581,6 +1584,19 @@ impl DocumentConverter {
     /// `EmailBackendOptions.list_attachments` (#251); off by default.
     pub fn list_attachments(mut self, list: bool) -> Self {
         self.list_attachments = list;
+        self
+    }
+
+    /// Append the events of an email's calendar invitations (`.eml`): every
+    /// `text/calendar` / `application/ics` part, or `.ics`-named attachment,
+    /// inline or attached, as a `Calendar` section after the body — entries
+    /// de-duplicated by UID, RECURRENCE-ID and SEQUENCE (Gmail sends the
+    /// invitation twice), a description the body repeats left out. docling's
+    /// `EmailBackendOptions.parse_calendar_invitations` (docling#5357,
+    /// docling#5455); **on** by default. Off, a calendar body is kept as
+    /// text, as before. The CLI's `--no-calendar-invitations`.
+    pub fn parse_calendar_invitations(mut self, on: bool) -> Self {
+        self.parse_calendar_invitations = on;
         self
     }
 
@@ -3151,6 +3167,11 @@ impl DocumentConverter {
                 // from, as MarkItDown's `accepts` does — its title, metadata and
                 // caption transcript, not the page's markup.
                 InputFormat::Html if Self::is_youtube_page(source) => self.youtube_page(source)?,
+                // An inline XBRL report that reached here typed as HTML (a
+                // source built with an explicit format) is still a filing.
+                InputFormat::Html if crate::backend::is_ixbrl(&source.bytes) => {
+                    crate::backend::xbrl::convert_xbrl(source, self.xbrl_taxonomy.as_deref())?
+                }
                 InputFormat::Html => {
                     // Optionally resolve the CSS cascade in a headless browser first
                     // (strips computed-hidden elements); everything else stays in the
@@ -3260,6 +3281,7 @@ impl DocumentConverter {
                 InputFormat::Email => EmailBackend {
                     list_attachments: self.list_attachments,
                     images: self.image_policy(),
+                    parse_calendar_invitations: self.parse_calendar_invitations,
                 }
                 .convert(source)?,
                 InputFormat::Mhtml => MhtmlBackend {

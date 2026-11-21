@@ -21,6 +21,7 @@ use std::path::{Path, PathBuf};
 use roxmltree::{Document, Node as XmlNode, ParsingOptions};
 
 use super::xbrl_dts::{effective, Arc, Taxonomy, LINK_NS, XLINK_NS};
+use super::xbrl_inline::{inline_filing, is_inline_root};
 use crate::backend::markdown::escape_text;
 use crate::backend::{DeclarativeBackend, NoFetch};
 use crate::error::ConversionError;
@@ -66,32 +67,29 @@ pub(crate) fn convert_xbrl(
             .and_then(Path::parent)
             .map(Path::to_path_buf)
     });
-    let schema_refs: Vec<&str> = root
-        .children()
-        .filter(|n| n.tag_name().namespace() == Some(LINK_NS) && n.tag_name().name() == "schemaRef")
-        .filter_map(|n| n.attribute((XLINK_NS, "href")))
-        .collect();
+    // An inline XBRL report (docling#4689) is an XHTML page whose facts are
+    // tagged in place; the instance is read from its `ix:` elements. Both
+    // shapes come down to the same facts, contexts and units.
+    let filing = if is_inline_root(root) {
+        inline_filing(root)
+    } else {
+        instance_filing(root)
+    };
+    let schema_refs: Vec<&str> = filing.schema_refs.iter().map(String::as_str).collect();
     let taxonomy = Taxonomy::discover(taxonomy_dir.as_deref(), &schema_refs);
-
-    // arelle's `facts`: the instance's top-level items, in document order.
-    let facts: Vec<XmlNode> = root
-        .children()
-        .filter(|n| {
-            n.is_element() && !matches!(n.tag_name().namespace(), Some(XBRLI_NS) | Some(LINK_NS))
-        })
-        .collect();
-    let contexts = periods(root);
-    let units = unit_measures(root);
+    let facts = &filing.facts;
+    let contexts = &filing.contexts;
+    let units = &filing.units;
 
     // The title: the last non-empty value of each dei fact, joined as written
     // (docling strips the ends only); the file name when there is none.
     let (mut doc_type, mut doc_org, mut doc_period) = ("", "", "");
-    for fact in &facts {
-        let value = fact_value(*fact);
+    for fact in facts {
+        let value = fact.value.as_str();
         if value.is_empty() {
             continue;
         }
-        match fact.tag_name().name() {
+        match fact.local.as_str() {
             "DocumentType" => doc_type = value,
             "EntityRegistrantName" => doc_org = value,
             "DocumentPeriodEndDate" => doc_period = value,
@@ -111,13 +109,13 @@ pub(crate) fn convert_xbrl(
 
     // Text blocks and the fact graph, in one pass over the facts.
     let mut graph = Graph::default();
-    for fact in &facts {
-        let value = fact_value(*fact);
+    for fact in facts {
+        let value = fact.value.as_str();
         if value.is_empty() {
             continue;
         }
-        let namespace = fact.tag_name().namespace().unwrap_or("");
-        let local = fact.tag_name().name();
+        let namespace = fact.namespace.as_str();
+        let local = fact.local.as_str();
         let concept = taxonomy.concept(namespace, local);
         let html = value.split_whitespace().collect::<Vec<_>>().join(" ");
         // A concept the taxonomy declares is a text block by type; one it does
@@ -134,20 +132,18 @@ pub(crate) fn convert_xbrl(
         }
         // Numeric facts are the ones carrying a unit (XBRL requires one of a
         // numeric item and forbids it on any other).
-        if fact.attribute("unitRef").is_some() {
-            let qname = match fact.lookup_prefix(namespace) {
+        if let Some(unit_ref) = fact.unit_ref.as_deref() {
+            let qname = match fact.prefix.as_deref() {
                 Some(prefix) => format!("{prefix}:{local}"),
                 None => concept.map_or_else(|| local.to_string(), |c| c.qname()),
             };
             let period = fact
-                .attribute("contextRef")
+                .context_ref
+                .as_deref()
                 .and_then(|id| contexts.get(id))
                 .map_or("", String::as_str);
-            let unit = fact
-                .attribute("unitRef")
-                .and_then(|id| units.get(id))
-                .map_or("", String::as_str);
-            let decimals = fact.attribute("decimals").unwrap_or("");
+            let unit = units.get(unit_ref).map_or("", String::as_str);
+            let decimals = fact.decimals.as_deref().unwrap_or("");
             graph.add_fact(local, &qname, value, period, unit, decimals);
         }
     }
@@ -159,14 +155,14 @@ pub(crate) fn convert_xbrl(
         parent_of.entry(arc.to.as_str()).or_insert(arc);
     }
     let mut visited: HashSet<String> = HashSet::new();
-    for fact in &facts {
-        if fact.attribute("unitRef").is_none() || fact_value(*fact).is_empty() {
+    for fact in facts {
+        if fact.unit_ref.is_none() || fact.value.is_empty() {
             continue;
         }
-        let namespace = fact.tag_name().namespace().unwrap_or("");
-        let local = fact.tag_name().name();
+        let namespace = fact.namespace.as_str();
+        let local = fact.local.as_str();
         let concept = taxonomy.concept(namespace, local);
-        let fact_qname = match fact.lookup_prefix(namespace) {
+        let fact_qname = match fact.prefix.as_deref() {
             Some(prefix) => format!("{prefix}:{local}"),
             None => concept.map_or_else(|| local.to_string(), |c| c.qname()),
         };
@@ -374,6 +370,68 @@ fn assemble_tree(
     (tree, redirects)
 }
 
+/// One fact, from an instance's top-level item or an inline report's
+/// `ix:nonFraction` / `ix:nonNumeric` — arelle's `ModelFact` as the backend
+/// reads it.
+pub(super) struct Fact {
+    pub(super) namespace: String,
+    pub(super) local: String,
+    /// The prefix the document binds the namespace to, for the `prefix:local`
+    /// QName the graph cells carry.
+    pub(super) prefix: Option<String>,
+    /// The value (arelle's `ModelFact.value`): stripped text; an inline
+    /// fact's after its transformation, scale and sign.
+    pub(super) value: String,
+    pub(super) context_ref: Option<String>,
+    /// Present on numeric facts only.
+    pub(super) unit_ref: Option<String>,
+    pub(super) decimals: Option<String>,
+}
+
+/// What a filing holds for the backend: its taxonomy entry points, its facts
+/// in document order, and its contexts' periods and units' measures.
+pub(super) struct Filing {
+    pub(super) schema_refs: Vec<String>,
+    pub(super) facts: Vec<Fact>,
+    pub(super) contexts: HashMap<String, String>,
+    pub(super) units: HashMap<String, String>,
+}
+
+/// An XBRL instance: `link:schemaRef`s, contexts, units and the facts as the
+/// root's own children (arelle's `facts`, document order).
+fn instance_filing(root: XmlNode) -> Filing {
+    let schema_refs = root
+        .children()
+        .filter(|n| n.tag_name().namespace() == Some(LINK_NS) && n.tag_name().name() == "schemaRef")
+        .filter_map(|n| n.attribute((XLINK_NS, "href")))
+        .map(str::to_string)
+        .collect();
+    let facts = root
+        .children()
+        .filter(|n| {
+            n.is_element() && !matches!(n.tag_name().namespace(), Some(XBRLI_NS) | Some(LINK_NS))
+        })
+        .map(|n| {
+            let namespace = n.tag_name().namespace().unwrap_or("");
+            Fact {
+                namespace: namespace.to_string(),
+                local: n.tag_name().name().to_string(),
+                prefix: n.lookup_prefix(namespace).map(str::to_string),
+                value: fact_value(n).to_string(),
+                context_ref: n.attribute("contextRef").map(str::to_string),
+                unit_ref: n.attribute("unitRef").map(str::to_string),
+                decimals: n.attribute("decimals").map(str::to_string),
+            }
+        })
+        .collect();
+    Filing {
+        schema_refs,
+        facts,
+        contexts: periods(root),
+        units: unit_measures(root),
+    }
+}
+
 /// A fact's value: its text, stripped (arelle's `ModelFact.value`).
 fn fact_value<'a>(fact: XmlNode<'a, 'a>) -> &'a str {
     fact.text().map_or("", str::trim)
@@ -463,10 +521,12 @@ impl Graph {
 }
 
 /// Each context's period as docling prints it: an instant as its date, a
-/// duration as `start - end`. arelle reads a date-only instant or end date as
-/// the end of that day — the start of the next — so both come out one day
-/// later than written; a `forever` period prints nothing.
-fn periods(root: XmlNode) -> HashMap<String, String> {
+/// duration as `start - end`, each date as the context declares it
+/// (docling#4483: `instantDate` / `endDate`, where arelle's datetimes read a
+/// date-only instant or end date as the start of the next day, which docling
+/// used to print — one day later than written); a `forever` period prints
+/// nothing.
+pub(super) fn periods(root: XmlNode) -> HashMap<String, String> {
     let mut out = HashMap::new();
     for context in root.children().filter(|n| is_xbrli(*n, "context")) {
         let Some(id) = context.attribute("id") else {
@@ -483,9 +543,9 @@ fn periods(root: XmlNode) -> HashMap<String, String> {
                 .map(str::trim)
         };
         let text = if let Some(instant) = child_text("instant") {
-            end_of_day(instant)
+            date_part(instant).to_string()
         } else if let (Some(start), Some(end)) = (child_text("startDate"), child_text("endDate")) {
-            format!("{} - {}", date_part(start), end_of_day(end))
+            format!("{} - {}", date_part(start), date_part(end))
         } else {
             String::new()
         };
@@ -494,20 +554,58 @@ fn periods(root: XmlNode) -> HashMap<String, String> {
     out
 }
 
-/// Each unit's first measure, by local name (`USD`, `shares`, `pure`): a
-/// simple unit's first `measure`, a divide's first numerator measure.
-fn unit_measures(root: XmlNode) -> HashMap<String, String> {
+/// Each unit as docling prints it (docling#4568, arelle's `ModelUnit.measures`):
+/// its measures' local names joined by a space, a divide's numerator then
+/// ` / ` and its denominator (`USD / shares` — per-share facts used to read
+/// as plain `USD`); each side sorted by namespace and local name, as
+/// arelle's `QName`s sort.
+pub(super) fn unit_measures(root: XmlNode) -> HashMap<String, String> {
+    let measures = |parent: XmlNode| -> String {
+        let mut names: Vec<(String, String)> = parent
+            .children()
+            .filter(|n| is_xbrli(*n, "measure"))
+            .filter_map(|m| {
+                let text = m.text()?.trim();
+                let (prefix, local) = match text.split_once(':') {
+                    Some((p, l)) => (Some(p), l),
+                    None => (None, text),
+                };
+                let namespace = m.lookup_namespace_uri(prefix).unwrap_or("");
+                Some((namespace.to_string(), local.to_string()))
+            })
+            .collect();
+        names.sort();
+        names
+            .into_iter()
+            .map(|(_, local)| local)
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
     root.children()
         .filter(|n| is_xbrli(*n, "unit"))
         .filter_map(|unit| {
             let id = unit.attribute("id")?;
-            let measure = unit
-                .descendants()
-                .find(|n| is_xbrli(*n, "measure"))
-                .and_then(|n| n.text())
-                .map(str::trim)?;
-            let local = measure.rsplit(':').next().unwrap_or(measure);
-            Some((id.to_string(), local.to_string()))
+            let text = match unit.children().find(|n| is_xbrli(*n, "divide")) {
+                Some(divide) => {
+                    let side = |name: &str| {
+                        divide
+                            .children()
+                            .find(|n| is_xbrli(*n, name))
+                            .map(measures)
+                            .unwrap_or_default()
+                    };
+                    let (num, den) = (side("unitNumerator"), side("unitDenominator"));
+                    if num.is_empty() {
+                        String::new()
+                    } else if den.is_empty() {
+                        num
+                    } else {
+                        format!("{num} / {den}")
+                    }
+                }
+                None => measures(unit),
+            };
+            (!text.is_empty()).then(|| (id.to_string(), text))
         })
         .collect()
 }
@@ -521,43 +619,6 @@ fn is_xbrli(node: XmlNode, name: &str) -> bool {
 /// The `YYYY-MM-DD` of an XML date or dateTime.
 fn date_part(text: &str) -> &str {
     text.split('T').next().unwrap_or(text)
-}
-
-/// arelle's reading of a date at the end of a period: a bare date means the
-/// whole day, so the instant is the next day's start; a dateTime is exact.
-fn end_of_day(text: &str) -> String {
-    if text.contains('T') {
-        return date_part(text).to_string();
-    }
-    let mut parts = text.splitn(3, '-');
-    let parsed = (
-        parts.next().and_then(|y| y.parse::<i64>().ok()),
-        parts.next().and_then(|m| m.parse::<u32>().ok()),
-        parts.next().and_then(|d| d.parse::<u32>().ok()),
-    );
-    let (Some(year), Some(month), Some(day)) = parsed else {
-        return text.to_string();
-    };
-    let (y, m, d) = next_day(year, month, day);
-    format!("{y:04}-{m:02}-{d:02}")
-}
-
-fn next_day(year: i64, month: u32, day: u32) -> (i64, u32, u32) {
-    let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-    let days_in_month = match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 if leap => 29,
-        2 => 28,
-        _ => return (year, month, day),
-    };
-    if day < days_in_month {
-        (year, month, day + 1)
-    } else if month < 12 {
-        (year, month + 1, 1)
-    } else {
-        (year + 1, 1, 1)
-    }
 }
 
 /// Whether a generic `.xml` is XBRL (financial facts), used by the converter's
@@ -628,12 +689,12 @@ mod tests {
             &[
                 "Assets",
                 "value: 1000",
-                "period: 2024-03-01",
+                "period: 2024-02-29",
                 "currency: USD",
                 "decimals: -3",
                 "Revenues",
                 "value: 50",
-                "period: 2025-01-01 - 2026-01-01",
+                "period: 2025-01-01 - 2025-12-31",
                 "currency: USD",
                 ""
             ]
@@ -650,11 +711,47 @@ mod tests {
             && l["target_cell_id"] == 0));
     }
 
+    /// docling#4568 (`test_xbrl_divide_unit_keeps_denominator`): a divide
+    /// unit reports its numerator and its denominator.
     #[test]
-    fn a_date_only_period_end_is_read_as_the_next_day() {
-        assert_eq!(end_of_day("2024-02-29"), "2024-03-01");
-        assert_eq!(end_of_day("2025-12-31"), "2026-01-01");
-        assert_eq!(end_of_day("2025-06-30"), "2025-07-01");
-        assert_eq!(end_of_day("2025-06-30T00:00:00"), "2025-06-30");
+    fn divide_unit_keeps_its_denominator() {
+        let xml = r#"<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:iso4217="http://www.xbrl.org/2003/iso4217">
+            <xbrli:unit id="usd"><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unit>
+            <xbrli:unit id="usdPerShare"><xbrli:divide>
+              <xbrli:unitNumerator><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unitNumerator>
+              <xbrli:unitDenominator><xbrli:measure>xbrli:shares</xbrli:measure></xbrli:unitDenominator>
+            </xbrli:divide></xbrli:unit></xbrli:xbrl>"#;
+        let dom = Document::parse(xml).unwrap();
+        let units = unit_measures(dom.root_element());
+        assert_eq!(units["usd"], "USD");
+        assert_eq!(units["usdPerShare"], "USD / shares");
+        // The fixture's per-share facts (grve_10q_htm.xml).
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/data/xbrl/sources/grve_10q_htm.xml");
+        let src = SourceDocument::from_file(&path).unwrap();
+        let json = XbrlBackend.convert(&src).unwrap().export_to_json_value();
+        let cells = json["key_value_items"][0]["graph"]["cells"]
+            .as_array()
+            .unwrap();
+        let unit_of = |concept: &str| {
+            let i = cells.iter().position(|c| c["orig"] == concept).unwrap();
+            cells[i + 3]["text"].as_str().unwrap().to_string()
+        };
+        assert_eq!(
+            unit_of("us-gaap:EarningsPerShareDiluted"),
+            "currency: USD / shares"
+        );
+        assert_eq!(unit_of("us-gaap:Assets"), "currency: USD");
+    }
+
+    /// docling#4483 (its refreshed groundtruth): an
+    /// instant and a duration print their dates as the context declares
+    /// them, not arelle's next-day reading of a date-only end.
+    #[test]
+    fn period_dates_are_reported_as_declared() {
+        let dom = Document::parse(INSTANCE).unwrap();
+        let periods = periods(dom.root_element());
+        assert_eq!(periods["c0"], "2025-01-01 - 2025-12-31");
+        assert_eq!(periods["c1"], "2024-02-29");
     }
 }

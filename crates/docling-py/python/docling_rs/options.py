@@ -11,8 +11,9 @@ are accepted for API compatibility. See the crate README for the support matrix.
 from __future__ import annotations
 
 import enum
+import os
 from dataclasses import dataclass, field
-from typing import Any, BinaryIO, Dict, Optional
+from typing import Any, BinaryIO, Dict, Optional, Union
 
 
 class InputFormat(str, enum.Enum):
@@ -275,8 +276,14 @@ class DocumentStream:
     object (e.g. ``io.BytesIO``). ``format`` (a docling.rs extension, #564)
     names the :class:`InputFormat` outright when the name cannot — an email
     attachment called ``scan.bin`` sent as ``application/pdf``; ``None``
-    keeps the extension-based detection."""
+    keeps the extension-based detection. ``source_uri`` — a path or a
+    ``file:`` URI (``file://localhost/…`` too) — names where the bytes live
+    on disk, as docling's backend ``source_uri`` does (docling#5017): a JATS
+    figure or an HTML image next to the original resolves under
+    ``image_sources="local"``; the file itself need not exist, and a
+    root-only ``file:///`` is refused with a warning."""
 
     name: str
     stream: BinaryIO
     format: Optional["InputFormat"] = None
+    source_uri: Optional[Union[str, "os.PathLike[str]"]] = None

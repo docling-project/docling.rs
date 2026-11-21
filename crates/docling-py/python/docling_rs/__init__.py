@@ -396,6 +396,9 @@ class DocumentConverter:
       of a few typed-in form fields over scans).
     * ``list_attachments`` — email (.eml/.msg): append an Attachments section
       with names and content types (#251; the payload is never embedded).
+    * ``parse_calendar_invitations`` — email (.eml): append the events of its
+      calendar invitations as a Calendar section (docling#5357; default
+      ``True``); ``False`` keeps a calendar body as text.
     * ``ebcdic_layout`` — EBCDIC (#252): the copybook layout, inline
       ``EbcdicLayout`` JSON or a file path (default: the ``<stem>.layout.json``
       sidecar next to the source).
@@ -597,6 +600,7 @@ class DocumentConverter:
         use_embedded_picture_images: bool = False,
         text_layer_only: Union[bool, str] = False,
         list_attachments: bool = False,
+        parse_calendar_invitations: bool = True,
         ebcdic_layout: Optional[str] = None,
         video_frames: Optional[Union[int, str]] = None,
         video_scene_threshold: Optional[float] = None,
@@ -887,6 +891,7 @@ class DocumentConverter:
             use_embedded_picture_images=use_embedded_picture_images,
             text_layer_only=text_layer_only,
             list_attachments=list_attachments,
+            parse_calendar_invitations=parse_calendar_invitations,
             ebcdic_layout=ebcdic_layout,
             video_frames=video_frames,
             video_scene_threshold=video_scene_threshold,
@@ -1026,6 +1031,7 @@ class DocumentConverter:
         base_url: Optional[str] = None,
         media_type: Optional[str] = None,
         progress_callback: Optional["progress.ProgressCallback"] = None,
+        source_uri: Optional[Union[str, os.PathLike]] = None,
     ) -> ConversionResult:
         """Convert in-memory bytes; ``name``'s extension drives format detection
         (docling's ``DocumentStream`` counterpart). ``page_range`` and
@@ -1034,7 +1040,9 @@ class DocumentConverter:
         against it, and a YouTube watch URL makes the page its transcript.
         ``media_type`` (``Content-Type``) is what a registered backend can
         claim the bytes by (#680), and the format when the name has no known
-        extension."""
+        extension. ``source_uri`` — a path or a ``file:`` URI — names where the
+        bytes live on disk (docling's ``source_uri``, docling#5017), so local
+        figures and images resolve under ``image_sources="local"``."""
         native = self._inner.convert_bytes(
             name,
             data,
@@ -1042,6 +1050,7 @@ class DocumentConverter:
             base_url=base_url,
             media_type=media_type,
             progress_callback=_progress_bridge(progress_callback),
+            source_uri=os.fspath(source_uri) if source_uri is not None else None,
         )
         return self._finish(_wrap(native))
 
@@ -1074,6 +1083,7 @@ class DocumentConverter:
         callback = _progress_bridge(progress_callback)
         if isinstance(source, DocumentStream):
             fmt = getattr(source, "format", None)
+            source_uri = getattr(source, "source_uri", None)
             return self._inner.convert_bytes(
                 source.name,
                 _stream_bytes(source.stream),
@@ -1081,6 +1091,7 @@ class DocumentConverter:
                 format=InputFormat(fmt).value if fmt is not None else None,
                 progress_callback=callback,
                 document_index=document_index,
+                source_uri=os.fspath(source_uri) if source_uri is not None else None,
             )
         if isinstance(source, str) and _is_url(source):
             name, data = _fetch_url(source)

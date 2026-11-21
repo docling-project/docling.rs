@@ -567,6 +567,7 @@ impl PyDocumentConverter {
         use_embedded_picture_images = false,
         text_layer_only = None,
         list_attachments = false,
+        parse_calendar_invitations = true,
         skip_empty_cells = false,
         compact_tables = false,
         picture_alt_text = false,
@@ -652,6 +653,7 @@ impl PyDocumentConverter {
         use_embedded_picture_images: bool,
         text_layer_only: Option<Py<PyAny>>,
         list_attachments: bool,
+        parse_calendar_invitations: bool,
         skip_empty_cells: bool,
         compact_tables: bool,
         picture_alt_text: bool,
@@ -692,6 +694,7 @@ impl PyDocumentConverter {
             max_image_total_mb,
             min_image_bytes,
             list_attachments: Some(list_attachments),
+            parse_calendar_invitations: Some(parse_calendar_invitations),
             skip_empty_cells: Some(skip_empty_cells),
             compact_tables: Some(compact_tables),
             picture_alt_text: Some(picture_alt_text),
@@ -1013,7 +1016,11 @@ impl PyDocumentConverter {
     /// `base_url` is the URL the bytes were fetched from (#681): relative
     /// image references resolve against it, and a YouTube watch URL turns
     /// the page into its title, metadata and caption transcript.
-    #[pyo3(signature = (name, data, page_range = None, format = None, base_url = None, media_type = None, progress_callback = None, document_index = 1))]
+    /// `source_uri` names where the bytes live on disk — a path or a `file:`
+    /// URI (docling's `source_uri`, docling#5017) — so local figures and
+    /// images next to the original resolve under `image_sources="local"`;
+    /// the file need not exist, and `file:///` is refused with a warning.
+    #[pyo3(signature = (name, data, page_range = None, format = None, base_url = None, media_type = None, progress_callback = None, document_index = 1, source_uri = None))]
     #[allow(clippy::too_many_arguments)]
     fn convert_bytes(
         &self,
@@ -1026,6 +1033,7 @@ impl PyDocumentConverter {
         media_type: Option<String>,
         progress_callback: Option<Py<PyAny>>,
         document_index: usize,
+        source_uri: Option<String>,
     ) -> PyResult<PyNativeResult> {
         let page_range = check_page_range(page_range)?;
         let bytes = data.as_bytes().to_vec();
@@ -1051,6 +1059,10 @@ impl PyDocumentConverter {
         };
         let source = match base_url {
             Some(url) => source.with_base_url(url),
+            None => source,
+        };
+        let source = match source_uri {
+            Some(uri) => source.with_source_uri(&uri),
             None => source,
         };
         self.convert_source(py, source, page_range, progress_callback, document_index)

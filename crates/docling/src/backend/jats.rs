@@ -21,8 +21,8 @@ use crate::error::ConversionError;
 use crate::source::SourceDocument;
 use docling_core::tree::{Formatting, ItemTree, ListMeta, TreeKind};
 use docling_core::{
-    inline_paragraph_node, DoclingDocument, InlineRun, ListItemDclx, Node, PictureImage, Script,
-    Table, TableStructure,
+    inline_paragraph_node, ContentLayer, DoclingDocument, InlineRun, ListItemDclx, Node,
+    PictureImage, Script, Table, TableStructure,
 };
 
 /// JATS backend. `images` at `Local` or above is docling's `JatsBackendOptions.fetch_images`
@@ -107,8 +107,18 @@ struct Seg {
 }
 
 /// Tags that, inside a `<p>`, flush the accumulated paragraph text before they
-/// are handled — docling's `_walk_linear` `flush_tags`.
-const FLUSH_TAGS: &[&str] = &["ack", "sec", "list", "boxed-text", "disp-formula", "fig"];
+/// are handled — docling's `_walk_linear` `flush_tags` (`preformat` and
+/// `code` since docling#5283: a code block in a paragraph is its own item).
+const FLUSH_TAGS: &[&str] = &[
+    "ack",
+    "sec",
+    "list",
+    "boxed-text",
+    "disp-formula",
+    "fig",
+    "preformat",
+    "code",
+];
 
 const DEFAULT_HEADER_ACKNOWLEDGMENTS: &str = "Acknowledgments";
 const DEFAULT_HEADER_FOOTNOTES: &str = "Footnotes";
@@ -136,6 +146,9 @@ const ORDERED_LIST_TYPES: &[&str] = &[
 struct Out<'a> {
     doc: &'a mut DoclingDocument,
     tree: ItemTree,
+    /// The content layer new tree items go on — `None` (body) except while
+    /// the article statements are added (docling#4866 / #5216: furniture).
+    layer: Option<ContentLayer>,
 }
 
 impl Out<'_> {
@@ -152,7 +165,7 @@ impl Out<'_> {
     ) -> usize {
         self.tree.add(
             parent,
-            None,
+            self.layer,
             TreeKind::Text {
                 label: label.into(),
                 text: text.into(),
@@ -181,7 +194,7 @@ impl Out<'_> {
     fn group(&mut self, parent: Option<usize>, label: &str, name: &str) -> usize {
         self.tree.add(
             parent,
-            None,
+            self.layer,
             TreeKind::Group {
                 label: label.into(),
                 name: name.into(),
@@ -248,6 +261,7 @@ impl DeclarativeBackend for JatsBackend {
                 inline_whitespace: true,
                 ..ItemTree::default()
             },
+            layer: None,
         };
 
         // --- metadata -------------------------------------------------------
@@ -384,9 +398,92 @@ impl DeclarativeBackend for JatsBackend {
         for sub in subs {
             add_sub_article(sub, root, &mut hlevel, fig_base, &mut out);
         }
+        add_statements(&dom, root, &mut hlevel, fig_base, &mut out);
         let tree = out.tree;
         doc.tree = Some(tree);
         Ok(doc)
+    }
+}
+
+/// docling's `_parse_statements` (docling#4866, #5216): the copyright
+/// statement, each license paragraph, the funding statement and each author
+/// note of the article's metadata (`_find_metadata`: the first
+/// `article-meta`, else `book-part-meta`), in source order.
+fn statements<'a, 'i>(dom: &'a Document<'i>) -> Vec<XmlNode<'a, 'i>> {
+    let Some(meta) = ["article-meta", "book-part-meta"]
+        .iter()
+        .find_map(|name| dom.descendants().find(|n| n.has_tag_name(*name)))
+    else {
+        return Vec::new();
+    };
+    // `node`'s ancestors up to `meta` are exactly `path` (innermost first).
+    let under = |node: XmlNode, path: &[&str]| {
+        let mut cur = node.parent();
+        for tag in path {
+            match cur {
+                Some(p) if p.has_tag_name(*tag) => cur = p.parent(),
+                _ => return false,
+            }
+        }
+        cur == Some(meta)
+    };
+    meta.descendants()
+        .filter(|n| match n.tag_name().name() {
+            _ if !n.is_element() => false,
+            "copyright-statement" => under(*n, &["permissions"]),
+            "license-p" => under(*n, &["license", "permissions"]),
+            "funding-statement" => under(*n, &["funding-group"]),
+            "fn" => under(*n, &["author-notes"]),
+            _ => false,
+        })
+        .collect()
+}
+
+/// docling's `_add_statements`: the [`statements`] on the furniture layer, as
+/// the last children of the title item — like the page headers and footers
+/// of other backends, available on request but out of the reading order, so
+/// the default Markdown is unchanged and `--layers all` appends them. A
+/// statement is walked like a paragraph (styling, `<sup>`, `<ext-link>`
+/// targets kept); an author note like a footnote (`_walk_author_footnote`:
+/// its label kept, equal runs coalesced, text runs `footnote`). One run is a
+/// text item, several an inline group.
+fn add_statements(
+    dom: &Document,
+    root: Option<usize>,
+    hlevel: &mut i32,
+    fig_base: Option<&Path>,
+    out: &mut Out,
+) {
+    for statement in statements(dom) {
+        let (segments, footnote) = if statement.has_tag_name("fn") {
+            let mut merged = Vec::new();
+            extend_segments(
+                &mut merged,
+                walk_inline_formula(statement, Fmt::default(), None, true),
+            );
+            (merged, true)
+        } else {
+            let segs = walk_linear(statement, root, Fmt::default(), None, hlevel, fig_base, out);
+            (segs, false)
+        };
+        out.layer = Some(ContentLayer::Furniture);
+        let start = out.doc.nodes.len();
+        emit_inline_labelled(
+            out,
+            root,
+            segments,
+            if footnote { "footnote" } else { "text" },
+        );
+        // The flat nodes of the statement: furniture, which Markdown and
+        // LaTeX leave out by default and DocLang marks with its layer.
+        let added: Vec<Node> = out.doc.nodes.drain(start..).collect();
+        out.doc
+            .nodes
+            .extend(added.into_iter().map(|inner| Node::Furniture {
+                layer: ContentLayer::Furniture,
+                inner: Box::new(inner),
+            }));
+        out.layer = None;
     }
 }
 
@@ -507,6 +604,7 @@ fn walk_generic(node: XmlNode, doc: &mut DoclingDocument) {
             let mut out = Out {
                 doc,
                 tree: ItemTree::default(),
+                layer: None,
             };
             add_table_grid(&mut out, None, child);
             continue;
@@ -776,13 +874,18 @@ fn abstract_section<'a, 'i>(section: XmlNode<'a, 'i>) -> (String, Vec<XmlNode<'a
     (title_or_label(section), paragraphs)
 }
 
-/// The first `title` or `label` child in document order (docling's
-/// `xpath("title|label")[0]`), or empty.
+/// The non-empty `title`/`label` children in document order, each
+/// whitespace-normalized, joined by a space — docling's `_get_heading_text`
+/// (docling#5244). Only the first of them used to be read, so a
+/// `<label>1.</label><title>Introduction</title>` section printed `## 1.`;
+/// a label-only or title-only heading reads as before.
 fn title_or_label(node: XmlNode) -> String {
     node.children()
-        .find(|c| c.has_tag_name("title") || c.has_tag_name("label"))
+        .filter(|c| c.has_tag_name("title") || c.has_tag_name("label"))
         .map(node_text)
-        .unwrap_or_default()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// `_get_text`, un-normalized (newlines → spaces, formula tags skipped).
@@ -806,13 +909,10 @@ fn fw_level(dl: i32) -> u8 {
     (dl + 1).clamp(1, 6) as u8
 }
 
-/// A `<sec>`/`<ack>` header text (`title|label`), or a default for `<ack>`.
+/// A `<sec>`/`<ack>` header text (its `title|label` children joined,
+/// [`title_or_label`]), or a default for an `<ack>` without one.
 fn header_text(child: XmlNode) -> Option<String> {
-    child
-        .children()
-        .find(|c| c.has_tag_name("title") || c.has_tag_name("label"))
-        .map(get_text)
-        .map(|s| normalize(&s))
+    Some(title_or_label(child))
         .filter(|s| !s.is_empty())
         .or_else(|| {
             child
@@ -1008,10 +1108,7 @@ fn walk_linear(
                 stop_walk = true;
             }
             "ref-list" if node_tag != "ref-list" => {
-                let text = child
-                    .children()
-                    .find(|c| c.has_tag_name("title") || c.has_tag_name("label"))
-                    .map(|h| normalize(&get_text(h)))
+                let text = Some(title_or_label(child))
                     .filter(|s| !s.is_empty())
                     .unwrap_or_else(|| DEFAULT_HEADER_REFERENCES.to_string());
                 out.doc.push(Node::Heading {
@@ -1035,6 +1132,10 @@ fn walk_linear(
             }
             "tex-math" => {
                 add_equation(out, parent, child);
+                stop_walk = true;
+            }
+            "preformat" | "code" => {
+                add_code_block(out, parent, child);
                 stop_walk = true;
             }
             "inline-formula" => {
@@ -1281,6 +1382,12 @@ fn strip_segments(segments: Vec<Seg>) -> Vec<Seg> {
 /// styled run carries its emphasis into DocLang while Markdown keeps the
 /// baked-in `*…*`/`**…**` markers.
 fn emit_inline(out: &mut Out, parent: Option<usize>, segments: Vec<Seg>) {
+    emit_inline_labelled(out, parent, segments, "text");
+}
+
+/// [`emit_inline`] with the tree label of the text runs (`footnote` for an
+/// author note, docling's `_as_footnote_segments`); formulas stay `formula`.
+fn emit_inline_labelled(out: &mut Out, parent: Option<usize>, segments: Vec<Seg>, label: &str) {
     let trimmed = trim_segment_edges(segments);
     if trimmed.is_empty() {
         return;
@@ -1315,7 +1422,7 @@ fn emit_inline(out: &mut Out, parent: Option<usize>, segments: Vec<Seg>) {
         parent
     };
     for seg in &trimmed {
-        let label = if seg.formula { "formula" } else { "text" };
+        let label = if seg.formula { "formula" } else { label };
         out.text(
             container,
             label,
@@ -1520,6 +1627,43 @@ fn add_equation(out: &mut Out, parent: Option<usize>, node: XmlNode) {
         });
         out.text(parent, "formula", &formula, None, None, None, None);
     }
+}
+
+/// docling's `_add_code_block` (docling#5283): a `<preformat>`/`<code>` holds
+/// verbatim text — code, console output — so it is one code item with its
+/// line breaks and indentation (all descendant text, outer newlines
+/// stripped), its language from `<code language>` or the content; a blank
+/// block is skipped. A section-level block used to be dropped and one in a
+/// paragraph run into the paragraph text without its line breaks.
+fn add_code_block(out: &mut Out, parent: Option<usize>, node: XmlNode) {
+    let raw: String = node
+        .descendants()
+        .filter(|n| n.is_text())
+        .filter_map(|n| n.text())
+        .collect();
+    let code = raw.trim_matches('\n');
+    if code.trim().is_empty() {
+        return;
+    }
+    let language = super::code_language::detect_code_language(code, node.attribute("language"));
+    out.doc.push(Node::Code {
+        language: language.clone(),
+        text: code.to_string(),
+        orig: None,
+        pretty: None,
+    });
+    out.tree.add(
+        parent,
+        None,
+        TreeKind::Code {
+            text: code.to_string(),
+            orig: None,
+            language,
+            formatting: None,
+            hyperlink: None,
+            captions: Vec::new(),
+        },
+    );
 }
 
 /// A `<fig>` → its label + caption as a picture caption, then a picture marker
@@ -2164,7 +2308,8 @@ fn add_footnote_group(out: &mut Out, parent: Option<usize>, node: XmlNode, hleve
     let footnotes: Vec<Vec<Seg>> = node
         .children()
         .filter(|c| c.has_tag_name("fn"))
-        .map(|f| trim_segment_edges(walk_inline_formula(f, Fmt::default(), None, false)))
+        // `resolve_ext_links` (docling#5290): an `<ext-link>` keeps its target.
+        .map(|f| trim_segment_edges(walk_inline_formula(f, Fmt::default(), None, true)))
         .filter(|segs| !segs.is_empty())
         .collect();
     if footnotes.is_empty() {

@@ -85,6 +85,7 @@ impl SourceDocument {
                     },
                 })?,
         };
+        let format = refine_format(format, &bytes);
         let name = path
             .file_stem()
             .and_then(|s| s.to_str())
@@ -147,6 +148,7 @@ impl SourceDocument {
             .filter(|s| !s.is_empty())
             .unwrap_or("document")
             .to_string();
+        let format = refine_format(format, &bytes);
         let mut doc = Self::from_bytes(stem, format, bytes);
         doc.extension = ext.map(str::to_ascii_lowercase);
         doc.media_type = media_type.map(str::to_string);
@@ -229,6 +231,28 @@ impl SourceDocument {
     /// `<img src>` against the page origin when image fetching is enabled).
     pub fn with_base_url(mut self, url: impl Into<String>) -> Self {
         self.base_url = Some(url.into());
+        self
+    }
+
+    /// Name the local location an in-memory document came from — docling's
+    /// `source_uri` (docling#5017), so a JATS `<graphic>` or an HTML `<img>`
+    /// next to the original file resolves under `image_sources=local` (the
+    /// opt-in that reads local files stays the caller's). `uri` is a path or
+    /// a `file:` URI: no authority or `localhost` (any case), another
+    /// authority only as a Windows UNC share; percent escapes are decoded.
+    /// The file itself need not exist — only its directory is used. An
+    /// `http(s)` URL is the [`Self::with_base_url`] page origin. A URI that
+    /// names no file (`file:///`, a remote authority off Windows) is refused
+    /// with a warning and leaves the source as it was.
+    pub fn with_source_uri(mut self, uri: &str) -> Self {
+        let lower = uri.trim().to_ascii_lowercase();
+        if lower.starts_with("http://") || lower.starts_with("https://") {
+            return self.with_base_url(uri.trim());
+        }
+        match local_source_path(uri.trim()) {
+            Ok(path) => self.path = Some(path),
+            Err(why) => eprintln!("docling: source_uri '{uri}' ignored: {why}"),
+        }
         self
     }
 
@@ -766,5 +790,105 @@ mod decode_tests {
             decode_text_as(&bytes, "windows-1250").unwrap(),
             "Zażółć gęślą jaźń, zażółć gęślą jaźń."
         );
+    }
+}
+
+/// The format a page's content overrides its name with: an `.htm` /
+/// `.html` / `.xhtml` (or a sniffed HTML page) whose root declares the
+/// inline XBRL namespace is an inline XBRL report (docling#4689's
+/// `is_ixbrl`) — XBRL, so a converter allowed HTML only skips it rather than
+/// reading the filing as a web page.
+pub(crate) fn refine_format(format: InputFormat, bytes: &[u8]) -> InputFormat {
+    if format == InputFormat::Html && crate::backend::is_ixbrl(bytes) {
+        InputFormat::XmlXbrl
+    } else {
+        format
+    }
+}
+
+/// docling's `normalize_local_base_path` (docling#5017): the native path a
+/// `source_uri` names — a `file:` URI's path, percent-decoded, or the value
+/// itself. A root-only URI, an empty path, or (off Windows) a non-`localhost`
+/// authority names no file.
+fn local_source_path(uri: &str) -> Result<PathBuf, String> {
+    let Some(rest) = uri
+        .get(..5)
+        .filter(|scheme| scheme.eq_ignore_ascii_case("file:"))
+        .map(|_| &uri[5..])
+    else {
+        return if uri.is_empty() {
+            Err("empty path".into())
+        } else {
+            Ok(PathBuf::from(uri))
+        };
+    };
+    let (authority, path) = match rest.strip_prefix("//") {
+        Some(after) => match after.find('/') {
+            Some(i) => (&after[..i], &after[i..]),
+            None => (after, ""),
+        },
+        None => ("", rest),
+    };
+    let path = String::from_utf8(crate::fetch::percent_decode(path))
+        .map_err(|_| "the path is not UTF-8".to_string())?;
+    if path.is_empty() {
+        return Err("empty path".into());
+    }
+    if path.trim_end_matches('/').is_empty() {
+        return Err("the URI names the root directory, not a file".into());
+    }
+    let local = authority.is_empty() || authority.eq_ignore_ascii_case("localhost");
+    if !local {
+        return if cfg!(windows) {
+            Ok(PathBuf::from(format!(
+                r"\\{authority}{}",
+                path.replace('/', "\\")
+            )))
+        } else {
+            Err("a file URI with a host other than localhost needs a Windows UNC path".into())
+        };
+    }
+    // `file:///C:/x` is `C:/x` on Windows.
+    if cfg!(windows) {
+        let b = path.as_bytes();
+        if b.len() >= 3 && b[0] == b'/' && b[1].is_ascii_alphabetic() && b[2] == b':' {
+            return Ok(PathBuf::from(&path[1..]));
+        }
+    }
+    Ok(PathBuf::from(path))
+}
+
+#[cfg(test)]
+mod source_uri_tests {
+    use super::*;
+
+    /// docling#5017's `normalize_local_base_path` cases.
+    #[test]
+    fn local_source_paths() {
+        let p = |u: &str| local_source_path(u).map(|p| p.to_string_lossy().into_owned());
+        assert_eq!(p("/data/a.nxml").unwrap(), "/data/a.nxml");
+        if !cfg!(windows) {
+            assert_eq!(p("file:///data/a.nxml").unwrap(), "/data/a.nxml");
+            assert_eq!(p("file://LoCaLhOsT/data/a.nxml").unwrap(), "/data/a.nxml");
+            assert_eq!(
+                p("file:///data/space%20%E4%B8%AD%E6%96%87/a.nxml").unwrap(),
+                "/data/space 中文/a.nxml"
+            );
+            assert!(p("file://server/share/a.nxml").is_err());
+        }
+        assert!(p("file:///").is_err());
+        assert!(p("file://").is_err());
+        assert!(p("").is_err());
+    }
+
+    #[test]
+    fn source_uri_sets_the_path_or_the_base_url() {
+        let src = || SourceDocument::from_bytes("a.nxml", InputFormat::XmlJats, Vec::new());
+        let file = src().with_source_uri("file:///tmp/x/a.nxml");
+        assert_eq!(file.path.as_deref(), Some(Path::new("/tmp/x/a.nxml")));
+        let web = src().with_source_uri("https://example.org/a.html");
+        assert_eq!(web.base_url.as_deref(), Some("https://example.org/a.html"));
+        assert!(web.path.is_none());
+        assert!(src().with_source_uri("file:///").path.is_none());
     }
 }
