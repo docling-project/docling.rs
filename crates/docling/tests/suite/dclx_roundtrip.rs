@@ -37,6 +37,7 @@ fn tag_shaped_cell_text_round_trips() {
     let mut doc = DoclingDocument::new("t");
     doc.push(Node::Table(Table {
         footnotes: Vec::new(),
+        footnotes_as_runs: false,
         rows: vec![
             vec!["h1".into(), "h2".into()],
             vec!["<fcel>".into(), "<location value=\"3\"/> x".into()],
