@@ -291,6 +291,8 @@ struct PyDocumentConverter {
     force_full_page_ocr: bool,
     /// OCR only the pages whose text layer is broken (#1006).
     replace_broken_text_layer: bool,
+    /// Read the text inside a text-layer PDF page's pictures (#1219).
+    picture_ocr: bool,
     ocr_lang: Option<docling::OcrLang>,
     ocr_engine: Option<docling::OcrEngine>,
     /// Tesseract's `-l` argument from `ocr_lang` when the engine is Tesseract.
@@ -367,7 +369,7 @@ impl PyDocumentConverter {
     ///   decode formula LaTeX with the CodeFormulaV2 VLM (docling's flags of
     ///   the same names; need .models/code_formula/).
     /// * `do_picture_ocr` — OCR the pictures embedded in non-PDF documents
-    ///   (#645) and attach the text as the picture's description annotation
+    ///   (#645) and the pictures of text-layer PDF pages (#1219), and attach the text as the picture's description annotation
     ///   (`meta.description` / `annotations`); `picture_ocr_classes` (a
     ///   comma-separated DocumentFigureClassifier label list) and
     ///   `picture_ocr_min_side` (px, default 32) filter which pictures are
@@ -811,6 +813,7 @@ impl PyDocumentConverter {
             enrich: opts.enrichments(),
             force_full_page_ocr,
             replace_broken_text_layer,
+            picture_ocr: do_picture_ocr,
             // The typed values the warm pipeline is primed with in
             // `initialize_pipeline` (the transient `inner` path reads the
             // strings off the converter instead).
@@ -857,6 +860,7 @@ impl PyDocumentConverter {
         let enrich = self.enrich;
         let force_full_page_ocr = self.force_full_page_ocr;
         let replace_broken_text_layer = self.replace_broken_text_layer;
+        let picture_ocr = self.picture_ocr;
         let ocr_lang = self.ocr_lang;
         let ocr_engine = self.ocr_engine;
         let tesseract_lang = self.tesseract_lang.clone();
@@ -885,6 +889,7 @@ impl PyDocumentConverter {
                     // option set the transient path honors.
                     .force_full_page_ocr(force_full_page_ocr)
                     .replace_broken_text_layer(replace_broken_text_layer)
+                    .picture_ocr(picture_ocr)
                     .ocr_lang(ocr_lang)
                     .ocr_engine(ocr_engine)
                     .tesseract_lang(tesseract_lang)

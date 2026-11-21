@@ -247,8 +247,9 @@ pub struct ConverterOptions {
     /// image placeholder, the JSON picture item carries `meta.description` +
     /// the `description` annotation, chunks include it. Needs the OCR models
     /// (`.models/ocr_rec*`, `ocr_det.onnx`; or Tesseract under `ocrEngine`);
-    /// with `skipOcr` / `textLayerOnly` it warns and reads nothing. PDF/image
-    /// pages are OCR'd by the pipeline itself. Default `false`.
+    /// with `skipOcr` / `textLayerOnly` it warns and reads nothing. A PDF
+    /// page with a text layer reads its pictures too (#1219); scanned
+    /// PDF/image pages are OCR'd by the pipeline itself. Default `false`.
     pub do_picture_ocr: Option<bool>,
     /// With `doPictureOcr`: only read the pictures the DocumentFigureClassifier
     /// labels as one of these comma-separated classes
@@ -1760,6 +1761,8 @@ struct WarmPipelineConfig {
     no_table_former: bool,
     force_full_page_ocr: bool,
     replace_broken_text_layer: bool,
+    /// Read the text inside a text-layer PDF page's pictures (#1219).
+    picture_ocr: bool,
     no_text_panels: bool,
     heading_hierarchy: bool,
     script_positions: bool,
@@ -1807,6 +1810,7 @@ fn warm_pipeline_config(o: &ConverterOptions) -> Result<WarmPipelineConfig> {
         no_table_former: s.no_table_former.unwrap_or(false),
         force_full_page_ocr: s.force_full_page_ocr.unwrap_or(false),
         replace_broken_text_layer: s.replace_broken_text_layer.unwrap_or(false),
+        picture_ocr: s.do_picture_ocr.unwrap_or(false),
         no_text_panels: s.no_text_panels.unwrap_or(false),
         heading_hierarchy: s.heading_hierarchy.unwrap_or(false),
         script_positions: s.script_positions.unwrap_or(false),
@@ -1880,6 +1884,7 @@ impl Pipeline {
             .no_table_former(warm.no_table_former)
             .force_full_page_ocr(warm.force_full_page_ocr)
             .replace_broken_text_layer(warm.replace_broken_text_layer)
+            .picture_ocr(warm.picture_ocr)
             .no_text_panels(warm.no_text_panels)
             .heading_hierarchy(docling::HeadingHierarchyOptions::enabled(
                 warm.heading_hierarchy,
@@ -3245,6 +3250,7 @@ mod tests {
                 no_table_former: false,
                 force_full_page_ocr: false,
                 replace_broken_text_layer: false,
+                picture_ocr: false,
                 no_text_panels: false,
                 heading_hierarchy: false,
                 script_positions: false,

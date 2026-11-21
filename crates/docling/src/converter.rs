@@ -896,6 +896,9 @@ impl DocumentConverter {
         p.set_word_gap(self.pdf_word_gap_choice());
         p.set_keep_typography(self.pdf_keep_typography);
         p.set_replace_broken_text_layer(self.replace_broken_text_layer);
+        // The PDF side of picture OCR (#1219): a text-layer page reads the
+        // text inside its pictures; `ocr_pictures` leaves PDFs to it.
+        p.set_picture_ocr(self.picture_ocr);
         p.set_script_positions(self.script_positions);
         p.set_images(docling_pdf::ImageOutput {
             scale: self.images_scale,
@@ -1751,7 +1754,8 @@ impl DocumentConverter {
     }
 
     /// The picture-OCR pass itself: PDF, image and METS pages already went
-    /// through the OCR pipeline, so their pictures are left alone, and a
+    /// through the OCR pipeline — a text-layer PDF page read its pictures
+    /// there (`Pipeline::picture_ocr`, #1219) — so they are left alone, and a
     /// video's frames were read as they were decoded
     /// ([`convert_video`](Self::convert_video)); with OCR disabled, or
     /// without the recognizer, the pictures keep no text and one warning
@@ -2613,8 +2617,12 @@ impl DocumentConverter {
     /// puts it in the picture's chunk. Off by default — every default export
     /// is unchanged. Nothing is attached to a picture the engine reads no
     /// text from (lines under `DOCLING_RS_OCR_TEXT_SCORE` are dropped as on a
-    /// scanned page). PDF, image and METS inputs are untouched: their pages
-    /// go through the OCR pipeline already. With [`no_ocr`](Self::no_ocr) /
+    /// scanned page). A PDF page with a text layer reads its pictures too
+    /// (#1219): every picture that stays a picture is OCR'd from the page
+    /// render and gets the same annotation (`docling_pdf::Pipeline::picture_ocr`)
+    /// — the classifier and size filters below apply to embedded images
+    /// only. Scanned PDF pages, image and METS inputs are untouched: their
+    /// pages go through the OCR pipeline already. With [`no_ocr`](Self::no_ocr) /
     /// [`text_layer_only`](Self::text_layer_only), or without the OCR model
     /// (or the `pdf` feature), one warning and no text. See also
     /// [`picture_ocr_classes`](Self::picture_ocr_classes),
@@ -2933,6 +2941,7 @@ impl DocumentConverter {
             password: self.password.clone(),
             force_full_page_ocr: self.force_full_page_ocr,
             replace_broken_text_layer: self.replace_broken_text_layer,
+            picture_ocr: self.picture_ocr,
             enrich: self.enrich,
             page_range: self.page_range,
             ocr_lang: self.ocr_lang_choice(),

@@ -342,8 +342,10 @@
 //!                      meta.description. Needs the OCR models (.models/ocr_rec*,
 //!                      ocr_det.onnx for line detection; --ocr-engine tesseract
 //!                      works too); under --no-ocr / --text-layer-only it warns
-//!                      and reads nothing. PDF/image pages are OCR'd by the
-//!                      pipeline already and are left alone.
+//!                      and reads nothing. A PDF page with a text layer reads
+//!                      the text inside its pictures too (#1219: a seal, a
+//!                      photo's label); scanned PDF pages and images are OCR'd
+//!                      by the pipeline already and are left alone.
 //!   --picture-ocr-classes LABELS
 //!                      only read the pictures the DocumentFigureClassifier
 //!                      labels as one of these (comma-separated, e.g.
@@ -2831,6 +2833,7 @@ fn batch_pipeline<'a>(
             .skip_ocr(o.ocr_disabled())
             .force_full_page_ocr(o.force_full_page_ocr.unwrap_or(false))
             .replace_broken_text_layer(o.replace_broken_text_layer.unwrap_or(false))
+            .picture_ocr(o.do_picture_ocr.unwrap_or(false))
             .no_text_panels(o.no_text_panels.unwrap_or(false))
             .heading_hierarchy(docling::HeadingHierarchyOptions::enabled(
                 o.heading_hierarchy.unwrap_or(false),
