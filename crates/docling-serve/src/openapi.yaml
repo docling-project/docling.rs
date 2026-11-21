@@ -122,6 +122,7 @@ paths:
         - { $ref: "#/components/parameters/picture_alt_text" }
         - { $ref: "#/components/parameters/page_break_placeholder" }
         - { $ref: "#/components/parameters/md_page_break_placeholder" }
+        - { $ref: "#/components/parameters/formatting_fallback_mode" }
         - { $ref: "#/components/parameters/pandoc_api_version" }
         - { $ref: "#/components/parameters/pandoc_heading_depth" }
         - { $ref: "#/components/parameters/list_attachments" }
@@ -230,6 +231,7 @@ paths:
                 ebcdic_layout: { type: string }
                 page_break_placeholder: { type: string, examples: ["<!-- page break -->"] }
                 md_page_break_placeholder: { type: string, description: "Alias of page_break_placeholder." }
+                formatting_fallback_mode: { type: string, enum: [none, html] }
                 pandoc_api_version: { type: string, examples: ["1.23"] }
                 pandoc_heading_depth: { type: string, enum: [docling, source] }
                 pages: { type: string, examples: ["2-5"] }
@@ -1258,6 +1260,15 @@ components:
         md_page_break_placeholder:
           type: string
           description: Alias of `page_break_placeholder` (this server's historical spelling).
+        formatting_fallback_mode:
+          type: string
+          enum: [none, html]
+          description: >
+            How the Markdown renders underline and sub/superscript
+            (docling-core's `MarkdownParams.formatting_fallback_mode`, #1205):
+            `none` (default) drops them, `html` writes `<u>`, `<sub>` and
+            `<sup>`. Markdown only; the plain text drops them still. Alias
+            `md_formatting_fallback_mode`.
         pages:
           type: string
           pattern: '^\d+(-\d+)?$'
@@ -1769,6 +1780,8 @@ components:
       { name: page_break_placeholder, in: query, schema: { type: string } }
     md_page_break_placeholder:
       { name: md_page_break_placeholder, in: query, schema: { type: string }, description: "Alias of page_break_placeholder." }
+    formatting_fallback_mode:
+      { name: formatting_fallback_mode, in: query, schema: { type: string, enum: [none, html] }, description: "Underline and sub/superscript in Markdown: none (default) | html." }
     pandoc_api_version:
       { name: pandoc_api_version, in: query, schema: { type: string } }
     pandoc_heading_depth:

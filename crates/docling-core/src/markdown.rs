@@ -167,6 +167,8 @@ impl Ctx {
     fn plain_table(&self, table: &Table) -> Table {
         let mut plain = table.clone();
         for cell in plain.rows.iter_mut().flatten() {
+            // The Markdown-fallback marks (#1205) before the widths count.
+            *cell = crate::fallback::strip_owned(std::mem::take(cell));
             if cell.contains(['*', '~', '`', '[', '\n', '<']) {
                 let text = self.drop_image_markers(&strip_hard_breaks(cell));
                 *cell = plain_inline(&text);
@@ -269,7 +271,22 @@ pub fn to_markdown_with_options(
         (false, true) => front,
         (false, false) => format!("{front}\n{body}\n"),
     };
-    (md, ctx.artifacts)
+    (fallback_tags(md, options.plain_text), ctx.artifacts)
+}
+
+/// The Markdown-fallback marks (#1205) a conversion wrote as `<u>`, `<sub>`
+/// and `<sup>` tags; the plain-text export drops them, as docling-core's
+/// `PlainTextDocSerializer` drops the formatting.
+fn fallback_tags(md: String, plain: bool) -> String {
+    let mode = if plain {
+        crate::FormattingFallback::None
+    } else {
+        crate::FormattingFallback::Html
+    };
+    match crate::fallback::render(&md, mode) {
+        std::borrow::Cow::Borrowed(_) => md,
+        std::borrow::Cow::Owned(s) => s,
+    }
 }
 
 /// Render the block content of a *rich table cell* to Markdown — what
@@ -598,7 +615,7 @@ impl MarkdownStreamer {
             body
         };
         self.emitted_any = true;
-        chunk
+        fallback_tags(chunk, self.plain)
     }
 
     /// Emit the trailing newline that finishes the document (empty if no content
@@ -1683,9 +1700,17 @@ pub(crate) fn render_table(table: &Table, compact: bool) -> String {
     // `tabulate` strips data cells of surrounding whitespace but leaves the
     // header texts as-is.
     let num_headers = table.header_row_count().min(table.rows.len());
+    // A cell's Markdown-fallback marks (#1205) are its tags before the
+    // column widths are measured, as docling-core pads the tagged text.
     let escaped = |r: usize| -> Vec<String> {
         (0..num_cols)
-            .map(|c| escape_cell(table.rows[r].get(c).map(String::as_str).unwrap_or("")))
+            .map(|c| {
+                let cell = table.rows[r].get(c).map(String::as_str).unwrap_or("");
+                escape_cell(&crate::fallback::render(
+                    cell,
+                    crate::FormattingFallback::Html,
+                ))
+            })
             .collect()
     };
     let header_rows: Vec<Vec<String>> = (0..num_headers).map(escaped).collect();

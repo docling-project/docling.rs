@@ -32,6 +32,7 @@ mod document_timeout;
 mod docx_upstream;
 mod encrypted;
 mod feed;
+mod formatting_fallback;
 mod heif;
 mod html_depth_cap;
 mod html_export;

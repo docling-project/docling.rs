@@ -165,6 +165,10 @@ pub struct ConverterOptions {
     /// Calendar section (docling#5357's `parse_calendar_invitations`).
     /// Default `true`; `false` keeps a calendar body as text.
     pub parse_calendar_invitations: Option<bool>,
+    /// How the Markdown renders underline and sub/superscript (docling-core's
+    /// `formatting_fallback_mode`, #1205): `"none"` (default) drops them,
+    /// `"html"` writes `<u>` / `<sub>` / `<sup>`. Markdown only.
+    pub formatting_fallback_mode: Option<String>,
     /// Omit empty cells from sparse XLSX/XLS table grids (#271; docling.rs
     /// extension). Default `false`.
     pub skip_empty_cells: Option<bool>,
@@ -536,6 +540,10 @@ pub struct ConvertOptions {
     /// Calendar section (docling#5357's `parse_calendar_invitations`).
     /// Default `true`; `false` keeps a calendar body as text.
     pub parse_calendar_invitations: Option<bool>,
+    /// How the Markdown renders underline and sub/superscript (docling-core's
+    /// `formatting_fallback_mode`, #1205): `"none"` (default) drops them,
+    /// `"html"` writes `<u>` / `<sub>` / `<sup>`. Markdown only.
+    pub formatting_fallback_mode: Option<String>,
     /// Omit empty cells from sparse XLSX/XLS table grids (#271). Default
     /// `false`.
     pub skip_empty_cells: Option<bool>,

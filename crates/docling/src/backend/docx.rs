@@ -2510,9 +2510,13 @@ fn serialize_run(text: &str, fmt: Fmt, link: Option<&str>) -> String {
     if fmt.italic {
         s = format!("*{s}*");
     }
+    // The Markdown formatting fallback (#1205): `<u>`, then strikethrough,
+    // then `<sub>`/`<sup>`, docling-core's order.
+    s = docling_core::fallback::underline(s, fmt.underline);
     if fmt.strike {
         s = format!("~~{s}~~");
     }
+    s = docling_core::fallback::script(s, fmt.to_inline_run("").script);
     if let Some(url) = link {
         s = docling_core::hyperlink::markdown_link(&s, url);
     }

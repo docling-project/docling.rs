@@ -444,6 +444,38 @@ async fn query_options_apply_and_body_wins() {
     assert!(v.get("hierarchical").is_some(), "chunks shape expected");
 }
 
+/// docling-core's `formatting_fallback_mode` (#1205): `html` writes the
+/// underline and sub/superscript of the Markdown as tags — as a multipart
+/// field, a query parameter, or under the `md_` alias — and `none`, the
+/// default, drops them.
+#[tokio::test]
+async fn formatting_fallback_mode_tags_the_markdown() {
+    let page = b"<p>H<sub>2</sub>O and <u>under</u></p>";
+    let md = |fields: &[(&str, &str)], query: &str| {
+        let (ct, body) = multipart("p.html", page, fields);
+        let request = convert_request(&ct, body, query);
+        async move {
+            let response = app().oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            body_string(response).await
+        }
+    };
+    let tagged = "H<sub>2</sub>O and <u>under</u>";
+    assert!(md(&[("formatting_fallback_mode", "html")], "")
+        .await
+        .contains(tagged));
+    assert!(md(&[], "?formatting_fallback_mode=html")
+        .await
+        .contains(tagged));
+    assert!(md(&[("md_formatting_fallback_mode", "html")], "")
+        .await
+        .contains(tagged));
+    assert!(md(&[], "").await.contains("H2O and under"));
+    let (ct, body) = multipart("p.html", page, &[("formatting_fallback_mode", "tags")]);
+    let response = app().oneshot(convert_request(&ct, body, "")).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
 /// docling's `TextBackendOptions.encoding`: the `encoding` option names the
 /// text input's character encoding (multipart field or query parameter);
 /// bytes it cannot decode fail the request instead of being guessed.

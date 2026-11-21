@@ -464,7 +464,8 @@ fn serialize_core(run: &Run, text: &str) -> String {
     if fmt.italic {
         s = format!("*{s}*");
     }
-    s
+    // The Markdown formatting fallback (#1205): a `<u>` cue span as `<u>`.
+    docling_core::fallback::underline(s, fmt.underline)
 }
 
 #[cfg(test)]

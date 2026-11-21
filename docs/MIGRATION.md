@@ -2054,6 +2054,16 @@ pointed at the wrong item).
 - `None` (default) = no breaks, docling's default.
 - Buffered and streamed (`MarkdownStreamer::with_page_break_placeholder`) output byte-identical.
 
+### Formatting fallback in Markdown
+
+**API / CLI:** `DocumentConverter::markdown_formatting_fallback(FormattingFallback::Html)` / `--formatting-fallback-mode html` / serve `formatting_fallback_mode` (alias `md_formatting_fallback_mode`) / Node `formattingFallbackMode` / FFI and wasm `formatting_fallback_mode`
+
+- docling-core's `MarkdownParams.formatting_fallback_mode` (docling-core#661, 2.107; #1205): Markdown has no syntax for underline, subscript and superscript; `none` (the default, docling's) drops them, `html` writes `<u>…</u>`, `<sub>…</sub>`, `<sup>…</sup>` — in docling-core's decoration order (bold, italic, underline, strikethrough, sub/superscript, link) and with the column widths of a table counted over the tags, as docling-core pads them. docling's converter and CLI do not expose it; this is docling-core's export option on the converter, like `page_break_placeholder`.
+- Markdown only: the plain-text export drops them in either mode (docling-core's `PlainTextDocSerializer`), and every other export — JSON, HTML, DocLang, LaTeX, Pandoc, VTT, the chunks — is byte-identical under either mode. Buffered and streamed Markdown agree.
+- Decided at conversion time: the flat nodes the Markdown reads carry the Markdown the backends rendered, with no other record of a run's underline or script. Under `html` the run renderers of the backends whose runs carry that formatting in docling — HTML (and MHTML, EPUB and email bodies through it), DOCX, ODF, JATS, WebVTT (`<u>` spans) and the docling-JSON reader — wrap such runs in invisible marks (Unicode noncharacters U+FDD0–U+FDD5) that the Markdown export turns into the tags and every other export strips (`docling_core::fallback`). Without the option no mark is written, so the default output is untouched. Not wired: the legacy word-processor backends that keep these runs only as DocLang runs (AbiWord, WordPerfect, Works, and the `styled.rs` family — HWP, Lotus Word Pro, MacWrite, T602 — which also merges runs by their visible Markdown formatting first) and the PDF pipeline's script-position stage; their Markdown is unchanged under `html`.
+- Measured: every HTML, DOCX, ODF, JATS and WebVTT fixture whose default Markdown equals docling-core's export of upstream's groundtruth JSON — 80 — gives docling-core's `export_to_markdown(formatting_fallback_mode=HTML)` of that JSON byte for byte (8 of them change under the fallback); reading that JSON (the docling-JSON reader), 65/65 (4 change). Ported: `test_md_formatting_fallback_mode`, both modes, Markdown and plain text, on its document and on the HTML page that writes it (`crates/docling/tests/suite/formatting_fallback.rs`).
+- Python: docling-core's own `export_to_markdown(formatting_fallback_mode=…)` on the returned document (docling-core ≥ 2.107) — it reads the runs' `formatting`, which the engine's JSON carries.
+
 ### Image extraction
 
 **API / CLI:** `export_to_markdown_with_images(mode, dir)` / `--images`

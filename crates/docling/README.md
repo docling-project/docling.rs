@@ -320,6 +320,9 @@ and defaults in [`docs/OPTIONS.md`](../../docs/OPTIONS.md):
   relief — omit empty cells from XLSX table rows; unpadded `| a | b |`
   Markdown tables. `--page-break-placeholder TEXT`: docling's
   `page_break_placeholder` between rendered pages.
+  `--formatting-fallback-mode html`: underline and sub/superscript as
+  `<u>`, `<sub>`, `<sup>` in the Markdown (docling-core's
+  `formatting_fallback_mode`, #1205; default `none` drops them).
 
 Scanned pages come upright before layout and OCR: a `/Rotate` flag is
 applied, and a page rotated physically in the raster is probed under each
