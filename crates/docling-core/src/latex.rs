@@ -265,10 +265,12 @@ fn text_item(s: &str) -> String {
     escape_latex(&unescape_text(s))
 }
 
-/// Upstream escapes only `#` in inline code — and does so with a doubled
-/// backslash (its `r"\\#"`), reproduced verbatim. `raw` is the unescaped text.
+/// Upstream escapes only `#` in inline code, with one backslash
+/// (docling-core#950): `\\#` is a line break followed by an unescaped macro
+/// parameter, which TeX rejects — the doubled form both used to write.
+/// `raw` is the unescaped text.
 fn code_inline(raw: &str) -> String {
-    format!("\\texttt{{{}}}", raw.replace('#', "\\\\#"))
+    format!("\\texttt{{{}}}", raw.replace('#', "\\#"))
 }
 
 // ---------------------------------------------------------------------------
@@ -1059,8 +1061,18 @@ mod tests {
 
     #[test]
     fn inline_code_and_formulas() {
-        // Only `#` is escaped in code, with upstream's doubled backslash.
-        assert_eq!(inline_md("Run `a_b #1`"), "Run \\texttt{a_b \\\\#1}");
+        // Only `#` is escaped in code, with one backslash (docling-core#950:
+        // `test_latex_inline_code_escapes_hash_with_a_single_backslash`).
+        assert_eq!(inline_md("Run `a_b #1`"), "Run \\texttt{a_b \\#1}");
+        assert_eq!(
+            inline_md("Use `C# and F#` here."),
+            "Use \\texttt{C\\# and F\\#} here."
+        );
+        // `test_latex_inline_code_without_hash_is_unchanged`.
+        assert_eq!(
+            inline_md("`git checkout -b feature`"),
+            "\\texttt{git checkout -b feature}"
+        );
         // Formatting around a code span is dropped (a `CodeItem` upstream).
         assert_eq!(
             inline_md("Some *`formatted\\_code`*"),
