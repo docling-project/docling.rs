@@ -533,7 +533,18 @@ struct Prov {
 }
 
 fn prov_of(item: &Value) -> Option<Prov> {
-    let p = item["prov"].as_array()?.first()?;
+    prov_entry(item["prov"].as_array()?.first()?)
+}
+
+/// Every `prov` entry of an item that reads as one.
+fn provs_of(item: &Value) -> Vec<Prov> {
+    item["prov"]
+        .as_array()
+        .map(|a| a.iter().filter_map(prov_entry).collect())
+        .unwrap_or_default()
+}
+
+fn prov_entry(p: &Value) -> Option<Prov> {
     let page_no = p["page_no"].as_u64()? as usize;
     let b = &p["bbox"];
     let coord = |k: &str| b[k].as_f64().map(|v| v as f32);
@@ -760,9 +771,36 @@ fn with_prov(
 }
 
 fn text_item(item: &Value, root: &Value, level: u8, doc: &mut DoclingDocument, g: &mut WalkGuard) {
+    let start = doc.nodes.len();
     with_prov(item, doc, g, |doc, location| {
         text_node(item, root, level, doc, location)
     });
+    if doc.nodes.len() > start && item["label"].as_str() != Some("list_item") {
+        push_continuations(item, doc, g);
+    }
+}
+
+/// A text item's further `prov` entries — docling's merged paragraph, one
+/// per fragment, each with its `charspan` (#1207) — as continuation markers
+/// right after the item: the JSON export writes them back as read, and
+/// DocLang splits the item into threaded fragments. A list item's are left
+/// out (docling-core threads a list, not its items).
+fn push_continuations(item: &Value, doc: &mut DoclingDocument, g: &WalkGuard) {
+    let provs = provs_of(item);
+    for pair in provs.windows(2) {
+        let (prev, p) = (&pair[0], &pair[1]);
+        doc.push(Node::ProvContinuation {
+            location: grid_location(p, g).unwrap_or([0; 4]),
+            prev_end: prev.charspan[1],
+            span: p.charspan,
+            page_skip: 0,
+            exact: Some(docling_core::ContinuationProv {
+                page_no: p.page_no,
+                bbox: p.bbox,
+                bottom_left: p.bottom_left,
+            }),
+        });
+    }
 }
 
 fn text_node(

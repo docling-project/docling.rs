@@ -37,6 +37,13 @@ struct Out {
     /// The referenced assets' digests and PNG bytes, decoded up front in
     /// parallel (#898); empty for the other modes, which decode as they go.
     digests: crate::pixel_digest::Assets,
+    /// The last `thread_id` handed out (#1207): document-scoped, in reading
+    /// order, from 1.
+    threads: usize,
+    /// The pages a threaded item's fragments already broke onto: the
+    /// document's own page break to each is not written again
+    /// (`_suppress_document_page_break`).
+    broken_onto: Vec<usize>,
 }
 
 /// docling's `image_mode` for DocLang: where a picture's `<src>` points.
@@ -938,6 +945,8 @@ pub(crate) fn render(nodes: &[Node], pictures: Pictures) -> (String, Vec<(String
         assets: matches!(pictures, Pictures::Referenced { collect: true }).then(Vec::new),
         pictures,
         digests,
+        threads: 0,
+        broken_onto: Vec::new(),
     };
     out.push(0, "<doclang version=\"0.9\">".to_string());
     let mut i = 0usize;
@@ -951,6 +960,10 @@ pub(crate) fn render(nodes: &[Node], pictures: Pictures) -> (String, Vec<(String
 /// `<list>` blocks (recursing for deeper levels).
 fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8) {
     while *i < nodes.len() {
+        if let Some(next) = emit_threaded(out, depth, nodes, *i) {
+            *i = next;
+            continue;
+        }
         match &nodes[*i] {
             Node::Heading { level, text } => {
                 let open = if *level <= 1 {
@@ -1184,7 +1197,18 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
                 *i += 1;
             }
             Node::PageBreak => {
-                out.push(depth, "<page_break/>".to_string());
+                // Onto a page a threaded item's fragments already broke onto:
+                // that break was written between them.
+                let onto = match nodes.get(*i + 1) {
+                    Some(Node::PageInfo { page_no, .. }) => Some(*page_no),
+                    _ => None,
+                };
+                match onto.and_then(|p| out.broken_onto.iter().position(|&b| b == p)) {
+                    Some(k) => {
+                        out.broken_onto.remove(k);
+                    }
+                    None => out.push(depth, "<page_break/>".to_string()),
+                }
                 *i += 1;
             }
             // Page markers feed the JSON export only — DocLang stays unchanged
@@ -1659,6 +1683,104 @@ fn strip_lone_link(text: &str) -> Cow<'_, str> {
     Cow::Borrowed(text)
 }
 
+/// A located paragraph or heading followed by [`Node::ProvContinuation`]
+/// markers — an item with several `prov` entries — as docling-core's
+/// `DocLangTextSerializer` writes it (#1207): one element per fragment, each
+/// with its box and a `<thread thread_id="N"/>` head shared by all, a
+/// `<page_break/>` between two on different pages. Returns the index after
+/// the markers, or `None` when `nodes[i]` is no such item.
+///
+/// Deliberate divergence: upstream cuts each fragment at its `charspan`
+/// (`orig[start:end]`), and docling's merged paragraphs leave the joining
+/// space in neither span (`ReadingOrderModel`: the next starts one past the
+/// previous end), so its threads read back glued (`andcontinues`). Here a
+/// fragment runs up to where the next one starts, which reads back as the
+/// text it was; spans without a gap (a docling-JSON input's, upstream's own
+/// fixtures) cut the same either way. Only a fragment of a known page — a
+/// docling-JSON input's — gets its page break: the PDF stream writes no page
+/// breaks yet.
+fn emit_threaded(out: &mut Out, depth: i32, nodes: &[Node], i: usize) -> Option<usize> {
+    let (head_page, located) = match &nodes[i] {
+        Node::Prov { page_no, inner, .. } => (Some(*page_no), &**inner),
+        other => (None, other),
+    };
+    let Node::Located { location, inner } = located else {
+        return None;
+    };
+    let conts: Vec<&Node> = nodes[i + 1..]
+        .iter()
+        .take_while(|n| matches!(n, Node::ProvContinuation { .. }))
+        .collect();
+    if conts.is_empty() {
+        return None;
+    }
+    let paragraph = inner.labeled_as_paragraph();
+    let (open, tag, text) = match &*paragraph {
+        Node::Heading { level, text } => (
+            if *level <= 1 {
+                "heading".to_string()
+            } else {
+                format!("heading level=\"{}\"", (*level).min(6))
+            },
+            "heading",
+            text,
+        ),
+        Node::Paragraph { text } if !(text.starts_with("$$") && text.ends_with("$$")) => {
+            ("text".to_string(), "text", text)
+        }
+        _ => return None,
+    };
+    // Fragments are cut from the plain text; a styled one keeps its one
+    // element (its runs would not survive the cut).
+    if !matches!(inline_runs(text).as_slice(), [Run::Plain(_)]) {
+        return None;
+    }
+    let chars: Vec<char> = unescape_stored(text).chars().collect();
+    let mut starts = vec![0usize];
+    let mut boxes = vec![(*location, head_page)];
+    for c in &conts {
+        if let Node::ProvContinuation {
+            location,
+            span,
+            exact,
+            ..
+        } = c
+        {
+            let prev = *starts.last().unwrap_or(&0);
+            starts.push(span[0].clamp(prev, chars.len()));
+            boxes.push((*location, exact.map(|p| p.page_no)));
+        }
+    }
+    out.threads += 1;
+    let thread = out.threads;
+    for (k, &(loc, page)) in boxes.iter().enumerate() {
+        if k > 0 {
+            if let (Some(prev), Some(page)) = (boxes[k - 1].1, page) {
+                if prev != page {
+                    out.push(depth, "<page_break/>".to_string());
+                    out.broken_onto.push(page);
+                }
+            }
+        }
+        let end = starts.get(k + 1).copied().unwrap_or(chars.len());
+        let frag: String = chars[starts[k]..end].iter().collect();
+        out.push(depth, format!("<{open}>"));
+        out.push(depth + 1, format!("<thread thread_id=\"{thread}\"/>"));
+        if loc != [0, 0, 0, 0] {
+            push_location(out, depth + 1, &loc);
+        }
+        if !frag.is_empty() {
+            let mut body = crate::doclang_xml::escape_text(&frag, true);
+            if is_rtl(&frag) {
+                body = format!("<rtl>{body}</rtl>");
+            }
+            out.push(depth + 1, body);
+        }
+        out.push(depth, format!("</{tag}>"));
+    }
+    Some(i + 1 + conts.len())
+}
+
 /// Render a [`Node::Located`] wrapper: the inner element with its `<location>`
 /// tokens as the first children.
 fn emit_located(out: &mut Out, depth: i32, location: &[u16; 4], inner: &Node) {
@@ -1995,6 +2117,42 @@ fn emit_field_region(out: &mut Out, depth: i32, items: &[FieldItem]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1207: a PDF paragraph the assembler joined across a page break
+    /// (#1127) is one threaded fragment per box. docling's spans leave the
+    /// joining space in neither fragment; ours run each fragment up to the
+    /// next, so the thread reads back as the text it was. The PDF stream
+    /// writes no page breaks, so none comes between them either.
+    #[test]
+    fn joined_paragraph_is_a_thread_of_its_boxes() {
+        let text = "starts here and continues there";
+        let head = "starts here and".chars().count();
+        let doclang = export_to_doclang(&[
+            Node::Located {
+                location: [10, 400, 250, 500],
+                inner: Box::new(Node::Paragraph { text: text.into() }),
+            },
+            Node::ProvContinuation {
+                location: [10, 10, 250, 60],
+                prev_end: head,
+                span: [head + 1, text.chars().count()],
+                page_skip: 1,
+                exact: None,
+            },
+        ]);
+        let want = concat!(
+            "  <text>\n    <thread thread_id=\"1\"/>\n",
+            "    <location value=\"10\"/>\n    <location value=\"400\"/>\n",
+            "    <location value=\"250\"/>\n    <location value=\"500\"/>\n",
+            "    <content>starts here and </content>\n  </text>\n",
+            "  <text>\n    <thread thread_id=\"1\"/>\n",
+            "    <location value=\"10\"/>\n    <location value=\"10\"/>\n",
+            "    <location value=\"250\"/>\n    <location value=\"60\"/>\n",
+            "    continues there\n  </text>\n",
+        );
+        assert!(doclang.contains(want), "got:\n{doclang}");
+        assert!(!doclang.contains("<page_break/>"), "got:\n{doclang}");
+    }
 
     /// docling-core#687 (#253): XML-1.0-illegal characters render as visible
     /// `[U+XXXX]` markers so the archive stays parseable; tab/LF/CR are legal

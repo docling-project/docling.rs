@@ -26,6 +26,7 @@ mod detect;
 mod djvu_prov;
 mod doclang_hyperlinks;
 mod doclang_reading;
+mod doclang_threads;
 mod doclang_upstream;
 mod docling_json_prov;
 mod document_metadata;

@@ -52,7 +52,7 @@ impl DeclarativeBackend for DoclangBackend {
         }
         check_table_budget(root)?;
         let mut doc = DoclingDocument::new(&source.name);
-        walk_body(root, &mut doc.nodes);
+        walk_body(root, &mut doc.nodes, &mut Threads::default());
         // The JSON export reads docling's item tree (see `doclang_tree`);
         // the deserializer lays every document out on 512×512 pages, one
         // per `<page_break>`, which the export's page map is built from.
@@ -121,8 +121,69 @@ fn check_table_budget(root: XmlNode) -> Result<(), ConversionError> {
     Ok(())
 }
 
-fn walk_body(parent: XmlNode, out: &mut Vec<Node>) {
+/// `_thread_registry` (#1207): the node a `(thread_id, element name)`
+/// started, which the thread's later fragments continue.
+type Threads = std::collections::HashMap<(String, String), usize>;
+
+/// A threaded element's key: its `<thread>` head's id and its name.
+fn thread_key(el: XmlNode) -> Option<(String, String)> {
+    super::doclang_tree::thread_id(el).map(|id| (id, el.tag_name().name().to_string()))
+}
+
+/// A later fragment of a thread: its text continues the node the thread
+/// started (`_append_textual_fragment`). `false` when that node takes none.
+fn append_fragment(node: &mut Node, fragment: &str) -> bool {
+    match node {
+        Node::Paragraph { text } | Node::Heading { text, .. } => {
+            text.push_str(fragment);
+            true
+        }
+        Node::Furniture { inner, .. } => append_fragment(inner, fragment),
+        _ => false,
+    }
+}
+
+/// A threaded heading or text (#1207): a later fragment is appended to the
+/// node its thread started — its text as read, edge whitespace included,
+/// since the fragments are cuts of one text — and `true` returned; a first
+/// fragment is registered once pushed (`register`).
+fn continue_thread(el: XmlNode, out: &mut [Node], threads: &Threads) -> bool {
+    let Some(key) = thread_key(el) else {
+        return false;
+    };
+    let Some(&idx) = threads.get(&key) else {
+        return false;
+    };
+    let fragment = inline_runs(el, true).text;
+    let fragment = fragment.trim_end_matches(XML_WS);
+    match out.get_mut(idx) {
+        Some(node) => append_fragment(node, fragment),
+        None => false,
+    }
+}
+
+/// After the first fragment of a thread was pushed: register it, its text
+/// keeping the trailing whitespace the next fragment continues after.
+fn register_thread(el: XmlNode, out: &mut [Node], threads: &mut Threads) {
+    let Some(key) = thread_key(el) else {
+        return;
+    };
+    let Some(idx) = out.len().checked_sub(1) else {
+        return;
+    };
+    let raw = inline_runs(el, true).text;
+    let trail = &raw[raw.trim_end_matches(XML_WS).len()..];
+    if !trail.is_empty() {
+        append_fragment(&mut out[idx], trail);
+    }
+    threads.insert(key, idx);
+}
+
+fn walk_body(parent: XmlNode, out: &mut Vec<Node>, threads: &mut Threads) {
     for el in parent.children().filter(|n| n.is_element()) {
+        if matches!(el.tag_name().name(), "heading" | "text") && continue_thread(el, out, threads) {
+            continue;
+        }
         match el.tag_name().name() {
             "heading" => {
                 let level: u8 = attr(el, "level")
@@ -157,6 +218,7 @@ fn walk_body(parent: XmlNode, out: &mut Vec<Node>) {
                         text: inline.text,
                     },
                 );
+                register_thread(el, out, threads);
             }
             "text" => {
                 // A mixed `<text>` keeps its `<layer>`: docling-core 2.102
@@ -172,6 +234,7 @@ fn walk_body(parent: XmlNode, out: &mut Vec<Node>) {
                     Node::Paragraph { text: inline.text }
                 };
                 push_with_layer(out, inline.layer, node);
+                register_thread(el, out, threads);
             }
             // docling-core#865: a footnote, a page header/footer and a lone
             // caption are text items of their own label — a mixed one a host
@@ -238,7 +301,7 @@ fn walk_body(parent: XmlNode, out: &mut Vec<Node>) {
                 }
             }
             // Unknown block containers: recurse so nothing inside is lost.
-            _ => walk_body(el, out),
+            _ => walk_body(el, out, threads),
         }
     }
 }

@@ -424,6 +424,17 @@ fn extract_hyperlink(el: XmlNode) -> Option<String> {
     None
 }
 
+/// `_extract_thread_id`: the `thread_id` of a `<thread>` in `el`'s head.
+pub(super) fn thread_id(el: XmlNode) -> Option<String> {
+    split_head_body(el)
+        .0
+        .into_iter()
+        .find(|n| has_tag(*n, "thread"))
+        .and_then(|n| n.attribute("thread_id"))
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+}
+
 fn layer_of(el: XmlNode) -> Option<ContentLayer> {
     layer_from_nodes(&split_head_body(el).0)
 }
@@ -497,6 +508,9 @@ pub(super) struct Builder<'p> {
     /// The `.dclx` package, when reading an archive: `<src uri>` resolves to
     /// its assets (docling's `media_root`); a bare `.dclg` keeps no image.
     pkg: Option<&'p mut Package>,
+    /// `_thread_registry` (#1207): the item each `(thread_id, element name)`
+    /// started, which the thread's later fragments continue.
+    threads: std::collections::HashMap<(String, String), usize>,
 }
 
 /// Build the tree for `root` (the `<doclang>` element). Returns the tree and
@@ -507,6 +521,7 @@ pub(super) fn build(root: XmlNode, pkg: Option<&mut Package>) -> (ItemTree, usiz
         page_no: 1,
         pages: 1,
         pkg,
+        threads: Default::default(),
     };
     for el in root.children().filter(|n| n.is_element()) {
         b.dispatch(el, None);
@@ -550,6 +565,47 @@ impl Builder<'_> {
     /// `_extract_provenance`: the element head's location quartets.
     fn provenance(&self, el: XmlNode) -> Vec<TreeProv> {
         self.provs_from_nodes(&split_head_body(el).0)
+    }
+
+    /// `_get_thread_item`: the item an earlier fragment of `el`'s thread
+    /// started, when `el` carries a `<thread>` head.
+    fn thread_item(&self, el: XmlNode) -> Option<usize> {
+        let id = thread_id(el)?;
+        self.threads
+            .get(&(id, el.tag_name().name().to_string()))
+            .copied()
+    }
+
+    /// `_register_thread`: `item` is the one `el`'s thread continues.
+    fn register_thread(&mut self, el: XmlNode, item: usize) {
+        if let Some(id) = thread_id(el) {
+            self.threads
+                .insert((id, el.tag_name().name().to_string()), item);
+        }
+    }
+
+    /// `_merge_threaded_text_item` (`_append_textual_fragment`): a later
+    /// fragment of a thread appends its text to the item the thread started,
+    /// and each of its boxes is one more `prov` entry spanning that text.
+    fn merge_fragment(&mut self, item: usize, text: &str, provs: Vec<TreeProv>) {
+        let it = &mut self.tree.items[item];
+        let offset = match &mut it.kind {
+            TreeKind::Text { text: t, .. } | TreeKind::Code { text: t, .. } => {
+                let offset = t.chars().count();
+                t.push_str(text);
+                offset
+            }
+            _ => return,
+        };
+        let span = [offset, offset + text.chars().count()];
+        for mut p in provs {
+            p.charspan = span;
+            if it.prov.is_none() {
+                it.prov = Some(p);
+            } else {
+                it.more_prov.push(p);
+            }
+        }
     }
 
     /// `add_text` with `_apply_initial_text_provenance`: the first box gets
@@ -702,15 +758,20 @@ impl Builder<'_> {
             .filter(|c| c.is_element() && !is_head_tag(c.tag_name().name()))
             .collect();
         let simple = simple_text_block(el);
+        let threaded = thread_id(el).is_some();
         // An element without any content is an empty item, not a childless
-        // inline group (docling-core 2.102's `_is_empty_text_block`).
-        let is_empty = simple.is_none() && is_empty_text_block(el);
+        // inline group (docling-core 2.102's `_is_empty_text_block`) — unless
+        // it is a fragment of a thread, whose boxes still count (#1207).
+        let is_empty = simple.is_none() && !threaded && is_empty_text_block(el);
         let checkbox = if name == "text" {
             checkbox_text_block(el)
         } else {
             None
         };
-        if checkbox.is_none() && !is_empty && (element_children.len() > 1 || simple.is_none()) {
+        if checkbox.is_none()
+            && !is_empty
+            && (element_children.len() > 1 || (simple.is_none() && !threaded))
+        {
             // `_parse_mixed_text_like` (docling-core#865): a mixed caption,
             // footnote or page header/footer — or a `<text>` with a location
             // — is a host item of its own label, provenance and layer over
@@ -740,7 +801,29 @@ impl Builder<'_> {
             None => text_with_formatting(el, !in_group),
         };
         if text.is_empty() && !is_empty && checkbox.is_none() {
+            // A thread's fragment without text still adds its boxes.
+            if let Some(item) = self.thread_item(el) {
+                if !provs.is_empty() {
+                    self.merge_fragment(item, "", provs);
+                }
+            }
             return;
+        }
+        // A later fragment of a thread continues the item its first started.
+        if let Some(item) = self.thread_item(el) {
+            let fits = matches!(
+                (&self.tree.items[item].kind, name),
+                (TreeKind::Code { .. }, "code") | (TreeKind::Text { .. }, _)
+            );
+            if fits {
+                let text = if name == "code" {
+                    code_content(el).0
+                } else {
+                    text
+                };
+                self.merge_fragment(item, &text, provs);
+                return;
+            }
         }
         match name {
             "code" => {
@@ -763,6 +846,7 @@ impl Builder<'_> {
                     provs,
                     Some(len),
                 );
+                self.register_thread(el, item);
                 // The head's captions, created after the code item.
                 let caps = self.extract_captions(el);
                 if let TreeKind::Code { captions, .. } = &mut self.tree.items[item].kind {
@@ -771,13 +855,14 @@ impl Builder<'_> {
             }
             "formula" => {
                 let len = text.chars().count();
-                self.add_text_item(
+                let item = self.add_text_item(
                     parent,
                     None,
                     Self::linked_text_kind("formula", &text, formatting, extract_hyperlink(el)),
                     provs,
                     Some(len),
                 );
+                self.register_thread(el, item);
             }
             "ldiv" => {}
             _ => {
@@ -806,13 +891,14 @@ impl Builder<'_> {
                     label = "handwritten_text";
                 }
                 let len = text.chars().count();
-                self.add_text_item(
+                let item = self.add_text_item(
                     parent,
                     layer,
                     Self::linked_text_kind(label, &text, formatting, extract_hyperlink(el)),
                     provs,
                     Some(len),
                 );
+                self.register_thread(el, item);
             }
         }
     }
@@ -839,6 +925,10 @@ impl Builder<'_> {
             && body
                 .iter()
                 .any(|n| n.is_element() && n.descendants().skip(1).any(|d| has_tag(d, "href")));
+        if let Some(item) = self.thread_item(el) {
+            self.merge_fragment(item, &text, provs);
+            return;
+        }
         let (text, hyperlink) = if linked_runs {
             (String::new(), None)
         } else {
@@ -859,6 +949,7 @@ impl Builder<'_> {
         };
         let len = text.chars().count();
         let item = self.add_text_item(parent, layer, kind, provs, Some(len));
+        self.register_thread(el, item);
         if linked_runs {
             self.inline_group(el, Some(item), Some(body));
         }

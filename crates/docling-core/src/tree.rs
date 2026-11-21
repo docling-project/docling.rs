@@ -175,6 +175,11 @@ pub struct TreeItem {
     /// The item's `prov` entry, when the backend has page geometry for it
     /// (`None` → `prov: []`, what the HTML and DOCX backends write).
     pub prov: Option<TreeProv>,
+    /// Further `prov` entries after [`Self::prov`], each with its
+    /// `charspan` into the text: docling's item over several boxes (a
+    /// paragraph joined across columns or pages), read back from a DocLang
+    /// thread (#1207).
+    pub more_prov: Vec<TreeProv>,
     /// docling's `DocItem.comments`: the `comment_section` groups (or note
     /// text items) annotating this item, as item indices — written after
     /// `prov` when non-empty.
@@ -593,6 +598,7 @@ impl ItemTree {
             layer,
             kind,
             prov: None,
+            more_prov: Vec::new(),
             comments: Vec::new(),
             source: None,
             deleted: false,

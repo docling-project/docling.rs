@@ -5068,6 +5068,7 @@ fn merge_open_paragraphs(nodes: &mut Vec<Node>, how: Continuations) {
                             docling_core::text_char_len(&merged),
                         ],
                         page_skip,
+                        exact: None,
                     })
                 }
                 _ => None,
@@ -7032,6 +7033,7 @@ mod tests {
                 prev_end: head,
                 span: [head + 1, stem],
                 page_skip: 1,
+                exact: None,
             }
         );
         assert_eq!(
@@ -7041,6 +7043,7 @@ mod tests {
                 prev_end: stem,
                 span: [stem, total],
                 page_skip: 2,
+                exact: None,
             }
         );
         // Streamed a page at a time, the same.
@@ -7082,14 +7085,17 @@ mod tests {
         assert_eq!(next["prov"].as_array().unwrap().len(), 1);
         assert_eq!(next["prov"][0]["page_no"], 8);
 
-        // Every other serializer reads the markers as nothing.
+        // The Markdown reads the markers as nothing; DocLang writes the
+        // paragraph as a thread of its three boxes (#1207).
         let mut plain = docling_core::DoclingDocument::new("t");
         plain.nodes = merged
             .into_iter()
             .filter(|n| !matches!(n, Node::ProvContinuation { .. }))
             .collect();
         assert_eq!(doc.export_to_markdown(), plain.export_to_markdown());
-        assert_eq!(doc.export_to_doclang(), plain.export_to_doclang());
+        let doclang = doc.export_to_doclang();
+        assert_eq!(doclang.matches("<thread thread_id=\"1\"/>").count(), 3);
+        assert!(!doclang.contains("thread_id=\"2\""));
     }
 
     fn item(text: &str) -> Node {
