@@ -20,6 +20,11 @@ format-xml-jats,format-xml-uspto,format-xml-xbrl]" pypdfium2 pylatexenc \\
     cargo build -p docling-cli
     .venv-compare/bin/python scripts/conformance/full_conformance.py [fmt ...]
 
+XBRL needs `arelle-release` beside docling (the `format-xml-xbrl` extra);
+each fixture is converted with its `<prefix>-taxonomy` directory on both sides,
+as upstream's own test passes it, and the inline report under `xbrl/ixbrl/`
+is scored with the instance's taxonomy.
+
 Prints a per-format summary (files upstream converts, Markdown exact,
 Markdown exact after whitespace normalization, JSON identical, upstream
 errors) and every file that is not exact on both, then writes the raw rows to
@@ -96,6 +101,24 @@ def backend_for(fmt):
     raise SystemExit(f"no declarative backend wired for format: {fmt}")
 
 
+def xbrl_taxonomy(path: Path):
+    """The `<prefix>-taxonomy` directory of an XBRL fixture (`mlac-20251231.xml`
+    and the inline report `ixbrl/mlac-20251231.htm` → `sources/mlac-taxonomy`),
+    which both sides read the filing's taxonomy from — upstream's test passes it
+    as `XBRLBackendOptions(taxonomy=…, enable_local_fetch=True)`, the CLI as
+    `--xbrl-taxonomy`. None for any other file."""
+    if path.parent.name not in ("sources", "ixbrl") or path.parent.parent.name != "xbrl":
+        return None
+    prefix = re.split(r"[-_]", path.stem, maxsplit=1)[0]
+    candidate = path.parent.parent / "sources" / f"{prefix}-taxonomy"
+    return candidate if candidate.is_dir() else None
+
+
+def cli_args(path: Path):
+    taxonomy = xbrl_taxonomy(path)
+    return ["--xbrl-taxonomy", str(taxonomy)] if taxonomy else []
+
+
 def upstream(path: Path):
     """(markdown, json dict) from the installed docling, or None to skip."""
     ext = path.suffix.lower().lstrip(".")
@@ -111,6 +134,9 @@ def upstream(path: Path):
             fmt = dc._sniff_xml(path)
         elif head.startswith("PATN"):
             fmt = InputFormat.XML_USPTO
+    if path.parent.name == "ixbrl":
+        # An inline XBRL report (docling#4689): an `.htm` docling types XBRL.
+        fmt = InputFormat.XML_XBRL
     if ext == "pages":
         fmt = InputFormat.IWORK_PAGES
     if ext == "key":
@@ -127,6 +153,10 @@ def upstream(path: Path):
         from docling.backend.ebcdic_backend import EbcdicBackendOptions
 
         kwargs["options"] = EbcdicBackendOptions(layout_file=path.with_suffix(".layout.json"))
+    if fmt == InputFormat.XML_XBRL:
+        from docling.datamodel.backend_options import XBRLBackendOptions
+
+        kwargs["options"] = XBRLBackendOptions(enable_local_fetch=True, taxonomy=xbrl_taxonomy(path))
     in_doc = InputDocument(path_or_stream=path, format=fmt, backend=backend_cls, filename=path.name)
     doc = backend_cls(path_or_stream=path, in_doc=in_doc, **kwargs).convert()
     # Wrap the document the way `DocumentConverter` does: building the
@@ -200,9 +230,14 @@ def main() -> None:
     summary, rows = [], []
     for fmt in formats:
         n = md_exact = md_norm = json_ok = errors = 0
-        for src in sorted(glob.glob(str(ROOT / "tests/data" / fmt / "sources" / "*"))):
+        sources = sorted(glob.glob(str(ROOT / "tests/data" / fmt / "sources" / "*")))
+        # The inline XBRL report (docling#4689) is kept beside the sources.
+        sources += sorted(glob.glob(str(ROOT / "tests/data" / fmt / "ixbrl" / "*")))
+        for src in sources:
             path = Path(src)
             name = path.name
+            if path.is_dir() and path.name.endswith("-taxonomy"):
+                continue
             if path.is_dir():
                 # A LaTeX arXiv project is converted from its `main.tex`, the
                 # file upstream's groundtruth is named after.
@@ -221,14 +256,16 @@ def main() -> None:
                 continue
             ref_md, ref_json = ref
             n += 1
-            ours_md = run_cli(str(path))
+            ours_md = run_cli(*cli_args(path), str(path))
             strict = diff_lines(ours_md.rstrip("\n"), ref_md.rstrip("\n"))
             loose = diff_lines(norm(ours_md), norm(ref_md))
             md_exact += strict == 0
             md_norm += loose == 0
             json_state = "n/a"
             if ref_json is not None:
-                ours = image_presence(drop_documented(strip(json.loads(run_cli("--to", "json", str(path)) or "{}"))))
+                ours = image_presence(
+                    drop_documented(strip(json.loads(run_cli("--to", "json", *cli_args(path), str(path)) or "{}")))
+                )
                 want = image_presence(strip(ref_json))
                 ours.pop("name", None)
                 want.pop("name", None)
