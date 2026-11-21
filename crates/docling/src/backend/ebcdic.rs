@@ -246,6 +246,7 @@ impl DeclarativeBackend for EbcdicBackend {
             table_rows.extend(schema_rows);
             doc.push(Node::Table(Table {
                 footnotes: Vec::new(),
+                footnotes_as_runs: false,
                 rows: table_rows,
                 location: None,
                 structure: None,

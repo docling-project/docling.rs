@@ -844,6 +844,7 @@ impl<'a> Parser<'a> {
         }
         doc.push(Node::Table(Table {
             footnotes: Vec::new(),
+            footnotes_as_runs: false,
             rows,
             location: None,
             structure: None,

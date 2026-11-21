@@ -2180,6 +2180,29 @@ impl Builder {
                 }
             };
             debug_assert_eq!(self_ref, refs[id], "tree item {id} numbered out of order");
+            // An item over several boxes (a DocLang thread read back, #1207):
+            // one `prov` entry per box.
+            if !item.more_prov.is_empty() {
+                if let Some(provs) = self
+                    .item_mut(&self_ref)
+                    .and_then(|v| v.get_mut("prov"))
+                    .and_then(Value::as_array_mut)
+                {
+                    for p in &item.more_prov {
+                        let r2 = round2;
+                        let [l, t, r, b] = p.bbox;
+                        let slot = ProvSlot::One {
+                            page_no: p.page_no,
+                            bbox: [r2(l), r2(t), r2(r), r2(b)],
+                            bottom_left: p.bottom_left,
+                            charspan: p.charspan,
+                        };
+                        if let Value::Array(mut one) = slot.to_value() {
+                            provs.append(&mut one);
+                        }
+                    }
+                }
+            }
             // A float's own footnotes (`FloatingItem.footnotes`).
             if !item.footnotes.is_empty() {
                 let notes: Vec<Value> = item
@@ -2531,7 +2554,42 @@ impl Builder {
                 prev_end,
                 span,
                 page_skip,
+                exact,
             } => {
+                // A docling-JSON input's further `prov` entry (#1207): written
+                // as read, at once.
+                if let (Some(idx), Some(p)) = (self.last_text, exact) {
+                    let r2 = round2;
+                    let [l, t, r, b] = p.bbox.map(f64::from);
+                    let entry = object([
+                        ("page_no", p.page_no.into()),
+                        (
+                            "bbox",
+                            object([
+                                ("l", r2(l).into()),
+                                ("t", r2(t).into()),
+                                ("r", r2(r).into()),
+                                ("b", r2(b).into()),
+                                ("coord_origin", ProvSlot::origin(p.bottom_left).into()),
+                            ]),
+                        ),
+                        ("charspan", json!([span[0], span[1]])),
+                    ]);
+                    if let Some(provs) = self
+                        .texts
+                        .get_mut(idx)
+                        .map(|it| it.value_mut(idx))
+                        .and_then(|item| item.get_mut("prov"))
+                        .and_then(Value::as_array_mut)
+                        .filter(|provs| !provs.is_empty())
+                    {
+                        if let Some(last) = provs.last_mut() {
+                            last["charspan"][1] = json!(*prev_end);
+                        }
+                        provs.push(entry);
+                    }
+                    return None;
+                }
                 if let Some(idx) = self.last_text.filter(|_| self.cur_page > 0) {
                     self.pending_continuations.push(PendingContinuation {
                         item: idx,
@@ -3567,6 +3625,7 @@ mod tests {
         ];
         doc.push(Node::Table(crate::Table {
             footnotes: Vec::new(),
+            footnotes_as_runs: false,
             rows,
             location: None,
             structure: Some(crate::TableStructure {
@@ -4023,6 +4082,7 @@ mod tests {
         });
         doc.push(Node::Table(Table {
             footnotes: Vec::new(),
+            footnotes_as_runs: false,
             rows: vec![vec!["A".into(), "B".into()]],
             location: None,
             structure: None,

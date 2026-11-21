@@ -765,7 +765,7 @@ dependencies = [
 
 [[package]]
 name = "docling"
-version = "2.84.3"
+version = "2.86.8"
 dependencies = [
  "aes",
  "base64 0.22.1",
@@ -798,12 +798,13 @@ dependencies = [
  "unicode-normalization",
  "ureq",
  "url",
+ "web_atoms",
  "zip",
 ]
 
 [[package]]
 name = "docling-asr"
-version = "2.84.3"
+version = "2.86.8"
 dependencies = [
  "docling-core",
  "docling-onnx",
@@ -814,7 +815,7 @@ dependencies = [
 
 [[package]]
 name = "docling-cli"
-version = "2.84.3"
+version = "2.86.8"
 dependencies = [
  "axum",
  "docling",
@@ -829,7 +830,7 @@ dependencies = [
 
 [[package]]
 name = "docling-core"
-version = "2.84.3"
+version = "2.86.8"
 dependencies = [
  "libc",
  "png",
@@ -843,7 +844,7 @@ dependencies = [
 
 [[package]]
 name = "docling-onnx"
-version = "2.84.3"
+version = "2.86.8"
 dependencies = [
  "docling-core",
  "libloading 0.8.9",
@@ -852,7 +853,7 @@ dependencies = [
 
 [[package]]
 name = "docling-pdf"
-version = "2.84.3"
+version = "2.86.8"
 dependencies = [
  "docling-core",
  "docling-onnx",

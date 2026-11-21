@@ -125,6 +125,10 @@ scraper = "0.27.0"
 # scraper's DOM arena, for naming its node references in the HTML item-tree
 # port (`html_tree.rs`); the version scraper 0.27 itself pins.
 ego-tree = "0.11"
+# The HTML5 named character references (the table html5ever uses, the one
+# Python's `html.unescape` reads) for WebVTT cue text (docling-core#926); the
+# version scraper's html5ever already brings in.
+web_atoms = "0.2"
 # WHATWG charset decoding for non-UTF-8 HTML (#371): BOM / declared
 # `<meta charset>` / windows-1252 fallback, the way BeautifulSoup's
 # UnicodeDammit reads bytes for docling. Already in the tree via calamine.

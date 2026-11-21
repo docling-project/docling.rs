@@ -952,6 +952,7 @@ fn grid_table(cells: &[(Anchor, ShapeText)]) -> Option<Table> {
     });
     Some(Table {
         footnotes: Vec::new(),
+        footnotes_as_runs: false,
         rows,
         location: None,
         structure,

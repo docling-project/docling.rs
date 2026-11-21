@@ -525,6 +525,12 @@ pub enum Node {
         /// — nothing a later pass inserts can come between them — so its page
         /// is counted rather than implied by position.
         page_skip: usize,
+        /// The fragment's provenance as read, when it is known exactly — a
+        /// docling-JSON input's further `prov` entries (#1207): the JSON
+        /// export writes it verbatim, at once (`page_skip` is then unused),
+        /// and DocLang knows the fragment's page. `None` from the PDF
+        /// assembler, whose box is the grid `location` on a counted page.
+        exact: Option<ContinuationProv>,
     },
     /// A node docling keeps in the document model (and DocLang) but leaves out
     /// of the Markdown and JSON exports — e.g. an ODF *presentation*'s pictures
@@ -563,6 +569,18 @@ pub struct ScriptRunProv {
     pub bbox: [f32; 4],
     /// The run's characters on this page, as a span of its `text`.
     pub charspan: [usize; 2],
+}
+
+/// A [`Node::ProvContinuation`] fragment's provenance as a docling-JSON
+/// input carries it (#1207): docling's `ProvenanceItem` verbatim.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ContinuationProv {
+    /// 1-based page number.
+    pub page_no: usize,
+    /// `[l, t, r, b]` in page units.
+    pub bbox: [f32; 4],
+    /// The box's origin: docling's `BOTTOMLEFT`, else `TOPLEFT`.
+    pub bottom_left: bool,
 }
 
 /// Vertical text position of an [`InlineRun`] — docling's `Script`.
@@ -1178,6 +1196,12 @@ pub struct Table {
     /// the grid, one paragraph each; JSON emits `footnote` text items under
     /// the table that its `footnotes` list references (docling-core#675).
     pub footnotes: Vec<String>,
+    /// The footnotes are docling's empty `footnote` items holding an inline
+    /// group of runs (the JATS table notes, docling#4818) rather than items
+    /// with their own text. docling-core's LaTeX footnote pass serializes a
+    /// note's text inside the table's float (docling-core#897), so it skips
+    /// these and its walk writes their runs after the table — LaTeX only.
+    pub footnotes_as_runs: bool,
     /// Optional per-cell bounding boxes, same shape as [`Self::rows`]: `[l, t,
     /// r, b]` in page points with a **top-left** origin (the PDF pipeline's
     /// native space). Set by the ML pipeline's TableFormer paths — a spanned

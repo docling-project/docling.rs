@@ -15,6 +15,7 @@ use crate::backend::markdown::escape_text;
 use crate::backend::DeclarativeBackend;
 use crate::error::ConversionError;
 use crate::source::SourceDocument;
+use docling_core::tree::{Formatting, ItemTree, ListMeta, TreeKind, TreeTrack};
 use docling_core::{CaptionParent, DoclingDocument, Node, PictureImage, Table};
 
 pub struct DoclingJsonBackend;
@@ -85,6 +86,8 @@ pub(crate) fn read_document(
             walk(c, &root, 0, &mut doc, &mut guard);
         }
     }
+    // A transcript keeps its item tree (C9): see [`transcript_tree`].
+    doc.tree = transcript_tree(&root);
     // A page no body item sits on (a blank page, a furniture-only one)
     // is still a page of the document: its marker keeps it in the
     // exported `pages` map. Trailing markers render nothing — Markdown's
@@ -173,7 +176,184 @@ fn inline_text(reference: &Value, root: &Value, depth: usize) -> String {
             .map(|c| inline_text(c, root, depth + 1))
             .collect();
     }
-    formatted_text(item)
+    run_text(item)
+}
+
+/// An inline run's Markdown: a `code` run as a code span and a `formula`
+/// run as `$…$`, both unescaped as docling-core's inline serializer writes
+/// them (``Energy $E=mc^2$ and `a_b` ``); any other run its
+/// [`formatted_text`]. Plain text used to be all a run could be, so code and
+/// formulas lost their markup (C9, found in the 2026-11 sync).
+fn run_text(item: &Value) -> String {
+    let text = item["text"].as_str().unwrap_or("");
+    match item["label"].as_str() {
+        Some("code") if !text.is_empty() => docling_core::code_span(text),
+        Some("formula") if !text.is_empty() => format!("${text}$"),
+        _ => formatted_text(item),
+    }
+}
+
+/// The labels a [`transcript_tree`] carries over: docling's plain text items.
+const TRANSCRIPT_LABELS: &[&str] = &[
+    "title",
+    "section_header",
+    "text",
+    "paragraph",
+    "list_item",
+    "caption",
+    "footnote",
+    "page_header",
+    "page_footer",
+];
+
+/// The item tree of a *transcript*: a document whose body holds only text
+/// items and groups (no table, picture, form or key-value item) and at least
+/// one text item with a track `source` — a WebVTT, a YouTube transcript, an
+/// ASR conversion — or an inline group holding a `code` or `formula` run,
+/// whose HTML needs the run as `<code>` / MathML, not the Markdown the flat
+/// path writes. The flat nodes cannot carry a run's timing, voice and
+/// formatting, so the reader dropped every `source`: `--to vtt` of a
+/// docling-JSON transcript was a bare `WEBVTT` and `--to json` lost the
+/// cues (C9). The tree mirrors the file item for item — texts with their
+/// formatting, link, heading level, list fields, layer and track; groups
+/// with their label and name — so the JSON and the WebVTT exports come out
+/// as docling-core writes them from the same file. `None` for any other
+/// document, which keeps the flat path.
+fn transcript_tree(root: &Value) -> Option<ItemTree> {
+    let texts = root["texts"].as_array()?;
+    let has_track = texts.iter().any(|t| {
+        t["source"]
+            .as_array()
+            .is_some_and(|s| s.iter().any(|x| x["kind"] == "track"))
+    });
+    let inline_code = texts.iter().any(|t| {
+        matches!(t["label"].as_str(), Some("code" | "formula"))
+            && resolve(&t["parent"], root).is_some_and(|p| p["label"] == "inline")
+    });
+    if !has_track && !inline_code {
+        return None;
+    }
+    let mut tree = ItemTree {
+        inline_whitespace: true,
+        ..ItemTree::default()
+    };
+    let mut seen = std::collections::HashSet::new();
+    for child in root["body"]["children"].as_array()? {
+        add_transcript_item(child, root, None, 0, &mut tree, &mut seen)?;
+    }
+    Some(tree)
+}
+
+fn add_transcript_item(
+    reference: &Value,
+    root: &Value,
+    parent: Option<usize>,
+    depth: usize,
+    tree: &mut ItemTree,
+    seen: &mut std::collections::HashSet<String>,
+) -> Option<()> {
+    let r = ref_str(reference)?;
+    if depth >= MAX_DEPTH || !seen.insert(r.to_string()) {
+        return None;
+    }
+    let item = resolve(reference, root)?;
+    let layer = match item["content_layer"].as_str() {
+        None | Some("body") => None,
+        Some("furniture") => Some(docling_core::ContentLayer::Furniture),
+        Some("notes") => Some(docling_core::ContentLayer::Notes),
+        Some("invisible") => Some(docling_core::ContentLayer::Invisible),
+        Some("background") => Some(docling_core::ContentLayer::Background),
+        Some(_) => return None,
+    };
+    let id = if r.starts_with("#/groups/") {
+        tree.add(
+            parent,
+            layer,
+            TreeKind::Group {
+                label: item["label"].as_str().unwrap_or("unspecified").into(),
+                name: item["name"].as_str().unwrap_or("group").into(),
+            },
+        )
+    } else if r.starts_with("#/texts/") {
+        let label = item["label"].as_str().unwrap_or("text");
+        if label == "code" || label == "formula" {
+            // Runs of an inline group only: a block code item carries a
+            // caption and footnotes the flat path renders.
+            if !resolve(&item["parent"], root).is_some_and(|p| p["label"] == "inline") {
+                return None;
+            }
+        } else if !TRANSCRIPT_LABELS.contains(&label) {
+            return None;
+        }
+        let f = &item["formatting"];
+        let formatting = f.is_object().then(|| Formatting {
+            bold: f["bold"].as_bool() == Some(true),
+            italic: f["italic"].as_bool() == Some(true),
+            underline: f["underline"].as_bool() == Some(true),
+            strikethrough: f["strikethrough"].as_bool() == Some(true),
+            script: match f["script"].as_str() {
+                Some("sub") => docling_core::Script::Sub,
+                Some("super") => docling_core::Script::Super,
+                _ => docling_core::Script::Baseline,
+            },
+        });
+        let text = item["text"].as_str().unwrap_or("");
+        let orig = item["orig"]
+            .as_str()
+            .filter(|o| *o != text)
+            .map(str::to_string);
+        let id = if label == "code" {
+            tree.add(
+                parent,
+                layer,
+                TreeKind::Code {
+                    text: text.into(),
+                    orig,
+                    language: item["code_language"]
+                        .as_str()
+                        .filter(|l| !l.is_empty() && *l != "unknown")
+                        .map(str::to_string),
+                    formatting,
+                    hyperlink: item["hyperlink"].as_str().map(str::to_string),
+                    captions: Vec::new(),
+                },
+            )
+        } else {
+            tree.add(
+                parent,
+                layer,
+                TreeKind::Text {
+                    label: label.into(),
+                    text: text.into(),
+                    orig,
+                    formatting,
+                    hyperlink: item["hyperlink"].as_str().map(str::to_string),
+                    level: (label == "section_header")
+                        .then(|| item["level"].as_u64().unwrap_or(1).min(100) as u8),
+                    list: (label == "list_item").then(|| ListMeta {
+                        enumerated: item["enumerated"].as_bool().unwrap_or(false),
+                        marker: item["marker"].as_str().unwrap_or("").to_string(),
+                    }),
+                },
+            )
+        };
+        tree.items[id].source = item["source"]
+            .as_array()
+            .and_then(|s| s.iter().find(|x| x["kind"] == "track"))
+            .map(|t| TreeTrack {
+                start_time: t["start_time"].as_f64().unwrap_or(0.0),
+                end_time: t["end_time"].as_f64().unwrap_or(0.0),
+                identifier: t["identifier"].as_str().map(str::to_string),
+                voice: t["voice"].as_str().map(str::to_string),
+            });
+        id
+    } else {
+        return None;
+    };
+    for child in item["children"].as_array().into_iter().flatten() {
+        add_transcript_item(child, root, Some(id), depth + 1, tree, seen)?;
+    }
+    Some(())
 }
 
 /// Escaped item text with docling-core's inline markers applied in order:
@@ -288,6 +468,21 @@ fn footnotes_of(item: &Value, root: &Value) -> Vec<String> {
         .collect()
 }
 
+/// Whether every footnote of `item` is an empty item holding runs (see
+/// [`Table::footnotes_as_runs`]); `false` for a table without notes.
+fn footnotes_are_runs(item: &Value, root: &Value) -> bool {
+    let notes: Vec<&Value> = item["footnotes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|r| resolve(r, root))
+        .collect();
+    !notes.is_empty()
+        && notes
+            .iter()
+            .all(|n| n["text"].as_str().unwrap_or("").is_empty())
+}
+
 /// A picture's or code item's footnotes as standalone `footnote` items
 /// after it: the flat [`Node::Picture`] / [`Node::Code`] carry no list of
 /// their own, so the Markdown matches docling's (one paragraph each, after
@@ -338,7 +533,18 @@ struct Prov {
 }
 
 fn prov_of(item: &Value) -> Option<Prov> {
-    let p = item["prov"].as_array()?.first()?;
+    prov_entry(item["prov"].as_array()?.first()?)
+}
+
+/// Every `prov` entry of an item that reads as one.
+fn provs_of(item: &Value) -> Vec<Prov> {
+    item["prov"]
+        .as_array()
+        .map(|a| a.iter().filter_map(prov_entry).collect())
+        .unwrap_or_default()
+}
+
+fn prov_entry(p: &Value) -> Option<Prov> {
     let page_no = p["page_no"].as_u64()? as usize;
     let b = &p["bbox"];
     let coord = |k: &str| b[k].as_f64().map(|v| v as f32);
@@ -480,7 +686,28 @@ fn walk_inner(
         return;
     }
     if kind.starts_with("#/texts/") {
-        text_item(item, root, level, doc, g);
+        // A heading without text of its own over an inline group alone —
+        // docling-core's shape for a heading whose runs carry links or
+        // formatting (docling-core#1019) — is a heading of those runs, as its
+        // Markdown serializer prints it; the group would otherwise land as a
+        // paragraph after an empty (dropped) heading.
+        if let Some(runs) = heading_runs(item, root) {
+            if let Some(first) = item["children"].as_array().and_then(|c| c.first()) {
+                g.seen.insert(ref_kind(first).to_string());
+            }
+            let lvl = match item["label"].as_str() {
+                Some("title") => 1,
+                _ => item["level"].as_u64().unwrap_or(1) as u8 + 1,
+            };
+            with_prov(item, doc, g, |doc, _| {
+                doc.push(Node::Heading {
+                    level: lvl,
+                    text: runs,
+                })
+            });
+        } else {
+            text_item(item, root, level, doc, g);
+        }
         // docling nests a section's content under its heading (and a list
         // item's sub-list under the item), so a text item's `children` are
         // body content too — without this walk a document collapses to its
@@ -498,6 +725,26 @@ fn walk_inner(
     } else if kind.starts_with("#/pictures/") {
         with_prov(item, doc, g, |doc, _| picture_item(item, root, doc));
     }
+}
+
+/// The Markdown of the inline group that is the one child of a title or
+/// section header with no text of its own — docling-core's `has_inline_repr`
+/// (with more children, it prints an empty heading and the group after it) —
+/// or `None` for any other item.
+fn heading_runs(item: &Value, root: &Value) -> Option<String> {
+    if !matches!(item["label"].as_str(), Some("title" | "section_header"))
+        || !item["text"].as_str().unwrap_or("").is_empty()
+    {
+        return None;
+    }
+    let [first] = item["children"].as_array()?.as_slice() else {
+        return None;
+    };
+    if !leading_inline(first, root) {
+        return None;
+    }
+    let runs = inline_text(first, root, 0).trim().to_string();
+    (!runs.is_empty()).then_some(runs)
 }
 
 /// Run `push` for an item and attach the item's provenance (#899) to the
@@ -524,9 +771,36 @@ fn with_prov(
 }
 
 fn text_item(item: &Value, root: &Value, level: u8, doc: &mut DoclingDocument, g: &mut WalkGuard) {
+    let start = doc.nodes.len();
     with_prov(item, doc, g, |doc, location| {
         text_node(item, root, level, doc, location)
     });
+    if doc.nodes.len() > start && item["label"].as_str() != Some("list_item") {
+        push_continuations(item, doc, g);
+    }
+}
+
+/// A text item's further `prov` entries — docling's merged paragraph, one
+/// per fragment, each with its `charspan` (#1207) — as continuation markers
+/// right after the item: the JSON export writes them back as read, and
+/// DocLang splits the item into threaded fragments. A list item's are left
+/// out (docling-core threads a list, not its items).
+fn push_continuations(item: &Value, doc: &mut DoclingDocument, g: &WalkGuard) {
+    let provs = provs_of(item);
+    for pair in provs.windows(2) {
+        let (prev, p) = (&pair[0], &pair[1]);
+        doc.push(Node::ProvContinuation {
+            location: grid_location(p, g).unwrap_or([0; 4]),
+            prev_end: prev.charspan[1],
+            span: p.charspan,
+            page_skip: 0,
+            exact: Some(docling_core::ContinuationProv {
+                page_no: p.page_no,
+                bbox: p.bbox,
+                bottom_left: p.bottom_left,
+            }),
+        });
+    }
 }
 
 fn text_node(
@@ -942,7 +1216,13 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
                 .push(flags(cells, |c| past(c, "start_row_offset_idx", r)));
         }
     }
-    if !rows.is_empty() {
+    // A table without cells is still kept for its caption or its notes
+    // (docling-core#897's `test_table_with_only_footnotes`: the LaTeX float
+    // and the Markdown carry them); one with neither renders nothing.
+    let keep = !rows.is_empty()
+        || caption_of(item, root).is_some()
+        || !footnotes_of(item, root).is_empty();
+    if keep {
         let has_structure = structure.col_header.iter().flatten().any(|&b| b)
             || structure.row_header.iter().flatten().any(|&b| b)
             || structure.col_continuation.iter().flatten().any(|&b| b)
@@ -962,6 +1242,10 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
             caption_parent: caption_parent_of(item, root),
             caption_location: None,
             footnotes: footnotes_of(item, root),
+            // Notes that are empty items over inline groups (a JATS table's,
+            // docling#4818) are written after the table in LaTeX, as
+            // docling-core's walk does; a note with text goes in the float.
+            footnotes_as_runs: footnotes_are_runs(item, root),
             // A table of contents keeps its label through the round trip.
             document_index: item["label"].as_str() == Some("document_index"),
         }));
@@ -2230,6 +2514,96 @@ mod tests {
             reloaded.export_to_markdown(),
             original.export_to_markdown(),
             "a table of contents renders as a table"
+        );
+    }
+
+    fn root_file(rel: &str) -> String {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(rel);
+        std::fs::read_to_string(path).unwrap()
+    }
+
+    /// C9: a docling-JSON transcript keeps its track sources, so `--to vtt`
+    /// writes the cues docling-core's `export_to_vtt` writes from the same
+    /// file (upstream's own WebVTT groundtruth; the lone voice span's `</v>`
+    /// omitted, as our CLI and docling's do), and `--to json` keeps `source`.
+    #[test]
+    fn transcript_json_keeps_its_cues() {
+        let doc = convert(&root_file(
+            "tests/data/webvtt/groundtruth/webvtt_example_01.vtt.json",
+        ));
+        let vtt = doc.export_to_vtt();
+        assert!(
+            vtt.starts_with(
+                "WEBVTT\n\n00:00:11.000 --> 00:00:13.000\n<v Roger Bingham>We are in New York City\n"
+            ),
+            "{vtt}"
+        );
+        let json = doc.export_to_json_value();
+        assert_eq!(json["texts"][0]["source"][0]["kind"], "track");
+        assert_eq!(json["texts"][0]["source"][0]["voice"], "Roger Bingham");
+        // Formatting and inline groups (webvtt_example_04): the cue's runs.
+        let doc = convert(&root_file(
+            "tests/data/webvtt/groundtruth/webvtt_example_04.vtt.json",
+        ));
+        assert!(
+            doc.export_to_vtt().contains(
+                "The dessert’s <i><b>unexpected</b> <u>arcobaleno</u> of flavors</i> left everyone in awe."
+            ),
+            "{}",
+            doc.export_to_vtt()
+        );
+    }
+
+    /// C2 (docling-core#1014) end to end: a sub-millisecond cue read from
+    /// docling JSON keeps a 1 ms span.
+    #[test]
+    fn sub_millisecond_cue_from_json() {
+        let doc = convert(
+            r##"{"schema_name":"DoclingDocument","version":"1.11.0","name":"c",
+            "body":{"self_ref":"#/body","children":[{"$ref":"#/texts/0"},{"$ref":"#/texts/1"}],"content_layer":"body","name":"_root_","label":"unspecified"},
+            "groups":[],
+            "texts":[
+              {"self_ref":"#/texts/0","parent":{"$ref":"#/body"},"children":[],"content_layer":"body","label":"text","prov":[],
+               "source":[{"kind":"track","start_time":11.00001,"end_time":11.00002}],"orig":"short cue","text":"short cue"},
+              {"self_ref":"#/texts/1","parent":{"$ref":"#/body"},"children":[],"content_layer":"body","label":"text","prov":[],
+               "source":[{"kind":"track","start_time":12.0,"end_time":13.5}],"orig":"normal cue","text":"normal cue"}],
+            "pictures":[],"tables":[],"key_value_items":[],"form_items":[],"pages":{}}"##,
+        );
+        assert_eq!(
+            doc.export_to_vtt(),
+            "WEBVTT\n\n00:00:11.000 --> 00:00:11.001\nshort cue\n\n00:00:12.000 --> 00:00:13.500\nnormal cue"
+        );
+    }
+
+    /// C9: an inline group's `code` and `formula` runs keep their markup —
+    /// Markdown ``Energy $E=mc^2$ and `a_b` ``, HTML MathML and `<code>`, as
+    /// docling-core 2.107.1 writes them (they printed `Energy E=mc^2 and
+    /// a\_b`).
+    #[test]
+    fn inline_code_and_formula_runs_keep_their_markup() {
+        let doc = convert(
+            r##"{"schema_name":"DoclingDocument","version":"1.11.0","name":"ig",
+            "body":{"self_ref":"#/body","children":[{"$ref":"#/texts/0"}],"content_layer":"body","name":"_root_","label":"unspecified"},
+            "groups":[{"self_ref":"#/groups/0","parent":{"$ref":"#/texts/0"},"children":[{"$ref":"#/texts/1"},{"$ref":"#/texts/2"},{"$ref":"#/texts/3"},{"$ref":"#/texts/4"}],"content_layer":"body","name":"group","label":"inline"}],
+            "texts":[
+              {"self_ref":"#/texts/0","parent":{"$ref":"#/body"},"children":[{"$ref":"#/groups/0"}],"content_layer":"body","label":"text","prov":[],"orig":"","text":""},
+              {"self_ref":"#/texts/1","parent":{"$ref":"#/groups/0"},"children":[],"content_layer":"body","label":"text","prov":[],"orig":"Energy ","text":"Energy "},
+              {"self_ref":"#/texts/2","parent":{"$ref":"#/groups/0"},"children":[],"content_layer":"body","label":"formula","prov":[],"orig":"E=mc^2","text":"E=mc^2"},
+              {"self_ref":"#/texts/3","parent":{"$ref":"#/groups/0"},"children":[],"content_layer":"body","label":"text","prov":[],"orig":" and ","text":" and "},
+              {"self_ref":"#/texts/4","parent":{"$ref":"#/groups/0"},"children":[],"content_layer":"body","label":"code","prov":[],"orig":"a_b","text":"a_b","code_language":"unknown"}],
+            "pictures":[],"tables":[],"key_value_items":[],"form_items":[],"pages":{}}"##,
+        );
+        assert_eq!(
+            doc.export_to_markdown().trim_end(),
+            "Energy $E=mc^2$ and `a_b`"
+        );
+        let html = doc.export_to_html();
+        assert!(html.contains("<code>a_b</code>"), "{html}");
+        assert!(
+            html.contains("<annotation encoding=\"TeX\">E=mc^2</annotation>"),
+            "{html}"
         );
     }
 }

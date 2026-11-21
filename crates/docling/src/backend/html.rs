@@ -2796,6 +2796,7 @@ fn parse_table_cells(
         .collect();
     (!rows.is_empty()).then_some(Table {
         footnotes: Vec::new(),
+        footnotes_as_runs: false,
         rows,
         location: None,
         structure: Some(docling_core::TableStructure {

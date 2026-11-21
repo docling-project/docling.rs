@@ -1557,6 +1557,7 @@ pub(crate) fn find_tables(
                 tables.push(FoundTable {
                     table: Table {
                         footnotes: Vec::new(),
+                        footnotes_as_runs: false,
                         rows,
                         location: None,
                         structure,

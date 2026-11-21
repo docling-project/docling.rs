@@ -28,7 +28,7 @@ use docling_core::{ContentLayer, PictureImage, Script, Table, TableCell};
 pub(super) const PAGE_SIZE: f32 = 512.0;
 
 /// `_ELEMENT_HEAD_TAGS`: the property tokens an element head may hold.
-fn is_head_tag(name: &str) -> bool {
+pub(super) fn is_head_tag(name: &str) -> bool {
     matches!(
         name,
         "label"
@@ -398,6 +398,43 @@ fn label_from_nodes<'a>(nodes: &[XmlNode<'a, '_>]) -> Option<&'a str> {
         .filter(|v| !v.is_empty())
 }
 
+/// `_extract_hyperlink` (docling-core#1019): the nearest element-head
+/// `<href>`, on `el` or on an enclosing element — an href applies to all
+/// content of its element, so runs inherit their host's (and an inner one
+/// overrides it). Only the leading head nodes of each level count. A target
+/// with a scheme is read as pydantic's `AnyUrl`, anything else (a relative
+/// path, a fragment) as a `Path`; an empty `uri` is no link.
+fn extract_hyperlink(el: XmlNode) -> Option<String> {
+    let mut current = Some(el);
+    while let Some(e) = current.filter(|e| e.is_element()) {
+        for n in e.children() {
+            if is_ws_text(n) || n.is_comment() || n.is_pi() {
+                continue;
+            }
+            if !(n.is_element() && is_head_tag(n.tag_name().name())) {
+                break;
+            }
+            if has_tag(n, "href") {
+                let uri = n.attribute("uri").unwrap_or("");
+                return (!uri.is_empty()).then(|| super::html_tree::docling_href(uri));
+            }
+        }
+        current = e.parent();
+    }
+    None
+}
+
+/// `_extract_thread_id`: the `thread_id` of a `<thread>` in `el`'s head.
+pub(super) fn thread_id(el: XmlNode) -> Option<String> {
+    split_head_body(el)
+        .0
+        .into_iter()
+        .find(|n| has_tag(*n, "thread"))
+        .and_then(|n| n.attribute("thread_id"))
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+}
+
 fn layer_of(el: XmlNode) -> Option<ContentLayer> {
     layer_from_nodes(&split_head_body(el).0)
 }
@@ -471,6 +508,9 @@ pub(super) struct Builder<'p> {
     /// The `.dclx` package, when reading an archive: `<src uri>` resolves to
     /// its assets (docling's `media_root`); a bare `.dclg` keeps no image.
     pkg: Option<&'p mut Package>,
+    /// `_thread_registry` (#1207): the item each `(thread_id, element name)`
+    /// started, which the thread's later fragments continue.
+    threads: std::collections::HashMap<(String, String), usize>,
 }
 
 /// Build the tree for `root` (the `<doclang>` element). Returns the tree and
@@ -481,6 +521,7 @@ pub(super) fn build(root: XmlNode, pkg: Option<&mut Package>) -> (ItemTree, usiz
         page_no: 1,
         pages: 1,
         pkg,
+        threads: Default::default(),
     };
     for el in root.children().filter(|n| n.is_element()) {
         b.dispatch(el, None);
@@ -526,6 +567,47 @@ impl Builder<'_> {
         self.provs_from_nodes(&split_head_body(el).0)
     }
 
+    /// `_get_thread_item`: the item an earlier fragment of `el`'s thread
+    /// started, when `el` carries a `<thread>` head.
+    fn thread_item(&self, el: XmlNode) -> Option<usize> {
+        let id = thread_id(el)?;
+        self.threads
+            .get(&(id, el.tag_name().name().to_string()))
+            .copied()
+    }
+
+    /// `_register_thread`: `item` is the one `el`'s thread continues.
+    fn register_thread(&mut self, el: XmlNode, item: usize) {
+        if let Some(id) = thread_id(el) {
+            self.threads
+                .insert((id, el.tag_name().name().to_string()), item);
+        }
+    }
+
+    /// `_merge_threaded_text_item` (`_append_textual_fragment`): a later
+    /// fragment of a thread appends its text to the item the thread started,
+    /// and each of its boxes is one more `prov` entry spanning that text.
+    fn merge_fragment(&mut self, item: usize, text: &str, provs: Vec<TreeProv>) {
+        let it = &mut self.tree.items[item];
+        let offset = match &mut it.kind {
+            TreeKind::Text { text: t, .. } | TreeKind::Code { text: t, .. } => {
+                let offset = t.chars().count();
+                t.push_str(text);
+                offset
+            }
+            _ => return,
+        };
+        let span = [offset, offset + text.chars().count()];
+        for mut p in provs {
+            p.charspan = span;
+            if it.prov.is_none() {
+                it.prov = Some(p);
+            } else {
+                it.more_prov.push(p);
+            }
+        }
+    }
+
     /// `add_text` with `_apply_initial_text_provenance`: the first box gets
     /// `charspan = (0, len(text))` (a Python `len`, in code points).
     fn add_text_item(
@@ -548,12 +630,21 @@ impl Builder<'_> {
     }
 
     fn text_kind(label: &str, text: &str, formatting: Option<Formatting>) -> TreeKind {
+        Self::linked_text_kind(label, text, formatting, None)
+    }
+
+    fn linked_text_kind(
+        label: &str,
+        text: &str,
+        formatting: Option<Formatting>,
+        hyperlink: Option<String>,
+    ) -> TreeKind {
         TreeKind::Text {
             label: label.into(),
             text: text.into(),
             orig: None,
             formatting,
-            hyperlink: None,
+            hyperlink,
             level: None,
             list: None,
         }
@@ -667,15 +758,20 @@ impl Builder<'_> {
             .filter(|c| c.is_element() && !is_head_tag(c.tag_name().name()))
             .collect();
         let simple = simple_text_block(el);
+        let threaded = thread_id(el).is_some();
         // An element without any content is an empty item, not a childless
-        // inline group (docling-core 2.102's `_is_empty_text_block`).
-        let is_empty = simple.is_none() && is_empty_text_block(el);
+        // inline group (docling-core 2.102's `_is_empty_text_block`) — unless
+        // it is a fragment of a thread, whose boxes still count (#1207).
+        let is_empty = simple.is_none() && !threaded && is_empty_text_block(el);
         let checkbox = if name == "text" {
             checkbox_text_block(el)
         } else {
             None
         };
-        if checkbox.is_none() && !is_empty && (element_children.len() > 1 || simple.is_none()) {
+        if checkbox.is_none()
+            && !is_empty
+            && (element_children.len() > 1 || (simple.is_none() && !threaded))
+        {
             // `_parse_mixed_text_like` (docling-core#865): a mixed caption,
             // footnote or page header/footer — or a `<text>` with a location
             // — is a host item of its own label, provenance and layer over
@@ -705,7 +801,29 @@ impl Builder<'_> {
             None => text_with_formatting(el, !in_group),
         };
         if text.is_empty() && !is_empty && checkbox.is_none() {
+            // A thread's fragment without text still adds its boxes.
+            if let Some(item) = self.thread_item(el) {
+                if !provs.is_empty() {
+                    self.merge_fragment(item, "", provs);
+                }
+            }
             return;
+        }
+        // A later fragment of a thread continues the item its first started.
+        if let Some(item) = self.thread_item(el) {
+            let fits = matches!(
+                (&self.tree.items[item].kind, name),
+                (TreeKind::Code { .. }, "code") | (TreeKind::Text { .. }, _)
+            );
+            if fits {
+                let text = if name == "code" {
+                    code_content(el).0
+                } else {
+                    text
+                };
+                self.merge_fragment(item, &text, provs);
+                return;
+            }
         }
         match name {
             "code" => {
@@ -722,12 +840,13 @@ impl Builder<'_> {
                         orig: None,
                         language: lang,
                         formatting: None,
-                        hyperlink: None,
+                        hyperlink: extract_hyperlink(el),
                         captions: Vec::new(),
                     },
                     provs,
                     Some(len),
                 );
+                self.register_thread(el, item);
                 // The head's captions, created after the code item.
                 let caps = self.extract_captions(el);
                 if let TreeKind::Code { captions, .. } = &mut self.tree.items[item].kind {
@@ -736,13 +855,14 @@ impl Builder<'_> {
             }
             "formula" => {
                 let len = text.chars().count();
-                self.add_text_item(
+                let item = self.add_text_item(
                     parent,
                     None,
-                    Self::text_kind("formula", &text, formatting),
+                    Self::linked_text_kind("formula", &text, formatting, extract_hyperlink(el)),
                     provs,
                     Some(len),
                 );
+                self.register_thread(el, item);
             }
             "ldiv" => {}
             _ => {
@@ -771,13 +891,14 @@ impl Builder<'_> {
                     label = "handwritten_text";
                 }
                 let len = text.chars().count();
-                self.add_text_item(
+                let item = self.add_text_item(
                     parent,
                     layer,
-                    Self::text_kind(label, &text, formatting),
+                    Self::linked_text_kind(label, &text, formatting, extract_hyperlink(el)),
                     provs,
                     Some(len),
                 );
+                self.register_thread(el, item);
             }
         }
     }
@@ -796,21 +917,42 @@ impl Builder<'_> {
         if text.is_empty() {
             return;
         }
+        // Flattening a heading with linked runs would discard each run's
+        // target (docling-core#1019): it is an empty heading over an inline
+        // group of the runs, which carry the links — the heading's own too.
+        let (_, body) = split_head_body(el);
+        let linked_runs = simple_text_block(el).is_none()
+            && body
+                .iter()
+                .any(|n| n.is_element() && n.descendants().skip(1).any(|d| has_tag(d, "href")));
+        if let Some(item) = self.thread_item(el) {
+            self.merge_fragment(item, &text, provs);
+            return;
+        }
+        let (text, hyperlink) = if linked_runs {
+            (String::new(), None)
+        } else {
+            (text, extract_hyperlink(el))
+        };
         let kind = if level <= 1 {
-            Self::text_kind("title", &text, None)
+            Self::linked_text_kind("title", &text, None, hyperlink)
         } else {
             TreeKind::Text {
                 label: "section_header".into(),
                 text: text.clone(),
                 orig: None,
                 formatting: None,
-                hyperlink: None,
+                hyperlink,
                 level: Some((level - 1).min(u8::MAX as i64) as u8),
                 list: None,
             }
         };
         let len = text.chars().count();
-        self.add_text_item(parent, layer, kind, provs, Some(len));
+        let item = self.add_text_item(parent, layer, kind, provs, Some(len));
+        self.register_thread(el, item);
+        if linked_runs {
+            self.inline_group(el, Some(item), Some(body));
+        }
     }
 
     /// `_parse_field_region` + `_parse_field_item` + `_parse_field_kv` for
@@ -895,7 +1037,8 @@ impl Builder<'_> {
                     } else {
                         let provs = self.provenance(content_el);
                         let text = get_text(content_el).trim().to_string();
-                        self.add_list_item(group, &text, &meta, provs);
+                        let li = self.add_list_item(group, &text, &meta, provs);
+                        self.set_hyperlink(li, extract_hyperlink(content_el));
                     }
                 } else {
                     let li = self.add_list_item(group, "", &meta, Vec::new());
@@ -919,6 +1062,7 @@ impl Builder<'_> {
                     let provs = self.provenance(first);
                     let text = get_text(first).trim().to_string();
                     let li = self.add_list_item(group, &text, &meta, provs);
+                    self.set_hyperlink(li, extract_hyperlink(first));
                     for e in remaining {
                         self.dispatch(*e, Some(li));
                     }
@@ -929,6 +1073,12 @@ impl Builder<'_> {
                     }
                 }
             }
+        }
+    }
+
+    fn set_hyperlink(&mut self, id: usize, uri: Option<String>) {
+        if let TreeKind::Text { hyperlink, .. } = &mut self.tree.items[id].kind {
+            *hyperlink = uri;
         }
     }
 
@@ -1058,7 +1208,9 @@ impl Builder<'_> {
         // boundary with the next one, none at the block's edges. Metadata
         // elements (`<location>`, `<layer>`) take no part in the edges.
         enum Run<'a, 'i> {
-            Text(String),
+            /// A text run and the element holding it (whose head link it
+            /// inherits).
+            Text(String, Option<XmlNode<'a, 'i>>),
             El(XmlNode<'a, 'i>),
         }
         let mut runs: Vec<Run> = Vec::new();
@@ -1085,21 +1237,21 @@ impl Builder<'_> {
                     }
                 }
                 if !t.is_empty() {
-                    runs.push(Run::Text(t));
+                    runs.push(Run::Text(t, n.parent_element()));
                 }
             }
         }
         // The block's edges: blank runs there go, the outer runs are trimmed.
-        while matches!(runs.first(), Some(Run::Text(t)) if t.trim().is_empty()) {
+        while matches!(runs.first(), Some(Run::Text(t, _)) if t.trim().is_empty()) {
             runs.remove(0);
         }
-        while matches!(runs.last(), Some(Run::Text(t)) if t.trim().is_empty()) {
+        while matches!(runs.last(), Some(Run::Text(t, _)) if t.trim().is_empty()) {
             runs.pop();
         }
-        if let Some(Run::Text(t)) = runs.first_mut() {
+        if let Some(Run::Text(t, _)) = runs.first_mut() {
             *t = t.trim_start().to_string();
         }
-        if let Some(Run::Text(t)) = runs.last_mut() {
+        if let Some(Run::Text(t, _)) = runs.last_mut() {
             *t = t.trim_end().to_string();
         }
         // `_parse_inline_runs`: a checkbox takes the plain run right after
@@ -1109,7 +1261,7 @@ impl Builder<'_> {
             match run {
                 Run::El(n) if has_tag(n, "checkbox") => {
                     let text = match runs.peek() {
-                        Some(Run::Text(t)) => Some(t.clone()),
+                        Some(Run::Text(t, _)) => Some(t.clone()),
                         Some(Run::El(c)) if has_tag(*c, "content") => Some(collect_text(*c)),
                         _ => None,
                     };
@@ -1124,9 +1276,13 @@ impl Builder<'_> {
                     );
                 }
                 Run::El(n) => self.dispatch(n, Some(g)),
-                Run::Text(t) => {
-                    self.tree
-                        .add(Some(g), None, Self::text_kind("text", &t, None));
+                Run::Text(t, holder) => {
+                    let link = holder.and_then(extract_hyperlink);
+                    self.tree.add(
+                        Some(g),
+                        None,
+                        Self::linked_text_kind("text", &t, None, link),
+                    );
                 }
             }
         }
@@ -1189,7 +1345,7 @@ impl Builder<'_> {
         Some(self.add_text_item(
             None,
             layer_of(cap),
-            Self::text_kind("caption", &text, None),
+            Self::linked_text_kind("caption", &text, None, extract_hyperlink(cap)),
             provs,
             None,
         ))
@@ -1713,6 +1869,11 @@ fn text_wrap_is_complex(text_el: XmlNode) -> bool {
 /// delimiter is — raw text, a head token or inline markup mean the item body
 /// is virtual text; a semantic or grouping element means it is not.
 fn is_list_item_virtual_text(nodes: &[XmlNode]) -> bool {
+    // Raw text or a text-level element anywhere makes it virtual text, so a
+    // leading `<code>` — or a linked run's `<text>` — stays inline.
+    if is_virtual_text(nodes) {
+        return true;
+    }
     let Some(first) = nodes.iter().find(|n| !is_ws_text(**n)) else {
         return false;
     };
@@ -1765,6 +1926,7 @@ fn is_simple_virtual_text(nodes: &[XmlNode]) -> bool {
 fn empty_table() -> Table {
     Table {
         footnotes: Vec::new(),
+        footnotes_as_runs: false,
         rows: Vec::new(),
         location: None,
         structure: None,
@@ -1793,6 +1955,7 @@ pub(super) fn table_from_cells(cells: Vec<TableCell>, num_rows: usize, num_cols:
     }
     Table {
         footnotes: Vec::new(),
+        footnotes_as_runs: false,
         rows,
         location: None,
         structure: None,

@@ -265,10 +265,12 @@ fn text_item(s: &str) -> String {
     escape_latex(&unescape_text(s))
 }
 
-/// Upstream escapes only `#` in inline code — and does so with a doubled
-/// backslash (its `r"\\#"`), reproduced verbatim. `raw` is the unescaped text.
+/// Upstream escapes only `#` in inline code, with one backslash
+/// (docling-core#950): `\\#` is a line break followed by an unescaped macro
+/// parameter, which TeX rejects — the doubled form both used to write.
+/// `raw` is the unescaped text.
 fn code_inline(raw: &str) -> String {
-    format!("\\texttt{{{}}}", raw.replace('#', "\\\\#"))
+    format!("\\texttt{{{}}}", raw.replace('#', "\\#"))
 }
 
 // ---------------------------------------------------------------------------
@@ -591,11 +593,14 @@ fn render_one(node: &Node, list_level: usize, inline: bool, parts: &mut Vec<Stri
         }
         Node::Table(t) => {
             push(parts, render_table(t));
-            // docling-core's LaTeX serializer has no footnote pass; its walk
-            // reaches a table's footnote items after the table and writes
-            // them as paragraphs (JATS's table notes, docling#4818).
-            for note in t.footnotes.iter().filter(|n| !n.is_empty()) {
-                push(parts, inline_md(note));
+            // A note docling holds as an empty item over an inline group
+            // (JATS's table notes, docling#4818) has no text for the float's
+            // footnote pass: docling-core's walk writes its runs after the
+            // table, as paragraphs.
+            if t.footnotes_as_runs {
+                for note in t.footnotes.iter().filter(|n| !n.is_empty()) {
+                    push(parts, inline_md(note));
+                }
             }
         }
         // The picture's meta as comments in the figure, docling-core's
@@ -838,7 +843,15 @@ pub(crate) fn render_table(t: &Table) -> String {
         .filter(|c| !c.is_empty())
         .map(text_item)
         .unwrap_or_default();
-    if tabular.is_empty() && caption.is_empty() {
+    // docling-core#897's `serialize_footnotes`: each note a small-text
+    // paragraph inside the float, after the tabular and a blank line — a
+    // table with notes alone still gets the environment.
+    let notes = if t.footnotes_as_runs {
+        String::new()
+    } else {
+        footnote_paragraphs(&t.footnotes)
+    };
+    if tabular.is_empty() && caption.is_empty() && notes.is_empty() {
         return String::new();
     }
     if IN_CELL.with(std::cell::Cell::get) {
@@ -856,8 +869,23 @@ pub(crate) fn render_table(t: &Table) -> String {
     if !tabular.is_empty() {
         content.push(tabular);
     }
+    if !notes.is_empty() {
+        content.extend([String::new(), notes]);
+    }
     content.push("\\end{table}".to_string());
     content.join("\n")
+}
+
+/// `{\footnotesize <text>\par}` per non-empty note, escaped like body text,
+/// joined by blank lines (docling-core#897's `serialize_footnotes`).
+fn footnote_paragraphs(notes: &[String]) -> String {
+    notes
+        .iter()
+        .map(|n| inline_md(n))
+        .filter(|n| !n.trim().is_empty())
+        .map(|n| format!("{{\\footnotesize {n}\\par}}"))
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 fn cell_text(s: &str) -> String {
@@ -1057,10 +1085,60 @@ mod tests {
         assert_eq!(inline_md("x * * y"), "x * * y");
     }
 
+    /// docling-core#897 (`test_floating_footnotes_preserve_order_and_sources`,
+    /// `test_table_with_only_footnotes`,
+    /// `test_latex_footnotes_escape_text_outside_verbatim`): a table's notes
+    /// are small-text paragraphs inside its float, after the tabular and a
+    /// blank line; notes alone still get the environment; the text is
+    /// escaped like body text. Notes docling holds as runs (JATS) stay after
+    /// the table.
+    #[test]
+    fn table_footnotes_stay_in_the_float() {
+        let table = |rows: Vec<Vec<String>>, notes: &[&str], runs: bool| Table {
+            rows,
+            footnotes: notes.iter().map(|n| n.to_string()).collect(),
+            footnotes_as_runs: runs,
+            ..Default::default()
+        };
+        let cells = || vec![vec!["a".to_string(), "b".to_string()]];
+        assert_eq!(
+            render_table(&table(cells(), &["First note", "Second note"], false)),
+            "\\begin{table}[h]\n\\begin{tabular}{|l|l|}\n\\hline\na & b \\\\ \\hline\n\\end{tabular}\n\n\
+             {\\footnotesize First note\\par}\n\n{\\footnotesize Second note\\par}\n\\end{table}"
+        );
+        assert_eq!(
+            render_table(&table(Vec::new(), &["Only note"], false)),
+            "\\begin{table}[h]\n\n{\\footnotesize Only note\\par}\n\\end{table}"
+        );
+        assert!(
+            render_table(&table(cells(), &["Cost $5 & 10%\\_discount #1 {x}"], false))
+                .contains("{\\footnotesize Cost \\$5 \\& 10\\%\\_discount \\#1 \\{x\\}\\par}")
+        );
+        let jats = table(cells(), &["a note"], true);
+        assert!(!render_table(&jats).contains("footnotesize"));
+        let mut doc = DoclingDocument::new("t");
+        doc.push(Node::Table(jats));
+        assert!(
+            to_latex(&doc).contains("\\end{table}\n\na note"),
+            "{}",
+            to_latex(&doc)
+        );
+    }
+
     #[test]
     fn inline_code_and_formulas() {
-        // Only `#` is escaped in code, with upstream's doubled backslash.
-        assert_eq!(inline_md("Run `a_b #1`"), "Run \\texttt{a_b \\\\#1}");
+        // Only `#` is escaped in code, with one backslash (docling-core#950:
+        // `test_latex_inline_code_escapes_hash_with_a_single_backslash`).
+        assert_eq!(inline_md("Run `a_b #1`"), "Run \\texttt{a_b \\#1}");
+        assert_eq!(
+            inline_md("Use `C# and F#` here."),
+            "Use \\texttt{C\\# and F\\#} here."
+        );
+        // `test_latex_inline_code_without_hash_is_unchanged`.
+        assert_eq!(
+            inline_md("`git checkout -b feature`"),
+            "\\texttt{git checkout -b feature}"
+        );
         // Formatting around a code span is dropped (a `CodeItem` upstream).
         assert_eq!(
             inline_md("Some *`formatted\\_code`*"),

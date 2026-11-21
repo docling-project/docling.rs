@@ -2958,6 +2958,7 @@ impl Converter {
         Some(ParsedTable {
             table: Table {
                 footnotes: Vec::new(),
+                footnotes_as_runs: false,
                 rows: grid,
                 location: None,
                 structure: None,

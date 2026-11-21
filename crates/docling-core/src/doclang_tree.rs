@@ -283,6 +283,49 @@ impl<'t> Ser<'t> {
         matches!(&self.tree.items[id].kind, TreeKind::Group { label, .. } if label == "inline")
     }
 
+    /// `_text_item_hyperlink_uri`: a text, list item, heading, formula or
+    /// code item's link.
+    fn hyperlink(&self, id: usize) -> Option<&'t str> {
+        let tree: &'t ItemTree = self.tree;
+        match &tree.items[id].kind {
+            TreeKind::Text { hyperlink, .. } | TreeKind::Code { hyperlink, .. } => {
+                hyperlink.as_deref()
+            }
+            _ => None,
+        }
+    }
+
+    /// `_shared_href` (docling-core#1019): the link every run of the inline
+    /// group `id` has, when its enclosing element can carry it — an `<href>`
+    /// applies to all content of its element. Never for a group under a
+    /// list item, another inline group or a heading (a heading reads
+    /// formatted-only content as flat text, so its runs keep their links),
+    /// nor under a host whose own text has another link (or none).
+    fn shared_href(&self, id: usize) -> Option<&'t str> {
+        let tree: &'t ItemTree = self.tree;
+        let item = &tree.items[id];
+        if let Some(p) = item.parent {
+            let heading_or_li = matches!(&tree.items[p].kind,
+                TreeKind::Text { label, .. } if matches!(label.as_str(), "list_item" | "title" | "section_header"));
+            if heading_or_li || self.is_inline_group(p) {
+                return None;
+            }
+        }
+        let mut uris = item.children.iter().map(|&c| self.hyperlink(c));
+        let first = uris.next()??;
+        if !uris.all(|u| u == Some(first)) {
+            return None;
+        }
+        if let Some(p) = item.parent {
+            if let TreeKind::Text { text, .. } | TreeKind::Code { text, .. } = &tree.items[p].kind {
+                if !text.is_empty() && self.hyperlink(p) != Some(first) {
+                    return None;
+                }
+            }
+        }
+        Some(first)
+    }
+
     /// `_list_item_segment_sibling`: a nested list or a picture shares the
     /// item's `<ldiv>` segment.
     fn segment_sibling(&self, id: usize) -> bool {
@@ -379,6 +422,10 @@ impl<'t> Ser<'t> {
         };
         let mut head = String::new();
         if should_wrap {
+            // A link shared by all runs moves to the `<text>` wrapper.
+            if let Some(uri) = self.shared_href(id) {
+                head.push_str(&href_token(uri));
+            }
             if let Some(layer) = item.layer {
                 head.push_str(&layer_token(layer));
             }
@@ -396,25 +443,26 @@ impl<'t> Ser<'t> {
     }
 
     /// `_element_head_prefix` without provenance or meta: label, href, layer,
-    /// then the caption.
-    fn head(&self, id: usize, label: Option<&str>, caption: &str, inline: bool) -> String {
+    /// then the caption. `href` is the link the head carries (the item's own
+    /// unless the caller decided otherwise, `_serialize_single_item`); an
+    /// inline run takes its host's layer.
+    fn head(
+        &self,
+        id: usize,
+        label: Option<&str>,
+        href: Option<&str>,
+        caption: &str,
+        inline: bool,
+    ) -> String {
         let item = &self.tree.items[id];
         let mut s = String::new();
         if let Some(l) = label {
             s.push_str(&format!("<label value=\"{}\"/>", escape_attr(l)));
         }
+        if let Some(uri) = href {
+            s.push_str(&href_token(uri));
+        }
         if !inline {
-            if let TreeKind::Text {
-                hyperlink: Some(uri),
-                ..
-            }
-            | TreeKind::Code {
-                hyperlink: Some(uri),
-                ..
-            } = &item.kind
-            {
-                s.push_str(&format!("<href uri=\"{}\"/>", escape_attr(uri)));
-            }
             if let Some(layer) = item.layer {
                 s.push_str(&layer_token(layer));
             }
@@ -440,7 +488,7 @@ impl<'t> Ser<'t> {
             let TreeKind::Text { text, .. } = &tree.items[c].kind else {
                 continue;
             };
-            let mut s = self.head(c, None, "", false);
+            let mut s = self.head(c, None, self.hyperlink(c), "", false);
             if !text.is_empty() {
                 s.push_str(&escape(text));
             }
@@ -501,10 +549,11 @@ impl<'t> Ser<'t> {
                 })
             }
             // `_determine_list_item_wrapper` without provenance: a text item
-            // is bare (virtual text) unless its segment holds more.
-            (_, "list_item") => {
-                (!text.is_empty() && self.has_segment_siblings(id)).then(|| "<text>".into())
-            }
+            // is bare (virtual text) unless it has a link or its segment
+            // holds more.
+            (_, "list_item") => (!text.is_empty()
+                && (self.hyperlink(id).is_some() || self.has_segment_siblings(id)))
+            .then(|| "<text>".into()),
             (_, "checkbox_selected" | "checkbox_unselected") => {
                 let in_text = item.parent.is_some_and(|p| {
                     matches!(&tree.items[p].kind,
@@ -532,7 +581,28 @@ impl<'t> Ser<'t> {
             TreeKind::Code { .. } => self.captions(id),
             _ => String::new(),
         };
-        let mut res = self.head(id, code_label, &caption, inline);
+        // An href applies to all content of its element: a linked run needs
+        // its own head unless the enclosing element carries the link, and a
+        // host of runs carries one only when all its content shares it.
+        let mut href = self.hyperlink(id);
+        let parent_group = item.parent.filter(|&p| inline && self.is_inline_group(p));
+        if let Some(g) = parent_group {
+            if href == self.shared_href(g) {
+                href = None;
+            }
+        }
+        let first_group = item
+            .children
+            .first()
+            .copied()
+            .filter(|&c| self.is_inline_group(c));
+        let runs_href = first_group.and_then(|g| self.shared_href(g));
+        let head_href = if first_group.is_some() {
+            runs_href
+        } else {
+            href
+        };
+        let mut res = self.head(id, code_label, head_href, &caption, inline);
 
         let children = &item.children;
         let checkbox = match label {
@@ -555,8 +625,14 @@ impl<'t> Ser<'t> {
                 if text.is_empty() {
                     runs
                 } else {
+                    // The host's own link covers only its own text when the
+                    // runs do not all share it.
+                    let mut own = own(self);
+                    if let (Some(uri), None) = (href, runs_href) {
+                        own = wrap(&format!("{}{own}", href_token(uri)), "text");
+                    }
                     // Two runs of one inline flow: a plain space between them.
-                    [own(self), runs]
+                    [own, runs]
                         .into_iter()
                         .filter(|p| !p.is_empty())
                         .collect::<Vec<_>>()
@@ -575,10 +651,16 @@ impl<'t> Ser<'t> {
             }
             _ => own(self),
         };
+        if inline && href.is_some() && text_part.is_empty() {
+            // A linked run whose content is excluded leaves nothing to link.
+            return String::new();
+        }
         res.push_str(&text_part);
 
-        // An inline run of plain text is the host's text node, unwrapped.
+        // An inline run of plain unlinked text is the host's text node,
+        // unwrapped.
         let bare_in_inline = inline
+            && href.is_none()
             && matches!(
                 label,
                 "text" | "handwritten_text" | "checkbox_selected" | "checkbox_unselected"
@@ -637,7 +719,7 @@ impl<'t> Ser<'t> {
             rich_cells.iter().map(|&(r, c, g)| ((r, c), g)).collect();
         let caption = self.captions(id);
         let otsl = self.otsl(table, &rich);
-        let head = self.head(id, None, &caption, false);
+        let head = self.head(id, None, self.hyperlink(id), &caption, false);
         wrap(&format!("{head}{otsl}"), "table")
     }
 
@@ -760,7 +842,7 @@ impl<'t> Ser<'t> {
         {
             caption.push_str(&wrap(&escape(&d.text), "description"));
         }
-        let head = self.head(id, label, &caption, false);
+        let head = self.head(id, label, self.hyperlink(id), &caption, false);
         let open = if body.contains("<tabular>") && chart.is_some() {
             "<picture class=\"chart\">"
         } else {
@@ -818,6 +900,11 @@ fn captions_of(kind: &TreeKind) -> &[usize] {
         | TreeKind::Code { captions, .. } => captions,
         _ => &[],
     }
+}
+
+/// `_create_href_token`: `<href uri="…"/>` in an element head.
+fn href_token(uri: &str) -> String {
+    format!("<href uri=\"{}\"/>", escape_attr(uri))
 }
 
 fn layer_token(layer: ContentLayer) -> String {

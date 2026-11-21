@@ -2239,6 +2239,7 @@ fn parse_table_as(table: XmlNode, styles: &Styles, styled_rich: bool) -> Option<
     });
     Some(Table {
         footnotes: Vec::new(),
+        footnotes_as_runs: false,
         rows,
         location: None,
         structure: Some(TableStructure {
@@ -2674,6 +2675,7 @@ pub(crate) fn emit_sheet_regions(
                 .collect();
             doc.push(Node::Table(Table {
                 footnotes: Vec::new(),
+                footnotes_as_runs: false,
                 rows,
                 location: None,
                 structure: None,

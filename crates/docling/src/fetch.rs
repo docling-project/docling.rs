@@ -447,19 +447,20 @@ pub fn file_url_path(url: &str) -> Result<std::path::PathBuf, String> {
 pub fn disposition_filename(value: &str) -> Option<String> {
     let mut plain = None;
     let mut extended = None;
-    for part in value.split(';').skip(1) {
-        let Some((key, raw)) = part.split_once('=') else {
-            continue;
-        };
-        let key = key.trim().to_ascii_lowercase();
-        let raw = raw.trim();
+    // Parameters are tokenized with RFC 6266 / 2616 quoting, as Python's
+    // `email.message.Message.get_filename()` reads them (docling-core#944):
+    // a quoted-string may hold `;` and `=` (`filename="report; final.pdf"`),
+    // `\"` and `\\` escape inside it. A plain split on `;` cut the name at
+    // its first semicolon and lost the extension — and the format with it.
+    for (key, raw) in disposition_params(value) {
+        let key = key.to_ascii_lowercase();
         if key == "filename*" {
             // RFC 5987: charset'language'percent-encoded.
-            let encoded = raw.rsplit('\'').next().unwrap_or(raw);
+            let encoded = raw.rsplit('\'').next().unwrap_or(&raw);
             let decoded = String::from_utf8_lossy(&percent_decode(encoded)).into_owned();
             extended = Some(decoded);
         } else if key == "filename" {
-            plain = Some(raw.trim_matches('"').to_string());
+            plain = Some(raw);
         }
     }
     extended
@@ -472,6 +473,67 @@ pub fn disposition_filename(value: &str) -> Option<String> {
                 .to_string()
         })
         .filter(|n| !n.is_empty() && n != "." && n != "..")
+}
+
+/// The `key=value` parameters of a `Content-Disposition` value, after the
+/// disposition type: a value is a token, or a quoted-string with its quotes
+/// removed and its `\x` escapes resolved, which may contain `;` and `=`.
+fn disposition_params(value: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut chars = value.chars().peekable();
+    // Skip the disposition type.
+    for c in chars.by_ref() {
+        if c == ';' {
+            break;
+        }
+    }
+    loop {
+        while chars.peek().is_some_and(|c| c.is_whitespace() || *c == ';') {
+            chars.next();
+        }
+        let mut key = String::new();
+        while let Some(&c) = chars.peek() {
+            if c == '=' || c == ';' {
+                break;
+            }
+            key.push(c);
+            chars.next();
+        }
+        if chars.peek().is_none() && key.trim().is_empty() {
+            break;
+        }
+        if chars.next_if_eq(&'=').is_none() {
+            // A parameter without a value: nothing to read.
+            if chars.peek().is_none() {
+                break;
+            }
+            continue;
+        }
+        while chars.next_if(|c| *c == ' ' || *c == '\t').is_some() {}
+        let mut val = String::new();
+        if chars.next_if_eq(&'"').is_some() {
+            while let Some(c) = chars.next() {
+                match c {
+                    '\\' => {
+                        if let Some(n) = chars.next() {
+                            val.push(n);
+                        }
+                    }
+                    '"' => break,
+                    c => val.push(c),
+                }
+            }
+            // Anything after the closing quote up to the next `;` is dropped.
+            while chars.next_if(|c| *c != ';').is_some() {}
+        } else {
+            while let Some(c) = chars.next_if(|c| *c != ';') {
+                val.push(c);
+            }
+            val = val.trim().to_string();
+        }
+        out.push((key.trim().to_string(), val));
+    }
+    out
 }
 
 /// A parsed `data:` URI (RFC 2397): the payload decoded, its media type
@@ -761,6 +823,43 @@ mod tests {
         );
         assert_eq!(disposition_filename("attachment"), None);
         assert_eq!(disposition_filename("attachment; filename=\"\""), None);
+    }
+
+    /// docling-core#944 (`test_resolve_remote_filename_quoted_parameters`):
+    /// a quoted filename keeps its `;` and `=`; the directory part is still
+    /// dropped and an empty name still falls back (to the URL, the caller's).
+    #[test]
+    fn disposition_filename_keeps_quoted_semicolons() {
+        let f = |v: &str| disposition_filename(v);
+        assert_eq!(
+            f("attachment; filename=\"report; final.pdf\"").as_deref(),
+            Some("report; final.pdf")
+        );
+        assert_eq!(
+            f("attachment; filename=\"a=b; c.pdf\"; size=123").as_deref(),
+            Some("a=b; c.pdf")
+        );
+        assert_eq!(
+            f("attachment; filename=\"report.pdf\"; creation-date=\"today\"").as_deref(),
+            Some("report.pdf")
+        );
+        assert_eq!(
+            f("attachment; filename=\"../../report; final.pdf\"").as_deref(),
+            Some("report; final.pdf")
+        );
+        assert_eq!(f("attachment; filename=\"\""), None);
+        assert_eq!(
+            f("attachment; filename=\"say \\\"hi\\\".pdf\"").as_deref(),
+            Some("say \"hi\".pdf")
+        );
+        assert_eq!(
+            f("attachment; filename*=UTF-8''a%3B%20b.pdf; filename=\"x; y.pdf\"").as_deref(),
+            Some("a; b.pdf")
+        );
+        assert_eq!(
+            f("attachment;filename=plain.md").as_deref(),
+            Some("plain.md")
+        );
     }
 
     #[cfg(feature = "fetch-url")]

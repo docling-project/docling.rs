@@ -12,7 +12,7 @@ Text: 00:16.000 ----> 00:18.000 & < > " '
 
 # Inline code
 
-`&amp; &lt; &gt; &quot; &#39; `
+`&amp; &lt; &gt; &quot; &#39;`
 
 # Code block
 

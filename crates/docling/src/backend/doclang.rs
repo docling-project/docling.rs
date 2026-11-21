@@ -9,6 +9,7 @@
 //! deserializer's rules — pretty-printed indentation collapses, while CDATA
 //! sections and `<content>` wrappers keep their text verbatim.
 
+use super::doclang_tree::is_head_tag;
 use roxmltree::{Document, Node as XmlNode, NodeType};
 
 use crate::backend::ooxml::Package;
@@ -51,7 +52,7 @@ impl DeclarativeBackend for DoclangBackend {
         }
         check_table_budget(root)?;
         let mut doc = DoclingDocument::new(&source.name);
-        walk_body(root, &mut doc.nodes);
+        walk_body(root, &mut doc.nodes, &mut Threads::default());
         // The JSON export reads docling's item tree (see `doclang_tree`);
         // the deserializer lays every document out on 512×512 pages, one
         // per `<page_break>`, which the export's page map is built from.
@@ -120,17 +121,92 @@ fn check_table_budget(root: XmlNode) -> Result<(), ConversionError> {
     Ok(())
 }
 
-fn walk_body(parent: XmlNode, out: &mut Vec<Node>) {
+/// `_thread_registry` (#1207): the node a `(thread_id, element name)`
+/// started, which the thread's later fragments continue.
+type Threads = std::collections::HashMap<(String, String), usize>;
+
+/// A threaded element's key: its `<thread>` head's id and its name.
+fn thread_key(el: XmlNode) -> Option<(String, String)> {
+    super::doclang_tree::thread_id(el).map(|id| (id, el.tag_name().name().to_string()))
+}
+
+/// A later fragment of a thread: its text continues the node the thread
+/// started (`_append_textual_fragment`). `false` when that node takes none.
+fn append_fragment(node: &mut Node, fragment: &str) -> bool {
+    match node {
+        Node::Paragraph { text } | Node::Heading { text, .. } => {
+            text.push_str(fragment);
+            true
+        }
+        Node::Furniture { inner, .. } => append_fragment(inner, fragment),
+        _ => false,
+    }
+}
+
+/// A threaded heading or text (#1207): a later fragment is appended to the
+/// node its thread started — its text as read, edge whitespace included,
+/// since the fragments are cuts of one text — and `true` returned; a first
+/// fragment is registered once pushed (`register`).
+fn continue_thread(el: XmlNode, out: &mut [Node], threads: &Threads) -> bool {
+    let Some(key) = thread_key(el) else {
+        return false;
+    };
+    let Some(&idx) = threads.get(&key) else {
+        return false;
+    };
+    let fragment = inline_runs(el, true).text;
+    let fragment = fragment.trim_end_matches(XML_WS);
+    match out.get_mut(idx) {
+        Some(node) => append_fragment(node, fragment),
+        None => false,
+    }
+}
+
+/// After the first fragment of a thread was pushed: register it, its text
+/// keeping the trailing whitespace the next fragment continues after.
+fn register_thread(el: XmlNode, out: &mut [Node], threads: &mut Threads) {
+    let Some(key) = thread_key(el) else {
+        return;
+    };
+    let Some(idx) = out.len().checked_sub(1) else {
+        return;
+    };
+    let raw = inline_runs(el, true).text;
+    let trail = &raw[raw.trim_end_matches(XML_WS).len()..];
+    if !trail.is_empty() {
+        append_fragment(&mut out[idx], trail);
+    }
+    threads.insert(key, idx);
+}
+
+fn walk_body(parent: XmlNode, out: &mut Vec<Node>, threads: &mut Threads) {
     for el in parent.children().filter(|n| n.is_element()) {
+        if matches!(el.tag_name().name(), "heading" | "text") && continue_thread(el, out, threads) {
+            continue;
+        }
         match el.tag_name().name() {
             "heading" => {
                 let level: u8 = attr(el, "level")
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(1)
                     .max(1);
-                // A heading's `<href>` head is dropped — docling's deserializer
-                // keeps heading text plain.
-                let inline = parse_inline(el);
+                // A heading's own `<href>` links its whole text; one whose
+                // body holds linked runs is read as those runs, each with
+                // its link and the others inheriting the heading's
+                // (docling-core#1019).
+                let linked_runs = el
+                    .children()
+                    .filter(|c| c.is_element() && !is_head_tag(c.tag_name().name()))
+                    .any(|c| c.descendants().any(|d| d.has_tag_name("href")));
+                let inline = if linked_runs {
+                    parse_inline(el)
+                } else {
+                    let mut inline = parse_inline_with(el, false);
+                    if let Some(uri) = &inline.href {
+                        inline.text = docling_core::hyperlink::markdown_link(&inline.text, uri);
+                    }
+                    inline
+                };
                 if inline.text.is_empty() {
                     continue;
                 }
@@ -142,6 +218,7 @@ fn walk_body(parent: XmlNode, out: &mut Vec<Node>) {
                         text: inline.text,
                     },
                 );
+                register_thread(el, out, threads);
             }
             "text" => {
                 // A mixed `<text>` keeps its `<layer>`: docling-core 2.102
@@ -153,15 +230,11 @@ fn walk_body(parent: XmlNode, out: &mut Vec<Node>) {
                         checked,
                         text: inline.text,
                     }
-                } else if inline.href.is_some() {
-                    // A hyperlink text comes back as its anchor — the target
-                    // is dropped in docling's round-trip, its styling kept
-                    // (docling-core 2.106: `***italic and bold link***`).
-                    Node::Paragraph { text: inline.text }
                 } else {
                     Node::Paragraph { text: inline.text }
                 };
                 push_with_layer(out, inline.layer, node);
+                register_thread(el, out, threads);
             }
             // docling-core#865: a footnote, a page header/footer and a lone
             // caption are text items of their own label — a mixed one a host
@@ -180,10 +253,11 @@ fn walk_body(parent: XmlNode, out: &mut Vec<Node>) {
                 }
             }
             "formula" => {
-                let text = raw_text(el);
-                out.push(Node::Paragraph {
-                    text: format!("$${text}$$"),
-                });
+                let mut text = format!("$${}$$", raw_text(el));
+                if let Some(uri) = head_href(el) {
+                    text = docling_core::hyperlink::markdown_link(&text, &uri);
+                }
+                out.push(Node::Paragraph { text });
             }
             "code" => push_float(el, el, Vec::new(), Vec::new(), out),
             "list" => parse_list(el, 0, out),
@@ -227,7 +301,7 @@ fn walk_body(parent: XmlNode, out: &mut Vec<Node>) {
                 }
             }
             // Unknown block containers: recurse so nothing inside is lost.
-            _ => walk_body(el, out),
+            _ => walk_body(el, out, threads),
         }
     }
 }
@@ -264,14 +338,70 @@ struct Inline {
     href: Option<String>,
     layer: Option<ContentLayer>,
     checkbox: Option<bool>,
+    /// The fragments (indices into the collected parts) that already carry
+    /// a link of their own: a nested `<text>` with its own `<href>` head.
+    linked: Vec<usize>,
 }
 
+/// An element's inline content with its links (docling-core#1019): an href
+/// applies to all content of its element, so each run is linked with the
+/// element's own `<href>` head unless a nested `<text>` has its own.
 fn parse_inline(el: XmlNode) -> Inline {
+    parse_inline_with(el, true)
+}
+
+/// [`parse_inline`]; `own_link = false` leaves the element's own `<href>`
+/// in [`Inline::href`] without linking its runs (a heading links its text as
+/// a whole; a caption's own link has no place in docling's Markdown).
+fn parse_inline_with(el: XmlNode, own_link: bool) -> Inline {
+    let mut inline = inline_runs(el, own_link);
+    inline.text = inline.text.trim_matches(XML_WS).to_string();
+    inline
+}
+
+/// [`parse_inline_with`] keeping the edge whitespace: a nested run's is its
+/// boundary with the next one.
+fn inline_runs(el: XmlNode, own_link: bool) -> Inline {
     let mut inline = Inline::default();
     let mut parts: Vec<String> = Vec::new();
     collect_inline(el, &mut parts, &mut inline);
-    inline.text = join_inline(parts).trim_matches(XML_WS).to_string();
+    if own_link {
+        if let Some(uri) = &inline.href {
+            for (i, part) in parts.iter_mut().enumerate() {
+                if !inline.linked.contains(&i) {
+                    *part = docling_core::inline::hoist(part, |core| {
+                        docling_core::hyperlink::markdown_link(core, uri)
+                    });
+                }
+            }
+        }
+    }
+    inline.text = join_inline(parts);
     inline
+}
+
+/// `_extract_hyperlink` on one `<href>`: read as pydantic's `AnyUrl` (with
+/// a scheme) or `Path`; an empty `uri` is no link.
+fn href_value(el: XmlNode) -> Option<String> {
+    attr(el, "uri")
+        .filter(|u| !u.is_empty())
+        .map(super::html_tree::docling_href)
+}
+
+/// The `<href>` among an element's leading head nodes.
+fn head_href(el: XmlNode) -> Option<String> {
+    for n in el.children() {
+        if n.is_text() && n.text().unwrap_or("").trim_matches(XML_WS).is_empty() {
+            continue;
+        }
+        if !(n.is_element() && is_head_tag(n.tag_name().name())) {
+            break;
+        }
+        if n.has_tag_name("href") {
+            return href_value(n);
+        }
+    }
+    None
 }
 
 /// Collect an element's inline children into Markdown fragments. Plain text
@@ -333,7 +463,16 @@ fn collect_inline(el: XmlNode, parts: &mut Vec<String>, inline: &mut Inline) {
                 // An inline formula run: its neighbours carry the spaces
                 // (docling-core 2.106's faithful join, #997).
                 "formula" => parts.push(format!("${}$", raw_text(child))),
-                "href" => inline.href = attr(child, "uri").map(str::to_string),
+                // A nested run: linked by its own head, else by this
+                // element's (docling-core#1019).
+                "text" => {
+                    let sub = inline_runs(child, true);
+                    if sub.href.is_some() {
+                        inline.linked.push(parts.len());
+                    }
+                    parts.push(sub.text);
+                }
+                "href" => inline.href = href_value(child),
                 "layer" => inline.layer = parse_layer(child),
                 "checkbox" => inline.checkbox = Some(attr(child, "class") == Some("selected")),
                 "location" => {}
@@ -555,14 +694,12 @@ fn parse_list(el: XmlNode, level: u8, out: &mut Vec<Node>) {
                         .and_then(|s| s.trim().parse::<u64>().ok())
                 })
                 .unwrap_or(*number);
-            let text = match &inline.href {
-                Some(uri) if !inline.text.trim_matches(XML_WS).is_empty() => {
-                    docling_core::hyperlink::markdown_link(inline.text.trim_matches(XML_WS), uri)
-                }
-                // The reading rules trimmed the item's edges already; what
-                // whitespace is left came from a literal `<content>`.
-                _ => inline.text.clone(),
-            };
+            // The reading rules trimmed the item's edges already; what
+            // whitespace is left came from a literal `<content>`. The links
+            // are on the runs, a `<text>` body's own (docling-core#1019); a
+            // bare `<href>` in virtual text links nothing, as upstream
+            // reads it.
+            let text = inline.text.clone();
             if text.trim_matches(XML_WS).is_empty() {
                 return;
             }
@@ -607,9 +744,6 @@ fn parse_list(el: XmlNode, level: u8, out: &mut Vec<Node>) {
                         match other {
                             "text" => {
                                 let sub = parse_inline(child);
-                                if inline.href.is_none() {
-                                    inline.href = sub.href;
-                                }
                                 if inline.layer.is_none() {
                                     inline.layer = sub.layer;
                                 }
@@ -665,7 +799,7 @@ fn collect_inline_single(el: XmlNode, parts: &mut Vec<String>, inline: &mut Inli
         "code" => parts.push(docling_core::code_span(&flatten_text(el))),
         // An inline formula run: its neighbours carry the spaces (#997).
         "formula" => parts.push(format!("${}$", raw_text(el))),
-        "href" => inline.href = attr(el, "uri").map(str::to_string),
+        "href" => inline.href = href_value(el),
         "layer" => inline.layer = parse_layer(el),
         "location" => {}
         // A checkbox inside a list item's or group's runs is a checkbox item
@@ -897,6 +1031,7 @@ fn parse_table(el: XmlNode) -> Option<Table> {
         .collect();
     Some(Table {
         footnotes: Vec::new(),
+        footnotes_as_runs: false,
         rows,
         location: None,
         structure: Some(TableStructure {
@@ -1031,7 +1166,10 @@ fn satellites(el: XmlNode) -> (Vec<String>, Vec<String>) {
             "footnote" => &mut footnotes,
             _ => continue,
         };
-        let text = parse_inline(n).text.trim_matches(XML_WS).to_string();
+        let text = parse_inline_with(n, false)
+            .text
+            .trim_matches(XML_WS)
+            .to_string();
         if !text.is_empty() {
             into.push(text);
         }
@@ -1045,7 +1183,12 @@ fn satellites(el: XmlNode) -> (Vec<String>, Vec<String>) {
 fn head_captions(el: XmlNode) -> Vec<String> {
     el.children()
         .filter(|c| c.has_tag_name("caption"))
-        .map(|c| parse_inline(c).text.trim_matches(XML_WS).to_string())
+        .map(|c| {
+            parse_inline_with(c, false)
+                .text
+                .trim_matches(XML_WS)
+                .to_string()
+        })
         .filter(|s| !s.is_empty())
         .collect()
 }
