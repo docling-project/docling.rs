@@ -856,7 +856,10 @@ mod tests {
             f("attachment; filename*=UTF-8''a%3B%20b.pdf; filename=\"x; y.pdf\"").as_deref(),
             Some("a; b.pdf")
         );
-        assert_eq!(f("attachment;filename=plain.md").as_deref(), Some("plain.md"));
+        assert_eq!(
+            f("attachment;filename=plain.md").as_deref(),
+            Some("plain.md")
+        );
     }
 
     #[cfg(feature = "fetch-url")]

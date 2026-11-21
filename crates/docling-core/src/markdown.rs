@@ -680,7 +680,9 @@ pub fn code_span(text: &str) -> String {
 /// reading. Tabs and no-break spaces are not stripped and need none.
 fn needs_space_pad(text: &str) -> bool {
     let normalized = text.replace("\r\n", "\n").replace(['\r', '\n'], " ");
-    normalized.starts_with(' ') && normalized.ends_with(' ') && normalized.trim_matches(' ') != ""
+    normalized.starts_with(' ')
+        && normalized.ends_with(' ')
+        && !normalized.trim_matches(' ').is_empty()
 }
 
 /// A fenced code block whose fence out-lengths every backtick run in `body`

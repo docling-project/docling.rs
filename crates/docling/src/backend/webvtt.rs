@@ -422,7 +422,13 @@ fn char_reference(tail: &str) -> (String, usize) {
         };
         let len = digits
             .bytes()
-            .take_while(|b| if hex { b.is_ascii_hexdigit() } else { b.is_ascii_digit() })
+            .take_while(|b| {
+                if hex {
+                    b.is_ascii_hexdigit()
+                } else {
+                    b.is_ascii_digit()
+                }
+            })
             .count();
         if len == 0 {
             return ("&".into(), 0);
@@ -434,7 +440,9 @@ fn char_reference(tail: &str) -> (String, usize) {
     // `[^\t\n\f <&#;]{1,32};?`
     let len = tail
         .char_indices()
-        .take_while(|(i, c)| *i < 128 && !matches!(c, '\t' | '\n' | '\x0c' | ' ' | '<' | '&' | '#' | ';'))
+        .take_while(|(i, c)| {
+            *i < 128 && !matches!(c, '\t' | '\n' | '\x0c' | ' ' | '<' | '&' | '#' | ';')
+        })
         .take(32)
         .map(|(i, c)| i + c.len_utf8())
         .last()
@@ -446,19 +454,26 @@ fn char_reference(tail: &str) -> (String, usize) {
     // The table also lists every prefix of a name, as `(0, 0)` (the
     // tokenizer's lookahead): those are not references.
     let entity = |name: &str| {
-        web_atoms::NAMED_ENTITIES.get(name).filter(|&&(a, _)| a != 0).map(|&(a, b)| {
-            [a, b]
-                .into_iter()
-                .filter(|&c| c != 0)
-                .filter_map(char::from_u32)
-                .collect::<String>()
-        })
+        web_atoms::NAMED_ENTITIES
+            .get(name)
+            .filter(|&&(a, _)| a != 0)
+            .map(|&(a, b)| {
+                [a, b]
+                    .into_iter()
+                    .filter(|&c| c != 0)
+                    .filter_map(char::from_u32)
+                    .collect::<String>()
+            })
     };
     if let Some(v) = entity(&tail[..with_semi]) {
         return (v, with_semi);
     }
     // The longest prefix that is a (legacy, semicolon-less) name.
-    let ends: Vec<usize> = tail[..with_semi].char_indices().map(|(i, _)| i).skip(2).collect();
+    let ends: Vec<usize> = tail[..with_semi]
+        .char_indices()
+        .map(|(i, _)| i)
+        .skip(2)
+        .collect();
     for &end in ends.iter().rev() {
         if let Some(v) = entity(&tail[..end]) {
             return (v, end);
@@ -678,12 +693,15 @@ mod tests {
             texts(youtube),
             ["hello", " everyone", "hello everyone", "welcome back"]
         );
-        let separated = "WEBVTT\n\n1\n00:01.000 --> 00:02.000\none\n \n2\n00:02.000 --> 00:03.000\n\
+        let separated =
+            "WEBVTT\n\n1\n00:01.000 --> 00:02.000\none\n \n2\n00:02.000 --> 00:03.000\n\
                          two\n \n00:03.000 --> 00:04.000\nthree\n";
         assert_eq!(texts(separated), ["one", "two", "three"]);
         let v = convert(separated).export_to_json_value();
         assert_eq!(v["texts"][0]["source"][0]["identifier"], "1");
-        assert!(v["texts"][2]["source"][0].get("identifier").is_none_or(|i| i.is_null()));
+        assert!(v["texts"][2]["source"][0]
+            .get("identifier")
+            .is_none_or(|i| i.is_null()));
     }
 
     /// docling-core#935 (`test_webvtt_ruby_spans` and the two `rt` rules):
@@ -691,13 +709,28 @@ mod tests {
     #[test]
     fn ruby_spans_keep_their_runs() {
         let runs = |cue: &str| texts(&format!("WEBVTT\n\n00:01.000 --> 00:02.000\n{cue}\n"));
-        assert_eq!(runs("<ruby>漢字<rt>かんじ</rt></ruby> is kanji"), ["漢字", "かんじ", " is kanji"]);
-        assert_eq!(runs("<ruby>漢字<rt>かんじ</ruby> is kanji"), ["漢字", "かんじ", " is kanji"]);
-        assert_eq!(runs("<ruby>日<rt>に</rt>本<rt>ほん</ruby>"), ["日", "に", "本", "ほん"]);
+        assert_eq!(
+            runs("<ruby>漢字<rt>かんじ</rt></ruby> is kanji"),
+            ["漢字", "かんじ", " is kanji"]
+        );
+        assert_eq!(
+            runs("<ruby>漢字<rt>かんじ</ruby> is kanji"),
+            ["漢字", "かんじ", " is kanji"]
+        );
+        assert_eq!(
+            runs("<ruby>日<rt>に</rt>本<rt>ほん</ruby>"),
+            ["日", "に", "本", "ほん"]
+        );
         // The `<rt>` start tag inside an open `<rt>` is ignored: its text
         // stays in the first annotation (two runs there, as docling reads it).
-        assert_eq!(runs("<ruby>日<rt>に<rt>ほん</rt></ruby>"), ["日", "に", "ほん"]);
-        assert_eq!(runs("<rt>x</rt> and <i><rt>y</rt></i>"), ["x", " and ", "y"]);
+        assert_eq!(
+            runs("<ruby>日<rt>に<rt>ほん</rt></ruby>"),
+            ["日", "に", "ほん"]
+        );
+        assert_eq!(
+            runs("<rt>x</rt> and <i><rt>y</rt></i>"),
+            ["x", " and ", "y"]
+        );
         // A mismatched end tag over an open inner span still drops the cue.
         assert!(runs("<ruby>a<rt>b<i>c</ruby>").is_empty());
     }

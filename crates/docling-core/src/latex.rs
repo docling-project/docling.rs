@@ -1110,13 +1110,19 @@ mod tests {
             render_table(&table(Vec::new(), &["Only note"], false)),
             "\\begin{table}[h]\n\n{\\footnotesize Only note\\par}\n\\end{table}"
         );
-        assert!(render_table(&table(cells(), &["Cost $5 & 10%\\_discount #1 {x}"], false))
-            .contains("{\\footnotesize Cost \\$5 \\& 10\\%\\_discount \\#1 \\{x\\}\\par}"));
+        assert!(
+            render_table(&table(cells(), &["Cost $5 & 10%\\_discount #1 {x}"], false))
+                .contains("{\\footnotesize Cost \\$5 \\& 10\\%\\_discount \\#1 \\{x\\}\\par}")
+        );
         let jats = table(cells(), &["a note"], true);
         assert!(!render_table(&jats).contains("footnotesize"));
         let mut doc = DoclingDocument::new("t");
         doc.push(Node::Table(jats));
-        assert!(to_latex(&doc).contains("\\end{table}\n\na note"), "{}", to_latex(&doc));
+        assert!(
+            to_latex(&doc).contains("\\end{table}\n\na note"),
+            "{}",
+            to_latex(&doc)
+        );
     }
 
     #[test]
