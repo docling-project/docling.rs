@@ -477,7 +477,10 @@ fn footnotes_are_runs(item: &Value, root: &Value) -> bool {
         .flatten()
         .filter_map(|r| resolve(r, root))
         .collect();
-    !notes.is_empty() && notes.iter().all(|n| n["text"].as_str().unwrap_or("").is_empty())
+    !notes.is_empty()
+        && notes
+            .iter()
+            .all(|n| n["text"].as_str().unwrap_or("").is_empty())
 }
 
 /// A picture's or code item's footnotes as standalone `footnote` items
@@ -672,7 +675,28 @@ fn walk_inner(
         return;
     }
     if kind.starts_with("#/texts/") {
-        text_item(item, root, level, doc, g);
+        // A heading without text of its own over an inline group alone —
+        // docling-core's shape for a heading whose runs carry links or
+        // formatting (docling-core#1019) — is a heading of those runs, as its
+        // Markdown serializer prints it; the group would otherwise land as a
+        // paragraph after an empty (dropped) heading.
+        if let Some(runs) = heading_runs(item, root) {
+            if let Some(first) = item["children"].as_array().and_then(|c| c.first()) {
+                g.seen.insert(ref_kind(first).to_string());
+            }
+            let lvl = match item["label"].as_str() {
+                Some("title") => 1,
+                _ => item["level"].as_u64().unwrap_or(1) as u8 + 1,
+            };
+            with_prov(item, doc, g, |doc, _| {
+                doc.push(Node::Heading {
+                    level: lvl,
+                    text: runs,
+                })
+            });
+        } else {
+            text_item(item, root, level, doc, g);
+        }
         // docling nests a section's content under its heading (and a list
         // item's sub-list under the item), so a text item's `children` are
         // body content too — without this walk a document collapses to its
@@ -690,6 +714,26 @@ fn walk_inner(
     } else if kind.starts_with("#/pictures/") {
         with_prov(item, doc, g, |doc, _| picture_item(item, root, doc));
     }
+}
+
+/// The Markdown of the inline group that is the one child of a title or
+/// section header with no text of its own — docling-core's `has_inline_repr`
+/// (with more children, it prints an empty heading and the group after it) —
+/// or `None` for any other item.
+fn heading_runs(item: &Value, root: &Value) -> Option<String> {
+    if !matches!(item["label"].as_str(), Some("title" | "section_header"))
+        || !item["text"].as_str().unwrap_or("").is_empty()
+    {
+        return None;
+    }
+    let [first] = item["children"].as_array()?.as_slice() else {
+        return None;
+    };
+    if !leading_inline(first, root) {
+        return None;
+    }
+    let runs = inline_text(first, root, 0).trim().to_string();
+    (!runs.is_empty()).then_some(runs)
 }
 
 /// Run `push` for an item and attach the item's provenance (#899) to the
@@ -2436,7 +2480,9 @@ mod tests {
     }
 
     fn root_file(rel: &str) -> String {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(rel);
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(rel);
         std::fs::read_to_string(path).unwrap()
     }
 
@@ -2446,7 +2492,9 @@ mod tests {
     /// omitted, as our CLI and docling's do), and `--to json` keeps `source`.
     #[test]
     fn transcript_json_keeps_its_cues() {
-        let doc = convert(&root_file("tests/data/webvtt/groundtruth/webvtt_example_01.vtt.json"));
+        let doc = convert(&root_file(
+            "tests/data/webvtt/groundtruth/webvtt_example_01.vtt.json",
+        ));
         let vtt = doc.export_to_vtt();
         assert!(
             vtt.starts_with(
@@ -2458,7 +2506,9 @@ mod tests {
         assert_eq!(json["texts"][0]["source"][0]["kind"], "track");
         assert_eq!(json["texts"][0]["source"][0]["voice"], "Roger Bingham");
         // Formatting and inline groups (webvtt_example_04): the cue's runs.
-        let doc = convert(&root_file("tests/data/webvtt/groundtruth/webvtt_example_04.vtt.json"));
+        let doc = convert(&root_file(
+            "tests/data/webvtt/groundtruth/webvtt_example_04.vtt.json",
+        ));
         assert!(
             doc.export_to_vtt().contains(
                 "The dessert’s <i><b>unexpected</b> <u>arcobaleno</u> of flavors</i> left everyone in awe."
@@ -2507,9 +2557,15 @@ mod tests {
               {"self_ref":"#/texts/4","parent":{"$ref":"#/groups/0"},"children":[],"content_layer":"body","label":"code","prov":[],"orig":"a_b","text":"a_b","code_language":"unknown"}],
             "pictures":[],"tables":[],"key_value_items":[],"form_items":[],"pages":{}}"##,
         );
-        assert_eq!(doc.export_to_markdown().trim_end(), "Energy $E=mc^2$ and `a_b`");
+        assert_eq!(
+            doc.export_to_markdown().trim_end(),
+            "Energy $E=mc^2$ and `a_b`"
+        );
         let html = doc.export_to_html();
         assert!(html.contains("<code>a_b</code>"), "{html}");
-        assert!(html.contains("<annotation encoding=\"TeX\">E=mc^2</annotation>"), "{html}");
+        assert!(
+            html.contains("<annotation encoding=\"TeX\">E=mc^2</annotation>"),
+            "{html}"
+        );
     }
 }

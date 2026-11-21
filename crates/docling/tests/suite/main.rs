@@ -24,6 +24,7 @@ mod chunk_refs;
 mod dclx_roundtrip;
 mod detect;
 mod djvu_prov;
+mod doclang_hyperlinks;
 mod doclang_reading;
 mod doclang_upstream;
 mod docling_json_prov;

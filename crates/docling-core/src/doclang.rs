@@ -129,9 +129,9 @@ enum Run {
     Italic(String),
     BoldItalic(String),
     Code(String),
-    /// `[anchor](uri)` — DocLang has no inline href element; the anchor text
-    /// stays inline and, when the run is the only content, the uri becomes a
-    /// `<href uri=…/>` in the element head.
+    /// `[anchor](uri)`: when the run is the only content, the uri becomes a
+    /// `<href uri=…/>` in the element head; inside other content, the run is
+    /// a `<text>` with that head.
     Link {
         anchor: String,
         uri: String,
@@ -437,16 +437,26 @@ fn emit_text_element(
     let only_plain = runs.len() == 1 && matches!(runs[0], Run::Plain(_));
     // A lone `[anchor](uri)` becomes `<href uri=…/>` in the head; the anchor's
     // own markers still render (`[***x***](u)` → href + `<italic><bold>…`).
-    if runs.len() == 1 {
-        if let Run::Link { anchor, uri } = &runs[0] {
-            out.push(depth, format!("<{tag_open}>"));
-            out.push(depth + 1, format!("<href uri=\"{}\"/>", attr_escape(uri)));
-            if !anchor.trim().is_empty() {
-                emit_runs(out, depth + 1, inline_runs(anchor));
+    // So does a link every run shares (`[plain](u) [**bold**](u)`, the runs
+    // apart only by whitespace): docling-core's `_shared_href` moves it to
+    // the element (docling-core#1019) — never to a heading, which reads
+    // formatted-only content as flat text, so its runs keep their links.
+    if let Some(uri) = shared_link(&runs).filter(|_| runs.len() == 1 || tag != "heading") {
+        out.push(depth, format!("<{tag_open}>"));
+        out.push(depth + 1, format!("<href uri=\"{}\"/>", attr_escape(uri)));
+        let mut body = Vec::new();
+        for run in &runs {
+            match run {
+                Run::Link { anchor, .. } => body.extend(inline_runs(anchor)),
+                Run::Plain(t) => body.push(Run::Plain(t.clone())),
+                _ => {}
             }
-            out.push(depth, format!("</{tag}>"));
-            return;
         }
+        if !body.is_empty() {
+            emit_runs(out, depth + 1, body);
+        }
+        out.push(depth, format!("</{tag}>"));
+        return;
     }
     if only_plain {
         let mut body = escape_text(text);
@@ -469,6 +479,20 @@ fn emit_text_element(
     out.push(depth, format!("<{tag_open}>"));
     emit_runs(out, depth + 1, runs);
     out.push(depth, format!("</{tag}>"));
+}
+
+/// The link of runs that are all `[anchor](uri)` with one target, apart from
+/// whitespace between them.
+fn shared_link(runs: &[Run]) -> Option<&str> {
+    let mut uri = None;
+    for run in runs {
+        match run {
+            Run::Link { uri: u, .. } if uri.is_none_or(|x: &str| x == u) => uri = Some(u.as_str()),
+            Run::Plain(t) if t.trim().is_empty() => {}
+            _ => return None,
+        }
+    }
+    uri
 }
 
 /// Whether `text` (Markdown) holds a bold, italic or code run — a mixed
@@ -512,10 +536,16 @@ fn runs_markup(runs: Vec<Run>) -> String {
                 escape_text(&t)
             )),
             Run::Code(t) => s.push_str(&format!("<code>{}</code>", escape_text(&t))),
-            Run::Link { anchor, .. } => {
-                // Inline scope: DocLang drops the target, keeps the anchor.
-                if !anchor.is_empty() {
-                    s.push_str(&plain_markup(&anchor));
+            Run::Link { anchor, uri } => {
+                // An href applies to all content of its element, so a linked
+                // run gets an element of its own (docling-core#1019); a run
+                // left with no content has nothing to link.
+                let body = runs_markup(inline_runs(&anchor));
+                if !body.is_empty() {
+                    s.push_str(&format!(
+                        "<text><href uri=\"{}\"/>{body}</text>",
+                        attr_escape(&uri)
+                    ));
                 }
             }
         }
@@ -1911,6 +1941,19 @@ fn emit_list_item_content(out: &mut Out, depth: i32, text: &str, has_nested: boo
     // their anchor (the href is dropped in inline scope), and the children are
     // rendered on their own lines. Re-parse the Markdown markers into runs and
     // mirror that layout.
+    // A linked item: an href applies to all content of its element, so a
+    // link the whole item shares is a `<text>` with that head and a linked
+    // run is a `<text>` of its own (docling-core#1019) — the Markdown runs
+    // below carry no links.
+    let link_runs = inline_runs(text);
+    if link_runs.iter().any(|r| matches!(r, Run::Link { .. })) && !text.contains("~~") {
+        if shared_link(&link_runs).is_some() || has_nested {
+            emit_text_element(out, depth, "text", "text", text, None);
+        } else {
+            emit_runs(out, depth, link_runs);
+        }
+        return;
+    }
     let runs = inline_runs_from_markdown(text);
     let single_plain = runs.len() <= 1 && runs.first().is_none_or(|r| r.is_plain());
     if single_plain {

@@ -28,7 +28,7 @@ use docling_core::{ContentLayer, PictureImage, Script, Table, TableCell};
 pub(super) const PAGE_SIZE: f32 = 512.0;
 
 /// `_ELEMENT_HEAD_TAGS`: the property tokens an element head may hold.
-fn is_head_tag(name: &str) -> bool {
+pub(super) fn is_head_tag(name: &str) -> bool {
     matches!(
         name,
         "label"
@@ -398,6 +398,32 @@ fn label_from_nodes<'a>(nodes: &[XmlNode<'a, '_>]) -> Option<&'a str> {
         .filter(|v| !v.is_empty())
 }
 
+/// `_extract_hyperlink` (docling-core#1019): the nearest element-head
+/// `<href>`, on `el` or on an enclosing element — an href applies to all
+/// content of its element, so runs inherit their host's (and an inner one
+/// overrides it). Only the leading head nodes of each level count. A target
+/// with a scheme is read as pydantic's `AnyUrl`, anything else (a relative
+/// path, a fragment) as a `Path`; an empty `uri` is no link.
+fn extract_hyperlink(el: XmlNode) -> Option<String> {
+    let mut current = Some(el);
+    while let Some(e) = current.filter(|e| e.is_element()) {
+        for n in e.children() {
+            if is_ws_text(n) || n.is_comment() || n.is_pi() {
+                continue;
+            }
+            if !(n.is_element() && is_head_tag(n.tag_name().name())) {
+                break;
+            }
+            if has_tag(n, "href") {
+                let uri = n.attribute("uri").unwrap_or("");
+                return (!uri.is_empty()).then(|| super::html_tree::docling_href(uri));
+            }
+        }
+        current = e.parent();
+    }
+    None
+}
+
 fn layer_of(el: XmlNode) -> Option<ContentLayer> {
     layer_from_nodes(&split_head_body(el).0)
 }
@@ -548,12 +574,21 @@ impl Builder<'_> {
     }
 
     fn text_kind(label: &str, text: &str, formatting: Option<Formatting>) -> TreeKind {
+        Self::linked_text_kind(label, text, formatting, None)
+    }
+
+    fn linked_text_kind(
+        label: &str,
+        text: &str,
+        formatting: Option<Formatting>,
+        hyperlink: Option<String>,
+    ) -> TreeKind {
         TreeKind::Text {
             label: label.into(),
             text: text.into(),
             orig: None,
             formatting,
-            hyperlink: None,
+            hyperlink,
             level: None,
             list: None,
         }
@@ -722,7 +757,7 @@ impl Builder<'_> {
                         orig: None,
                         language: lang,
                         formatting: None,
-                        hyperlink: None,
+                        hyperlink: extract_hyperlink(el),
                         captions: Vec::new(),
                     },
                     provs,
@@ -739,7 +774,7 @@ impl Builder<'_> {
                 self.add_text_item(
                     parent,
                     None,
-                    Self::text_kind("formula", &text, formatting),
+                    Self::linked_text_kind("formula", &text, formatting, extract_hyperlink(el)),
                     provs,
                     Some(len),
                 );
@@ -774,7 +809,7 @@ impl Builder<'_> {
                 self.add_text_item(
                     parent,
                     layer,
-                    Self::text_kind(label, &text, formatting),
+                    Self::linked_text_kind(label, &text, formatting, extract_hyperlink(el)),
                     provs,
                     Some(len),
                 );
@@ -796,21 +831,37 @@ impl Builder<'_> {
         if text.is_empty() {
             return;
         }
+        // Flattening a heading with linked runs would discard each run's
+        // target (docling-core#1019): it is an empty heading over an inline
+        // group of the runs, which carry the links — the heading's own too.
+        let (_, body) = split_head_body(el);
+        let linked_runs = simple_text_block(el).is_none()
+            && body
+                .iter()
+                .any(|n| n.is_element() && n.descendants().skip(1).any(|d| has_tag(d, "href")));
+        let (text, hyperlink) = if linked_runs {
+            (String::new(), None)
+        } else {
+            (text, extract_hyperlink(el))
+        };
         let kind = if level <= 1 {
-            Self::text_kind("title", &text, None)
+            Self::linked_text_kind("title", &text, None, hyperlink)
         } else {
             TreeKind::Text {
                 label: "section_header".into(),
                 text: text.clone(),
                 orig: None,
                 formatting: None,
-                hyperlink: None,
+                hyperlink,
                 level: Some((level - 1).min(u8::MAX as i64) as u8),
                 list: None,
             }
         };
         let len = text.chars().count();
-        self.add_text_item(parent, layer, kind, provs, Some(len));
+        let item = self.add_text_item(parent, layer, kind, provs, Some(len));
+        if linked_runs {
+            self.inline_group(el, Some(item), Some(body));
+        }
     }
 
     /// `_parse_field_region` + `_parse_field_item` + `_parse_field_kv` for
@@ -895,7 +946,8 @@ impl Builder<'_> {
                     } else {
                         let provs = self.provenance(content_el);
                         let text = get_text(content_el).trim().to_string();
-                        self.add_list_item(group, &text, &meta, provs);
+                        let li = self.add_list_item(group, &text, &meta, provs);
+                        self.set_hyperlink(li, extract_hyperlink(content_el));
                     }
                 } else {
                     let li = self.add_list_item(group, "", &meta, Vec::new());
@@ -919,6 +971,7 @@ impl Builder<'_> {
                     let provs = self.provenance(first);
                     let text = get_text(first).trim().to_string();
                     let li = self.add_list_item(group, &text, &meta, provs);
+                    self.set_hyperlink(li, extract_hyperlink(first));
                     for e in remaining {
                         self.dispatch(*e, Some(li));
                     }
@@ -929,6 +982,12 @@ impl Builder<'_> {
                     }
                 }
             }
+        }
+    }
+
+    fn set_hyperlink(&mut self, id: usize, uri: Option<String>) {
+        if let TreeKind::Text { hyperlink, .. } = &mut self.tree.items[id].kind {
+            *hyperlink = uri;
         }
     }
 
@@ -1058,7 +1117,9 @@ impl Builder<'_> {
         // boundary with the next one, none at the block's edges. Metadata
         // elements (`<location>`, `<layer>`) take no part in the edges.
         enum Run<'a, 'i> {
-            Text(String),
+            /// A text run and the element holding it (whose head link it
+            /// inherits).
+            Text(String, Option<XmlNode<'a, 'i>>),
             El(XmlNode<'a, 'i>),
         }
         let mut runs: Vec<Run> = Vec::new();
@@ -1085,21 +1146,21 @@ impl Builder<'_> {
                     }
                 }
                 if !t.is_empty() {
-                    runs.push(Run::Text(t));
+                    runs.push(Run::Text(t, n.parent_element()));
                 }
             }
         }
         // The block's edges: blank runs there go, the outer runs are trimmed.
-        while matches!(runs.first(), Some(Run::Text(t)) if t.trim().is_empty()) {
+        while matches!(runs.first(), Some(Run::Text(t, _)) if t.trim().is_empty()) {
             runs.remove(0);
         }
-        while matches!(runs.last(), Some(Run::Text(t)) if t.trim().is_empty()) {
+        while matches!(runs.last(), Some(Run::Text(t, _)) if t.trim().is_empty()) {
             runs.pop();
         }
-        if let Some(Run::Text(t)) = runs.first_mut() {
+        if let Some(Run::Text(t, _)) = runs.first_mut() {
             *t = t.trim_start().to_string();
         }
-        if let Some(Run::Text(t)) = runs.last_mut() {
+        if let Some(Run::Text(t, _)) = runs.last_mut() {
             *t = t.trim_end().to_string();
         }
         // `_parse_inline_runs`: a checkbox takes the plain run right after
@@ -1109,7 +1170,7 @@ impl Builder<'_> {
             match run {
                 Run::El(n) if has_tag(n, "checkbox") => {
                     let text = match runs.peek() {
-                        Some(Run::Text(t)) => Some(t.clone()),
+                        Some(Run::Text(t, _)) => Some(t.clone()),
                         Some(Run::El(c)) if has_tag(*c, "content") => Some(collect_text(*c)),
                         _ => None,
                     };
@@ -1124,9 +1185,13 @@ impl Builder<'_> {
                     );
                 }
                 Run::El(n) => self.dispatch(n, Some(g)),
-                Run::Text(t) => {
-                    self.tree
-                        .add(Some(g), None, Self::text_kind("text", &t, None));
+                Run::Text(t, holder) => {
+                    let link = holder.and_then(extract_hyperlink);
+                    self.tree.add(
+                        Some(g),
+                        None,
+                        Self::linked_text_kind("text", &t, None, link),
+                    );
                 }
             }
         }
@@ -1189,7 +1254,7 @@ impl Builder<'_> {
         Some(self.add_text_item(
             None,
             layer_of(cap),
-            Self::text_kind("caption", &text, None),
+            Self::linked_text_kind("caption", &text, None, extract_hyperlink(cap)),
             provs,
             None,
         ))
@@ -1713,6 +1778,11 @@ fn text_wrap_is_complex(text_el: XmlNode) -> bool {
 /// delimiter is — raw text, a head token or inline markup mean the item body
 /// is virtual text; a semantic or grouping element means it is not.
 fn is_list_item_virtual_text(nodes: &[XmlNode]) -> bool {
+    // Raw text or a text-level element anywhere makes it virtual text, so a
+    // leading `<code>` — or a linked run's `<text>` — stays inline.
+    if is_virtual_text(nodes) {
+        return true;
+    }
     let Some(first) = nodes.iter().find(|n| !is_ws_text(**n)) else {
         return false;
     };

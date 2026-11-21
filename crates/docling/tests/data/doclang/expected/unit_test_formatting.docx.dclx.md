@@ -4,9 +4,9 @@
 
 underline
 
-hyperlink
+[hyperlink](https://github.com/DS4SD/docling)
 
-***italic and bold hyperlink***
+[***italic and bold hyperlink***](https://github.com/DS4SD/docling)
 
 Normal *italic* **bold** underline and hyperlink on the same line
 
