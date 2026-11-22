@@ -19,7 +19,7 @@
 //! the same name): one identifier per line, sorted, for scripts that ask the
 //! binary what it converts instead of hard-coding a list.
 //!
-//! Usage: docling-rs [--strict] [--page-break-placeholder TEXT] [--layers body|all|LIST] [--traverse-pictures] [--to md|json|html|text|dclx|chunks|images|latex|pandoc|vtt] [--pages A-B] [--scale X] [--images MODE] [--input GLOB --output DIR [--jobs N]] [--output-file PATH] [--fetch-images] [--image-sources none|embedded|local|remote] [--image-hosts LIST] [--max-images N] [--max-image-bytes N] [--max-image-total-mb N] [--min-image-bytes N] [--list-attachments] [--no-calendar-invitations] [--skip-empty-cells] [--compact-tables] [--picture-alt-text] [--ebcdic-layout JSON|PATH] [--encoding LABEL] [--ipynb-outputs none|text] [--metadata none|json|frontmatter] [--track-changes accept|reject|all] [--extract-diagrams mermaid|none] [--no-outline-level-headings] [--from FORMAT] [--mime-type TYPE] [--no-url-fetch] [--no-stream] [--progress|--no-progress] [--no-table-former] [--no-ocr] [--text-layer-only] [--password PASSWORD | --password-file PATH] [--force-full-page-ocr] [--replace-broken-text-layer] [--no-text-panels] [--heading-hierarchy] [--script-positions] [--ocr-lang LANG] [--ocr-engine ppocr|tesseract] [--ocr-mode MODE] [--ocr-scale X] [--pdf-word-gap adaptive|legacy|F] [--pdf-keep-typography] [--pdf-report-repairs] [--ocr-textline-orientation] [--images-scale X] [--page-images] [--chunker hierarchical|hybrid] [--chunk-tokenizer PATH] [--chunk-max-tokens N] [--no-chunk-merge-peers] [--pipeline standard|vlm] [--vlm-endpoint URL] [--vlm-model NAME] [--vlm-api-key TOKEN] [--vlm-prompt TEXT] [--vlm-max-tokens N] [--asr-model PRESET] [--asr-lang CODE] [--video-frames N|all] [--video-scene-threshold X] [--video-frame-max-side PX] [--video-frame-dedupe N] [--xbrl-taxonomy DIR] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] [--picture-ocr] [--picture-ocr-classes LABELS] [--picture-ocr-min-side N] [--picture-ocr-scale X] [--no-picture-images] [--picture-description] [--picture-description-endpoint URL] [--picture-description-model NAME] [--picture-description-api-key TOKEN] [--picture-description-prompt TEXT] [--picture-description-mode caption|ocr] [--picture-description-concurrency N] [--redact-pii] [--redact-mode label|pseudonym|fixed:TEXT] [--redact-kinds LIST] [--redact-pattern NAME=REGEX]... [--redact-images drop|box_out|keep] [--redact-allow-terms LIST] [--redact-deny-terms LIST] [--redact-allow-pattern REGEX]... [--redact-ner-min-score X] [--document-timeout SECONDS] [--abort-on-error] [--output-dirs auto|flat|mirror] [--archive-merge|--no-archive-merge] <input-file> | - | URL | SOURCE...
+//! Usage: docling-rs [--strict] [--page-break-placeholder TEXT] [--layers body|all|LIST] [--traverse-pictures] [--to md|json|html|text|dclx|chunks|images|latex|pandoc|typst|vtt] [--pages A-B] [--scale X] [--images MODE] [--input GLOB --output DIR [--jobs N]] [--output-file PATH] [--fetch-images] [--image-sources none|embedded|local|remote] [--image-hosts LIST] [--max-images N] [--max-image-bytes N] [--max-image-total-mb N] [--min-image-bytes N] [--list-attachments] [--no-calendar-invitations] [--skip-empty-cells] [--compact-tables] [--picture-alt-text] [--ebcdic-layout JSON|PATH] [--encoding LABEL] [--ipynb-outputs none|text] [--metadata none|json|frontmatter] [--track-changes accept|reject|all] [--extract-diagrams mermaid|none] [--no-outline-level-headings] [--from FORMAT] [--mime-type TYPE] [--no-url-fetch] [--no-stream] [--progress|--no-progress] [--no-table-former] [--no-ocr] [--text-layer-only] [--password PASSWORD | --password-file PATH] [--force-full-page-ocr] [--replace-broken-text-layer] [--no-text-panels] [--heading-hierarchy] [--script-positions] [--ocr-lang LANG] [--ocr-engine ppocr|tesseract] [--ocr-mode MODE] [--ocr-scale X] [--pdf-word-gap adaptive|legacy|F] [--pdf-keep-typography] [--pdf-report-repairs] [--ocr-textline-orientation] [--images-scale X] [--page-images] [--chunker hierarchical|hybrid] [--chunk-tokenizer PATH] [--chunk-max-tokens N] [--no-chunk-merge-peers] [--pipeline standard|vlm] [--vlm-endpoint URL] [--vlm-model NAME] [--vlm-api-key TOKEN] [--vlm-prompt TEXT] [--vlm-max-tokens N] [--asr-model PRESET] [--asr-lang CODE] [--video-frames N|all] [--video-scene-threshold X] [--video-frame-max-side PX] [--video-frame-dedupe N] [--xbrl-taxonomy DIR] [--use-web-browser] [--enrich-picture-classes] [--enrich-code] [--enrich-formula] [--picture-ocr] [--picture-ocr-classes LABELS] [--picture-ocr-min-side N] [--picture-ocr-scale X] [--no-picture-images] [--picture-description] [--picture-description-endpoint URL] [--picture-description-model NAME] [--picture-description-api-key TOKEN] [--picture-description-prompt TEXT] [--picture-description-mode caption|ocr] [--picture-description-concurrency N] [--redact-pii] [--redact-mode label|pseudonym|fixed:TEXT] [--redact-kinds LIST] [--redact-pattern NAME=REGEX]... [--redact-images drop|box_out|keep] [--redact-allow-terms LIST] [--redact-deny-terms LIST] [--redact-allow-pattern REGEX]... [--redact-ner-min-score X] [--document-timeout SECONDS] [--abort-on-error] [--output-dirs auto|flat|mirror] [--archive-merge|--no-archive-merge] <input-file> | - | URL | SOURCE...
 //!   --to FORMAT        repeatable (#491, like Python's `docling convert --to
 //!                      md --to json`): each document converts once and is
 //!                      written in every format named, `<stem>.md` +
@@ -550,12 +550,13 @@ const USAGE: &str = "usage: docling-rs [OPTIONS] <input-file> | - | URL\n       
 /// `--help`: the synopsis plus every flag, grouped. Kept in sync with the
 /// module doc comment above, which carries the long-form rationale.
 const HELP: &str = "\
-Convert documents to Markdown, JSON, plain text, DocLang, LaTeX, Pandoc AST, WebVTT or chunks.
+Convert documents to Markdown, JSON, plain text, DocLang, LaTeX, Pandoc AST, Typst, WebVTT or chunks.
 
 OUTPUT
-  --to md|json|html|text|dclx|chunks|images|latex|pandoc|vtt   output format (default: md); repeat
+  --to md|json|html|text|dclx|chunks|images|latex|pandoc|typst|vtt   output format (default: md); repeat
                           it (or comma-separate) to write several — needs --output;
-                          vtt = WebVTT subtitles from a transcript's (or a .vtt's) cues
+                          vtt = WebVTT subtitles from a transcript's (or a .vtt's) cues;
+                          typst = Typst body markup (.typ), no preamble
   --strict                cleaner, more conformant Markdown (Markdown only)
   --page-break-placeholder TEXT   insert TEXT between pages (Markdown only, e.g. <!-- page break -->)
   --layers body|all|LIST  content layers md/text/html render (default body; LIST from
@@ -2783,6 +2784,8 @@ fn batch_out_path(file: &Path, base: &Path, output: &Path, to: &str) -> std::pat
         "dclx" => "dclx",
         "chunks" => "chunks.json",
         "latex" => "tex",
+        // #1226: Typst's own extension.
+        "typst" => "typ",
         "text" => "txt",
         "vtt" => "vtt",
         // #515: Pandoc's own extension is `.json`; the double extension keeps
@@ -3141,6 +3144,28 @@ fn write_batch_outputs(
             // #317: the upstream CLI writes the serializer's text verbatim.
             "latex" => std::fs::write(&out, document.export_to_latex())
                 .map_err(|e| format!("writing {}: {e}", out.display()))?,
+            // #1226: Typst body markup; `--images referenced` writes the
+            // pictures under `<stem>_artifacts/` next to the `.typ`, which
+            // `#image("<stem>_artifacts/…")` resolves relative to.
+            "typst" => {
+                let stem = out
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "document".into());
+                let (typ, artifacts) =
+                    typst_markup(document, cfg.image_mode, &format!("{stem}_artifacts"));
+                let parent = out.parent().unwrap_or(Path::new(""));
+                for (rel, bytes) in &artifacts {
+                    let target = parent.join(rel);
+                    if let Some(dir) = target.parent() {
+                        std::fs::create_dir_all(dir)
+                            .map_err(|e| format!("creating {}: {e}", dir.display()))?;
+                    }
+                    std::fs::write(&target, bytes)
+                        .map_err(|e| format!("writing {}: {e}", target.display()))?;
+                }
+                std::fs::write(&out, typ).map_err(|e| format!("writing {}: {e}", out.display()))?;
+            }
             // #613: docling's `--to text` writes `export_to_text()` verbatim.
             "text" => std::fs::write(&out, cfg.export.text(document))
                 .map_err(|e| format!("writing {}: {e}", out.display()))?,
@@ -3546,6 +3571,20 @@ fn pandoc_json(
         .expect("the default Pandoc API version is always supported")
 }
 
+/// The Typst markup per `--images` (#1226): `referenced` links files under
+/// `artifacts_dir`; every other mode is the placeholder — Typst cannot
+/// decode a `data:` URI.
+fn typst_markup(
+    document: &docling::DoclingDocument,
+    image_mode: ImageMode,
+    artifacts_dir: &str,
+) -> (String, Vec<(String, Vec<u8>)>) {
+    document.export_to_typst_with(&docling::typst::TypstExportOptions {
+        image_mode,
+        artifacts_dir: artifacts_dir.to_string(),
+    })
+}
+
 fn output_document(
     document: docling::DoclingDocument,
     to: &str,
@@ -3612,6 +3651,30 @@ fn output_document(
             eprintln!("referenced images written to ./artifacts/");
         }
         println!("{json}");
+        return ExitCode::SUCCESS;
+    }
+
+    // #1226: Typst markup on stdout (it ends in its own newline);
+    // `--images referenced` writes the pictures under ./artifacts/.
+    if to == "typst" {
+        let (typ, artifacts) = typst_markup(&document, image_mode, "artifacts");
+        for (rel, bytes) in &artifacts {
+            let target = Path::new(rel);
+            if let Some(dir) = target.parent() {
+                if let Err(e) = std::fs::create_dir_all(dir) {
+                    eprintln!("error: creating {}: {e}", dir.display());
+                    return ExitCode::FAILURE;
+                }
+            }
+            if let Err(e) = std::fs::write(target, bytes) {
+                eprintln!("error: writing {}: {e}", target.display());
+                return ExitCode::FAILURE;
+            }
+        }
+        if !artifacts.is_empty() {
+            eprintln!("referenced images written to ./artifacts/");
+        }
+        print!("{typ}");
         return ExitCode::SUCCESS;
     }
 
@@ -4014,6 +4077,7 @@ mod tests {
         assert_eq!(out("/data/reports/x.pdf", "json"), Path::new("/out/x.json"));
         assert_eq!(out("/data/reports/x.pdf", "dclx"), Path::new("/out/x.dclx"));
         assert_eq!(out("/data/reports/x.pdf", "latex"), Path::new("/out/x.tex"));
+        assert_eq!(out("/data/reports/x.pdf", "typst"), Path::new("/out/x.typ"));
         assert_eq!(
             out("/data/reports/talk.mp3", "vtt"),
             Path::new("/out/talk.vtt")

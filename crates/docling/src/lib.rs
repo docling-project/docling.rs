@@ -82,6 +82,7 @@ pub use stream::MarkdownStream;
 pub use docling_core::base64;
 pub use docling_core::chunker;
 pub use docling_core::pandoc;
+pub use docling_core::typst;
 pub use docling_core::{
     ConfidenceReport, ContentLayer, ContentLayers, DocItemLabel, DoclingDocument,
     HtmlExportOptions, ImageMode, MarkdownExportOptions, MarkdownStreamer, Node, PictureImage,

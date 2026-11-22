@@ -84,7 +84,7 @@ fn list_output_formats_prints_the_to_values() {
     assert!(stderr.is_empty(), "stderr: {stderr:?}");
     assert_eq!(
         stdout,
-        "chunks\ndclx\nhtml\nimages\njson\nlatex\nmd\npandoc\ntext\nvtt\n"
+        "chunks\ndclx\nhtml\nimages\njson\nlatex\nmd\npandoc\ntext\ntypst\nvtt\n"
     );
 }
 
@@ -671,6 +671,25 @@ fn to_html_writes_a_complete_document() {
     assert!(paths.trim_end().ends_with("duck.html"), "{paths}");
     let written = std::fs::read_to_string(out.0.join("duck.html")).unwrap();
     assert_eq!(written.trim_end(), stdout.trim_end());
+}
+
+/// `--to typst` (#1226): Typst body markup on stdout, `<stem>.typ` in batch
+/// mode — the same text.
+#[test]
+fn to_typst_writes_markup() {
+    let src = format!("{MD_FIXTURES}/duck.md");
+    let (code, stdout, stderr) = run(&["--to", "typst", &src]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    assert!(
+        stdout.starts_with("Summer activities\n\n= Swimming in the lake\n"),
+        "{stdout}"
+    );
+
+    let out = Scratch::new("to-typst");
+    let (code, _, stderr) = run(&["--to", "typst", "--output", &out.path(""), &src]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    let written = std::fs::read_to_string(out.0.join("duck.typ")).unwrap();
+    assert_eq!(written, stdout);
 }
 
 /// `--to pandoc` (#515): Pandoc's JSON AST on stdout, `<stem>.pandoc.json`

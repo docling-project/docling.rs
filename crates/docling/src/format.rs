@@ -504,7 +504,7 @@ impl InputFormat {
 /// so the validation, the error messages and `--list-output-formats` (#603)
 /// cannot drift apart.
 pub const OUTPUT_FORMATS: &[&str] = &[
-    "md", "json", "html", "text", "dclx", "chunks", "images", "latex", "pandoc", "vtt",
+    "md", "json", "html", "text", "dclx", "chunks", "images", "latex", "pandoc", "typst", "vtt",
 ];
 
 /// File extension → format, the table behind

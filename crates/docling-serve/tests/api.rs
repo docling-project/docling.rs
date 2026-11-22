@@ -2288,6 +2288,41 @@ async fn latex_batch_items_and_zip_target_carry_tex() {
     );
 }
 
+// --- #1226: Typst output ------------------------------------------------
+
+#[tokio::test]
+async fn typst_output_is_markup_and_zip_entries_are_typ() {
+    let (ct, body) = multipart(
+        "note.md",
+        b"# Title\n\nSome **bold** and #hash\n\n- one\n- two\n",
+        &[("to", "typst")],
+    );
+    let response = app().oneshot(convert_request(&ct, body, "")).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers()["content-type"],
+        "text/x-typst; charset=utf-8"
+    );
+    let out = body_string(response).await;
+    assert_eq!(
+        out,
+        "= Title\n\nSome #strong[bold] and \\#hash\n\n- one\n- two\n"
+    );
+
+    let b64 = docling_b64("a,b\n1,2\n");
+    let body = format!(
+        r#"{{"sources": [{{"kind": "file", "base64_string": "{b64}", "filename": "one.csv"}}],
+            "target": {{"kind": "zip"}}, "to": "typst"}}"#
+    );
+    let response = app().oneshot(json_convert(&body)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    assert!(
+        bytes.windows(7).any(|w| w == b"one.typ"),
+        "typ entry missing"
+    );
+}
+
 // --- #613: plain-text output --------------------------------------------
 
 #[tokio::test]

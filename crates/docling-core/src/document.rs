@@ -1904,6 +1904,26 @@ impl DoclingDocument {
         crate::fallback::strip_owned(crate::latex::to_latex(self))
     }
 
+    /// Serialize to Typst body markup (`.typ`, #1226) with the default
+    /// options: pictures as `/* image */` placeholders (a captioned one a
+    /// `#figure`), body layer only, no preamble. Ends in one newline. See
+    /// [`crate::typst`].
+    pub fn export_to_typst(&self) -> String {
+        self.export_to_typst_with(&crate::typst::TypstExportOptions::default())
+            .0
+    }
+
+    /// Typst markup per `options`: under [`ImageMode::Referenced`] the
+    /// pictures are `#image("<artifacts_dir>/image_NNNNNN.<ext>")` and the
+    /// `(path, bytes)` files come back for the caller to write.
+    pub fn export_to_typst_with(
+        &self,
+        options: &crate::typst::TypstExportOptions,
+    ) -> crate::typst::TypstOutput {
+        let (typ, files) = crate::typst::to_typst(self, options);
+        (crate::fallback::strip_owned(typ), files)
+    }
+
     /// Serialize to Pandoc's AST as JSON (`pandoc -f json`, #515) with the
     /// default options: pictures as captioned figures without image data,
     /// body layer only, the [`PANDOC_API_VERSION`](crate::pandoc::PANDOC_API_VERSION)

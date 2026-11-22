@@ -421,12 +421,13 @@ pub(crate) fn render(
         "json" => Ok(doc.export_to_json()),
         "doclang" => Ok(doc.export_to_doclang()),
         "latex" => Ok(doc.export_to_latex()),
+        "typst" => Ok(doc.export_to_typst()),
         "pandoc" => {
             let mode = crate::image_mode(images, "pandoc").map_err(|e| JsError::new(&e))?;
             crate::pandoc_json(doc, mode).map_err(|e| JsError::new(&e))
         }
         other => Err(JsError::new(&format!(
-            "unknown output format {other:?} (expected \"md\", \"json\", \"doclang\", \"latex\" or \"pandoc\")"
+            "unknown output format {other:?} (expected \"md\", \"json\", \"doclang\", \"latex\", \"pandoc\" or \"typst\")"
         ))),
     }
 }
