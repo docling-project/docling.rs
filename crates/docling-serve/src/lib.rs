@@ -34,7 +34,8 @@
 //!
 //! - `to` — `md` (default) | `json` | `html` (#492) | `text` (#613: docling's plain
 //!   text, `export_to_text`) | `dclx` | `chunks` | `latex` (#317) |
-//!   `pandoc` (#515: Pandoc's AST as JSON, for `pandoc -f json`) | `vtt`
+//!   `pandoc` (#515: Pandoc's AST as JSON, for `pandoc -f json`) | `typst`
+//!   (#1226: Typst body markup, pictures as placeholders) | `vtt`
 //!   (#614: WebVTT subtitles, a cue per timed text item) | `images` (#243:
 //!   rasterize a PDF's pages to PNG — no conversion, no models;
 //!   the JSON response is `{"pages": [{"page", "width", "height",
@@ -1892,6 +1893,7 @@ impl OutputNames {
             "latex" => "tex",
             "text" => "txt",
             "pandoc" => "pandoc.json",
+            "typst" => "typ",
             "vtt" => "vtt",
             _ => unreachable!("validated above"),
         };
@@ -2395,6 +2397,18 @@ fn render_stored(
             ocr_status: None,
             body: document.export_to_latex().into_bytes(),
         },
+        // #1226: Typst body markup, a text body like LaTeX; pictures are
+        // placeholders — a response has nowhere to put referenced files.
+        "typst" => StoredResponse {
+            errors: Vec::new(),
+            content_type: "text/x-typst; charset=utf-8",
+            disposition: None,
+            confidence,
+            redaction: None,
+            pdf_repairs: None,
+            ocr_status: None,
+            body: document.export_to_typst().into_bytes(),
+        },
         // #613: docling's `--to text`, a text body like Markdown.
         "text" => StoredResponse {
             errors: Vec::new(),
@@ -2518,6 +2532,7 @@ fn batch_item(
             )));
         }
         "latex" => item["latex"] = json!(document.export_to_latex()),
+        "typst" => item["typst"] = json!(document.export_to_typst()),
         "text" => item["text"] = json!(text_string(state, document, options)),
         "vtt" => item["vtt"] = json!(document.export_to_vtt()),
         "html" => item["html"] = json!(html_string(document, image_mode)),

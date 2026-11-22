@@ -109,9 +109,10 @@ pub async fn ocr_image(
         "json" => Ok(doc.export_to_json()),
         "doclang" => Ok(doc.export_to_doclang()),
         "latex" => Ok(doc.export_to_latex()),
+        "typst" => Ok(doc.export_to_typst()),
         "pandoc" => crate::pandoc_json(&doc, docling_core::ImageMode::Placeholder).map_err(|e| JsError::new(&e)),
         other => Err(JsError::new(&format!(
-            "unknown output format {other:?} (expected \"md\", \"json\", \"doclang\", \"latex\" or \"pandoc\")"
+            "unknown output format {other:?} (expected \"md\", \"json\", \"doclang\", \"latex\", \"pandoc\" or \"typst\")"
         ))),
     }
 }

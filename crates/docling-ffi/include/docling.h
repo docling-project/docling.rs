@@ -72,7 +72,7 @@ struct DoclingResult *docling_convert_with_progress(const uint8_t *bytes,
 
 // The converted output, or NULL when the conversion failed. NUL-terminated
 // (readable as a C string for `to` = `md` / `json` / `text` / `latex` / `html` /
-// `pandoc` / `vtt`); for binary output
+// `pandoc` / `typst` / `vtt`); for binary output
 // (`dclx`) pair it with [`docling_result_output_len`]. Owned by the result —
 // valid until [`docling_result_free`].
 //

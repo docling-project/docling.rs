@@ -1687,6 +1687,60 @@ fn pandoc_from_json<'py>(
     Ok((json, images))
 }
 
+/// Typst body markup (#1226) for a document in docling's JSON wire format —
+/// the Rust serializer behind `docling-rs --to typst`, so Python output
+/// matches the CLI's. `image_mode` is `"placeholder"` (default) |
+/// `"referenced"` (the image files come back as `(path under artifacts_dir,
+/// bytes)` pairs); `"embedded"` is the placeholder too — Typst cannot decode
+/// a `data:` URI.
+#[pyfunction]
+#[pyo3(signature = (
+    document_json,
+    image_mode = "placeholder".to_string(),
+    artifacts_dir = "artifacts".to_string(),
+))]
+fn typst_from_json<'py>(
+    py: Python<'py>,
+    document_json: String,
+    image_mode: String,
+    artifacts_dir: String,
+) -> PyResult<(String, PyArtifacts<'py>)> {
+    use docling::backend::DeclarativeBackend;
+    let image_mode = match image_mode.as_str() {
+        "placeholder" => docling::ImageMode::Placeholder,
+        "embedded" => docling::ImageMode::Embedded,
+        "referenced" => docling::ImageMode::Referenced,
+        other => {
+            return Err(PyValueError::new_err(format!(
+                "unknown image_mode {other:?} (expected placeholder, embedded or referenced)"
+            )))
+        }
+    };
+    let (typ, images) = py
+        .detach(|| {
+            let source = SourceDocument::from_bytes(
+                "document.json",
+                docling::InputFormat::JsonDocling,
+                document_json.into_bytes(),
+            );
+            let doc = docling::backend::DoclingJsonBackend
+                .convert(&source)
+                .map_err(|e| e.to_string())?;
+            Ok::<_, String>(
+                doc.export_to_typst_with(&docling::typst::TypstExportOptions {
+                    image_mode,
+                    artifacts_dir,
+                }),
+            )
+        })
+        .map_err(PyValueError::new_err)?;
+    let images = images
+        .into_iter()
+        .map(|(path, bytes)| (path, PyBytes::new(py, &bytes)))
+        .collect();
+    Ok((typ, images))
+}
+
 /// The attachments of an `.eml` / Outlook `.msg` (#561) as
 /// `(index, name, content_type, format, size, inline, skipped, data)` tuples
 /// — `data` the payload when it was kept (`None` for an attachment over a
@@ -1792,6 +1846,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyChunkStream>()?;
     m.add_function(pyo3::wrap_pyfunction!(chunk_document, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(pandoc_from_json, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(typst_from_json, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(email_attachments, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(detect_format, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(compiled_providers, m)?)?;

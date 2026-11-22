@@ -55,7 +55,7 @@ limits).
 convert(
   bytes: Uint8Array,
   filename: string,
-  to?: "md" | "json" | "doclang" | "latex" | "html" | "pandoc", // default "md"
+  to?: "md" | "json" | "doclang" | "latex" | "html" | "pandoc" | "typst", // default "md"
   images?: "placeholder" | "embedded",     // default "placeholder"; Markdown, HTML, Pandoc
   max_pages?: number,                      // convert only the first N PDF pages
   page_break_placeholder?: string,         // text between pages in Markdown, e.g. "<!-- page break -->"

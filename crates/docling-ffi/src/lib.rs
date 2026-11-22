@@ -43,7 +43,8 @@ use serde::Deserialize;
 #[derive(Default, Deserialize)]
 struct Options {
     /// Output format: `md` (default) | `json` | `text` | `dclx` | `latex` | `html` |
-    /// `pandoc` (Pandoc's JSON AST, #515) | `vtt` (WebVTT, #614).
+    /// `pandoc` (Pandoc's JSON AST, #515) | `typst` (Typst markup, #1226) |
+    /// `vtt` (WebVTT, #614).
     to: Option<String>,
     /// Picture rendering in Markdown: `placeholder` (default) | `embedded`
     /// (base64 data URIs — the only way to carry pixels through one buffer).
@@ -197,10 +198,13 @@ fn convert_impl(
             })
             .map(|(json, _)| json.into_bytes())
             .map_err(|e| e.to_string()),
+        // #1226: Typst body markup; one buffer carries no image files, so
+        // pictures are placeholders.
+        "typst" => Ok(document.export_to_typst().into_bytes()),
         // #614: docling's `--to vtt`.
         "vtt" => Ok(document.export_to_vtt().into_bytes()),
         other => Err(format!(
-            "unknown to={other:?} (expected: md, json, text, dclx, latex, html, pandoc, vtt)"
+            "unknown to={other:?} (expected: md, json, text, dclx, latex, html, pandoc, typst, vtt)"
         )),
     }
 }
@@ -306,7 +310,7 @@ pub unsafe extern "C" fn docling_convert_with_progress(
 
 /// The converted output, or NULL when the conversion failed. NUL-terminated
 /// (readable as a C string for `to` = `md` / `json` / `text` / `latex` / `html` /
-/// `pandoc` / `vtt`); for binary output
+/// `pandoc` / `typst` / `vtt`); for binary output
 /// (`dclx`) pair it with [`docling_result_output_len`]. Owned by the result —
 /// valid until [`docling_result_free`].
 ///
@@ -431,6 +435,10 @@ mod tests {
         let tex = output_string(r);
         assert!(tex.starts_with("\\documentclass"), "{tex}");
         assert!(tex.ends_with("\\end{document}"), "{tex}");
+        unsafe { docling_result_free(r) };
+        // #1226: Typst body markup.
+        let r = convert(md, "note.md", r#"{"to":"typst"}"#);
+        assert_eq!(output_string(r), "= Title\n\nHello #emph[world]\n");
         unsafe { docling_result_free(r) };
         let r = convert(md, "note.md", r#"{"to":"text"}"#);
         assert_eq!(output_string(r), "Title\n\nHello world");

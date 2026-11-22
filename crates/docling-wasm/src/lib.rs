@@ -48,7 +48,7 @@ fn start() {
 #[derive(Debug, Default, Deserialize)]
 struct Request {
     /// `md` (default) | `json` | `text` | `doclang` | `latex` | `html` | `pandoc` |
-    /// `vtt`.
+    /// `typst` | `vtt`.
     to: Option<String>,
     /// `placeholder` (default) | `embedded` — see [`image_mode`].
     images: Option<String>,
@@ -137,6 +137,10 @@ fn convert_request(bytes: &[u8], filename: &str, request: Request) -> Result<Str
         "json" => Ok(result.document.export_to_json()),
         "doclang" => Ok(result.document.export_to_doclang()),
         "latex" => Ok(result.document.export_to_latex()),
+        // #1226: Typst body markup — the pure-Rust `document → Typst → PDF`
+        // chain without Pandoc. Pictures are placeholders: Typst cannot decode
+        // a `data:` URI, and `referenced` files have nowhere to go here.
+        "typst" => Ok(result.document.export_to_typst()),
         // #613: docling's plain text (`export_to_text`).
         "text" => Ok(result.document.export_to_text()),
         // #492: like Markdown, pictures embed (`referenced` is unreachable
@@ -150,7 +154,7 @@ fn convert_request(bytes: &[u8], filename: &str, request: Request) -> Result<Str
         // #614: docling's `--to vtt` — a `.vtt` input's cues round-trip.
         "vtt" => Ok(result.document.export_to_vtt()),
         other => Err(format!(
-            "unknown output format {other:?} (expected \"md\", \"json\", \"text\", \"doclang\", \"latex\", \"html\", \"pandoc\" or \"vtt\")"
+            "unknown output format {other:?} (expected \"md\", \"json\", \"text\", \"doclang\", \"latex\", \"html\", \"pandoc\", \"typst\" or \"vtt\")"
         )),
     }
 }
@@ -198,7 +202,7 @@ pub(crate) fn pandoc_json(
 /// docling's `export_to_text`, #613), `"doclang"` (docling's
 /// DocLang XML serialization), `"latex"` (docling 2.124's LaTeX document,
 /// #317), `"html"`, `"pandoc"` (Pandoc's JSON AST for `pandoc -f json`,
-/// #515) or `"vtt"` (WebVTT, docling's `--to vtt`, #614).
+/// #515), `"typst"` (Typst body markup, #1226) or `"vtt"` (WebVTT, docling's `--to vtt`, #614).
 ///
 /// `images` controls how pictures render in Markdown — `"placeholder"`
 /// (default) or `"embedded"` (base64 data URIs), the same option
@@ -285,6 +289,8 @@ mod tests {
         let pandoc = convert_impl(md, "note.md", Some("pandoc"), None, None, None).unwrap();
         assert!(pandoc.starts_with("{\"pandoc-api-version\":[1,23,1,1]"));
         assert!(pandoc.contains("\"t\":\"Header\""));
+        let typst = convert_impl(md, "note.md", Some("typst"), None, None, None).unwrap();
+        assert!(typst.starts_with("= "), "{typst}");
     }
 
     #[test]

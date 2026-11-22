@@ -538,7 +538,8 @@ struct ConvertArgs {
     /// Output format: md (Markdown, the default), json (docling's
     /// DoclingDocument: structure, tables and page provenance), html, text,
     /// latex, chunks (RAG-ready chunk records as JSON), vtt (WebVTT, for
-    /// audio/video transcripts) or pandoc (Pandoc's JSON AST).
+    /// audio/video transcripts), pandoc (Pandoc's JSON AST) or typst (Typst
+    /// markup).
     // Optional parameters are single-typed in the schema and left out of
     // `required` — a `["string", "null"]` type union is what some clients'
     // function-calling dialects reject (MCP Inspector's portability check);
@@ -752,7 +753,7 @@ struct Request {
 /// `--to` (`dclx` is a ZIP and `images` page PNGs, neither of which fits a
 /// text result).
 const OUTPUTS: &[&str] = &[
-    "md", "json", "html", "text", "latex", "chunks", "vtt", "pandoc",
+    "md", "json", "html", "text", "latex", "chunks", "vtt", "pandoc", "typst",
 ];
 
 impl Request {
@@ -899,6 +900,8 @@ fn render(
         "html" => document.export_to_html(),
         "text" => document.export_to_text(),
         "latex" => document.export_to_latex(),
+        // #1226: no files leave a tool result, so pictures stay placeholders.
+        "typst" => document.export_to_typst(),
         "vtt" => document.export_to_vtt(),
         "chunks" => {
             let mut warn = |msg: String| eprintln!("warning: {msg}");

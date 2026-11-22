@@ -42,6 +42,7 @@ mod pixel_digest;
 pub mod redact;
 mod revisions;
 pub mod tree;
+pub mod typst;
 mod vtt;
 
 pub use confidence::{ConfidenceReport, OcrCellConfidence, PageConfidence, QualityGrade};

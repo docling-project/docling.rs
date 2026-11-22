@@ -86,7 +86,7 @@ crates/
 ├── docling-pdf/    # pdfium_backend (the page walk), textparse, render/, raster/, layout (RT-DETR/ONNX), ocr (PP-OCRv3/ONNX), assemble, mets
 ├── docling-asr/    # audio decode (symphonia), mel.rs, whisper.rs (ONNX), tokenizer.rs; nemo_mel.rs, parakeet.rs, vad.rs (Parakeet TDT, #508)
 ├── docling-onnx/   # shared ONNX Runtime EP selection (DOCLING_RS_EP, cuda/tensorrt/directml/coreml features)
-├── docling-cli/    # `--strict`, `--to md|json|html|text|dclx|chunks|latex|pandoc`, `--images …`, `--pages`, `--ocr-lang`, serve and mcp subcommands
+├── docling-cli/    # `--strict`, `--to md|json|html|text|dclx|chunks|latex|pandoc|typst`, `--images …`, `--pages`, `--ocr-lang`, serve and mcp subcommands
 ├── docling-node/   # Node.js/Bun N-API bindings (napi-rs), published to npm as `docling.rs`
 ├── docling-py/     # PyO3 bindings (maturin), published to PyPI as `docling-rs` (strangler-fig over docling-core)
 ├── docling-rag/    # RAG layer on top of the converter (chunking, embeddings, vector search, REST API)
@@ -2053,6 +2053,23 @@ pointed at the wrong item).
 - #852:
   - a Markdown `[label](target)` in an item's text — the flat node chain's hyperlink (`.doc`, AbiWord, …) — is a `Link` (an `![alt](src)` is not)
   - a `Node::Anchor` of the flat chain reaches the AST as `_anchors` on the next text item
+
+### Typst (`.typ`)
+
+**API / CLI:** `export_to_typst()` · `export_to_typst_with(&TypstExportOptions)` / `--to typst` (#1226)\
+**Status:** Rust-only — **no docling equivalent**
+
+- Typst *body* markup for a pure-Rust / WASM `document → Typst → PDF` chain without Pandoc (`docling_core::typst`): no `#set` rules, no template, no preamble — wrap it in your own (`#include "doc.typ"`). No crate dependency; the Typst compiler is the caller's.
+- Walked like the LaTeX export (body layer, title = level-1 heading, list runs folded, rich cells' blocks rendered):
+  - headings `=` × level; paragraphs escaped (`\ # $ * _ \` < > @ [ ] ~` always, `=`/`-`/`+`/`/`/`1.` at a line start, `//` `/*` `--` `-?`), an in-text newline a `\` line break
+  - inline formatting `#strong[…]` / `#emph[…]` / `#strike[…]`, code `#raw("…")`, links `#link("…")[…]` (unsafe schemes keep the text, #860); a `;` ends an embedded call where the next character would extend it
+  - lists `-` / `+`, two-space nesting; checkboxes as `- ☐` / `- ☒`
+  - code as a fenced raw block with its language (fence longer than any backtick run inside)
+  - tables `#table(columns: N, …)`: first-class cells at their anchors with `table.cell(colspan:, rowspan:)`, leading all-header rows in `table.header(…)`, overlapping spans clamped to their anchor (Typst rejects overlaps); a caption makes it a `#figure(table(…), caption: […])`, footnotes follow as paragraphs
+  - pictures `#image("<dir>/image_NNNNNN.<ext>")` under `--images referenced` (PNG/JPEG/GIF/SVG/WebP; the displayed width, #834, and an alt-text description, #676, as `width:` / `alt:`), in a `#figure` when captioned; otherwise a `/* image */` placeholder (a captioned one still a figure). Typst cannot decode a `data:` URI, so `embedded` is the placeholder too, as is an EMF/TIFF/BMP picture
+  - formulas as Typst math when the LaTeX uses only the subset `latex_to_typst_math` translates (scripts, `\frac`, `\sqrt`, Greek, operators/relations/arrows as Unicode, `\mathbf` & co., `\text`, `\left…\right`); anything else (environments, `&`, `\\`, unknown macros) stays LaTeX in a `latex` raw block / inline `#raw` — never a translation that might not compile
+- Not written: furniture/notes layers, key-value graphs, provenance, picture classification.
+- CLI `--to typst` (`<stem>.typ`, referenced images under `<stem>_artifacts/`), serve `to=typst` (`text/x-typst`, placeholders), MCP `to=typst`, Node `to: 'typst'` (+ `imageMode: 'referenced'`), FFI `to=typst`, wasm `"typst"`, Python `docling_rs.typst.export_to_typst(doc)` / `save_as_typst(doc, path)`.
 
 ### Page breaks in Markdown
 
