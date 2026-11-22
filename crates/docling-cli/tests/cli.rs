@@ -84,7 +84,7 @@ fn list_output_formats_prints_the_to_values() {
     assert!(stderr.is_empty(), "stderr: {stderr:?}");
     assert_eq!(
         stdout,
-        "chunks\ndclx\nhtml\nimages\njson\nlatex\nmd\npandoc\ntext\nvtt\n"
+        "chunks\ndclx\nhtml\nimages\njson\nlatex\nmd\npandoc\ntext\ntypst\nvtt\n"
     );
 }
 
