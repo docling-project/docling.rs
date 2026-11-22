@@ -464,7 +464,7 @@ fn render_nodes(ctx: &mut Ctx, nodes: &[Node], indent: usize) -> Vec<String> {
                 }
             }
             for group in sibling_lists(&nodes[start..i]) {
-                let text = render_list(ctx, group, indent);
+                let text = render_list(group, indent);
                 if !text.is_empty() {
                     parts.push(text);
                 }
@@ -556,7 +556,7 @@ fn render_one(ctx: &mut Ctx, node: &Node, indent: usize, parts: &mut Vec<String>
             render_one(ctx, inner, indent, parts)
         }
         Node::ListItem { .. } => {
-            let text = render_list(ctx, std::slice::from_ref(node), indent);
+            let text = render_list(std::slice::from_ref(node), indent);
             push(parts, text);
         }
         Node::DoclangOnly(_)
@@ -641,9 +641,7 @@ fn picture_body(
 /// `#figure(body, caption: […])`, or the bare `#image(…)` / placeholder
 /// without a caption.
 fn figure(body: Option<String>, caption: Option<&str>) -> String {
-    let caption = caption
-        .map(|c| inline_cell(c))
-        .filter(|c| !c.trim().is_empty());
+    let caption = caption.map(inline_cell).filter(|c| !c.trim().is_empty());
     match (body, caption) {
         (Some(b), Some(c)) => format!("#figure(\n  {b},\n  caption: [{c}],\n)"),
         (Some(b), None) => format!("#{b}"),
@@ -726,9 +724,9 @@ fn render_table(ctx: &mut Ctx, t: &Table) -> String {
             // Row-major at the anchors: Typst's auto-placement skips the
             // positions a span covers, and a position no cell covers is an
             // empty cell.
-            for r in 0..num_rows {
-                for c in 0..num_cols {
-                    match owner[r][c] {
+            for (r, owned) in owner.iter().enumerate() {
+                for (c, slot) in owned.iter().enumerate() {
+                    match *slot {
                         Some(p) => {
                             let Placed { k, rs, cs } = placed[p];
                             let cell = &cells[k];
@@ -864,7 +862,7 @@ fn sibling_lists(run: &[Node]) -> Vec<&[Node]> {
 /// spaces; deeper successors nest one step further. An item's continuation
 /// lines are indented under its text. Two sibling lists in a row are
 /// separated by a blank line, which Typst keeps as two lists.
-fn render_list(ctx: &mut Ctx, items: &[Node], depth: usize) -> String {
+fn render_list(items: &[Node], depth: usize) -> String {
     let base = level_of(&items[0]);
     let pad = "  ".repeat(depth);
     let mut lines: Vec<String> = Vec::new();
@@ -906,7 +904,7 @@ fn render_list(ctx: &mut Ctx, items: &[Node], depth: usize) -> String {
                     .collect();
                 if !nested.is_empty() {
                     for group in sibling_lists(&nested) {
-                        let text = render_list(ctx, group, depth + 1);
+                        let text = render_list(group, depth + 1);
                         if !text.is_empty() {
                             lines.push(text);
                         }
