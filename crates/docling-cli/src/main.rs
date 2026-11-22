@@ -3152,11 +3152,8 @@ fn write_batch_outputs(
                     .file_stem()
                     .map(|s| s.to_string_lossy().into_owned())
                     .unwrap_or_else(|| "document".into());
-                let (typ, artifacts) = typst_markup(
-                    document,
-                    cfg.image_mode,
-                    &format!("{stem}_artifacts"),
-                );
+                let (typ, artifacts) =
+                    typst_markup(document, cfg.image_mode, &format!("{stem}_artifacts"));
                 let parent = out.parent().unwrap_or(Path::new(""));
                 for (rel, bytes) in &artifacts {
                     let target = parent.join(rel);

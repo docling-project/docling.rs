@@ -1214,10 +1214,7 @@ impl MathParser {
             '\\' => return self.macro_atom(),
             c if c.is_ascii_digit() => {
                 let start = self.pos - 1;
-                while self
-                    .peek()
-                    .is_some_and(|d| d.is_ascii_digit() || d == '.')
-                {
+                while self.peek().is_some_and(|d| d.is_ascii_digit() || d == '.') {
                     self.pos += 1;
                 }
                 let mut num: String = self.chars[start..self.pos].iter().collect();
@@ -1414,10 +1411,7 @@ mod tests {
             item(0, false, false, "two"),
             item(0, true, true, "fresh list"),
         ]);
-        assert_eq!(
-            out,
-            "- one\n  + one.a\n  + one.b\n- two\n\n+ fresh list\n"
-        );
+        assert_eq!(out, "- one\n  + one.a\n  + one.b\n- two\n\n+ fresh list\n");
     }
 
     #[test]
@@ -1491,8 +1485,8 @@ mod tests {
             dpi: 72,
             display_size: None,
         };
-        let pic = |image: Option<crate::document::PictureImage>, caption: Option<&str>| {
-            Node::Picture {
+        let pic =
+            |image: Option<crate::document::PictureImage>, caption: Option<&str>| Node::Picture {
                 caption: caption.map(Into::into),
                 caption_href: None,
                 image,
@@ -1500,8 +1494,7 @@ mod tests {
                 description: None,
                 caption_parent: Default::default(),
                 caption_location: None,
-            }
-        };
+            };
         let d = doc(vec![
             pic(Some(png.clone()), Some("A *cap*")),
             pic(Some(png.clone()), None),
@@ -1549,7 +1542,10 @@ mod tests {
             Some("\"d\" x \" if \" f' \\( x \\)")
         );
         // Outside the subset → verbatim LaTeX.
-        assert_eq!(latex_to_typst_math(r"\begin{pmatrix}a&b\end{pmatrix}"), None);
+        assert_eq!(
+            latex_to_typst_math(r"\begin{pmatrix}a&b\end{pmatrix}"),
+            None
+        );
         assert_eq!(latex_to_typst_math(r"\frac{a,b}{c}"), None);
         assert_eq!(latex_to_typst_math(r"\unknownmacro x"), None);
         assert_eq!(latex_to_typst_math("{a"), None);
