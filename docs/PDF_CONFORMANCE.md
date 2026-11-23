@@ -480,6 +480,18 @@ with `scripts/conformance/dclx_pdf_tol_sweep.sh`.
 *geometry-ignored* ceiling (65 %), so essentially all of the coordinate
 difference is absorbed by ±2 — a wider tolerance buys almost nothing.
 
+**Page breaks.** docling-core writes a `<page_break/>` before the first
+element of a later page; the PDF stream marks its pages only, and its DocLang
+wrote none until docling-core's breaks were derived from those marks
+(`doclang.rs` `PageBreaks`). Re-measured on the 16 PDFs with the docling-parse
+renderer: 33,950 → 33,914 diff lines, **68 %** average at ±2; the break count
+matches docling's on every file but `skipped_2pages` (docling's archive lacks
+the two pages it could not parse, so it has one break where our three pages
+have three), and `multi_page`'s four land after the same elements. Where a
+page footer sits before the break here and after it in docling's archive
+(2203.01017v2, +7 lines) the difference is the furniture's reading-order
+place, not the break.
+
 ### What the geometry tolerance is, and why it is honest
 
 Every laid-out block in a DocLang archive carries four `<location>` provenance

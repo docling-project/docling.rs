@@ -44,6 +44,26 @@ struct Out {
     /// document's own page break to each is not written again
     /// (`_suppress_document_page_break`).
     broken_onto: Vec<usize>,
+    /// Page breaks from the page markers ([`PageBreaks`]); `None` for a
+    /// stream that carries its own `Node::PageBreak`s.
+    pages: Option<PageBreaks>,
+}
+
+/// docling-core's document-level page breaks (`_iterate_items(…,
+/// add_page_breaks=True)`) for a node stream that marks its pages with
+/// [`Node::PageInfo`] alone — the PDF and image pipelines' (#1155
+/// follow-up): one `<page_break/>` before the first element of a page
+/// greater than the page of the element before it, however many pages lie
+/// between (an empty page writes none), never before the first element. A
+/// stream with explicit [`Node::PageBreak`]s (the docling-JSON reader, the
+/// slides, sheets and DjVu pages) keeps writing exactly those. Pages count
+/// in markers, as [`Node::ProvContinuation`]'s `page_skip` does.
+#[derive(Default)]
+struct PageBreaks {
+    /// The page marker the walk is on (1 = the first).
+    page: usize,
+    /// The page of the last element written, `None` before the first.
+    written: Option<usize>,
 }
 
 /// docling's `image_mode` for DocLang: where a picture's `<src>` points.
@@ -947,6 +967,9 @@ pub(crate) fn render(nodes: &[Node], pictures: Pictures) -> (String, Vec<(String
         digests,
         threads: 0,
         broken_onto: Vec::new(),
+        pages: (nodes.iter().any(|n| matches!(n, Node::PageInfo { .. }))
+            && !nodes.iter().any(|n| matches!(n, Node::PageBreak)))
+        .then(PageBreaks::default),
     };
     out.push(0, "<doclang version=\"0.9\">".to_string());
     let mut i = 0usize;
@@ -960,9 +983,45 @@ pub(crate) fn render(nodes: &[Node], pictures: Pictures) -> (String, Vec<(String
 /// `<list>` blocks (recursing for deeper levels).
 fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8) {
     while *i < nodes.len() {
+        // A page marker of a stream without explicit breaks: the next
+        // element written starts this page ([`PageBreaks`]).
+        if let (Node::PageInfo { .. }, Some(pages)) = (&nodes[*i], out.pages.as_mut()) {
+            pages.page += 1;
+            let page = pages.page;
+            // A threaded item's fragment already broke onto this page.
+            if let Some(k) = out.broken_onto.iter().position(|&b| b == page) {
+                out.broken_onto.remove(k);
+                if let Some(pages) = out.pages.as_mut() {
+                    pages.written = Some(page);
+                }
+            }
+            *i += 1;
+            continue;
+        }
+        let start = out.lines.len();
+        if !emit_node(out, depth, nodes, i, level) {
+            break;
+        }
+        if out.lines.len() > start {
+            if let Some(pages) = out.pages.as_mut() {
+                if pages.written.is_some_and(|w| pages.page > w) {
+                    out.lines
+                        .insert(start, (depth, "<page_break/>".to_string()));
+                }
+                // A threaded item's last fragment may sit on a later page.
+                pages.written = Some(pages.written.map_or(pages.page, |w| w.max(pages.page)));
+            }
+        }
+    }
+}
+
+/// One element of [`emit_nodes`]' walk at `nodes[*i]`, advancing `i`;
+/// `false` when the walk at this list level ends there.
+fn emit_node(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u8) -> bool {
+    {
         if let Some(next) = emit_threaded(out, depth, nodes, *i) {
             *i = next;
-            continue;
+            return true;
         }
         match &nodes[*i] {
             Node::Heading { level, text } => {
@@ -1123,7 +1182,7 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
             }
             Node::ListItem { level: l, .. } => {
                 if *l < level {
-                    return; // caller's list continues / closes
+                    return false; // caller's list continues / closes
                 }
                 emit_list(out, depth, nodes, i, *l);
             }
@@ -1232,6 +1291,7 @@ fn emit_nodes(out: &mut Out, depth: i32, nodes: &[Node], i: &mut usize, level: u
             }
         }
     }
+    true
 }
 
 /// A plain-text dump: one text item holding the whole text — docling-core's
@@ -1737,18 +1797,28 @@ fn emit_threaded(out: &mut Out, depth: i32, nodes: &[Node], i: usize) -> Option<
     }
     let chars: Vec<char> = unescape_stored(text).chars().collect();
     let mut starts = vec![0usize];
+    let head_page = head_page.or_else(|| out.pages.as_ref().filter(|p| p.page > 0).map(|p| p.page));
     let mut boxes = vec![(*location, head_page)];
     for c in &conts {
         if let Node::ProvContinuation {
             location,
             span,
             exact,
+            page_skip,
             ..
         } = c
         {
             let prev = *starts.last().unwrap_or(&0);
             starts.push(span[0].clamp(prev, chars.len()));
-            boxes.push((*location, exact.map(|p| p.page_no)));
+            // A PDF fragment's page counts in page markers from the
+            // paragraph's, as the stream's page breaks do ([`PageBreaks`]).
+            let page = exact.map(|p| p.page_no).or_else(|| {
+                out.pages
+                    .as_ref()
+                    .filter(|p| p.page > 0)
+                    .map(|p| p.page + *page_skip)
+            });
+            boxes.push((*location, page));
         }
     }
     out.threads += 1;
@@ -2121,8 +2191,9 @@ mod tests {
     /// #1207: a PDF paragraph the assembler joined across a page break
     /// (#1127) is one threaded fragment per box. docling's spans leave the
     /// joining space in neither fragment; ours run each fragment up to the
-    /// next, so the thread reads back as the text it was. The PDF stream
-    /// writes no page breaks, so none comes between them either.
+    /// next, so the thread reads back as the text it was. Without page
+    /// markers no page is known, so no break comes between them (with
+    /// them, `pdf_thread_breaks_between_its_pages`).
     #[test]
     fn joined_paragraph_is_a_thread_of_its_boxes() {
         let text = "starts here and continues there";
@@ -2152,6 +2223,82 @@ mod tests {
         );
         assert!(doclang.contains(want), "got:\n{doclang}");
         assert!(!doclang.contains("<page_break/>"), "got:\n{doclang}");
+    }
+
+    fn page(n: usize) -> Node {
+        Node::PageInfo {
+            page_no: n,
+            width: 612.0,
+            height: 792.0,
+        }
+    }
+
+    fn para(text: &str) -> Node {
+        Node::Paragraph { text: text.into() }
+    }
+
+    fn breaks(doclang: &str) -> usize {
+        doclang.matches("<page_break/>").count()
+    }
+
+    /// A stream that marks its pages only (the PDF pipeline's): docling-
+    /// core's `_iterate_items` page breaks — one before the first element of
+    /// a later page, however many pages lie between, none before the first
+    /// element or for an empty page.
+    #[test]
+    fn page_markers_write_docling_page_breaks() {
+        let doclang = export_to_doclang(&[
+            page(1),
+            para("one"),
+            para("still one"),
+            page(2),
+            page(3),
+            para("three"),
+            page(4),
+        ]);
+        assert_eq!(breaks(&doclang), 1, "got:\n{doclang}");
+        let at = |s: &str| doclang.find(s).unwrap();
+        assert!(at("still one") < at("<page_break/>") && at("<page_break/>") < at("three"));
+    }
+
+    /// A stream with its own page breaks (the docling-JSON reader, slides,
+    /// sheets) writes exactly those, none more for its page markers.
+    #[test]
+    fn explicit_page_breaks_are_not_doubled() {
+        let doclang =
+            export_to_doclang(&[page(1), para("one"), Node::PageBreak, page(2), para("two")]);
+        assert_eq!(breaks(&doclang), 1, "got:\n{doclang}");
+    }
+
+    /// #1207 on a page-marked stream: a paragraph joined across a page break
+    /// is its thread with the break between its fragments, and the
+    /// document's own break to that page is left out
+    /// (`_suppress_document_page_break`).
+    #[test]
+    fn pdf_thread_breaks_between_its_pages() {
+        let text = "starts here and continues there";
+        let head = "starts here and".chars().count();
+        let doclang = export_to_doclang(&[
+            page(1),
+            Node::Located {
+                location: [10, 400, 250, 500],
+                inner: Box::new(para(text)),
+            },
+            Node::ProvContinuation {
+                location: [10, 10, 250, 60],
+                prev_end: head,
+                span: [head + 1, text.chars().count()],
+                page_skip: 1,
+                exact: None,
+            },
+            page(2),
+            para("next on two"),
+        ]);
+        assert_eq!(breaks(&doclang), 1, "got:\n{doclang}");
+        let at = |s: &str| doclang.find(s).unwrap();
+        assert!(at("starts here") < at("<page_break/>"));
+        assert!(at("<page_break/>") < at("continues there"));
+        assert!(at("continues there") < at("next on two"));
     }
 
     /// docling-core#687 (#253): XML-1.0-illegal characters render as visible
