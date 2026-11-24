@@ -416,6 +416,15 @@ fn handle_cross_type_overlaps(regions: Vec<Region>) -> Vec<Region> {
 }
 
 pub fn resolve(regions: Vec<Region>) -> Vec<Region> {
+    // The containers are de-overlapped before the cross-type pass, as docling
+    // orders it (`_process_special_clusters`): of a form proposed both around
+    // a table and around the whole form holding it, the bucket's survivor is
+    // elected first, and only then dropped if it coincides with the table.
+    let (mut containers, mut regions): (Vec<Region>, Vec<Region>) = regions
+        .into_iter()
+        .partition(|r| is_container_label(r.label));
+    remove_overlapping_specials(&mut containers, |_| true, 2.0, 0.2);
+    regions.extend(containers);
     let regions = handle_cross_type_overlaps(regions);
     // De-overlap each bucket on its own.
     let pictures = greedy(
@@ -444,13 +453,18 @@ pub fn resolve(regions: Vec<Region>) -> Vec<Region> {
     // > 80 % inside the other) and keeps one per group: run it on what
     // `greedy` leaves, like `merge_overlapping_regulars` does for regulars.
     remove_overlapping_specials(&mut tables, |_| true, 2.0, 0.2);
-    let containers = greedy(
-        regions
-            .iter()
-            .filter(|r| matches!(r.label, "form" | "key_value_region"))
-            .cloned()
-            .collect(),
-    );
+    // The containers were de-overlapped above with docling's own rule
+    // (`_remove_overlapping_clusters(container_clusters, "wrapper")`: of
+    // forms overlapping by IoU > 0.8 or > 80 % containment one survives,
+    // the larger unless clearly less confident), not `greedy`'s, which kept
+    // the most confident — a form nested in the one upstream keeps. Unseen
+    // while the containers only ordered their children; since they are
+    // written as groups (#1233) it split upstream's one `form_area` in two.
+    let containers: Vec<Region> = regions
+        .iter()
+        .filter(|r| is_container_label(r.label))
+        .cloned()
+        .collect();
     let mut kept = greedy(
         regions
             .iter()
@@ -1243,8 +1257,10 @@ fn is_page_number(region: &Region, cells: &[TextCell], page_h: f32) -> bool {
 /// (then most confident, then first); a container with children shrinks to
 /// their union for the top-level ordering, like upstream's bbox adjustment.
 ///
-/// The containers themselves are still not emitted (`is_skipped`), so the
-/// Markdown is exactly upstream's — a group prints only its children.
+/// [`assemble_page`] writes each container as that group (#1233), its
+/// children inside; the Markdown is exactly upstream's — a group prints only
+/// its children. Page headers and footers are no container's children: docling
+/// assembles them apart from the body.
 ///
 /// `cids` are the items' positions in docling's assembly order
 /// ([`cluster_cids`]) — the reading-order predictor's same-row rule (#424)
@@ -1270,7 +1286,9 @@ fn order_with_containers<T: Clone>(
     let mut parent: Vec<Option<usize>> = vec![None; items.len()];
     for i in 0..items.len() {
         let r = reg(&items[i]);
-        if is_container(r) {
+        // Page furniture is no container's child (docling assembles headers
+        // and footers apart from the body).
+        if is_container(r) || matches!(r.label, "page_header" | "page_footer") {
             continue;
         }
         let ra = area(r.l, r.t, r.r, r.b).max(1.0);
@@ -1326,6 +1344,33 @@ fn order_with_containers<T: Clone>(
         }
     }
     *items = out;
+}
+
+/// docling's container labels (`CONTAINER_LABELS`): a `form` and a
+/// `key_value_region` hold the regions inside them.
+fn is_container_label(label: &str) -> bool {
+    matches!(label, "form" | "key_value_region")
+}
+
+/// Wrap the nodes from `start` on — a container's children — in docling's
+/// group for it (`ReadingOrderModel`: `out_doc.add_group(label=FORM_AREA |
+/// KEY_VALUE_AREA, parent=…)`, named by its default `"group"`, no `prov`).
+/// An empty container is an empty group, as upstream writes it. Every
+/// serializer but the JSON renders a group as its children, so the Markdown
+/// is the flattened children it always was.
+fn close_container_group(nodes: &mut Vec<Node>, container: &Region, start: usize) {
+    let children = nodes.split_off(start.min(nodes.len()));
+    let label = if container.label == "form" {
+        "form_area"
+    } else {
+        "key_value_area"
+    };
+    nodes.push(Node::Group {
+        label: label.into(),
+        name: Some("group".into()),
+        layer: None,
+        children,
+    });
 }
 
 /// Furniture / not-yet-emitted labels.
@@ -4231,10 +4276,54 @@ pub fn assemble_page(
         .collect();
     let mut node_in_container: Vec<bool> = Vec::new();
     let mut last_in_container = false;
+    // The container each region is a child of (#1233): the smallest it sits
+    // > 0.8 inside, as `order_with_containers` assigns it — which placed
+    // every container right before its children.
+    let parent_container: Vec<Option<usize>> = regions
+        .iter()
+        .map(|r| {
+            // Page furniture is no container's child: docling assembles
+            // headers and footers apart from the body (`page.assembled.headers`).
+            if is_container_label(r.label) || matches!(r.label, "page_header" | "page_footer") {
+                return None;
+            }
+            let ra = area(r.l, r.t, r.r, r.b).max(1.0);
+            regions
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| {
+                    is_container_label(c.label) && inter(r, c.l, c.t, c.r, c.b) / ra > 0.8
+                })
+                .min_by(|(_, a), (_, b)| {
+                    let key = |c: &Region| (area(c.l, c.t, c.r, c.b), -c.score);
+                    key(a)
+                        .partial_cmp(&key(b))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .map(|(k, _)| k)
+        })
+        .collect();
+    // The container group open on the page: its region and the node its
+    // children start at.
+    let mut open_group: Option<(usize, usize)> = None;
     for (i, region) in regions.iter().enumerate() {
+        // A region outside the open container ends its group.
+        if let Some((c, start)) = open_group {
+            if parent_container[i] != Some(c) {
+                close_container_group(&mut nodes, &regions[c], start);
+                open_group = None;
+            }
+        }
         node_in_container.resize(nodes.len(), last_in_container);
         last_in_container = in_container[i];
         if consumed[i] {
+            continue;
+        }
+        // docling's `form` / `key_value_region` container (#1233): a
+        // `form_area` / `key_value_area` group holding its children, which
+        // follow it in the reading order.
+        if is_container_label(region.label) {
+            open_group = Some((i, nodes.len()));
             continue;
         }
         // Page headers/footers: docling emits them as furniture blocks
@@ -4621,6 +4710,9 @@ pub fn assemble_page(
                 nodes.push(located(loc, node))
             }
         }
+    }
+    if let Some((c, start)) = open_group {
+        close_container_group(&mut nodes, &regions[c], start);
     }
     node_in_container.resize(nodes.len(), last_in_container);
     continue_lists_past_asides(&mut nodes, &node_in_container);
@@ -6435,6 +6527,79 @@ mod tests {
             kept[0].l == 63.0 && kept[0].b == 346.0,
             "the larger containing box is kept"
         );
+    }
+
+    /// #1233, right_to_left_03's layout: a form around the fields, a form
+    /// coinciding with the table below them, and a weaker form around both.
+    /// docling elects the container bucket's survivor first — the large one,
+    /// ≤ 0.2 less confident than the running best and > 2× its rivals' area
+    /// — and only then drops a container coinciding with a table; `greedy`
+    /// kept the confident field form and the table fell outside it.
+    #[test]
+    fn resolve_elects_the_container_before_the_cross_type_pass() {
+        let kept = super::resolve(vec![
+            region("form", 0.81, 64.0, 157.0, 526.0, 323.0),
+            region("table", 0.71, 71.0, 366.0, 501.0, 598.0),
+            region("form", 0.67, 71.0, 366.0, 501.0, 598.0),
+            region("form", 0.61, 66.0, 153.0, 524.0, 597.0),
+        ]);
+        let forms: Vec<&Region> = kept.iter().filter(|r| r.label == "form").collect();
+        assert_eq!(forms.len(), 1, "one container per overlapping group");
+        assert_eq!((forms[0].t, forms[0].b), (153.0, 597.0), "the whole form");
+        assert_eq!(kept.iter().filter(|r| r.label == "table").count(), 1);
+    }
+
+    /// #1233: a `form` / `key_value_region` is written as docling's
+    /// `form_area` / `key_value_area` group (named `group`) holding the
+    /// regions inside it, in reading order; text outside it and a page footer
+    /// drawn inside its box stay outside the group; an empty container is an
+    /// empty group.
+    #[test]
+    fn containers_are_written_as_groups_of_their_children() {
+        let cells = vec![
+            cell("Intro", 50.0, 50.0, 150.0, 60.0),
+            cell("Name: Ann", 60.0, 110.0, 160.0, 120.0),
+            cell("Date: today", 60.0, 140.0, 160.0, 150.0),
+            cell("Page 1", 60.0, 280.0, 100.0, 290.0),
+            cell("Outro", 50.0, 340.0, 150.0, 350.0),
+        ];
+        let page = PdfPage::from_cells(400.0, 400.0, 2.0, cells);
+        let regions = vec![
+            region("text", 0.9, 50.0, 50.0, 150.0, 60.0),
+            region("key_value_region", 0.8, 55.0, 100.0, 300.0, 295.0),
+            region("text", 0.9, 60.0, 110.0, 160.0, 120.0),
+            region("text", 0.9, 60.0, 140.0, 160.0, 150.0),
+            region("page_footer", 0.9, 60.0, 280.0, 100.0, 290.0),
+            region("text", 0.9, 50.0, 340.0, 150.0, 350.0),
+            region("form", 0.8, 200.0, 360.0, 300.0, 380.0),
+        ];
+        let n = regions.len();
+        let (nodes, _) = super::assemble_page(&page, regions, &vec![None; n], &vec![None; n], None);
+        let groups: Vec<(&str, Option<&str>, &Vec<Node>)> = nodes
+            .iter()
+            .filter_map(|n| match n {
+                Node::Group {
+                    label,
+                    name,
+                    children,
+                    ..
+                } => Some((label.as_str(), name.as_deref(), children)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(groups.len(), 2, "{nodes:#?}");
+        let (label, name, children) = groups[0];
+        assert_eq!((label, name), ("key_value_area", Some("group")));
+        let inside = format!("{children:?}");
+        assert_eq!(children.len(), 2, "{inside}");
+        assert!(
+            inside.find("Name: Ann") < inside.find("Date: today"),
+            "{inside}"
+        );
+        for outside in ["Intro", "Page 1", "Outro"] {
+            assert!(!inside.contains(outside), "{outside} is not a child");
+        }
+        assert_eq!((groups[1].0, groups[1].2.len()), ("form_area", 0));
     }
 
     #[test]

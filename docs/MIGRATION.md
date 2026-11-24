@@ -42,7 +42,7 @@ bulk of the porting under review).
 > (a pure-Rust PDF text/metadata parser and page renderer — no native PDF library; the docling-parse renderer plugin is a development oracle — + ONNX
 > layout/TableFormer/OCR + a port of docling-parse's line sanitizer) and is also
 > measured byte-for-byte against upstream's groundtruth and live docling (2.151.1, docling-parse 7.27.0) —
-> **9 / 21 PDF fixtures exact, 450 diff lines** against the groundtruth, 6 / 18 and 386 against live docling (see `PDF_CONFORMANCE.md`), with a snapshot baseline
+> **10 / 21 PDF fixtures exact, 422 diff lines** against the groundtruth, 6 / 18 and 360 against live docling (see `PDF_CONFORMANCE.md`), with a snapshot baseline
 > guarding against regressions. `cargo test` is green (unit tests + a 159-source
 > output-regression suite).
 
@@ -1588,8 +1588,8 @@ content-type resolution, and image extraction — reused by DOCX/PPTX/XLSX/EPUB.
 
 These run docling's *discriminative* PDF pipeline ported to ONNX. They are now
 measured **byte-for-byte against docling** (the committed PDF groundtruth mirrors
-upstream's, at docling `f93ee6bc`; live docling 2.151.1 differs from it on seven files): **9 / 21
-exact, 450 diff lines** against the groundtruth, 6 / 18 and 386 against live docling 2.151.1, the rest close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
+upstream's, at docling `f93ee6bc`; live docling 2.151.1 differs from it on seven files): **10 / 21
+exact, 422 diff lines** against the groundtruth, 6 / 18 and 360 against live docling 2.151.1, the rest close — see `PDF_CONFORMANCE.md`. A deterministic snapshot baseline
 (`scripts/conformance/pdf_conformance.sh`) still guards against regressions.
 
 #### PDF
@@ -1627,6 +1627,7 @@ exact, 450 diff lines** against the groundtruth, 6 / 18 and 386 against live doc
   - the browser's `DigitalConverter` hands a table to TableFormer when the geometric grid's rows do not each sit on one text line — a table of wrapped cells, whose row-per-line grid is dense and passed for reliable: the issue's table is the 2 × 2 the native pipeline gives, not ten rows of lines
 - the JSON carries page headers/footers as body-parented `page_header`/`page_footer` texts on the furniture layer, as upstream writes them (Markdown still leaves them out)
 - the text inside a picture reaches the JSON as that picture's children (docling's `_add_child_elements`), as upstream writes it (Markdown, like docling's, prints only the caption)
+- #1233: a `form` / `key_value_region` layout container is a `form_area` / `key_value_area` group (named `group`) holding the items inside it, as docling's `ReadingOrderModel` adds it — an empty one an empty group, page headers and footers never its children; the containers are de-overlapped as docling does it, the bucket's survivor elected before the one coinciding with a table is dropped. Markdown prints the children as before
 - text outside the page's display box — the CropBox, else the MediaBox — is dropped glyph by glyph like docling-parse does (#529: a FrameMaker print slug, a tiled page's neighbouring text) instead of being clamped onto the page edge
 - a CJK composite font without ToUnicode is read through Adobe's CID → Unicode table of the collection its `CIDSystemInfo` names (Japan1, GB1, CNS1, Korea1, KR; ISO 32000-1 §9.10.2), as docling-parse does
   - deliberately for every descendant font, `CIDFontType2` included, as docling-parse does
@@ -2387,7 +2388,7 @@ These are deliberate or unavoidable divergences, not bugs.
      dropped (Form-XObject text and glyph-name-only fonts were the two classes it
      surfaced and fixed).
    - Output is measured **byte-for-byte against docling** (PDF_CONFORMANCE.md):
-     **9 / 21 exact, 450 diff lines** against upstream's groundtruth, the rest close. The remaining gaps are
+     **10 / 21 exact, 422 diff lines** against upstream's groundtruth, the rest close. The remaining gaps are
      model-level (TableFormer structure on complex tables, layout
      classification, title-page reading order) plus docling-parse 7's own
      glyph mappings (`tildelow` for `~`; the groundtruth's `∞` list bullet is docling-parse ≤ 7.25's, see #1152). The full per-fixture breakdown and the
