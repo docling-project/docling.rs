@@ -415,6 +415,12 @@ struct WalkGuard {
     /// Refs some table, picture or code item lists in its `footnotes`
     /// (docling-core#675): rendered by that item, skipped by the walk.
     claimed_footnotes: std::collections::HashSet<String>,
+    /// Walking a `RichTableCell`'s group (#1231): a table met here is
+    /// flattened to its cells' text, as docling-core's Markdown serializer
+    /// does under `_nested_in_table`, instead of rendered as a padded
+    /// Markdown table — the outer table would pad every row to that already
+    /// padded width again, growing the output ~4× per nesting level.
+    in_table_cell: bool,
 }
 
 /// Rewrite every `{"cref": …}` reference object to `{"$ref": …}`.
@@ -732,6 +738,15 @@ fn walk_inner(
     } else if kind.starts_with("#/groups/") {
         group_item(item, root, level, doc, g);
     } else if kind.starts_with("#/tables/") {
+        if g.in_table_cell {
+            // docling-core's `_collect_subtree_text`: the nested table's grid
+            // as one run of text, its rich cells' subtrees included.
+            let text = subtree_text(item, root, &mut g.seen, 0);
+            if !text.is_empty() {
+                doc.push(Node::TextDump(text));
+            }
+            return;
+        }
         with_prov(item, doc, g, |doc, _| table_item(item, root, doc));
     } else if kind.starts_with("#/pictures/") {
         with_prov(item, doc, g, |doc, _| picture_item(item, root, doc));
@@ -1150,25 +1165,20 @@ fn rich_cell_markdown(cell: &Value, root: &Value) -> Option<String> {
         .get("ref")
         .filter(|r| ref_kind(r).starts_with("#/groups/"))?;
     let mut sub = DoclingDocument::new("cell");
-    walk(group, root, 0, &mut sub, &mut WalkGuard::default());
+    let mut guard = WalkGuard {
+        in_table_cell: true,
+        ..WalkGuard::default()
+    };
+    walk(group, root, 0, &mut sub, &mut guard);
     let md = sub.export_to_markdown();
     let md = md.trim();
     (!md.is_empty()).then(|| md.replace('\n', " "))
 }
 
-fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
-    let mut rows = Vec::new();
-    // Per-cell flags carried through so DocTags export and the chunker's
-    // triplet serialization see docling's header/span structure, not just the
-    // flattened text grid.
-    let mut structure = docling_core::TableStructure::default();
-    // Whether the file states the header flags at all — docling's export
-    // writes `column_header` on every cell, so all-`false` means "no header"
-    // (#1042), not "unknown".
-    let mut declares_headers = false;
-    // A `RichTableCell`'s `ref` sits on `table_cells` only (the derived
-    // `grid` shows plain cells): keyed by the cell's anchor.
-    let rich: std::collections::HashMap<(u64, u64), &Value> = item["data"]["table_cells"]
+/// A table's `RichTableCell`s keyed by their anchor: the `ref` sits on
+/// `table_cells` only (the derived `grid` shows plain cells).
+fn rich_cells(item: &Value) -> std::collections::HashMap<(u64, u64), &Value> {
+    item["data"]["table_cells"]
         .as_array()
         .map_or(&[][..], Vec::as_slice)
         .iter()
@@ -1182,7 +1192,90 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
                 c,
             ))
         })
-        .collect();
+        .collect()
+}
+
+/// docling-core's `_collect_subtree_text` (#1231): every text of an item's
+/// subtree joined with spaces (an inline group's runs concatenated as they
+/// are), a table contributing its grid cells — a rich cell's group once per
+/// anchor, not once per spanned slot. `seen` is the walk's visited set, so
+/// the flattened items are neither rendered again nor followed round a cycle;
+/// [`MAX_DEPTH`] bounds the recursion.
+fn subtree_text(
+    item: &Value,
+    root: &Value,
+    seen: &mut std::collections::HashSet<String>,
+    depth: usize,
+) -> String {
+    if depth >= MAX_DEPTH || item["content_layer"].as_str() == Some("furniture") {
+        return String::new();
+    }
+    let mut parts: Vec<String> = Vec::new();
+    let child = |reference: &Value, seen: &mut std::collections::HashSet<String>| {
+        let key = ref_kind(reference);
+        if !seen.insert(key.to_string()) {
+            return String::new();
+        }
+        resolve(reference, root)
+            .map_or_else(String::new, |c| subtree_text(c, root, seen, depth + 1))
+    };
+    let is_table = item["self_ref"]
+        .as_str()
+        .is_some_and(|r| r.starts_with("#/tables/"))
+        || item["data"]["grid"].is_array();
+    if is_table {
+        let rich = rich_cells(item);
+        let mut done = std::collections::HashSet::new();
+        for row in item["data"]["grid"].as_array().into_iter().flatten() {
+            for cell in row.as_array().into_iter().flatten() {
+                let anchor = (
+                    cell["start_row_offset_idx"].as_u64().unwrap_or(u64::MAX),
+                    cell["start_col_offset_idx"].as_u64().unwrap_or(u64::MAX),
+                );
+                let text = match rich.get(&anchor).and_then(|rc| rc.get("ref")) {
+                    Some(r) if done.insert(anchor) => child(r, seen),
+                    Some(_) => continue,
+                    None => cell["text"].as_str().unwrap_or("").to_string(),
+                };
+                if !text.is_empty() {
+                    parts.push(text);
+                }
+            }
+        }
+        return parts.join(" ");
+    }
+    if let Some(text) = item["text"].as_str().filter(|t| !t.is_empty()) {
+        parts.push(text.to_string());
+    }
+    for c in item["children"].as_array().into_iter().flatten() {
+        let text = child(c, seen);
+        if !text.is_empty() {
+            parts.push(text);
+        }
+    }
+    let sep = if item["label"].as_str() == Some("inline") {
+        ""
+    } else {
+        " "
+    };
+    parts.join(sep)
+}
+
+fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
+    let mut rows = Vec::new();
+    // Per-cell flags carried through so DocTags export and the chunker's
+    // triplet serialization see docling's header/span structure, not just the
+    // flattened text grid.
+    let mut structure = docling_core::TableStructure::default();
+    // Whether the file states the header flags at all — docling's export
+    // writes `column_header` on every cell, so all-`false` means "no header"
+    // (#1042), not "unknown".
+    let mut declares_headers = false;
+    let rich = rich_cells(item);
+    // A spanning rich cell repeats in every grid slot it covers: render its
+    // group once per anchor (docling-core's `rich_texts`), not once per slot.
+    let mut rich_md: std::collections::HashMap<(u64, u64), Option<String>> =
+        std::collections::HashMap::new();
     if let Some(grid) = item["data"]["grid"].as_array() {
         for (r, row) in grid.iter().enumerate() {
             let Some(cells) = row.as_array() else {
@@ -1197,7 +1290,12 @@ fn table_item(item: &Value, root: &Value, doc: &mut DoclingDocument) {
                             cell["start_col_offset_idx"].as_u64().unwrap_or(u64::MAX),
                         );
                         rich.get(&anchor)
-                            .and_then(|rc| rich_cell_markdown(rc, root))
+                            .and_then(|rc| {
+                                rich_md
+                                    .entry(anchor)
+                                    .or_insert_with(|| rich_cell_markdown(rc, root))
+                                    .clone()
+                            })
                             .unwrap_or_else(|| cell["text"].as_str().unwrap_or("").to_string())
                     })
                     .collect::<Vec<_>>(),
@@ -1516,6 +1614,48 @@ fn caption_of(item: &Value, root: &Value) -> Option<String> {
 mod tests {
     use super::*;
     use crate::format::InputFormat;
+
+    /// #1231: tables nested in rich table cells read back flattened, as
+    /// docling-core's Markdown serializer does (`_collect_subtree_text`),
+    /// not as padded Markdown tables re-padded by every enclosing table — the
+    /// read-back grew ~4× per level (2 MB of Markdown for seven 3×3 levels)
+    /// and the hybrid chunker stalled on the giant cell.
+    #[test]
+    fn nested_rich_cell_tables_read_back_flattened() {
+        fn nested_html(depth: usize) -> String {
+            let mut inner = "<p>Leaf cell text.</p>".to_string();
+            for d in 1..=depth {
+                inner = format!(
+                    "<table><tr><td>L{d}A</td><td>{inner}</td><td>L{d}C</td></tr>\
+                     <tr><td>R{d}1</td><td>R{d}2</td><td>R{d}3</td></tr></table>"
+                );
+            }
+            format!("<!doctype html><html><body>{inner}</body></html>")
+        }
+        let html = nested_html(8);
+        let src = SourceDocument::from_bytes("n.html", InputFormat::Html, html.into_bytes());
+        let json = crate::backend::HtmlBackend
+            .convert(&src)
+            .unwrap()
+            .export_to_json();
+        assert!(
+            json.contains("\"ref\""),
+            "the HTML table must carry rich cells"
+        );
+        let out = md(&json);
+        assert!(out.len() < 2_000, "read-back grew to {} bytes", out.len());
+        // The outer table stays a table; the nested ones are one text run
+        // inside its middle cell, every level's cells in grid order.
+        assert_eq!(out.lines().count(), 3, "{out}");
+        assert!(
+            out.starts_with(
+                "| L8A   | L7A L6A L5A L4A L3A L2A L1A Leaf cell text. L1C R11 R12 R13 L2C \
+                 R21 R22 R23 L3C R31 R32 R33 L4C R41 R42 R43 L5C R51 R52 R53 L6C R61 R62 \
+                 R63 L7C R71 R72 R73   | L8C   |\n"
+            ),
+            "{out}"
+        );
+    }
 
     fn md(json: &str) -> String {
         DoclingJsonBackend
