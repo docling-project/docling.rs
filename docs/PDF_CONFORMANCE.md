@@ -34,8 +34,11 @@ matches the headline below.
 
 ## Current state
 
-**9 / 21 strict** against upstream's groundtruth — **450 diff lines**
-(re-measured 2026-11-21 on the `f93ee6bc` mirror, after the PDF part of the
+**10 / 21 strict** against upstream's groundtruth — **422 diff lines**
+(re-measured 2026-11-24: #1233's container de-overlap, docling's order —
+the form bucket's survivor elected before a container coinciding with a
+table is dropped — took `table_misidentified_as_form` 28 → exact, the
+other 20 unmoved; before it, 9 / 21 and 450 on 2026-11-21 on the `f93ee6bc` mirror, after the PDF part of the
 upstream sync — #1144's docling#4387 hyphens and the docling-parse 7.26/7.27
 ports, #1150–#1155 — every file's count as on 2026-11-17; snapshots 101/101
 exact). The mirror refresh at
@@ -54,7 +57,8 @@ other 19 unmoved.
 
 Against **live docling 2.151.1** (docling-parse 7.27.0, docling-core
 2.107.1, docling-ibm-models 4.0.4, torch 2.15 CPU; measured 2026-11-21) the
-18 upstream fixtures score **6 / 18 strict, 386 diff lines** — 2.150.0 scored
+18 upstream fixtures score **6 / 18 strict, 360 diff lines** (386 before
+#1233, `table_misidentified_as_form` 28 → 2) — 2.150.0 scored
 6 / 18 and 414: `multi_page` became exact (docling-parse 7.26's `SymbolMT`
 bullet, below) and `2305.03393v1` stopped being, live 2.151.1 cutting two
 author/affiliation blocks after a comma (`… Christoph Auer[…] ,` /
@@ -81,6 +85,7 @@ when docling regenerates it.
 | code_and_formula | **exact** | **exact** | — |
 | right_to_left_03 | **exact** | **exact** | — |
 | 2305.03393v1 | **exact** | 4 | — (the figure file names' underscores: outline boxes, a cell assigned once); live 2.151.1 cuts two author/affiliation blocks after a comma, which its groundtruth does not |
+| table_misidentified_as_form | **exact** | 2 | live docling 2.151.1 differs from the groundtruth on this file; until #1233 (28 / 28) the container de-overlap kept the field form nested in the whole one, and the form's table, pictures and heading fell outside it |
 | base14_fonts_rot90 / _rot180 / _rot270 | **exact** | **exact** | — (`/Rotate` display-frame normalization, docling#4008; our fixtures, groundtruth = the unrotated upstream file) |
 | right_to_left_01 | 2 | 2 | docling-parse cuts `أيضًا` before its tanween (`أيض ً`); we keep the word. `DOCLING_RS_PDF_ZERO_ADVANCE_RUN=1` cuts it as docling-parse does, and the file is then exact |
 | right_to_left_02 | 2 | 2 | one word's place at a line start (`ووف`), the same cut: exact under `DOCLING_RS_PDF_ZERO_ADVANCE_RUN=1` |
@@ -92,7 +97,6 @@ when docling regenerates it.
 | multi_page | 32 | **exact** | only the groundtruth's `∞` list bullets (`- ∞ IBM MT/ST …`), docling-parse ≤ 7.25's reading of the MacRoman `SymbolMT` bullet; docling-parse 7.26 (docling-parse#370, #1152) reads `•` and docling drops it as the marker, as we do |
 | redp5110_sampled | 28 | 26 | monospace code docling-parse spaces around punctuation (`EMPLOYEES .`, `( SESSION_USER , 'MGR' )`); a list bullet docling-parse reads as its CID (`r`), we as `�`; the groundtruth's private-use arrows (`\uF0AE HR\_SCHEMA`), which live docling reads like us — `→ HR\_SCHEMA→` (#1113) |
 | table_mislabeled_as_picture | 24 | 24 | the survey over-detected as tables; blank cells docling keeps |
-| table_misidentified_as_form | 28 | 28 | the form container's nested table / picture (docling#4064): docling nests them in the form region and keeps the heading, we flatten the region |
 | elsevier-00 | 236 | 234 | roughly a third: soft hyphens — docling keeps a line-final U+00AD and a space (`excep­ tionally`, 57 paragraphs), we join the word; a fifth: hyperlinks — docling's `_match_hyperlink` now links every text label, not footnotes only (the journal homepage, ~50 reference entries); the rest: the two-column body's paragraph order (adjacent `Geological importance` / `Educational potential` paragraphs swapped, affiliations one item off), letter-spaced headings (`A B S T R A C T`, which we join), one table's columns |
 
 The two Korean pages `skipped_1page` / `skipped_2pages` carry no Markdown
@@ -245,7 +249,7 @@ the docling-parse-rendered baselines with the two conformance scripts
 
 | model inputs rendered by | snapshots exact (101) | groundtruth (21 files) |
 |---|---|---|
-| docling-parse shim (`DOCLING_RS_RENDERER=docling-parse`, the reference) | 101 | 450 diff lines, 9 strict |
+| docling-parse shim (`DOCLING_RS_RENDERER=docling-parse`, the reference) | 101 | 422 diff lines, 10 strict (450, 9 before #1233) |
 | **Rust renderer** (the default) | 77 | 597 diff lines, 7 strict |
 
 The groundtruth gap is in six files: `2203.01017v2` 24 → 66 and
@@ -334,7 +338,7 @@ diff history of each port lives in the git log of these files).
 | `DocItemLabel.DOCUMENT_INDEX` on the `TableItem`; an unmatched `CAPTION` cluster as a body `caption` item (#1091) | a TOC region keeps `"label": "document_index"` on its JSON table (and through a JSON read-back); a caption no graphic claims is a body-level `caption` text item, not `text`, and like docling it is no candidate for the sub/superscript stage. The Markdown is unchanged either way; the DocLang export writes it as a located `<text>`, as docling-core does — the 0.9 schema has no top-level `<caption>` (#1103) | `assemble::assemble_page`, `Table::document_index` |
 | a formula cluster without formula enrichment (#1120) | docling's `formula` item either way: `orig` the raw glyph text, `prov` the page and box (charspan `orig`'s length, decoded or not), `text` the LaTeX under `do_formula_enrichment` and empty without it. `<!-- formula-not-decoded -->` is the Markdown serializer's spelling of that empty text (and the chunker's); HTML writes `Formula not decoded`, DocLang an empty located `<formula>`. Emitted as a bare placeholder paragraph the formula was a `text` item with no `prov` and no raw text. A formula item read from docling JSON keeps the same shape | `assemble::assemble_page`, `markdown.rs`, `json::add_formula_item`, `backend/docling_json.rs` |
 | a table cluster without cells (#1114) | docling keeps every table cluster as a `TableItem`, cells or not: a table pasted as an image on a page converted without OCR is an empty table — no rows, since TableFormer's structure yields a cell only where a word matched — in its place, with its box and the caption the matcher gave it. The emit loop skipped a table region that claimed no text, after `pair_graphic_captions` had consumed the caption's own slot, so the caption — text-layer text — vanished from every export. The JSON is docling's (`num_rows` / `num_cols` 0, `captions` → the caption item, a child of the table), the Markdown the caption line, HTML and DocLang a `<table>` holding the caption; the Pandoc export, which cannot write a column-less `Table`, prints the caption as a paragraph. A grid TableFormer predicted over the pixels with every cell blank is not printed | `assemble::assemble_page`, `pandoc::table` |
-| `form` / `key_value_region` containers (docling#4064) | everything > 80 % inside is a child, ordered among itself and emitted as one block where the container sits (ordering only — the children stay top-level items, no `form_area` group node) | `assemble::order_with_containers` |
+| `form` / `key_value_region` containers (docling#4064) | everything > 80 % inside is a child (page headers and footers never), ordered among itself and written where the container sits as its `form_area` / `key_value_area` group (#1233; an empty container an empty group). The bucket is de-overlapped first and a container coinciding with a table dropped after, in docling's order — on the corpus every group and its children match live docling with the fp32 layout model | `assemble::order_with_containers`, `assemble::close_container_group`, `assemble::resolve` |
 | a picture ≥ 80 % inside a TableFormer table (docling#3906) | nested in the cell covering it: the cell reads `text  <!-- image -->`, the JSON grid keeps the text | `assemble::match_table_pictures` |
 | `ListItemMarkerProcessor` | a leading `-` / bullet / `N.` / `a)` marker is split off the item text; a compound `3.a.` rides in the text (Markdown); the JSON has `orig` with the marker, `text` without, `marker` and `enumerated` as docling writes them (#1111) | `docling-core` list-item processing |
 | `_match_hyperlink` | the URI whose annotation rects cover ≥ 0.5 of the region, accumulated per URI, on **footnote** items only — both committed groundtruth generations carry the link into the document only there. The item is a `footnote` text whose JSON carries the raw text plus `hyperlink` (the Markdown wraps it as `[text](uri)`); a footnote is a merge skip-label, so a paragraph continuing across one is merged past it | `assemble` footnote items (`Node::LabeledText`) |
@@ -809,7 +813,7 @@ and are closed with these residuals):
 2. **Layout classification** (#61). docling's `LayoutPostprocessor` is
    ported (the parity table above); what remains is the model's own reading
    of borderline regions — `table_mislabeled_as_picture`'s over-detected
-   survey, `table_misidentified_as_form`'s form container.
+   survey.
 3. **Reading order on dense pages** (#62): title-page author blocks, and
    paragraph pairs in a two-column body (`elsevier-00`).
 4. **Text-layer details docling-parse decides differently**: line-end hyphen

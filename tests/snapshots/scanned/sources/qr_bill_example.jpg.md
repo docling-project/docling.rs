@@ -19,11 +19,13 @@ Account/Payableto CH5800791123000889012 Robert SchneiderAG Rue du Lac1268 2501 B
 
 Payable by Pia Rutschmann Marktgasse 28 9400 Rorschach
 
-Currency Amount
-
-3 949.75
+Currency
 
 CHF
+
+Amount
+
+3 949.75
 
 Acceptance point
 
@@ -39,9 +41,7 @@ Mobil
 
 Mobil:079/98765 43
 
-E-Mail:
-
-E-Mail: robert@rschneider.ch
+E-Mail: robert@rschneider.ch E-Mail:
 
 Internet:
 
