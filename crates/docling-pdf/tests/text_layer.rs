@@ -329,3 +329,58 @@ fn broken_text_layer_is_replaced_by_ocr() {
     assert!(!md.contains("Wkh txduwhuo"), "{md}");
     assert_eq!(parse(&replaced), Some(0.0));
 }
+
+/// #1235 end to end: a `/ToUnicode` CMap whose `bfchar` destinations carry
+/// white space inside the hex string (`< 0061>`, `<D835 DC9A>`) reads as the
+/// drawn text, not control characters — the issue's reproduction file.
+#[test]
+fn tounicode_hex_whitespace_text_layer() {
+    let ops = "BT /F1 24 Tf 72 720 Td (a \\001ne day) Tj 0 -40 Td (math: \\002) Tj ET";
+    let cmap = "/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n\
+/CMapName /Adobe-Identity-UCS def /CMapType 2 def\n\
+1 begincodespacerange <00> <FF> endcodespacerange\n\
+1 beginbfrange <20> <7E> <0020> endbfrange\n\
+3 beginbfchar\n<61> < 0061>\n<01> < 00660069>\n<02> <D835 DC9A>\nendbfchar\n\
+endcmap CMapName currentdict /CMap defineresource pop end end";
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
+         /Resources << /Font << /F1 5 0 R >> >> >>"
+            .to_string(),
+        format!("<< /Length {} >>\nstream\n{ops}\nendstream", ops.len() + 1),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica \
+         /Encoding /WinAnsiEncoding /ToUnicode 6 0 R >>"
+            .to_string(),
+        format!(
+            "<< /Length {} >>\nstream\n{cmap}\nendstream",
+            cmap.len() + 1
+        ),
+    ];
+    let mut pdf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref = pdf.len();
+    pdf.extend_from_slice(
+        format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes(),
+    );
+    for o in offsets {
+        pdf.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
+    }
+    pdf.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+            objects.len() + 1
+        )
+        .as_bytes(),
+    );
+    let md = docling_pdf::convert_text_layer(&pdf, "tounicode-space.pdf")
+        .expect("text-layer conversion")
+        .export_to_markdown();
+    assert!(md.contains("a fine day"), "{md:?}");
+    assert!(md.contains("math: \u{1D49A}"), "{md:?}");
+    assert!(!md.chars().any(|c| c.is_control() && c != '\n'), "{md:?}");
+}
