@@ -31,11 +31,10 @@ use docling_pdf::pdfium_backend::{PdfPage, TextCell};
 use docling_pdf::scanned::{
     assemble_page_with_tables, drop_duplicate_text_claims, finish_document, refine_regions,
 };
-use image::RgbImage;
 use wasm_bindgen::prelude::*;
 
 use crate::ocr::{tensor_parts, RecSession};
-use crate::scanned::{ocr_lines, render, LayoutSession};
+use crate::scanned::{ocr_lines, render, rgba_image, scan_page, DetSession, LayoutSession};
 use crate::tableformer::TfSession;
 
 /// A digital PDF being converted page by page. Construct it from the file's
@@ -48,6 +47,8 @@ pub struct DigitalConverter {
     /// Recognition dictionary, when the host wants embedded pictures OCR'd.
     chars: Vec<String>,
     out: Vec<docling_pdf::scanned::AssembledPage>,
+    /// The text detector a page without a text layer is OCR'd with.
+    det: Option<DetSession>,
 }
 
 #[wasm_bindgen]
@@ -71,6 +72,7 @@ impl DigitalConverter {
             pages,
             chars: dict.as_deref().map(dict_chars).unwrap_or_default(),
             out: Vec::new(),
+            det: None,
         })
     }
 
@@ -85,6 +87,14 @@ impl DigitalConverter {
     #[wasm_bindgen(js_name = setDict)]
     pub fn set_dict(&mut self, dict: &str) {
         self.chars = dict_chars(dict);
+    }
+
+    /// Attach the text-detection session (#429) a page without a text layer
+    /// is OCR'd with, as the scanned converter's `setDetector`. Optional:
+    /// without it such a page reads through the projection strips alone.
+    #[wasm_bindgen(js_name = setDetector)]
+    pub fn set_detector(&mut self, det: DetSession) {
+        self.det = Some(det);
     }
 
     /// Convert page `index` (0-based) given its rendered bitmap: layout
@@ -162,18 +172,26 @@ impl DigitalConverter {
         rec: Option<&RecSession>,
         tf: Option<&TfSession>,
     ) -> Result<(), JsError> {
-        if rgba.len() != (px_w as usize) * (px_h as usize) * 4 {
-            return Err(JsError::new("rgba buffer size does not match dimensions"));
-        }
+        let img = rgba_image(rgba, px_w, px_h)?;
         let mut page = self
             .pages
             .get(index)
             .cloned()
             .ok_or_else(|| JsError::new("page index is out of range"))?;
 
-        let mut img = RgbImage::new(px_w, px_h);
-        for (i, px) in img.pixels_mut().enumerate() {
-            px.0 = [rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2]];
+        // A page without a text layer — a photographed certificate bound
+        // after a typed cover page — is a scan in a digital file: the native
+        // pipeline OCRs a page whose `cells` are empty (`ocred`), and so does
+        // this one, through the scanned converter's page. Without it only the
+        // typed pages read and the scans came out as bare pictures, while
+        // Force OCR read them all.
+        if !page.cells.iter().any(|c| !c.text.trim().is_empty()) {
+            if let Some(rec) = rec.filter(|_| !self.chars.is_empty()) {
+                let scanned =
+                    scan_page(&self.chars, self.det.as_ref(), img, scale, layout, rec, tf).await?;
+                self.out.push(scanned);
+                return Ok(());
+            }
         }
 
         // Layout: Rust preprocessing → JS inference → Rust decoding. The page

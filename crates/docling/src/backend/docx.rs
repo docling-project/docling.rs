@@ -63,6 +63,20 @@ impl DeclarativeBackend for DocxBackend {
             .ok_or_else(|| ConversionError::Parse("docx: bad zip".into()))?;
         pkg.check_limits(&super::ooxml::PackageLimits::from_env())
             .map_err(|e| ConversionError::with_source("docx", e))?;
+        // The main part by the package's `officeDocument` relationship
+        // (#1236): `word/document2.xml` is read as `word/document.xml`, and
+        // the styles, numbering, settings, comments and theme its own
+        // relationships name in place of the conventional parts.
+        pkg.follow_main_part(
+            "word/document.xml",
+            &[
+                ("/styles", "word/styles.xml"),
+                ("/numbering", "word/numbering.xml"),
+                ("/settings", "word/settings.xml"),
+                ("/comments", "word/comments.xml"),
+                ("/theme", "word/theme/theme1.xml"),
+            ],
+        );
         let document = pkg
             .read("word/document.xml")
             .ok_or_else(|| ConversionError::Parse("docx: no document.xml".into()))?;
@@ -4634,5 +4648,85 @@ mod fragment_rels_tests {
             .unwrap()
             .export_to_markdown();
         assert_eq!(md, "see the annex and [the site](https://example.com)\n");
+    }
+}
+
+#[cfg(test)]
+mod main_part_tests {
+    use crate::backend::DeclarativeBackend;
+    use crate::{InputFormat, SourceDocument};
+
+    const RELS_NS: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
+    const OFFICE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
+    fn package(main: &str, styles: &str, strict: bool) -> Vec<u8> {
+        use std::io::Write;
+        let office_rel = if strict {
+            "http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument".to_string()
+        } else {
+            format!("{OFFICE}/officeDocument")
+        };
+        let types = format!(
+            r#"<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/{main}" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#
+        );
+        let root_rels = format!(
+            r#"<Relationships xmlns="{RELS_NS}"><Relationship Id="R1" Type="{office_rel}" Target="/word/{main}"/></Relationships>"#
+        );
+        let doc_rels = format!(
+            r#"<Relationships xmlns="{RELS_NS}"><Relationship Id="rId1" Type="{OFFICE}/styles" Target="{styles}"/><Relationship Id="rId2" Type="{OFFICE}/hyperlink" Target="https://example.com" TargetMode="External"/></Relationships>"#
+        );
+        let document = r#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Title</w:t></w:r></w:p><w:p><w:r><w:t xml:space="preserve">Hello from the </w:t></w:r><w:hyperlink r:id="rId2"><w:r><w:t>main document part</w:t></w:r></w:hyperlink><w:r><w:t>.</w:t></w:r></w:p></w:body></w:document>"#;
+        let styles_xml = r#"<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/></w:style></w:styles>"#;
+        let mut zw = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let opts = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        let parts = [
+            ("[Content_Types].xml".to_string(), types),
+            ("_rels/.rels".to_string(), root_rels),
+            (format!("word/{main}"), document.to_string()),
+            (format!("word/_rels/{main}.rels"), doc_rels),
+            (format!("word/{styles}"), styles_xml.to_string()),
+        ];
+        for (name, content) in parts {
+            zw.start_file(name, opts).unwrap();
+            zw.write_all(content.as_bytes()).unwrap();
+        }
+        zw.finish().unwrap().into_inner()
+    }
+
+    fn markdown(bytes: Vec<u8>) -> String {
+        let src = SourceDocument::from_bytes("t.docx", InputFormat::Docx, bytes);
+        super::DocxBackend::default()
+            .convert(&src)
+            .unwrap()
+            .export_to_markdown()
+    }
+
+    /// #1236: the main part is the one `_rels/.rels`'s `officeDocument`
+    /// relationship names (`word/document2.xml`), its own relationships are
+    /// `word/_rels/document2.xml.rels` (the hyperlink), and the styles part
+    /// it names (`styles2.xml`) is the one read — the same output as the
+    /// conventional package. Transitional and strict relationship types.
+    #[test]
+    fn main_part_named_by_the_package_relationship() {
+        let expected = "## Title\n\nHello from the [main document part](https://example.com).\n";
+        assert_eq!(
+            markdown(package("document.xml", "styles.xml", false)),
+            expected
+        );
+        assert_eq!(
+            markdown(package("document2.xml", "styles2.xml", false)),
+            expected
+        );
+        assert_eq!(
+            markdown(package("document2.xml", "styles.xml", true)),
+            expected
+        );
+        // Format detection without an extension hint goes by the same
+        // relationship and the main part's content type.
+        assert_eq!(
+            crate::sniff::detect(&package("document2.xml", "styles.xml", false)),
+            Some(InputFormat::Docx)
+        );
     }
 }

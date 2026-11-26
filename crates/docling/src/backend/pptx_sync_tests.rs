@@ -518,3 +518,32 @@ fn chartex_tables_are_sized_by_their_data() {
     assert_eq!(empty.labels, ["other_chart"]);
     assert!(empty.title.is_none() && empty.table.is_none());
 }
+
+/// #1236: a deck whose main part is `ppt/deck.xml` — named by the
+/// `officeDocument` relationship, its own relationships in
+/// `ppt/_rels/deck.xml.rels` — converts like the conventional one, and is
+/// detected as PPTX without an extension hint.
+#[test]
+fn presentation_main_part_named_by_relationship() {
+    let conventional = deck(&text_box(2, 0, 0, &["Hello deck"], ""), "", &[]);
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(conventional.clone())).unwrap();
+    let mut parts: Vec<(String, Vec<u8>)> = (0..zip.len())
+        .map(|i| {
+            let mut f = zip.by_index(i).unwrap();
+            let name = f.name().unwrap().replace("presentation.xml", "deck.xml");
+            let mut body = Vec::new();
+            std::io::Read::read_to_end(&mut f, &mut body).unwrap();
+            (name, body)
+        })
+        .collect();
+    parts.push((
+        "_rels/.rels".into(),
+        br#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="R1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/deck.xml"/></Relationships>"#.to_vec(),
+    ));
+    let parts: Vec<(&str, Vec<u8>)> = parts.iter().map(|(n, c)| (n.as_str(), c.clone())).collect();
+    let renamed = package(&parts);
+    assert_eq!(crate::sniff::detect(&renamed), Some(InputFormat::Pptx));
+    let md = convert(renamed).export_to_markdown();
+    assert_eq!(md, convert(conventional).export_to_markdown());
+    assert!(md.contains("Hello deck"), "{md}");
+}

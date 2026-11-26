@@ -143,6 +143,10 @@ impl DeclarativeBackend for XlsxBackend {
             Xlsx::new(cursor).map_err(|e| ConversionError::with_source("xlsx", e))?;
         let mut pkg = Package::open(&source.bytes)
             .ok_or_else(|| ConversionError::Parse("xlsx: bad zip".into()))?;
+        // calamine finds the workbook through `_rels/.rels` itself; the
+        // package reads below (sheet parts, number formats, placed images)
+        // follow the same `officeDocument` relationship (#1236).
+        pkg.follow_main_part("xl/workbook.xml", &[("/styles", "xl/styles.xml")]);
 
         // Every sheet is a page, in workbook order — worksheets *and*
         // chartsheets, visible and hidden alike (docling numbers them all; a
@@ -2017,6 +2021,38 @@ mod tests {
             zw.write_all(body.as_bytes()).unwrap();
         }
         zw.finish().unwrap().into_inner()
+    }
+
+    /// #1236: a workbook whose main part is `xl/book2.xml` (named by the
+    /// `officeDocument` relationship) converts like the conventional one —
+    /// calamine and the package reads both follow the relationship.
+    #[test]
+    fn workbook_main_part_named_by_relationship() {
+        use std::io::{Read, Write};
+        let convert = |bytes: Vec<u8>| {
+            let src = SourceDocument::from_bytes("t.xlsx", InputFormat::Xlsx, bytes);
+            XlsxBackend::default()
+                .convert(&src)
+                .unwrap()
+                .export_to_markdown()
+        };
+        let conventional = tiny_xlsx("B2");
+        let mut zip = zip::ZipArchive::new(std::io::Cursor::new(conventional.clone())).unwrap();
+        let mut zw = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let opts = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        for i in 0..zip.len() {
+            let mut f = zip.by_index(i).unwrap();
+            let name = f.name().unwrap().replace("workbook.xml", "book2.xml");
+            let mut body = String::new();
+            f.read_to_string(&mut body).unwrap();
+            zw.start_file(name, opts).unwrap();
+            zw.write_all(body.replace("xl/workbook.xml", "xl/book2.xml").as_bytes())
+                .unwrap();
+        }
+        let renamed = zw.finish().unwrap().into_inner();
+        assert_eq!(crate::sniff::detect(&renamed), Some(InputFormat::Xlsx));
+        assert_eq!(convert(renamed), convert(conventional));
     }
 
     /// A 4 KB workbook with a value in `A1` and one in `XFD1048576` spans 17
