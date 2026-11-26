@@ -84,11 +84,8 @@ echo ">> releasing v$new (was v$current)"
 sed -i -E "0,/^version = \"[^\"]+\"/ s//version = \"$new\"/" Cargo.toml
 
 # Keep internal path-dependency requirements in lockstep with the workspace
-# version. Without this the published crates resolve each other to an OLDER
-# release (the version req is a literal, not inherited), which fails to build.
-for manifest in crates/*/Cargo.toml; do
-  sed -i -E "/path = \"\.\.\/docling/ s/version = \"[^\"]+\"/version = \"$new\"/" "$manifest"
-done
+# version, pinned exactly (`=X.Y.Z`): see the script for why.
+scripts/ci/sync_internal_versions.sh "$new"
 
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

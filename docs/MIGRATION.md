@@ -722,6 +722,11 @@ converted once more as that format with a warning.
 - docling#5453 (merged 2026-11-24): an OMML delimiter (`m:d`) keeps every element, joined by its `m:sepChr` (`|` when absent) — `(a|b)`, `⟨u|v⟩`, `{x | x > 0}` used to keep only the first element
   - the delimiter's `m:begChr`, `m:sepChr` and `m:endChr` go through docling's `T` table before `escape_latex`, as its `get_val(…, store=T)` does (math-italic letters, arrows, relations: a `→` separator is `\rightarrow`); the table was never ported, so they stayed raw
   - a deliberate divergence: five `T` entries are fixed where docling's is not the character's macro — `↓` is `\downarrow` (docling: `\downright`), math-italic `𝛿` `𝜇` `𝜈` `𝜏` are `\delta` `\mu` `\nu` `\tau` (docling: `\theta`, `\m`, `\n`, `\ta`)
+- OMML → LaTeX (`omml.rs`): accents, n-ary operators and function names follow docling's `CHR`, `CHR_BO` and `FUNC` tables in full — a dot, breve or check accent used to become `\hat`, `⨁` an integral, `arcsin`, `gcd` or `ker` plain letters
+  - deliberate divergences: the spacing forms of the common accents (U+00AF, U+203E, U+02C6, U+02DC, U+02D9, U+00A8, U+02C7, U+02D8, U+00B4, U+0060) are accents too — pandoc writes U+203E for `\bar`, and docling returns such a character alone, dropping the accented base — and any other accent character stays above its base (`\overset{★}{x}`); `⨄` and `⨆`, which Word's equation gallery offers, are `\biguplus` and `\bigsqcup`; an n-ary written without `m:naryPr` is an integral (docling#5470, fixed upstream by the open docling#5471)
+  - U+20EE is `\underleftarrow` (docling: `\underledtarrow`, a typo in its `CHR`)
+  - a group character (`m:groupChr`) outside `CHR` goes above its base when `m:pos` is `top` and below it otherwise (`\overset{→}{x}`, `\underset{→}{x}`), as an unknown accent does: Word's "arrow over text" is `→` with `pos="top"`, which docling returns alone, dropping the base (it used to be an underbrace here)
+  - many of these macros exist only in `unicode-math` (`\ovhook`, `\candra`, `\annuity`, `\widebridgeabove`, `\Bbbsum`, `\threeunderdot`, …): they compile with LuaLaTeX/XeLaTeX and `unicode-math`, but MathJax and KaTeX do not render them, so Markdown viewers show them as raw or as errors — kept for parity with docling
 
 #### DOC (Word 97–2004)
 
