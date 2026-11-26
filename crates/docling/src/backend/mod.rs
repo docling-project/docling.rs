@@ -91,6 +91,7 @@ mod odf_tree;
 pub(crate) mod offcrypto;
 mod officeart;
 mod omml;
+mod omml_unicode;
 pub(crate) mod ooxml;
 mod pages;
 mod pages_iwa;
