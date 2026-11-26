@@ -82,6 +82,7 @@ struct Pr {
     pos: Option<String>,
     beg: Option<String>,
     end: Option<String>,
+    sep: Option<String>,
     typ: Option<String>,
     text: String,
 }
@@ -101,6 +102,7 @@ fn pr(n: XmlNode, tag: &str) -> Pr {
             "pos" => p.pos = val,
             "begChr" => p.beg = val,
             "endChr" => p.end = val,
+            "sepChr" => p.sep = val,
             "type" => p.typ = val,
             "brk" => p.text.push_str("\\\\"),
             _ => p.text.push_str(&dispatch(c)),
@@ -122,9 +124,18 @@ fn do_f(e: XmlNode) -> String {
     p.text + &body
 }
 
+/// A delimiter: its elements (one `<m:e>` each) joined by `m:sepChr` — `|`
+/// when absent (ECMA-376 Part 1, `sepChr`), nothing when empty — as docling's `do_d`
+/// does: `(a|b)`, `{x | x > 0}`, `⟨u|v⟩`. The three characters go through
+/// docling's `T` table ([`greek_or`]) before `escape_latex`.
 fn do_d(e: XmlNode) -> String {
     let p = pr(e, "dPr");
-    let inner = child(e, "e").unwrap_or_default();
+    let sep = escape_latex(&greek_or(p.sep.as_deref(), "|"));
+    let inner = elems(e)
+        .filter(|c| local(*c) == "e")
+        .map(process_children)
+        .collect::<Vec<_>>()
+        .join(&sep);
     let left = greek_or(p.beg.as_deref(), "(");
     let right = greek_or(p.end.as_deref(), ")");
     let left = if left.is_empty() {
@@ -565,12 +576,141 @@ fn big_op(chr: &str) -> Option<&'static str> {
     })
 }
 
-/// Delimiter char via the Greek math-italic table, else the char itself.
+/// A delimiter character through docling's `T` table (`get_val(…, store=T)`),
+/// else the character itself; `default` when the property is absent.
 fn greek_or(key: Option<&str>, default: &str) -> String {
     match key {
         None => default.to_string(),
-        Some(k) => k.to_string(),
+        Some(k) => t_table(k).unwrap_or(k).to_string(),
     }
+}
+
+/// docling's `T` (`latex_dict.py`): math-italic letters, arrows, relations.
+/// Five entries are fixed where docling's is not the character's macro
+/// (`docs/MIGRATION.md`).
+fn t_table(k: &str) -> Option<&'static str> {
+    Some(match k {
+        // Greek letters
+        "\u{1d6fc}" => "\\alpha ",
+        "\u{1d6fd}" => "\\beta ",
+        "\u{1d6fe}" => "\\gamma ",
+        "\u{1d6ff}" => "\\delta ", // docling: `\theta `
+        "\u{1d700}" => "\\epsilon ",
+        "\u{1d701}" => "\\zeta ",
+        "\u{1d702}" => "\\eta ",
+        "\u{1d703}" => "\\theta ",
+        "\u{1d704}" => "\\iota ",
+        "\u{1d705}" => "\\kappa ",
+        "\u{1d706}" => "\\lambda ",
+        "\u{1d707}" => "\\mu ", // docling: `\m `
+        "\u{1d708}" => "\\nu ", // docling: `\n `
+        "\u{1d709}" => "\\xi ",
+        "\u{1d70a}" => "\\omicron ",
+        "\u{1d70b}" => "\\pi ",
+        "\u{1d70c}" => "\\rho ",
+        "\u{1d70d}" => "\\varsigma ",
+        "\u{1d70e}" => "\\sigma ",
+        "\u{1d70f}" => "\\tau ", // docling: `\ta `
+        "\u{1d710}" => "\\upsilon ",
+        "\u{1d711}" => "\\phi ",
+        "\u{1d712}" => "\\chi ",
+        "\u{1d713}" => "\\psi ",
+        "\u{1d714}" => "\\omega ",
+        "\u{1d715}" => "\\partial ",
+        "\u{1d716}" => "\\varepsilon ",
+        "\u{1d717}" => "\\vartheta ",
+        "\u{1d718}" => "\\varkappa ",
+        "\u{1d719}" => "\\varphi ",
+        "\u{1d71a}" => "\\varrho ",
+        "\u{1d71b}" => "\\varpi ",
+        // Relation symbols
+        "\u{2190}" => "\\leftarrow ",
+        "\u{2191}" => "\\uparrow ",
+        "\u{2192}" => "\\rightarrow ",
+        "\u{2193}" => "\\downarrow ", // docling: `\downright `
+        "\u{2194}" => "\\leftrightarrow ",
+        "\u{2195}" => "\\updownarrow ",
+        "\u{2196}" => "\\nwarrow ",
+        "\u{2197}" => "\\nearrow ",
+        "\u{2198}" => "\\searrow ",
+        "\u{2199}" => "\\swarrow ",
+        "\u{22ee}" => "\\vdots ",
+        "\u{22ef}" => "\\cdots ",
+        "\u{22f0}" => "\\adots ",
+        "\u{22f1}" => "\\ddots ",
+        "\u{2260}" => "\\ne ",
+        "\u{2264}" => "\\leq ",
+        "\u{2265}" => "\\geq ",
+        "\u{2266}" => "\\leqq ",
+        "\u{2267}" => "\\geqq ",
+        "\u{2268}" => "\\lneqq ",
+        "\u{2269}" => "\\gneqq ",
+        "\u{226a}" => "\\ll ",
+        "\u{226b}" => "\\gg ",
+        "\u{2208}" => "\\in ",
+        "\u{2209}" => "\\notin ",
+        "\u{220b}" => "\\ni ",
+        "\u{220c}" => "\\nni ",
+        // Ordinary symbols
+        "\u{221e}" => "\\infty ",
+        // Binary relations
+        "\u{b1}" => "\\pm ",
+        "\u{2213}" => "\\mp ",
+        // Italic, Latin, uppercase
+        "\u{1d434}" => "A",
+        "\u{1d435}" => "B",
+        "\u{1d436}" => "C",
+        "\u{1d437}" => "D",
+        "\u{1d438}" => "E",
+        "\u{1d439}" => "F",
+        "\u{1d43a}" => "G",
+        "\u{1d43b}" => "H",
+        "\u{1d43c}" => "I",
+        "\u{1d43d}" => "J",
+        "\u{1d43e}" => "K",
+        "\u{1d43f}" => "L",
+        "\u{1d440}" => "M",
+        "\u{1d441}" => "N",
+        "\u{1d442}" => "O",
+        "\u{1d443}" => "P",
+        "\u{1d444}" => "Q",
+        "\u{1d445}" => "R",
+        "\u{1d446}" => "S",
+        "\u{1d447}" => "T",
+        "\u{1d448}" => "U",
+        "\u{1d449}" => "V",
+        "\u{1d44a}" => "W",
+        "\u{1d44b}" => "X",
+        "\u{1d44c}" => "Y",
+        "\u{1d44d}" => "Z",
+        // Italic, Latin, lowercase
+        "\u{1d44e}" => "a",
+        "\u{1d44f}" => "b",
+        "\u{1d450}" => "c",
+        "\u{1d451}" => "d",
+        "\u{1d452}" => "e",
+        "\u{1d453}" => "f",
+        "\u{1d454}" => "g",
+        "\u{1d456}" => "i",
+        "\u{1d457}" => "j",
+        "\u{1d458}" => "k",
+        "\u{1d459}" => "l",
+        "\u{1d45a}" => "m",
+        "\u{1d45b}" => "n",
+        "\u{1d45c}" => "o",
+        "\u{1d45d}" => "p",
+        "\u{1d45e}" => "q",
+        "\u{1d45f}" => "r",
+        "\u{1d460}" => "s",
+        "\u{1d461}" => "t",
+        "\u{1d462}" => "u",
+        "\u{1d463}" => "v",
+        "\u{1d464}" => "w",
+        "\u{1d465}" => "x",
+        "\u{1d466}" => "y",
+        "\u{1d467}" => "z",
+        _ => return None,
+    })
 }
 
 #[cfg(test)]
@@ -601,6 +741,61 @@ mod tests {
         // leaves a double space where two padded symbols meet.
         let xml = r#"<r xmlns:m="m"><m:oMath><m:r><m:t>&#8734;&#60;x</m:t></m:r></m:oMath></r>"#;
         assert_eq!(latex(xml), r"\infty  < x");
+    }
+
+    #[test]
+    fn delimiter_keeps_every_element_and_its_separator() {
+        // `<m:d>` holds one `<m:e>` per element; `m:sepChr` (`|` when absent,
+        // ECMA-376 Part 1) goes between them, as in docling's `do_d`.
+        let d = |pr: &str, es: &[&str]| {
+            let es: String = es
+                .iter()
+                .map(|t| format!("<m:e><m:r><m:t>{t}</m:t></m:r></m:e>"))
+                .collect();
+            latex(&format!(
+                r#"<r xmlns:m="m"><m:oMath><m:d>{pr}{es}</m:d></m:oMath></r>"#
+            ))
+        };
+        assert_eq!(d("", &["a", "b", "c"]), r"\left(a|b|c\right)");
+        let comma = r#"<m:dPr><m:sepChr m:val=","/></m:dPr>"#;
+        assert_eq!(d(comma, &["a", "b"]), r"\left(a,b\right)");
+        let none = r#"<m:dPr><m:sepChr m:val=""/></m:dPr>"#;
+        assert_eq!(d(none, &["a", "b"]), r"\left(ab\right)");
+        let set =
+            r#"<m:dPr><m:begChr m:val="{"/><m:sepChr m:val="&amp;"/><m:endChr m:val="}"/></m:dPr>"#;
+        assert_eq!(d(set, &["x", "y"]), r"\left\{x\&y\right\}");
+    }
+
+    #[test]
+    fn delimiter_characters_map_through_docling_t_table() {
+        // docling looks `m:begChr`, `m:sepChr` and `m:endChr` up in its `T`
+        // table (`get_val(…, store=T)`) before `escape_latex`.
+        let d = |pr: &str| {
+            latex(&format!(
+                r#"<r xmlns:m="m"><m:oMath><m:d><m:dPr>{pr}</m:dPr><m:e><m:r><m:t>a</m:t></m:r></m:e><m:e><m:r><m:t>b</m:t></m:r></m:e></m:d></m:oMath></r>"#
+            ))
+        };
+        let arrow = r#"<m:sepChr m:val="&#8594;"/>"#;
+        assert_eq!(d(arrow), r"\left(a\rightarrow b\right)");
+        let arrows =
+            r#"<m:begChr m:val="&#8593;"/><m:sepChr m:val="&#8739;"/><m:endChr m:val="&#8593;"/>"#;
+        assert_eq!(d(arrows), r"\left\uparrow a∣b\right\uparrow");
+    }
+
+    #[test]
+    fn t_table_typos_are_fixed() {
+        // docling's `T` has `\downright` for `↓` and `\theta`, `\m`, `\n`,
+        // `\ta` for math-italic δ, μ, ν, τ: none is the character's macro.
+        let sep = |c: &str| {
+            latex(&format!(
+                r#"<r xmlns:m="m"><m:oMath><m:d><m:dPr><m:sepChr m:val="{c}"/></m:dPr><m:e><m:r><m:t>a</m:t></m:r></m:e><m:e><m:r><m:t>b</m:t></m:r></m:e></m:d></m:oMath></r>"#
+            ))
+        };
+        assert_eq!(sep("&#8595;"), r"\left(a\downarrow b\right)");
+        assert_eq!(sep("&#120575;"), r"\left(a\delta b\right)");
+        assert_eq!(sep("&#120583;"), r"\left(a\mu b\right)");
+        assert_eq!(sep("&#120584;"), r"\left(a\nu b\right)");
+        assert_eq!(sep("&#120591;"), r"\left(a\tau b\right)");
     }
 
     fn acc(chr: &str, base: &str) -> String {
