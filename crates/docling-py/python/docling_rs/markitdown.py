@@ -325,6 +325,32 @@ def _cfb_names(data: bytes) -> Iterable[str]:
             yield name
 
 
+def _ooxml_main_part(zf: zipfile.ZipFile, names: set) -> Optional[str]:
+    """The target of ``_rels/.rels``'s ``officeDocument`` relationship, as a
+    package path, when that member exists (#1236 — OPC names the main part
+    by relationship, not by a fixed name)."""
+    if "_rels/.rels" not in names:
+        return None
+    import xml.etree.ElementTree as ET
+
+    try:
+        root = ET.fromstring(zf.read("_rels/.rels")[: 1 << 20])
+    except (ET.ParseError, KeyError, zipfile.BadZipFile):
+        return None
+    for rel in root.iter():
+        if rel.tag.endswith("Relationship") and rel.get("Type", "").endswith("/officeDocument"):
+            parts = []
+            for seg in rel.get("Target", "").split("/"):
+                if seg == "..":
+                    if parts:
+                        parts.pop()
+                elif seg not in ("", "."):
+                    parts.append(seg)
+            target = "/".join(parts)
+            return target if target in names else None
+    return None
+
+
 def sniff_extension(data: bytes) -> Optional[str]:
     """The extension a buffer's content says it is, or ``None`` — the
     no-hint path of ``convert_stream`` (MarkItDown asks magika; this reads
@@ -350,6 +376,14 @@ def sniff_extension(data: bytes) -> Optional[str]:
                     return ".xlsx"
                 if "xl/workbook.bin" in names:
                     return ".xlsb"
+                # An OOXML main part under another name (#1236:
+                # `word/document2.xml`): the root relationships name it.
+                main = _ooxml_main_part(zf, names)
+                if main:
+                    top = main.split("/", 1)[0]
+                    ext = {"word": ".docx", "ppt": ".pptx", "xl": ".xlsx"}.get(top)
+                    if ext:
+                        return ext
         except zipfile.BadZipFile:
             return None
         return ".zip"
