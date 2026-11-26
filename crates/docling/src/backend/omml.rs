@@ -197,15 +197,29 @@ fn do_bar(e: XmlNode) -> String {
     p.text + &apply_pct(tmpl, &inner)
 }
 
+/// A group character: docling's `CHR` table, the underbrace when `m:chr` is
+/// absent. docling returns an unknown character alone, dropping the base
+/// (Word's "arrow over text", `→` with `pos="top"`); here it goes above the
+/// base when `m:pos` is `top`, below it otherwise (the schema's default
+/// `bot`), as an unknown accent does.
 fn do_groupchr(e: XmlNode) -> String {
     let p = pr(e, "groupChrPr");
     let inner = child(e, "e").unwrap_or_default();
-    let tmpl = p
-        .chr
-        .as_deref()
-        .and_then(accent_latex)
-        .unwrap_or("\\underbrace{%s}");
-    p.text.clone() + &apply_pct(tmpl, &inner)
+    let body = match p.chr.as_deref() {
+        None => apply_pct("\\underbrace{%s}", &inner),
+        Some(c) => match accent_latex(c) {
+            Some(tmpl) => apply_pct(tmpl, &inner),
+            None => {
+                let place = if p.pos.as_deref() == Some("top") {
+                    "over"
+                } else {
+                    "under"
+                };
+                format!("\\{place}set{{{}}}{{{inner}}}", escape_latex(c))
+            }
+        },
+    };
+    p.text + &body
 }
 
 /// An n-ary operator. Without `m:chr` — or without `m:naryPr` at all, which the
@@ -499,7 +513,8 @@ fn accent_latex(chr: &str) -> Option<&'static str> {
         "\u{20e8}" => "\\threeunderdot{%s}",
         "\u{20ec}" => "\\underrightharpoondown{%s}",
         "\u{20ed}" => "\\underleftharpoondown{%s}",
-        "\u{20ee}" => "\\underledtarrow{%s}",
+        // docling: `\underledtarrow`, a typo.
+        "\u{20ee}" => "\\underleftarrow{%s}",
         "\u{20ef}" => "\\underrightarrow{%s}",
         "\u{23b4}" => "\\overbracket{%s}",
         "\u{23dc}" => "\\overparen{%s}",
@@ -665,5 +680,39 @@ mod tests {
         assert_eq!(func("ker"), r"\ker(x)");
         assert_eq!(func("Pr"), r"\Pr(x)");
         assert_eq!(func("mod"), r"\mod x");
+    }
+
+    #[test]
+    fn combining_left_arrow_below_is_underleftarrow() {
+        // docling's CHR has the typo `\underledtarrow` for U+20EE.
+        let xml = r#"<r xmlns:m="m"><m:oMath><m:acc><m:accPr><m:chr m:val="&#8430;"/></m:accPr><m:e><m:r><m:t>x</m:t></m:r></m:e></m:acc></m:oMath></r>"#;
+        assert_eq!(latex(xml), r"\underleftarrow{x}");
+    }
+
+    #[test]
+    fn unknown_group_character_sits_over_or_under_its_base() {
+        // Word's "arrow over text" is a `m:groupChr` with `→` and `pos="top"`:
+        // the arrow goes above the base (docling keeps the arrow alone and
+        // drops the base), below it when `m:pos` is `bot` or absent (the
+        // schema's default); a character of the table keeps its macro.
+        let g = |pr: &str| {
+            latex(&format!(
+                r#"<r xmlns:m="m"><m:oMath><m:groupChr><m:groupChrPr>{pr}</m:groupChrPr><m:e><m:r><m:t>x</m:t></m:r></m:e></m:groupChr></m:oMath></r>"#
+            ))
+        };
+        assert_eq!(
+            g(r#"<m:chr m:val="&#8594;"/><m:pos m:val="top"/>"#),
+            r"\overset{→}{x}"
+        );
+        assert_eq!(
+            g(r#"<m:chr m:val="&#8594;"/><m:pos m:val="bot"/>"#),
+            r"\underset{→}{x}"
+        );
+        assert_eq!(g(r#"<m:chr m:val="&#8592;"/>"#), r"\underset{←}{x}");
+        assert_eq!(
+            g(r#"<m:chr m:val="&#9182;"/><m:pos m:val="top"/>"#),
+            r"\overbrace{x}"
+        );
+        assert_eq!(g(""), r"\underbrace{x}");
     }
 }
