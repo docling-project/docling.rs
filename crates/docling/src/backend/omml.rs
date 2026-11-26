@@ -171,11 +171,19 @@ fn do_fname(e: XmlNode) -> String {
     }
 }
 
+/// An accent: docling's `CHR` table, the circumflex when `m:chr` is absent
+/// (ECMA-376's default). docling returns an unknown character alone, dropping
+/// the base; here it stays above the base instead (`\overset`).
 fn do_acc(e: XmlNode) -> String {
     let p = pr(e, "accPr");
     let inner = child(e, "e").unwrap_or_default();
-    let tmpl = accent_latex(p.chr.as_deref()).unwrap_or("\\hat{%s}");
-    apply_pct(tmpl, &inner)
+    match p.chr.as_deref() {
+        None => apply_pct("\\hat{%s}", &inner),
+        Some(c) => match accent_latex(c) {
+            Some(tmpl) => apply_pct(tmpl, &inner),
+            None => format!("\\overset{{{}}}{{{inner}}}", escape_latex(c)),
+        },
+    }
 }
 
 fn do_bar(e: XmlNode) -> String {
@@ -192,21 +200,26 @@ fn do_bar(e: XmlNode) -> String {
 fn do_groupchr(e: XmlNode) -> String {
     let p = pr(e, "groupChrPr");
     let inner = child(e, "e").unwrap_or_default();
-    let tmpl = accent_latex(p.chr.as_deref()).unwrap_or("\\underbrace{%s}");
+    let tmpl = p
+        .chr
+        .as_deref()
+        .and_then(accent_latex)
+        .unwrap_or("\\underbrace{%s}");
     p.text.clone() + &apply_pct(tmpl, &inner)
 }
 
+/// An n-ary operator. Without `m:chr` — or without `m:naryPr` at all, which the
+/// schema allows (docling#5470) — it is an integral; an operator outside the
+/// table is kept as written (docling's `get_val`), never made an integral.
 fn do_nary(e: XmlNode) -> String {
-    let mut op = String::new();
-    let mut rest = String::new();
-    for c in elems(e) {
-        if local(c) == "naryPr" {
-            let p = pr(e, "naryPr");
-            op = big_op(p.chr.as_deref()).unwrap_or("\\int").to_string();
-        } else {
-            rest.push_str(&dispatch(c));
-        }
-    }
+    let op = match pr(e, "naryPr").chr {
+        None => "\\int".to_string(),
+        Some(c) => big_op(&c).map_or(c, str::to_string),
+    };
+    let rest: String = elems(e)
+        .filter(|c| local(*c) != "naryPr")
+        .map(dispatch)
+        .collect();
     op + &rest
 }
 
@@ -409,62 +422,132 @@ fn escape_latex(s: &str) -> String {
     out
 }
 
-/// Function-name (`<m:r>` inside `<m:fName>`) → LaTeX template with `{fe}` slot.
+/// Function-name (`<m:r>` inside `<m:fName>`) → LaTeX template with `{fe}`
+/// slot: docling's `FUNC`.
 fn func_latex(name: &str) -> Option<&'static str> {
     Some(match name {
         "sin" => "\\sin({fe})",
         "cos" => "\\cos({fe})",
         "tan" => "\\tan({fe})",
+        "arcsin" => "\\arcsin({fe})",
+        "arccos" => "\\arccos({fe})",
+        "arctan" => "\\arctan({fe})",
+        "arccot" => "\\arccot({fe})",
         "sinh" => "\\sinh({fe})",
         "cosh" => "\\cosh({fe})",
         "tanh" => "\\tanh({fe})",
+        "coth" => "\\coth({fe})",
         "sec" => "\\sec({fe})",
         "csc" => "\\csc({fe})",
+        "mod" => "\\mod {fe}",
+        "max" => "\\max({fe})",
+        "min" => "\\min({fe})",
         "log" => "\\log({fe})",
         "ln" => "\\ln({fe})",
         "exp" => "\\exp({fe})",
-        "max" => "\\max({fe})",
-        "min" => "\\min({fe})",
         "det" => "\\det({fe})",
+        "gcd" => "\\gcd({fe})",
+        "deg" => "\\deg({fe})",
+        "hom" => "\\hom({fe})",
+        "ker" => "\\ker({fe})",
+        "dim" => "\\dim({fe})",
+        "arg" => "\\arg({fe})",
+        "inf" => "\\inf({fe})",
+        "sup" => "\\sup({fe})",
         "lim" => "\\lim({fe})",
+        "Pr" => "\\Pr({fe})",
         _ => return None,
     })
 }
 
-fn accent_latex(chr: Option<&str>) -> Option<&'static str> {
-    match chr? {
-        "\u{0300}" => Some("\\grave{%s}"),
-        "\u{0301}" => Some("\\acute{%s}"),
-        "\u{0302}" => Some("\\hat{%s}"),
-        "\u{0303}" => Some("\\tilde{%s}"),
-        "\u{0304}" => Some("\\bar{%s}"),
-        "\u{20d7}" => Some("\\vec{%s}"),
-        "\u{23de}" => Some("\\overbrace{%s}"),
-        "\u{23df}" => Some("\\underbrace{%s}"),
-        _ => None,
-    }
+/// Accent / group character → LaTeX template: docling's `CHR` (top accents,
+/// bottom accents, over/under groups), then the spacing forms of the common
+/// accents, which other writers than Word put in `m:chr` (pandoc writes
+/// U+203E for `\bar`) and docling does not know.
+fn accent_latex(chr: &str) -> Option<&'static str> {
+    Some(match chr {
+        "\u{0300}" => "\\grave{%s}",
+        "\u{0301}" => "\\acute{%s}",
+        "\u{0302}" => "\\hat{%s}",
+        "\u{0303}" => "\\tilde{%s}",
+        "\u{0304}" => "\\bar{%s}",
+        "\u{0305}" => "\\overbar{%s}",
+        "\u{0306}" => "\\breve{%s}",
+        "\u{0307}" => "\\dot{%s}",
+        "\u{0308}" => "\\ddot{%s}",
+        "\u{0309}" => "\\ovhook{%s}",
+        "\u{030a}" => "\\ocirc{%s}",
+        "\u{030c}" => "\\check{%s}",
+        "\u{0310}" => "\\candra{%s}",
+        "\u{0312}" => "\\oturnedcomma{%s}",
+        "\u{0315}" => "\\ocommatopright{%s}",
+        "\u{031a}" => "\\droang{%s}",
+        "\u{0338}" => "\\not{%s}",
+        "\u{20d0}" => "\\leftharpoonaccent{%s}",
+        "\u{20d1}" => "\\rightharpoonaccent{%s}",
+        "\u{20d2}" => "\\vertoverlay{%s}",
+        "\u{20d6}" => "\\overleftarrow{%s}",
+        "\u{20d7}" => "\\vec{%s}",
+        "\u{20db}" => "\\dddot{%s}",
+        "\u{20dc}" => "\\ddddot{%s}",
+        "\u{20e1}" => "\\overleftrightarrow{%s}",
+        "\u{20e7}" => "\\annuity{%s}",
+        "\u{20e9}" => "\\widebridgeabove{%s}",
+        "\u{20f0}" => "\\asteraccent{%s}",
+        "\u{0330}" => "\\wideutilde{%s}",
+        "\u{0331}" => "\\underbar{%s}",
+        "\u{20e8}" => "\\threeunderdot{%s}",
+        "\u{20ec}" => "\\underrightharpoondown{%s}",
+        "\u{20ed}" => "\\underleftharpoondown{%s}",
+        "\u{20ee}" => "\\underledtarrow{%s}",
+        "\u{20ef}" => "\\underrightarrow{%s}",
+        "\u{23b4}" => "\\overbracket{%s}",
+        "\u{23dc}" => "\\overparen{%s}",
+        "\u{23de}" => "\\overbrace{%s}",
+        "\u{23b5}" => "\\underbracket{%s}",
+        "\u{23dd}" => "\\underparen{%s}",
+        "\u{23df}" => "\\underbrace{%s}",
+        // Spacing forms (not in docling's table).
+        "\u{0060}" => "\\grave{%s}",
+        "\u{00b4}" => "\\acute{%s}",
+        "\u{02c6}" => "\\hat{%s}",
+        "\u{02dc}" => "\\tilde{%s}",
+        "\u{00af}" => "\\bar{%s}",
+        "\u{203e}" => "\\bar{%s}",
+        "\u{02d8}" => "\\breve{%s}",
+        "\u{02d9}" => "\\dot{%s}",
+        "\u{00a8}" => "\\ddot{%s}",
+        "\u{02c7}" => "\\check{%s}",
+        _ => return None,
+    })
 }
 
-fn big_op(chr: Option<&str>) -> Option<&'static str> {
-    match chr {
-        None => None,
-        Some(c) => Some(match c {
-            "\u{220f}" => "\\prod",
-            "\u{2210}" => "\\coprod",
-            "\u{2211}" => "\\sum",
-            "\u{222b}" => "\\int",
-            "\u{222c}" => "\\iint",
-            "\u{222d}" => "\\iiint",
-            "\u{222e}" => "\\oint",
-            "\u{222f}" => "\\oiint",
-            "\u{2230}" => "\\oiiint",
-            "\u{22c0}" => "\\bigwedge",
-            "\u{22c1}" => "\\bigvee",
-            "\u{22c2}" => "\\bigcap",
-            "\u{22c3}" => "\\bigcup",
-            _ => return None,
-        }),
-    }
+/// N-ary operator character → LaTeX: docling's `CHR_BO`, plus two operators
+/// Word's equation gallery also offers that it lacks.
+fn big_op(chr: &str) -> Option<&'static str> {
+    Some(match chr {
+        "\u{2140}" => "\\Bbbsum",
+        "\u{220f}" => "\\prod",
+        "\u{2210}" => "\\coprod",
+        "\u{2211}" => "\\sum",
+        "\u{222b}" => "\\int",
+        "\u{222c}" => "\\iint",
+        "\u{222d}" => "\\iiint",
+        "\u{222e}" => "\\oint",
+        "\u{222f}" => "\\oiint",
+        "\u{2230}" => "\\oiiint",
+        "\u{22c0}" => "\\bigwedge",
+        "\u{22c1}" => "\\bigvee",
+        "\u{22c2}" => "\\bigcap",
+        "\u{22c3}" => "\\bigcup",
+        "\u{2a00}" => "\\bigodot",
+        "\u{2a01}" => "\\bigoplus",
+        "\u{2a02}" => "\\bigotimes",
+        // Not in docling's table.
+        "\u{2a04}" => "\\biguplus",
+        "\u{2a06}" => "\\bigsqcup",
+        _ => return None,
+    })
 }
 
 /// Delimiter char via the Greek math-italic table, else the char itself.
@@ -503,5 +586,84 @@ mod tests {
         // leaves a double space where two padded symbols meet.
         let xml = r#"<r xmlns:m="m"><m:oMath><m:r><m:t>&#8734;&#60;x</m:t></m:r></m:oMath></r>"#;
         assert_eq!(latex(xml), r"\infty  < x");
+    }
+
+    fn acc(chr: &str, base: &str) -> String {
+        latex(&format!(
+            r#"<r xmlns:m="m"><m:oMath><m:acc><m:accPr><m:chr m:val="{chr}"/></m:accPr><m:e><m:r><m:t>{base}</m:t></m:r></m:e></m:acc></m:oMath></r>"#
+        ))
+    }
+
+    fn nary(chr: &str) -> String {
+        latex(&format!(
+            r#"<r xmlns:m="m"><m:oMath><m:nary><m:naryPr><m:chr m:val="{chr}"/></m:naryPr><m:sub><m:r><m:t>i</m:t></m:r></m:sub><m:sup><m:r><m:t>n</m:t></m:r></m:sup><m:e><m:r><m:t>A</m:t></m:r></m:e></m:nary></m:oMath></r>"#
+        ))
+    }
+
+    fn func(name: &str) -> String {
+        latex(&format!(
+            r#"<r xmlns:m="m"><m:oMath><m:func><m:fName><m:r><m:t>{name}</m:t></m:r></m:fName><m:e><m:r><m:t>x</m:t></m:r></m:e></m:func></m:oMath></r>"#
+        ))
+    }
+
+    #[test]
+    fn accents_follow_docling_table() {
+        // docling's `CHR`: a dot accent is not a hat.
+        assert_eq!(acc("&#x307;", "x"), r"\dot{x}");
+        assert_eq!(acc("&#x308;", "x"), r"\ddot{x}");
+        assert_eq!(acc("&#x306;", "x"), r"\breve{x}");
+        assert_eq!(acc("&#x30C;", "x"), r"\check{x}");
+        assert_eq!(acc("&#x20D6;", "AB"), r"\overleftarrow{AB}");
+        assert_eq!(acc("&#x20E1;", "AB"), r"\overleftrightarrow{AB}");
+        // No `m:chr`: the circumflex, ECMA-376's default accent.
+        assert_eq!(
+            latex(
+                r#"<r xmlns:m="m"><m:oMath><m:acc><m:e><m:r><m:t>x</m:t></m:r></m:e></m:acc></m:oMath></r>"#
+            ),
+            r"\hat{x}"
+        );
+    }
+
+    #[test]
+    fn spacing_accent_characters_are_accents() {
+        // Writers other than Word put the spacing form of an accent in
+        // `m:chr` (pandoc's `\bar` is U+203E); docling drops the base for them.
+        assert_eq!(acc("&#x203E;", "x"), r"\bar{x}");
+        assert_eq!(acc("&#xAF;", "x"), r"\bar{x}");
+        assert_eq!(acc("&#x2C6;", "x"), r"\hat{x}");
+        assert_eq!(acc("&#x2DC;", "x"), r"\tilde{x}");
+        assert_eq!(acc("&#x2D9;", "x"), r"\dot{x}");
+        assert_eq!(acc("&#xA8;", "x"), r"\ddot{x}");
+        // Any other character still sits above its base.
+        assert_eq!(acc("&#x2605;", "x"), "\\overset{\u{2605}}{x}");
+    }
+
+    #[test]
+    fn n_ary_operators_follow_docling_table() {
+        assert_eq!(nary("&#x2A01;"), r"\bigoplus_{i}^{n}A");
+        assert_eq!(nary("&#x2A02;"), r"\bigotimes_{i}^{n}A");
+        assert_eq!(nary("&#x2140;"), r"\Bbbsum_{i}^{n}A");
+        // Word's gallery also has these two.
+        assert_eq!(nary("&#x2A04;"), r"\biguplus_{i}^{n}A");
+        assert_eq!(nary("&#x2A06;"), r"\bigsqcup_{i}^{n}A");
+        // An operator outside the table is kept, never turned into `\int`.
+        assert_eq!(nary("&#x2AFF;"), "\u{2aff}_{i}^{n}A");
+        // No `m:naryPr` (the schema allows it): an integral, not a bare `_{0}^{1}`.
+        assert_eq!(
+            latex(
+                r#"<r xmlns:m="m"><m:oMath><m:nary><m:sub><m:r><m:t>0</m:t></m:r></m:sub><m:sup><m:r><m:t>1</m:t></m:r></m:sup><m:e><m:r><m:t>x</m:t></m:r></m:e></m:nary></m:oMath></r>"#
+            ),
+            r"\int_{0}^{1}x"
+        );
+    }
+
+    #[test]
+    fn function_names_follow_docling_table() {
+        assert_eq!(func("arcsin"), r"\arcsin(x)");
+        assert_eq!(func("coth"), r"\coth(x)");
+        assert_eq!(func("gcd"), r"\gcd(x)");
+        assert_eq!(func("ker"), r"\ker(x)");
+        assert_eq!(func("Pr"), r"\Pr(x)");
+        assert_eq!(func("mod"), r"\mod x");
     }
 }
