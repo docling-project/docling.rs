@@ -720,6 +720,8 @@ converted once more as that format with a warning.
   - Unset is docling's reading, unchanged (every row kept)
   - Not read: paragraph-mark revisions, property changes, cell revisions — see `docs/OPTIONS.md`
 - docling#5453 (merged 2026-11-24): an OMML delimiter (`m:d`) keeps every element, joined by its `m:sepChr` (`|` when absent) — `(a|b)`, `⟨u|v⟩`, `{x | x > 0}` used to keep only the first element
+  - the delimiter's `m:begChr`, `m:sepChr` and `m:endChr` go through docling's `T` table before `escape_latex`, as its `get_val(…, store=T)` does (math-italic letters, arrows, relations: a `→` separator is `\rightarrow`); the table was never ported, so they stayed raw
+  - a deliberate divergence: five `T` entries are fixed where docling's is not the character's macro — `↓` is `\downarrow` (docling: `\downright`), math-italic `𝛿` `𝜇` `𝜈` `𝜏` are `\delta` `\mu` `\nu` `\tau` (docling: `\theta`, `\m`, `\n`, `\ta`)
 
 #### DOC (Word 97–2004)
 
