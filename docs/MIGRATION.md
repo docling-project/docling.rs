@@ -719,6 +719,7 @@ converted once more as that format with a warning.
   - under `all` a run keeps its typed revision (`TreeItem::revision`: kind, `w:author`, `w:date`) for the Pandoc AST and the Markdown strikes a deletion through
   - Unset is docling's reading, unchanged (every row kept)
   - Not read: paragraph-mark revisions, property changes, cell revisions — see `docs/OPTIONS.md`
+- docling#5453 (merged 2026-11-24): an OMML delimiter (`m:d`) keeps every element, joined by its `m:sepChr` (`|` when absent) — `(a|b)`, `⟨u|v⟩`, `{x | x > 0}` used to keep only the first element
 
 #### DOC (Word 97–2004)
 

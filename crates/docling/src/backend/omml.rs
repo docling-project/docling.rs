@@ -82,6 +82,7 @@ struct Pr {
     pos: Option<String>,
     beg: Option<String>,
     end: Option<String>,
+    sep: Option<String>,
     typ: Option<String>,
     text: String,
 }
@@ -101,6 +102,7 @@ fn pr(n: XmlNode, tag: &str) -> Pr {
             "pos" => p.pos = val,
             "begChr" => p.beg = val,
             "endChr" => p.end = val,
+            "sepChr" => p.sep = val,
             "type" => p.typ = val,
             "brk" => p.text.push_str("\\\\"),
             _ => p.text.push_str(&dispatch(c)),
@@ -122,9 +124,17 @@ fn do_f(e: XmlNode) -> String {
     p.text + &body
 }
 
+/// A delimiter: its elements (one `<m:e>` each) joined by `m:sepChr` — `|`
+/// when absent (ECMA-376 Part 1, `sepChr`), nothing when empty — as docling's `do_d`
+/// does: `(a|b)`, `{x | x > 0}`, `⟨u|v⟩`.
 fn do_d(e: XmlNode) -> String {
     let p = pr(e, "dPr");
-    let inner = child(e, "e").unwrap_or_default();
+    let sep = escape_latex(p.sep.as_deref().unwrap_or("|"));
+    let inner = elems(e)
+        .filter(|c| local(*c) == "e")
+        .map(process_children)
+        .collect::<Vec<_>>()
+        .join(&sep);
     let left = greek_or(p.beg.as_deref(), "(");
     let right = greek_or(p.end.as_deref(), ")");
     let left = if left.is_empty() {
@@ -503,5 +513,28 @@ mod tests {
         // leaves a double space where two padded symbols meet.
         let xml = r#"<r xmlns:m="m"><m:oMath><m:r><m:t>&#8734;&#60;x</m:t></m:r></m:oMath></r>"#;
         assert_eq!(latex(xml), r"\infty  < x");
+    }
+
+    #[test]
+    fn delimiter_keeps_every_element_and_its_separator() {
+        // `<m:d>` holds one `<m:e>` per element; `m:sepChr` (`|` when absent,
+        // ECMA-376 Part 1) goes between them, as in docling's `do_d`.
+        let d = |pr: &str, es: &[&str]| {
+            let es: String = es
+                .iter()
+                .map(|t| format!("<m:e><m:r><m:t>{t}</m:t></m:r></m:e>"))
+                .collect();
+            latex(&format!(
+                r#"<r xmlns:m="m"><m:oMath><m:d>{pr}{es}</m:d></m:oMath></r>"#
+            ))
+        };
+        assert_eq!(d("", &["a", "b", "c"]), r"\left(a|b|c\right)");
+        let comma = r#"<m:dPr><m:sepChr m:val=","/></m:dPr>"#;
+        assert_eq!(d(comma, &["a", "b"]), r"\left(a,b\right)");
+        let none = r#"<m:dPr><m:sepChr m:val=""/></m:dPr>"#;
+        assert_eq!(d(none, &["a", "b"]), r"\left(ab\right)");
+        let set =
+            r#"<m:dPr><m:begChr m:val="{"/><m:sepChr m:val="&amp;"/><m:endChr m:val="}"/></m:dPr>"#;
+        assert_eq!(d(set, &["x", "y"]), r"\left\{x\&y\right\}");
     }
 }
