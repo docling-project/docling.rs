@@ -477,7 +477,8 @@ export function createOcr({ onStatus }) {
   // A digital PDF (one with a text layer): the text comes out of the file, so
   // this is both much faster and exact. The recognition model still loads —
   // embedded raster pictures (a terms box exported as an image) carry text the
-  // text layer cannot see, and docling OCRs those areas on every page. Throws
+  // text layer cannot see, and docling OCRs those areas on every page; a page
+  // with no text layer at all is OCR'd whole, as a scanned one. Throws
   // when there is no text layer — the host then falls back to startDoc.
   // Returns the page count, since the parser already knows it.
   async function startDigital(bytes, useTf, lang) {
@@ -486,6 +487,10 @@ export function createOcr({ onStatus }) {
     const conv = new DigitalConverter(new Uint8Array(bytes));
     const { dict, rec } = await recFor(lang || "en");
     conv.setDict(dict);
+    // A page without a text layer (a scan bound after typed pages) is OCR'd
+    // like a scanned one, with the detector when it has arrived.
+    const detector = await detectorSoon(DET_WAIT_MS);
+    if (detector) conv.setDetector(detector);
     const tfSess = useTf ? await ensureTf() : null;
     cur = { conv, rec, tf: tfSess, digital: true };
     return conv.page_count();
