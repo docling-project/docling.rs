@@ -719,6 +719,9 @@ converted once more as that format with a warning.
   - under `all` a run keeps its typed revision (`TreeItem::revision`: kind, `w:author`, `w:date`) for the Pandoc AST and the Markdown strikes a deletion through
   - Unset is docling's reading, unchanged (every row kept)
   - Not read: paragraph-mark revisions, property changes, cell revisions — see `docs/OPTIONS.md`
+- OMML → LaTeX (`omml.rs`): each character of a math run is mapped as docling's `process_unicode` maps it, from a table dumped from docling on pylatexenc 2.11 (`scripts/dev/gen_omml_unicode.py` → `omml_unicode.rs`, 1000 entries) over ASCII, the Latin-1 symbols, Greek, punctuation, letterlike symbols, arrows, the mathematical operators and technical symbols, and the mathematical alphanumerics — it used to cover the dozen symbols the corpus has, so `∈`, `≥`, `∂`, `α` stayed raw and a typed `A\B` became the control sequence `\B`
+  - a deliberate divergence: docling unwraps pylatexenc's `\ensuremath{…}` by deleting every `}`, so a macro with an argument comes out unbalanced (`ℝ` → `\mathbb{R`, `𝐀` → `\mathbf{A`, `√` → `\sqrt{`); the table keeps that macro's braces (480 of its entries; every other entry is docling's string byte for byte)
+  - accented letters stay as typed: pylatexenc's text accents (`é` → `\'e`) are errors in math mode
 
 #### DOC (Word 97–2004)
 

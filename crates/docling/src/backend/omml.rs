@@ -3,11 +3,13 @@
 //! converted to a LaTeX string; the DOCX backend then wraps it in `$…$` (inline)
 //! or `$$…$$` (a standalone formula).
 //!
-//! `process_unicode` upstream defers arbitrary characters to `pylatexenc`; here
-//! the (small, fixed) set of symbols the corpus uses is hard-coded with the exact
-//! strings pylatexenc produces.
+//! `process_unicode` upstream defers every character to `pylatexenc`; here its
+//! results are a generated table ([`UNICODE_LATEX`], `scripts/dev/gen_omml_unicode.py`)
+//! over the blocks formulas draw from.
 
 use roxmltree::Node as XmlNode;
+
+use super::omml_unicode::UNICODE_LATEX;
 
 /// Characters LaTeX-escaped by `escape_latex`.
 const ESCAPE_CHARS: &[char] = &['{', '}', '_', '^', '#', '&', '$', '%', '~'];
@@ -369,30 +371,18 @@ fn do_r(e: XmlNode) -> String {
     proc
 }
 
-/// Per-character Unicode → LaTeX for the symbols the corpus uses — the exact
-/// strings docling's `process_unicode` returns (`_MATH_CHAR_MAP` first, else
-/// pylatexenc's `\ensuremath{…}`/`{…}` unwrapped to a **two-space**-padded macro;
-/// the two-space padding is load-bearing, see [`to_latex`]).
+/// Per-character Unicode → LaTeX: the strings docling's `process_unicode`
+/// returns (`_MATH_CHAR_MAP` first, else pylatexenc's `\ensuremath{…}`/`{…}`
+/// unwrapped to a **two-space**-padded macro; the two-space padding is
+/// load-bearing, see [`to_latex`]), generated into [`UNICODE_LATEX`]. One
+/// deliberate difference: docling drops *every* `}` when it unwraps
+/// `\ensuremath{…}`, which leaves a macro with an argument unbalanced
+/// (`ℝ` → `\mathbb{R`); the table keeps that macro's braces (`\mathbb{R}`).
+/// A character outside the table is kept as typed.
 fn process_unicode(c: char) -> String {
-    match c {
-        // _MATH_CHAR_MAP (returned verbatim, no padding).
-        '\u{2013}' | '\u{2014}' | '\u{2212}' => "-".to_string(),
-        '\u{005e}' => "^".to_string(),
-        '\u{00d7}' => "\\times ".to_string(),
-        // pylatexenc `\ensuremath{…}` → two-space-padded macro.
-        '\u{00b1}' => "  \\pm  ".to_string(),
-        '\u{03c0}' => "  \\pi  ".to_string(),
-        '\u{03c4}' => "  \\tau  ".to_string(),
-        '\u{03f5}' => "  \\epsilon  ".to_string(),
-        '\u{221e}' => "  \\infty  ".to_string(),
-        '\u{2229}' => "  \\cap  ".to_string(),
-        '\u{2264}' => "  \\leq  ".to_string(),
-        '\u{22c5}' => "  \\cdot  ".to_string(),
-        '\u{003c}' => "  <  ".to_string(),
-        // `{\textellipsis}` → one-space-padded `\text{ … }`.
-        '\u{2026}' => " \\text{ \\textellipsis } ".to_string(),
-        other => other.to_string(),
-    }
+    UNICODE_LATEX
+        .binary_search_by_key(&c, |&(k, _)| k)
+        .map_or_else(|_| c.to_string(), |i| UNICODE_LATEX[i].1.to_string())
 }
 
 fn escape_latex(s: &str) -> String {
@@ -503,5 +493,35 @@ mod tests {
         // leaves a double space where two padded symbols meet.
         let xml = r#"<r xmlns:m="m"><m:oMath><m:r><m:t>&#8734;&#60;x</m:t></m:r></m:oMath></r>"#;
         assert_eq!(latex(xml), r"\infty  < x");
+    }
+
+    #[test]
+    fn math_symbols_map_like_docling() {
+        // docling maps every character of a run through pylatexenc; these are
+        // its strings (relations, operators, arrows, Greek), not just the few
+        // the corpus happens to use.
+        let xml = r#"<r xmlns:m="m"><m:oMath><m:r><m:t>&#8704;x&#8712;A, x&#8805;0 &#8658; &#8706;f&#8800;0, A&#8746;B&#8838;C, &#945;&#8741;&#946;</m:t></m:r></m:oMath></r>"#;
+        assert_eq!(
+            latex(xml),
+            r"\forall x \in A, x \geq 0  \Rightarrow   \partial f \neq 0, A \cup B \subseteq C,  \alpha  \parallel  \beta"
+        );
+    }
+
+    #[test]
+    fn backslash_and_prime_are_not_raw() {
+        // A literal `\` must not start a control sequence (`A\B` is `\B`), and
+        // `′` is not a LaTeX character: both as docling writes them.
+        let xml = r#"<r xmlns:m="m"><m:oMath><m:r><m:t>A\B</m:t></m:r></m:oMath></r>"#;
+        assert_eq!(latex(xml), r"A \text{ \textbackslash } B");
+        let xml = r#"<r xmlns:m="m"><m:oMath><m:sSup><m:e><m:r><m:t>f</m:t></m:r></m:e><m:sup><m:r><m:t>&#8242;</m:t></m:r></m:sup></m:sSup></m:oMath></r>"#;
+        assert_eq!(latex(xml), r"f^{ ' }");
+    }
+
+    #[test]
+    fn letterlike_and_alphanumeric_macros_keep_their_braces() {
+        // docling strips every `}` when it unwraps `\ensuremath{…}`, which
+        // leaves `\mathbb{R` unbalanced; the macro's own braces are kept here.
+        let xml = r#"<r xmlns:m="m"><m:oMath><m:r><m:t>x&#8712;&#8477;, &#119808;</m:t></m:r></m:oMath></r>"#;
+        assert_eq!(latex(xml), r"x \in  \mathbb{R} ,  \mathbf{A}");
     }
 }
