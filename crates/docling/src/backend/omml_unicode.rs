@@ -3,8 +3,8 @@
 //!
 //! Source: docling's `oMath2Latex.process_unicode` on pylatexenc 2.11,
 //! with the `\ensuremath{…}` wrapper dropped without the braces of the
-//! macro inside it (see the script). Characters that map to themselves
-//! are left out.
+//! macro inside it, `{` and `}` left to `escape_latex` and `√` as `\surd`
+//! (see the script). Characters that map to themselves are left out.
 
 /// `(character, LaTeX)`, sorted by character for binary search.
 pub(super) static UNICODE_LATEX: &[(char, &str)] = &[
@@ -17,8 +17,6 @@ pub(super) static UNICODE_LATEX: &[(char, &str)] = &[
     ('\u{3e}', "  >  "),
     ('\u{5c}', " \\text{ \\textbackslash } "),
     ('\u{5f}', " \\_ "),
-    ('\u{7b}', "{\\{}"),
-    ('\u{7d}', "{\\}}"),
     ('\u{7e}', " \\text{ \\textasciitilde } "),
     ('\u{a0}', " ~ "),
     ('\u{a1}', " \\text{ \\textexclamdown } "),
@@ -288,7 +286,7 @@ pub(super) static UNICODE_LATEX: &[(char, &str)] = &[
     ('\u{2217}', "  *  "),
     ('\u{2218}', "  \\circ  "),
     ('\u{2219}', "  \\bullet  "),
-    ('\u{221a}', "  \\sqrt{}  "),
+    ('\u{221a}', "  \\surd  "),
     ('\u{221b}', "  \\sqrt[3]{}  "),
     ('\u{221c}', "  \\sqrt[4]{}  "),
     ('\u{221d}', "  \\propto  "),

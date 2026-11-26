@@ -374,11 +374,12 @@ fn do_r(e: XmlNode) -> String {
 /// Per-character Unicode → LaTeX: the strings docling's `process_unicode`
 /// returns (`_MATH_CHAR_MAP` first, else pylatexenc's `\ensuremath{…}`/`{…}`
 /// unwrapped to a **two-space**-padded macro; the two-space padding is
-/// load-bearing, see [`to_latex`]), generated into [`UNICODE_LATEX`]. One
-/// deliberate difference: docling drops *every* `}` when it unwraps
-/// `\ensuremath{…}`, which leaves a macro with an argument unbalanced
+/// load-bearing, see [`to_latex`]), generated into [`UNICODE_LATEX`].
+/// Deliberate differences: docling replaces *every* `}` with a space when it
+/// unwraps `\ensuremath{…}`, which leaves a macro with an argument unbalanced
 /// (`ℝ` → `\mathbb{R`); the table keeps that macro's braces (`\mathbb{R}`).
-/// A character outside the table is kept as typed.
+/// `√` is `\surd`, and `{` / `}` are not in the table: [`do_r`] escapes them
+/// with `escape_latex` alone. A character outside the table is kept as typed.
 fn process_unicode(c: char) -> String {
     UNICODE_LATEX
         .binary_search_by_key(&c, |&(k, _)| k)
@@ -519,9 +520,29 @@ mod tests {
 
     #[test]
     fn letterlike_and_alphanumeric_macros_keep_their_braces() {
-        // docling strips every `}` when it unwraps `\ensuremath{…}`, which
-        // leaves `\mathbb{R` unbalanced; the macro's own braces are kept here.
+        // docling replaces every `}` with a space when it unwraps
+        // `\ensuremath{…}`, which leaves `\mathbb{R` unbalanced; the macro's own
+        // braces are kept here.
         let xml = r#"<r xmlns:m="m"><m:oMath><m:r><m:t>x&#8712;&#8477;, &#119808;</m:t></m:r></m:oMath></r>"#;
         assert_eq!(latex(xml), r"x \in  \mathbb{R} ,  \mathbf{A}");
+    }
+
+    #[test]
+    fn literal_braces_are_escaped_once() {
+        // Set braces typed in a run are escaped by `escape_latex`, not mapped
+        // to pylatexenc's `{\{}` (which `do_r`'s brace un-escaping turns into
+        // `\{\{\}…` or an unbalanced `a{\}\}`).
+        let xml = r#"<r xmlns:m="m"><m:oMath><m:r><m:t>{1,2}</m:t></m:r></m:oMath></r>"#;
+        assert_eq!(latex(xml), r"\{1,2\}");
+        let xml = r#"<r xmlns:m="m"><m:oMath><m:r><m:t>a}</m:t></m:r></m:oMath></r>"#;
+        assert_eq!(latex(xml), r"a\}");
+    }
+
+    #[test]
+    fn square_root_sign_is_surd() {
+        // A bare `√` is the radical sign, not an empty `\sqrt{}` before its
+        // operand.
+        let xml = r#"<r xmlns:m="m"><m:oMath><m:r><m:t>&#8730;x</m:t></m:r></m:oMath></r>"#;
+        assert_eq!(latex(xml), r"\surd x");
     }
 }

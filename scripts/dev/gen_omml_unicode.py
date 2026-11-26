@@ -10,13 +10,19 @@ venv — see scripts/conformance/setup-docling.sh)
 
     python scripts/dev/gen_omml_unicode.py > crates/docling/src/backend/omml_unicode.rs
 
-Two deliberate differences from docling's strings, both checked below:
+Deliberate differences from docling's strings, all checked below:
 
 - docling unwraps pylatexenc's `\\ensuremath{…}` with `replace("}", " ")`,
-  which drops *every* closing brace, so a macro with an argument comes out
-  unbalanced (`ℝ` → `\\mathbb{R`, `𝐀` → `\\mathbf{A`). Here only the wrapper's
-  own brace is dropped; every character docling already gets right keeps
-  docling's string byte for byte.
+  which turns *every* closing brace into a space, so a macro with an argument
+  comes out unbalanced (`ℝ` → `\\mathbb{R`, `𝐀` → `\\mathbf{A`). Here only the
+  wrapper's own brace is dropped; every character docling already gets right
+  keeps docling's string byte for byte.
+- `{` and `}` are left out of the table: pylatexenc's `{\\{}` / `{\\}}` go
+  through `do_r`'s brace un-escaping afterwards and come out as `\\{\\{\\}` or an
+  unbalanced `{\\}\\}`, so the Rust port escapes a literal brace with
+  `escape_latex` alone (`\\{`, `\\}`).
+- `√` is `\\surd`, not pylatexenc's `\\sqrt{}`, which renders an empty root
+  before its operand.
 - Only the blocks a formula draws from are covered (ASCII, the Latin-1
   symbols, Greek, punctuation, letterlike, arrows, the mathematical
   operators and technical symbols, the mathematical alphanumerics). Accented
@@ -50,6 +56,12 @@ RANGES = [
 ]
 
 ENSUREMATH = "\\ensuremath{"
+
+# Characters left out of the table: `do_r` escapes them itself.
+SKIP = {"{", "}"}
+
+# Entries replaced outright (the character's padding kept as docling's).
+OVERRIDES = {"\u221a": "  \\surd  "}
 
 
 def balanced(s: str) -> bool:
@@ -128,9 +140,11 @@ def main() -> None:
     for lo, hi in RANGES:
         for cp in range(lo, hi + 1):
             ch = chr(cp)
+            if ch in SKIP:
+                continue
             upstream = conv.process_unicode(ch)
-            ours = process_unicode(conv, ch)
-            if balanced(upstream):
+            ours = OVERRIDES.get(ch) or process_unicode(conv, ch)
+            if balanced(upstream) and ch not in OVERRIDES:
                 # Where docling's string is well-formed it is kept as is.
                 assert ours == upstream, (hex(cp), upstream, ours)
             assert balanced(ours), (hex(cp), ours)
@@ -145,8 +159,8 @@ def main() -> None:
         "//! Source: docling's `oMath2Latex.process_unicode` on pylatexenc "
         f"{importlib.metadata.version('pylatexenc')},\n"
         "//! with the `\\ensuremath{…}` wrapper dropped without the braces of the\n"
-        "//! macro inside it (see the script). Characters that map to themselves\n"
-        "//! are left out.\n"
+        "//! macro inside it, `{` and `}` left to `escape_latex` and `√` as `\\surd`\n"
+        "//! (see the script). Characters that map to themselves are left out.\n"
         "\n"
         "/// `(character, LaTeX)`, sorted by character for binary search.\n"
         "pub(super) static UNICODE_LATEX: &[(char, &str)] = &[\n"
