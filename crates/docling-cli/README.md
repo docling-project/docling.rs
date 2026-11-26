@@ -9,8 +9,13 @@ WebVTT or RAG chunks; `docling-rs serve` is the HTTP API and
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/install/install.sh | bash
-# or: cargo install docling-cli   (models: scripts/install/download_dependencies.sh)
+# or: cargo install --locked docling-cli   (models: scripts/install/download_dependencies.sh)
 ```
+
+Install from crates.io with `--locked`: it builds with the dependency versions
+the release was tested with. Older releases required their sibling crates
+with a caret, so without it they can pick up a newer, incompatible
+`docling-core` and fail to compile.
 
 ## Usage
 
