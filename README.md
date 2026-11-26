@@ -64,7 +64,7 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
 docling-rs example.pdf          # Markdown on stdout
 
 # or from crates.io; --cli puts the models where the installed binary looks
-cargo install docling-cli
+cargo install --locked docling-cli
 curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/scripts/install/download_dependencies.sh | sh -s -- --cli
 
 pip install docling-rs          # Python — drop-in for docling's, MarkItDown's, Marker's and MinerU's APIs
@@ -82,6 +82,17 @@ the ONNX models (layout, OCR, TableFormer, Whisper; under 1 GB): `install.sh`,
 `python -c "import docling_rs; docling_rs.download_models()"` once; with `npm`
 or a checkout, run `download_dependencies.sh` where you convert
 ([details](#getting-the-ml-models)). Windows: [`docs/WINDOWS.md`](./docs/WINDOWS.md).
+
+**Depending on several docling.rs crates.** The crates are released together,
+and each one requires its siblings at the exact same version (`=X.Y.Z`). If
+your `Cargo.toml` lists `docling` and `docling-core` (or `docling-pdf`,
+`docling-asr`, `docling-onnx`), give them all the same version and upgrade them
+together (`cargo update -p docling -p docling-core`): a newer `docling-core`
+alone (`cargo update -p docling-core --precise …`, or a newer version in your
+manifest) fails to resolve. Older releases required their siblings with a
+caret, so an older `docling` can pick up a newer, incompatible `docling-core`
+and stop compiling: install the binaries with `cargo install --locked`, and
+pin `docling-core` to `docling`'s exact version in your own manifest.
 
 **▶ [Try it in your browser](https://docling-project.github.io/docling.rs/)**
 first — the converter as wasm, OCR included; nothing leaves your device.

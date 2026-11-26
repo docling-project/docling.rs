@@ -50,19 +50,19 @@ rabbitmq = ["dep:lapin", "dep:futures-lite", "dep:time"]
 redis = ["dep:redis", "dep:futures-lite"]
 
 [dependencies]
-# `>=` requirements on purpose while this crate rides an open PR: release.sh
-# bumps every sibling's exact pin on master with each release, which would
-# break this branch's merge-ref build. Post-merge, release.sh rewrites these
-# to exact pins automatically (its sed matches any quoted version here).
+# Siblings are pinned to the exact workspace version, like every internal
+# dependency: the crates are released in lockstep and any release may change
+# their API. scripts/ci/sync_internal_versions.sh moves the pins with each
+# release; scripts/ci/test_internal_pins.sh checks them.
 # `chunking` enables the HF-tokenizer-backed HybridChunker (RAG_CHUNKER=hybrid).
-docling = { path = "../docling", version = "2.88.5", features = ["chunking"] }
-docling-core = { path = "../docling-core", version = "2.88.5", default-features = false }
+docling = { path = "../docling", version = "=2.88.5", features = ["chunking"] }
+docling-core = { path = "../docling-core", version = "=2.88.5", default-features = false }
 # Direct dep only for pdfium_backend::page_count (PDF page metrics); already in
 # the graph via docling.rs, so this adds no compile cost.
-docling-pdf = { path = "../docling-pdf", version = "2.88.5" }
+docling-pdf = { path = "../docling-pdf", version = "=2.88.5" }
 # Shared ONNX execution-provider selection - routes the local embedder's 
 # session through the same switch as the rest of the stack.
-docling-onnx = { path = "../docling-onnx", version = "2.88.5" }
+docling-onnx = { path = "../docling-onnx", version = "=2.88.5" }
 # Counting slides/sheets in OOXML containers for page metrics (names only).
 zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
 
