@@ -9,11 +9,25 @@ pub(crate) fn parse_tounicode(data: &[u8]) -> HashMap<u32, String> {
         if !s.starts_with('<') || !s.ends_with('>') {
             return None;
         }
-        let h = &s[1..s.len() - 1];
-        let bytes: Vec<u8> = (0..h.len())
-            .step_by(2)
-            .filter_map(|i| u8::from_str_radix(h.get(i..i + 2)?, 16).ok())
-            .collect();
+        // ISO 32000-1 §7.3.4.3: white space inside a hex string is ignored and
+        // a missing final digit is 0 (#1235). Producers write `< 0061>` or
+        // split a surrogate pair `<D835 DC9A>`; pairing the raw characters
+        // shifted every digit after the space (`< 0061>` → U+0006). Same
+        // nibble reader as the renderer's CMap tokenizer (`render/font/cmap.rs`).
+        let mut bytes = Vec::new();
+        let mut high: Option<u8> = None;
+        for c in s[1..s.len() - 1].bytes() {
+            let Some(v) = (c as char).to_digit(16) else {
+                continue;
+            };
+            match high.take() {
+                None => high = Some(v as u8),
+                Some(h) => bytes.push((h << 4) | v as u8),
+            }
+        }
+        if let Some(h) = high {
+            bytes.push(h << 4);
+        }
         Some(
             bytes
                 .chunks(2)
@@ -130,4 +144,27 @@ pub(crate) fn parse_tounicode(data: &[u8]) -> HashMap<u32, String> {
         }
     }
     map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_tounicode;
+
+    /// #1235: white space inside a destination hex string is skipped
+    /// (ISO 32000-1 §7.3.4.3) — a leading space, a ligature, and a surrogate
+    /// pair split in two — and an odd final digit is padded with 0.
+    #[test]
+    fn tounicode_hex_with_whitespace() {
+        let cmap = b"1 begincodespacerange <00><FF> endcodespacerange\n\
+                     4 beginbfchar\n<61>< 0061>\n<01>< 00660069>\n<02><D835 DC9A>\n\
+                     <03><0\n04 1>\nendbfchar\n\
+                     1 beginbfrange\n<10> <11> < 004 >\nendbfrange\n";
+        let map = parse_tounicode(cmap);
+        assert_eq!(map[&0x61], "a");
+        assert_eq!(map[&0x01], "fi");
+        assert_eq!(map[&0x02], "\u{1D49A}");
+        assert_eq!(map[&0x03], "A");
+        assert_eq!(map[&0x10], "@");
+        assert_eq!(map[&0x11], "A");
+    }
 }
