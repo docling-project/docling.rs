@@ -383,6 +383,54 @@ fn looks_like_html(head: &[u8]) -> bool {
         || lower.starts_with(b"<body")
 }
 
+/// An OOXML package whose main part is not at the conventional name (#1236:
+/// `word/document2.xml`): the format from the main part's content type in
+/// `[Content_Types].xml` — the part `_rels/.rels`'s `officeDocument`
+/// relationship names — or, without one, from its top directory.
+fn ooxml_main_part_kind<R: Read + std::io::Seek>(
+    zip: &mut zip::ZipArchive<R>,
+) -> Option<InputFormat> {
+    use crate::backend::ooxml;
+    let mut read = |name: &str| -> Option<String> {
+        let mut text = String::new();
+        // Both parts are small; the cap keeps a crafted one from inflating.
+        zip.by_name(name)
+            .ok()?
+            .take(1 << 20)
+            .read_to_string(&mut text)
+            .ok()?;
+        Some(text)
+    };
+    let main = ooxml::main_part_target(&read("_rels/.rels")?)?;
+    let content_type = read("[Content_Types].xml")
+        .and_then(|types| ooxml::content_type(&types, &main))
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    // A relationship to a part the package lacks types nothing.
+    if !zip.file_names().flatten().any(|n| n == main) {
+        return None;
+    }
+    let by_type = [
+        ("wordprocessingml", InputFormat::Docx),
+        ("ms-word.", InputFormat::Docx),
+        ("spreadsheetml", InputFormat::Xlsx),
+        ("ms-excel.", InputFormat::Xlsx),
+        ("presentationml", InputFormat::Pptx),
+        ("ms-powerpoint.", InputFormat::Pptx),
+    ];
+    if let Some((_, f)) = by_type.iter().find(|(t, _)| content_type.contains(t)) {
+        return Some(*f);
+    }
+    // A generic `application/xml` (or no content types at all): the
+    // conventional directory the main part sits in.
+    match main.split('/').next()? {
+        "word" => Some(InputFormat::Docx),
+        "xl" => Some(InputFormat::Xlsx),
+        "ppt" => Some(InputFormat::Pptx),
+        _ => None,
+    }
+}
+
 /// A ZIP package by its parts: OOXML main parts, the ODF / EPUB `mimetype`.
 fn zip_kind(bytes: &[u8]) -> Option<InputFormat> {
     let mut zip = crate::backend::ooxml::open_zip(|| Cursor::new(bytes)).ok()?;
@@ -398,6 +446,9 @@ fn zip_kind(bytes: &[u8]) -> Option<InputFormat> {
     }
     if has(&zip, "visio/document.xml") {
         return Some(InputFormat::Visio);
+    }
+    if let Some(f) = ooxml_main_part_kind(&mut zip) {
+        return Some(f);
     }
     if let Some(f) = iwork_kind(&mut zip) {
         return Some(f);
@@ -562,6 +613,45 @@ mod tests {
         assert_eq!(detect(b"plain text"), None);
         assert_eq!(detect(b"<?xml version=\"1.0\"?><article/>"), None);
         assert_eq!(detect(b""), None);
+    }
+
+    /// #1236: a main part under another name is found through `_rels/.rels`
+    /// and typed by its `[Content_Types].xml` override — or, with only a
+    /// generic `application/xml`, by its directory.
+    #[test]
+    fn ooxml_main_part_by_relationship() {
+        let rels = |target: &str| {
+            format!(
+                r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="R1" Type="http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument" Target="{target}"/></Relationships>"#
+            )
+        };
+        let types = |part: &str, ct: &str| {
+            format!(
+                r#"<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/{part}" ContentType="{ct}"/></Types>"#
+            )
+        };
+        let cases = [
+            ("ppt/deck.xml", "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml", InputFormat::Pptx),
+            ("xl/book2.xml", "application/vnd.ms-excel.sheet.macroEnabled.main+xml", InputFormat::Xlsx),
+            ("content/main.xml", "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml", InputFormat::Docx),
+        ];
+        for (part, ct, want) in cases {
+            let zip = zip_with(&[
+                ("[Content_Types].xml", types(part, ct).as_bytes()),
+                ("_rels/.rels", rels(part).as_bytes()),
+                (part, b"<x/>"),
+            ]);
+            assert_eq!(detect(&zip), Some(want), "{part}");
+        }
+        // No override: the directory decides.
+        let zip = zip_with(&[
+            ("_rels/.rels", rels("word/document2.xml").as_bytes()),
+            ("word/document2.xml", b"<x/>"),
+        ]);
+        assert_eq!(detect(&zip), Some(InputFormat::Docx));
+        // A relationship to a missing part is not a package of any kind.
+        let zip = zip_with(&[("_rels/.rels", rels("word/gone.xml").as_bytes())]);
+        assert_ne!(detect(&zip), Some(InputFormat::Docx));
     }
 
     #[test]

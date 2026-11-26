@@ -51,6 +51,12 @@ impl DeclarativeBackend for PptxBackend {
             .ok_or_else(|| ConversionError::Parse("pptx: bad zip".into()))?;
         pkg.check_limits(&super::ooxml::PackageLimits::from_env())
             .map_err(|e| ConversionError::with_source("pptx", e))?;
+        // The main part by the package's `officeDocument` relationship
+        // (#1236), read as `ppt/presentation.xml` when it is named otherwise.
+        pkg.follow_main_part(
+            "ppt/presentation.xml",
+            &[("/commentAuthors", "ppt/commentAuthors.xml")],
+        );
         let mut doc = DoclingDocument::new(&source.name);
 
         let presentation = pkg

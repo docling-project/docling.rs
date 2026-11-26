@@ -174,6 +174,10 @@ pub struct Package<B: AsRef<[u8]> = std::sync::Arc<[u8]>> {
     /// [`Self::read`] returns ([`strip_comments_and_pis`]; the DOCX
     /// backend's choice, docling#4584).
     strip_comments: bool,
+    /// Conventional part name → the part the package's relationships name
+    /// in its place ([`Self::follow_main_part`], #1236): `word/document.xml`
+    /// read as `word/document2.xml`. Empty for nearly every package.
+    aliases: std::sync::Arc<HashMap<String, String>>,
 }
 
 impl Package {
@@ -206,6 +210,7 @@ impl<B: AsRef<[u8]>> Package<B> {
             zip,
             names,
             strip_comments: false,
+            aliases: Default::default(),
         })
     }
 
@@ -318,6 +323,8 @@ impl<B: AsRef<[u8]>> Package<B> {
     }
 
     fn read_bytes_capped(&mut self, path: &str, cap: u64) -> Option<Vec<u8>> {
+        let aliases = self.aliases.clone();
+        let path = aliases.get(path).map_or(path, String::as_str);
         let file = self.zip.by_name(path).ok()?;
         // Reject up front when the central directory already advertises an
         // oversized part; still cap the actual read in case the header lies.
@@ -357,6 +364,9 @@ impl<B: AsRef<[u8]>> Package<B> {
     /// The `.rels` file governing `part` (e.g. `xl/worksheets/sheet1.xml` →
     /// `xl/worksheets/_rels/sheet1.xml.rels`), parsed into relationships.
     pub fn rels_for(&mut self, part: &str) -> Vec<Relationship> {
+        // An aliased part's relationships are its own: `document2.xml.rels`.
+        let aliases = self.aliases.clone();
+        let part = aliases.get(part).map_or(part, String::as_str);
         let (dir, file) = split_path(part);
         let rels_path = if dir.is_empty() {
             format!("_rels/{file}.rels")
@@ -367,6 +377,79 @@ impl<B: AsRef<[u8]>> Package<B> {
             .map(|x| parse_rels(&x))
             .unwrap_or_default()
     }
+}
+
+impl<B: AsRef<[u8]>> Package<B> {
+    /// Whether the package has a member named `path` (no alias applied).
+    fn has_member(&self, path: &str) -> bool {
+        self.names.iter().any(|n| n == path)
+    }
+
+    /// The package's main part (#1236): the target of the root
+    /// `_rels/.rels` relationship of type `…/officeDocument` (transitional
+    /// or strict, ECMA-376 Part 2 — the Open Packaging Conventions name the
+    /// main part by relationship, not by a fixed name), when that member
+    /// exists. `None` when the package has no such relationship or its
+    /// target is missing.
+    pub fn main_part(&mut self) -> Option<String> {
+        let rels = self.read_bytes("_rels/.rels")?;
+        let rels = String::from_utf8_lossy(&rels);
+        main_part_target(&rels).filter(|t| self.has_member(t))
+    }
+
+    /// Read the package's main part under its `conventional` name
+    /// (`word/document.xml`, `ppt/presentation.xml`, `xl/workbook.xml`) when
+    /// the root relationships name another one (#1236: real-world DOCX
+    /// files whose main part is `word/document2.xml`; mammoth and
+    /// python-docx resolve the relationship). The backends then read the
+    /// conventional name — and its `_rels/<name>.rels` — unchanged.
+    ///
+    /// `related` lists the main part's own relationship types (suffixes
+    /// such as `/styles`) with their conventional names: each one that
+    /// names another part is aliased the same way (`styles2.xml`). The
+    /// relationship wins over a conventional member that also exists (a
+    /// stale `word/document.xml` the package no longer points at); a
+    /// package whose main part sits at the conventional name is read
+    /// exactly as before. Relative
+    /// targets still resolve against the backends' conventional directory
+    /// (`word/`): a main part in another directory is read, but parts its
+    /// relationships name relative to that directory may not be.
+    pub fn follow_main_part(&mut self, conventional: &str, related: &[(&str, &str)]) {
+        let Some(main) = self.main_part() else {
+            return;
+        };
+        if main == conventional {
+            return;
+        }
+        let mut aliases = HashMap::new();
+        aliases.insert(conventional.to_string(), main.clone());
+        let (dir, _) = split_path(&main);
+        let dir = dir.to_string();
+        self.aliases = std::sync::Arc::new(aliases.clone());
+        for rel in self.rels_for(conventional) {
+            let Some((_, name)) = related
+                .iter()
+                .find(|(suffix, _)| rel.rel_type.ends_with(suffix))
+            else {
+                continue;
+            };
+            let target = resolve(&dir, &rel.target);
+            if target != *name && self.has_member(&target) {
+                aliases.entry(name.to_string()).or_insert(target);
+            }
+        }
+        self.aliases = std::sync::Arc::new(aliases);
+    }
+}
+
+/// The `…/officeDocument` relationship's target in a root `_rels/.rels`,
+/// as a package path (no leading `/`) — [`Package::main_part`].
+pub(crate) fn main_part_target(root_rels_xml: &str) -> Option<String> {
+    parse_rels(root_rels_xml)
+        .into_iter()
+        .find(|r| r.rel_type.ends_with("/officeDocument"))
+        .map(|r| resolve("", &r.target))
+        .filter(|t| !t.is_empty())
 }
 
 /// A single `<Relationship Id Type Target>` entry from a `.rels` part.

@@ -174,14 +174,6 @@ pub(crate) async fn ocr_lines(
 }
 
 impl ScannedConverter {
-    async fn ocr_lines(
-        &self,
-        rec: &RecSession,
-        lines: &[PrepLine],
-    ) -> Result<Vec<String>, JsError> {
-        ocr_lines(&self.chars, rec, lines).await
-    }
-
     #[allow(clippy::too_many_arguments)]
     async fn add_page_impl(
         &mut self,
@@ -193,13 +185,43 @@ impl ScannedConverter {
         rec: &RecSession,
         tf: Option<&TfSession>,
     ) -> Result<(), JsError> {
-        if rgba.len() != (px_w as usize) * (px_h as usize) * 4 {
-            return Err(JsError::new("rgba buffer size does not match dimensions"));
-        }
-        let mut img = RgbImage::new(px_w, px_h);
-        for (i, px) in img.pixels_mut().enumerate() {
-            px.0 = [rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2]];
-        }
+        let img = rgba_image(rgba, px_w, px_h)?;
+        let page = scan_page(&self.chars, self.det.as_ref(), img, scale, layout, rec, tf).await?;
+        self.pages.push(page);
+        Ok(())
+    }
+}
+
+/// The page bitmap out of a canvas `ImageData` buffer (RGBA, alpha dropped).
+pub(crate) fn rgba_image(rgba: &[u8], px_w: u32, px_h: u32) -> Result<RgbImage, JsError> {
+    if rgba.len() != (px_w as usize) * (px_h as usize) * 4 {
+        return Err(JsError::new("rgba buffer size does not match dimensions"));
+    }
+    let mut img = RgbImage::new(px_w, px_h);
+    for (i, px) in img.pixels_mut().enumerate() {
+        px.0 = [rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2]];
+    }
+    Ok(img)
+}
+
+/// One scanned page through the lite profile — layout, OCR of its regions,
+/// the detector's supplement, tables — assembled. The scanned converter's
+/// every page, and a digital PDF's page without a text layer
+/// ([`crate::digital::DigitalConverter`]: a photographed page bound into a
+/// document that starts with typed text), as the native pipeline OCRs a page
+/// whose `cells` are empty.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn scan_page(
+    chars: &[String],
+    det: Option<&DetSession>,
+    img: RgbImage,
+    scale: f32,
+    layout: &LayoutSession,
+    rec: &RecSession,
+    tf: Option<&TfSession>,
+) -> Result<docling_pdf::scanned::AssembledPage, JsError> {
+    {
+        let (px_w, px_h) = img.dimensions();
         // Dark-mode screenshots invert scan polarity; normalize before both
         // layout and OCR (each assumes dark ink on light paper).
         let img = normalize_polarity(img);
@@ -226,12 +248,9 @@ impl ScannedConverter {
         // Text detection (#429) first: with the detector on board its boxes
         // are the recognizer's line source inside the regions too (#570,
         // RapidOCR's own crops — the native worker does the same), and the
-        // lines no region covers are recognized below. (Taken out of `self`
-        // for the duration: the recognition borrows `self` mutably, and a JS
-        // session handle is not `Clone`.)
-        let det = self.det.take();
+        // lines no region covers are recognized below.
         let mut boxes: Vec<docling_pdf::ocr_det::DetBox> = Vec::new();
-        if let Some(det) = det.as_ref() {
+        if let Some(det) = det {
             if let Some((input, dw, dh)) = docling_pdf::ocr_det::prep_det_input(&img) {
                 let out = det
                     .run(dh, dw, js_sys::Float32Array::from(input.as_slice()))
@@ -241,7 +260,6 @@ impl ScannedConverter {
                 boxes = docling_pdf::ocr_det::db_boxes(&prob, pw, ph, img.width(), img.height());
             }
         }
-        self.det = det;
 
         // OCR the text regions (same gather/batch/decode as native ocr_page).
         let (bboxes, lines) = if boxes.is_empty() {
@@ -249,7 +267,7 @@ impl ScannedConverter {
         } else {
             prep_region_lines_det(&img, &regions, scale, &boxes)
         };
-        let texts = self.ocr_lines(rec, &lines).await?;
+        let texts = ocr_lines(chars, rec, &lines).await?;
         let mut cells = Vec::new();
         for ((l, t, r, b), text) in bboxes.into_iter().zip(texts) {
             let text = text.trim().to_string();
@@ -269,7 +287,7 @@ impl ScannedConverter {
         } else {
             prep_table_words_det(&img, &regions, scale, &boxes)
         };
-        let ttexts = self.ocr_lines(rec, &tlines).await?;
+        let ttexts = ocr_lines(chars, rec, &tlines).await?;
         for ((l, t, r, b), text) in tbboxes.into_iter().zip(ttexts) {
             let text = text.trim().to_string();
             if text.is_empty() {
@@ -298,7 +316,7 @@ impl ScannedConverter {
             .collect();
         if !bare.is_empty() {
             let (pbboxes, plines) = prep_region_lines(&img, &bare, scale);
-            let ptexts = self.ocr_lines(rec, &plines).await?;
+            let ptexts = ocr_lines(chars, rec, &plines).await?;
             let mut pcells = Vec::new();
             for ((l, t, r, b), text) in pbboxes.into_iter().zip(ptexts) {
                 let text = text.trim().to_string();
@@ -326,7 +344,7 @@ impl ScannedConverter {
             let uncovered = docling_pdf::ocr_det::uncovered_lines(&boxes, scale, &regions, &cells);
             if !uncovered.is_empty() {
                 let (dbboxes, dlines) = prep_region_lines(&img, &uncovered, scale);
-                let dtexts = self.ocr_lines(rec, &dlines).await?;
+                let dtexts = ocr_lines(chars, rec, &dlines).await?;
                 let mut dcells = Vec::new();
                 for ((l, t, r, b), text) in dbboxes.into_iter().zip(dtexts) {
                     let text = text.trim().to_string();
@@ -376,9 +394,7 @@ impl ScannedConverter {
         // of it, so the browser pipeline produces the same figure bytes the
         // native one does (`images=embedded` then inlines them).
         let page = PdfPage::from_cells_with_image(page_w, page_h, scale, cells, img);
-        self.pages
-            .push(assemble_page_with_tables(&page, regions, table_rows));
-        Ok(())
+        Ok(assemble_page_with_tables(&page, regions, table_rows))
     }
 }
 

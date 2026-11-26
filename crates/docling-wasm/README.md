@@ -133,6 +133,13 @@ images (a terms-and-conditions box exported as a bitmap) hold text its text
 layer cannot see. Without them the path fetches no recognition model and keeps
 its old text-layer-only behavior.
 
+A page with no text layer at all — a photographed certificate bound after a
+typed cover page — is OCR'd whole with them, exactly as `ScannedConverter`
+reads a page (the text detector too, attached with `setDetector`), as the
+native pipeline OCRs a page whose text cells are empty. Before, such a page
+came out as a bare picture: only the typed pages read, and Force OCR was the
+way to the rest.
+
 ### Scanned pages (OCR)
 
 Scanned PDFs and images need the ML models; everything else runs with no
