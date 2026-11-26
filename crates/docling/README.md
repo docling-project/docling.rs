@@ -13,6 +13,14 @@ to all of them.
 cargo add docling
 ```
 
+`docling` requires its sibling crates (`docling-core`, `docling-pdf`,
+`docling-asr`) at its own exact version. If you depend on one
+of them too, keep it at the same version as `docling` and upgrade them
+together (`cargo update -p docling -p docling-core`); upgrading
+`docling-core` alone fails to resolve. Older releases required them with a
+caret and can pick up a newer, incompatible `docling-core`: pin it to
+`docling`'s exact version in your own manifest.
+
 PDF, image and audio conversion need the ONNX models
 ([`docs/MODELS.md`](../../docs/MODELS.md)); the declarative formats need
 nothing. Overview, install options and benchmarks: the

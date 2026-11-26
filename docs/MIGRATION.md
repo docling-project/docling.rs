@@ -719,11 +719,12 @@ converted once more as that format with a warning.
   - under `all` a run keeps its typed revision (`TreeItem::revision`: kind, `w:author`, `w:date`) for the Pandoc AST and the Markdown strikes a deletion through
   - Unset is docling's reading, unchanged (every row kept)
   - Not read: paragraph-mark revisions, property changes, cell revisions — see `docs/OPTIONS.md`
-- OMML → LaTeX (`omml.rs`): each character of a math run is mapped as docling's `process_unicode` maps it, from a table dumped from docling on pylatexenc 2.11 (`scripts/dev/gen_omml_unicode.py` → `omml_unicode.rs`, 998 entries) over ASCII, the Latin-1 symbols, Greek, punctuation, letterlike symbols, arrows, the mathematical operators and technical symbols, and the mathematical alphanumerics — it used to cover the dozen symbols the corpus has, so `∈`, `≥`, `∂`, `α` stayed raw and a typed `A\B` became the control sequence `\B`
-  - a deliberate divergence: docling unwraps pylatexenc's `\ensuremath{…}` with `replace("}", " ")`, which turns every `}` into a space, so a macro with an argument comes out unbalanced (`ℝ` → `\mathbb{R`, `𝐀` → `\mathbf{A`); the table keeps that macro's braces (479 of its entries; every other entry is docling's string byte for byte, but `√`)
+- OMML → LaTeX (`omml.rs`): accents, n-ary operators and function names follow docling's `CHR`, `CHR_BO` and `FUNC` tables in full — a dot, breve or check accent used to become `\hat`, `⨁` an integral, `arcsin`, `gcd` or `ker` plain letters
+  - deliberate divergences: the spacing forms of the common accents (U+00AF, U+203E, U+02C6, U+02DC, U+02D9, U+00A8, U+02C7, U+02D8, U+00B4, U+0060) are accents too — pandoc writes U+203E for `\bar`, and docling returns such a character alone, dropping the accented base — and any other accent character stays above its base (`\overset{★}{x}`); `⨄` and `⨆`, which Word's equation gallery offers, are `\biguplus` and `\bigsqcup`; an n-ary written without `m:naryPr` is an integral (docling#5470, fixed upstream by the open docling#5471)
   - `√` is `\surd` (docling: an unbalanced `\sqrt{`; balanced, `\sqrt{}` would render an empty root before its operand)
-  - literal `{` and `}` are not in the table: `escape_latex` alone escapes them, as before (`{1,2}` → `\{1,2\}`, `a}` → `a\}`); docling maps them to pylatexenc's `{\{}` / `{\}}` first, which its brace un-escaping turns into `\{\{\}1,2\{\}\}` and an unbalanced `a{\}\}`
-  - accented letters stay as typed: pylatexenc's text accents (`é` → `\'e`) are errors in math mode
+  - U+20EE is `\underleftarrow` (docling: `\underledtarrow`, a typo in its `CHR`)
+  - a group character (`m:groupChr`) outside `CHR` goes above its base when `m:pos` is `top` and below it otherwise (`\overset{→}{x}`, `\underset{→}{x}`), as an unknown accent does: Word's "arrow over text" is `→` with `pos="top"`, which docling returns alone, dropping the base (it used to be an underbrace here)
+  - many of these macros exist only in `unicode-math` (`\ovhook`, `\candra`, `\annuity`, `\widebridgeabove`, `\Bbbsum`, `\threeunderdot`, …): they compile with LuaLaTeX/XeLaTeX and `unicode-math`, but MathJax and KaTeX do not render them, so Markdown viewers show them as raw or as errors — kept for parity with docling
 
 #### DOC (Word 97–2004)
 
