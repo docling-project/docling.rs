@@ -743,7 +743,6 @@ mod tests {
         assert_eq!(latex(xml), r"\infty  < x");
     }
 
-
     #[test]
     fn delimiter_keeps_every_element_and_its_separator() {
         // `<m:d>` holds one `<m:e>` per element; `m:sepChr` (`|` when absent,
@@ -798,7 +797,7 @@ mod tests {
         assert_eq!(sep("&#120584;"), r"\left(a\nu b\right)");
         assert_eq!(sep("&#120591;"), r"\left(a\tau b\right)");
     }
-      
+
     fn acc(chr: &str, base: &str) -> String {
         latex(&format!(
             r#"<r xmlns:m="m"><m:oMath><m:acc><m:accPr><m:chr m:val="{chr}"/></m:accPr><m:e><m:r><m:t>{base}</m:t></m:r></m:e></m:acc></m:oMath></r>"#
