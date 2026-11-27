@@ -624,7 +624,7 @@
     , Space
     , Str "equations:"
     , Space
-    , Math InlineMath "N_{s}^{H}"
+    , Math InlineMath "N_{\\text{s}}^{\\text{H}}"
     , Str "/"
     , Math InlineMath "N_{s}^{P}"
     , Str "\8203."
@@ -707,11 +707,11 @@
         "\\bigcup_{n=1}^{m}\\left(X_{n} \\cap Y_{n}\\right)"
     ]
 , Para [ Math DisplayMath "\\prod_{k=1}^{n}A_{k}" ]
-, Para [ Math DisplayMath "\\bigwedge_{}^{}x" ]
-, Para [ Math DisplayMath "\\int_{}^{}(2x+1)dx" ]
+, Para [ Math DisplayMath "\\bigwedge x" ]
+, Para [ Math DisplayMath "\\int(2x+1)dx" ]
 , Para [ Math DisplayMath "\\iint_{0}^{1}xdx" ]
-, Para [ Math DisplayMath "\\iiint_{}^{}ydy" ]
-, Para [ Math DisplayMath "\\oint_{}^{}\\frac{dy}{dx}" ]
+, Para [ Math DisplayMath "\\iiint ydy" ]
+, Para [ Math DisplayMath "\\oint\\frac{dy}{dx}" ]
 , Para [ Math DisplayMath "\\oiint_{0}^{2 \\pi }idt" ]
 , Para [ Math DisplayMath "\\oiiint_{C}^{}\\frac{1}{z}dz" ]
 , Para
@@ -746,12 +746,12 @@
 , Para
     [ Math
         DisplayMath
-        "P_{ x}=\\underbrace{S \\cdot T \\cdot G \\cdot (x+y+z)}_{group\\ with\\ underbraces}+e^{x}"
+        "P_{\\text{ x}}=\\underbrace{S \\cdot T \\cdot G \\cdot (x+y+z)}_{group\\ with\\ underbraces}+e^{x}"
     ]
 , Para
     [ Math
         DisplayMath
-        "Q_{ y}=\\overset{group\\ with\\ overbraces}{\\overbrace{G \\cdot T \\cdot S \\cdot (x+y+z)}}+e^{y}"
+        "Q_{\\text{ y}}=\\overset{group\\ with\\ overbraces}{\\overbrace{G \\cdot T \\cdot S \\cdot (x+y+z)}}+e^{y}"
     ]
 , Para
     [ Math DisplayMath "s\\left\\{max\\right\\}= A \\times B" ]
