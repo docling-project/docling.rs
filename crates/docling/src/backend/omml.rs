@@ -38,9 +38,36 @@ fn elems<'a, 'i>(n: XmlNode<'a, 'i>) -> impl Iterator<Item = XmlNode<'a, 'i>> {
     n.children().filter(XmlNode::is_element)
 }
 
-/// Concatenate the dispatched LaTeX of every OMML child element.
+/// Concatenate the dispatched LaTeX of every OMML child element. Adjacent
+/// runs of one style ([`RunStyle`]) share a wrapper — `\text{ for all }`, not
+/// `\text{ for}\text{ all }` — so a word split over runs stays one word.
 fn process_children(n: XmlNode) -> String {
-    elems(n).map(dispatch).collect()
+    let mut out = String::new();
+    let mut pending: Option<(RunStyle, String)> = None;
+    for c in elems(n) {
+        if local(c) == "r" {
+            let style = RunStyle::of(c);
+            let body = run_body(c, &style);
+            match pending.as_mut() {
+                Some((s, acc)) if *s == style => acc.push_str(&body),
+                _ => {
+                    if let Some((s, acc)) = pending.take() {
+                        out.push_str(&s.wrap(acc));
+                    }
+                    pending = Some((style, body));
+                }
+            }
+        } else {
+            if let Some((s, acc)) = pending.take() {
+                out.push_str(&s.wrap(acc));
+            }
+            out.push_str(&dispatch(c));
+        }
+    }
+    if let Some((s, acc)) = pending {
+        out.push_str(&s.wrap(acc));
+    }
+    out
 }
 
 fn dispatch(e: XmlNode) -> String {
@@ -86,7 +113,16 @@ struct Pr {
     end: Option<String>,
     sep: Option<String>,
     typ: Option<String>,
+    /// `m:subHide` / `m:supHide` (an n-ary's hidden limits).
+    sub_hide: bool,
+    sup_hide: bool,
     text: String,
+}
+
+/// An `ST_OnOff` flag element: on when present without `m:val`, or with a
+/// true value (`1`, `on`, `true`).
+fn on_off(val: Option<&str>) -> bool {
+    !matches!(val, Some("0" | "off" | "false"))
 }
 
 fn pr(n: XmlNode, tag: &str) -> Pr {
@@ -106,6 +142,8 @@ fn pr(n: XmlNode, tag: &str) -> Pr {
             "endChr" => p.end = val,
             "sepChr" => p.sep = val,
             "type" => p.typ = val,
+            "subHide" => p.sub_hide = on_off(val.as_deref()),
+            "supHide" => p.sup_hide = on_off(val.as_deref()),
             "brk" => p.text.push_str("\\\\"),
             _ => p.text.push_str(&dispatch(c)),
         }
@@ -132,14 +170,14 @@ fn do_f(e: XmlNode) -> String {
 /// docling's `T` table ([`greek_or`]) before `escape_latex`.
 fn do_d(e: XmlNode) -> String {
     let p = pr(e, "dPr");
-    let sep = escape_latex(&greek_or(p.sep.as_deref(), "|"));
+    let sep = escape_latex(&delim_or(p.sep.as_deref(), "|", true));
     let inner = elems(e)
         .filter(|c| local(*c) == "e")
         .map(process_children)
         .collect::<Vec<_>>()
         .join(&sep);
-    let left = greek_or(p.beg.as_deref(), "(");
-    let right = greek_or(p.end.as_deref(), ")");
+    let left = delim_or(p.beg.as_deref(), "(", false);
+    let right = delim_or(p.end.as_deref(), ")", false);
     let left = if left.is_empty() {
         ".".into()
     } else {
@@ -171,7 +209,9 @@ fn do_fname(e: XmlNode) -> String {
     let mut out = String::new();
     for c in elems(e) {
         if local(c) == "r" {
-            let t = do_r(c);
+            // A function name's own text: Word marks it `m:sty="p"`, and the
+            // name is looked up, not wrapped.
+            let t = math_run(c);
             out.push_str(func_latex(&t).unwrap_or(&t));
         } else {
             out.push_str(&dispatch(c));
@@ -238,16 +278,34 @@ fn do_groupchr(e: XmlNode) -> String {
 /// An n-ary operator. Without `m:chr` — or without `m:naryPr` at all, which the
 /// schema allows (docling#5470) — it is an integral; an operator outside the
 /// table is kept as written (docling's `get_val`), never made an integral.
+///
+/// A limit Word hides (`m:subHide` / `m:supHide`: the indefinite integral, a
+/// `\bigwedge` over an implied range) is left out — docling writes the empty
+/// placeholder, `\int_{}^{}`.
 fn do_nary(e: XmlNode) -> String {
-    let op = match pr(e, "naryPr").chr {
+    let p = pr(e, "naryPr");
+    let op = match p.chr {
         None => "\\int".to_string(),
         Some(c) => big_op(&c).map_or(c, str::to_string),
     };
     let rest: String = elems(e)
-        .filter(|c| local(*c) != "naryPr")
+        .filter(|c| match local(*c) {
+            "naryPr" => false,
+            "sub" => !p.sub_hide,
+            "sup" => !p.sup_hide,
+            _ => true,
+        })
         .map(dispatch)
         .collect();
-    op + &rest
+    // A macro right before its operand needs a separator once a hidden limit
+    // no longer stands between them (`\int x`, not `\intx`).
+    if rest.starts_with(|c: char| c.is_ascii_alphabetic())
+        && op.ends_with(|c: char| c.is_ascii_alphabetic())
+    {
+        format!("{op} {rest}")
+    } else {
+        op + &rest
+    }
 }
 
 fn do_m(e: XmlNode) -> String {
@@ -263,12 +321,36 @@ fn do_mr(e: XmlNode) -> String {
         .join("&")
 }
 
+thread_local! {
+    /// Inside an `m:eqArr` (a depth), where a run's `&` is an alignment point.
+    static EQARR: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    /// An alignment point was written in the innermost `m:eqArr`.
+    static ALIGNED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// An equation array: its rows joined by `\\` as docling joins them. Word
+/// marks an alignment point with an `&` typed in a row (or `m:aln` on the run
+/// it starts), which docling escapes to a literal `\&`; here it stays an
+/// alignment point, and the rows go in an `aligned` environment, where `&`
+/// and `\\` are legal. Several rows without one are `gathered`; a single
+/// row stays as docling writes it.
 fn do_eqarr(e: XmlNode) -> String {
-    elems(e)
+    let outer = ALIGNED.with(|a| a.replace(false));
+    EQARR.with(|d| d.set(d.get() + 1));
+    let rows: Vec<String> = elems(e)
         .filter(|c| local(*c) == "e")
         .map(process_children)
-        .collect::<Vec<_>>()
-        .join("\\\\")
+        .collect();
+    EQARR.with(|d| d.set(d.get() - 1));
+    let aligned = ALIGNED.with(|a| a.replace(outer));
+    let body = rows.join("\\\\");
+    if aligned {
+        format!("\\begin{{aligned}}{body}\\end{{aligned}}")
+    } else if rows.len() > 1 {
+        format!("\\begin{{gathered}}{body}\\end{{gathered}}")
+    } else {
+        body
+    }
 }
 
 /// Grouping commands (underbrace/overbrace/…) that accept a subscript label.
@@ -384,16 +466,141 @@ fn apply_pct(tmpl: &str, arg: &str) -> String {
     }
 }
 
-/// Process a `<m:r>` run: each character mapped via `process_unicode`, then the
-/// whole string LaTeX-escaped, with the brace/caret un-escaping dance from the
-/// upstream `do_r`.
-fn do_r(e: XmlNode) -> String {
-    let found: String = e
-        .descendants()
+/// A run's text: its `<m:t>`s.
+fn run_text(e: XmlNode) -> String {
+    e.descendants()
         .filter(|n| local(*n) == "t")
         .filter_map(|t| t.text())
+        .collect()
+}
+
+/// A run's math formatting (`m:rPr`), which docling ignores: normal text
+/// (`m:nor`), the script (`m:scr`) and the style (`m:sty`). The LaTeX it
+/// wraps the run in is [`RunStyle::wrap`].
+#[derive(Default, PartialEq, Eq)]
+struct RunStyle {
+    /// `m:nor`: the run is text, not math — `\text{…}`, its spaces kept.
+    nor: bool,
+    /// The font wrapper for `m:scr` / `m:sty`, if any.
+    font: Option<&'static str>,
+    /// `m:aln`: an alignment point of an equation array starts the run.
+    aln: bool,
+}
+
+impl RunStyle {
+    fn of(r: XmlNode) -> Self {
+        let mut s = RunStyle::default();
+        let Some(rpr) = elems(r).find(|c| local(*c) == "rPr") else {
+            return s;
+        };
+        let (mut scr, mut sty) = (None, None);
+        for c in elems(rpr) {
+            let val = c
+                .attributes()
+                .find(|a| a.name() == "val")
+                .map(|a| a.value());
+            match local(c) {
+                "nor" => s.nor = on_off(val),
+                "aln" => s.aln = on_off(val),
+                "scr" => scr = val,
+                "sty" => sty = val,
+                _ => {}
+            }
+        }
+        // A script names its own alphabet; bold applies to the default one.
+        // `p` (plain) is not wrapped: Word sets it on every function name,
+        // `lim` and operator, which LaTeX already sets upright or where
+        // `\mathrm` changes nothing but the noise.
+        s.font = match scr {
+            Some("double-struck") => Some("\\mathbb"),
+            Some("script") => Some("\\mathcal"),
+            Some("fraktur") => Some("\\mathfrak"),
+            Some("sans-serif") => Some("\\mathsf"),
+            Some("monospace") => Some("\\mathtt"),
+            _ => match sty {
+                Some("b") => Some("\\mathbf"),
+                Some("bi") => Some("\\boldsymbol"),
+                _ => None,
+            },
+        };
+        s
+    }
+
+    /// The run text `body` in this style's LaTeX.
+    fn wrap(&self, body: String) -> String {
+        if body.is_empty() {
+            return body;
+        }
+        let body = if self.nor {
+            format!("\\text{{{body}}}")
+        } else if let Some(font) = self.font {
+            format!("{font}{{{body}}}")
+        } else {
+            body
+        };
+        if self.aln {
+            ALIGNED.with(|a| a.set(true));
+            format!("&{body}")
+        } else {
+            body
+        }
+    }
+}
+
+/// A run's text in LaTeX, before its style's wrapper: math ([`do_r`]'s
+/// mapping) or, for `m:nor`, text-mode escaped.
+fn run_body(e: XmlNode, style: &RunStyle) -> String {
+    if style.nor {
+        escape_text(&run_text(e))
+    } else {
+        math_run(e)
+    }
+}
+
+/// Text-mode escaping for a `\text{…}` run: the LaTeX specials, the
+/// characters text mode has no glyph for as their text macros.
+fn escape_text(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\textbackslash{}"),
+            '^' => out.push_str("\\textasciicircum{}"),
+            '~' => out.push_str("\\textasciitilde{}"),
+            '{' | '}' | '_' | '#' | '&' | '$' | '%' => {
+                out.push('\\');
+                out.push(c);
+            }
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// A `<m:r>` run in its style (`m:rPr`): [`RunStyle`].
+fn do_r(e: XmlNode) -> String {
+    let style = RunStyle::of(e);
+    let body = run_body(e, &style);
+    style.wrap(body)
+}
+
+/// Process a `<m:r>` run's text: each character mapped via `process_unicode`,
+/// then the whole string LaTeX-escaped, with the brace/caret un-escaping dance
+/// from the upstream `do_r`. In an equation array an `&` stays an alignment
+/// point ([`do_eqarr`]).
+fn math_run(e: XmlNode) -> String {
+    let found = run_text(e);
+    let in_eqarr = EQARR.with(|d| d.get() > 0);
+    let mapped: String = found
+        .chars()
+        .map(|c| {
+            if c == '&' && in_eqarr {
+                // An alignment point, not pylatexenc's padded `\&`.
+                "&".to_string()
+            } else {
+                process_unicode(c)
+            }
+        })
         .collect();
-    let mapped: String = found.chars().map(process_unicode).collect();
     let mut proc = escape_latex(&mapped);
 
     if !found.contains('{') && proc.contains("\\{") {
@@ -405,6 +612,10 @@ fn do_r(e: XmlNode) -> String {
     // A caret in the source is a math superscript operator, not a literal.
     if found.contains('^') && proc.contains("\\^") {
         proc = proc.replace("\\^", "^");
+    }
+    if found.contains('&') && in_eqarr {
+        proc = proc.replace("\\&", "&");
+        ALIGNED.with(|a| a.set(true));
     }
     proc
 }
@@ -565,6 +776,33 @@ fn big_op(chr: &str) -> Option<&'static str> {
         "\u{2a06}" => "\\bigsqcup",
         _ => return None,
     })
+}
+
+/// A delimiter character in LaTeX: docling's `T` table ([`greek_or`]), then
+/// the bracket characters LaTeX names — `⟨u|v⟩`, `⌈x⌉`, `⌊x⌋`, `‖v‖`, `⟦x⟧`
+/// (two nested `\left[`),
+/// which docling writes as typed after `\left` / `\right`, where they are not
+/// delimiters. Between the elements (`sep`) `∣` is the relation `\mid`
+/// (`{x ∣ x > 0}`); as a bracket it is `|`.
+fn delim_or(key: Option<&str>, default: &str, sep: bool) -> String {
+    let c = greek_or(key, default);
+    let named = match c.as_str() {
+        "\u{2223}" if sep => "\\mid ",
+        "\u{27e8}" | "\u{2329}" | "\u{3008}" => "\\langle ",
+        "\u{27e9}" | "\u{232a}" | "\u{3009}" => "\\rangle ",
+        "\u{2308}" => "\\lceil ",
+        "\u{2309}" => "\\rceil ",
+        "\u{230a}" => "\\lfloor ",
+        "\u{230b}" => "\\rfloor ",
+        "\u{2016}" | "\u{2225}" => "\\| ",
+        "\u{2223}" => "| ",
+        // `\llbracket` is no `\left` delimiter (stmaryrd, KaTeX): two nested
+        // square brackets, the way plain LaTeX sets one.
+        "\u{27e6}" if !sep => "[\\!\\left[",
+        "\u{27e7}" if !sep => "]\\!\\right]",
+        _ => return c,
+    };
+    named.to_string()
 }
 
 /// A delimiter character through docling's `T` table (`get_val(…, store=T)`),
@@ -782,7 +1020,7 @@ mod tests {
         assert_eq!(d(arrow), r"\left(a\rightarrow b\right)");
         let arrows =
             r#"<m:begChr m:val="&#8593;"/><m:sepChr m:val="&#8739;"/><m:endChr m:val="&#8593;"/>"#;
-        assert_eq!(d(arrows), r"\left\uparrow a∣b\right\uparrow");
+        assert_eq!(d(arrows), r"\left\uparrow a\mid b\right\uparrow");
     }
 
     #[test]
@@ -950,5 +1188,135 @@ mod tests {
             r"\overbrace{x}"
         );
         assert_eq!(g(""), r"\underbrace{x}");
+    }
+
+    fn math(body: &str) -> String {
+        latex(&format!(r#"<r xmlns:m="m"><m:oMath>{body}</m:oMath></r>"#))
+    }
+
+    fn run(rpr: &str, t: &str) -> String {
+        format!(r#"<m:r><m:rPr>{rpr}</m:rPr><m:t xml:space="preserve">{t}</m:t></m:r>"#)
+    }
+
+    #[test]
+    fn hidden_n_ary_limits_are_left_out() {
+        // #1239: Word hides an n-ary's limits with `m:subHide` / `m:supHide`
+        // and keeps the empty `m:sub` / `m:sup`; docling writes `\int_{}^{}`.
+        let nary = |pr: &str, e: &str| {
+            math(&format!(
+                r#"<m:nary><m:naryPr>{pr}</m:naryPr><m:sub/><m:sup/><m:e><m:r><m:t>{e}</m:t></m:r></m:e></m:nary>"#
+            ))
+        };
+        let hidden = r#"<m:subHide m:val="1"/><m:supHide m:val="1"/>"#;
+        assert_eq!(nary(hidden, "x"), r"\int x");
+        assert_eq!(
+            nary(&format!(r#"<m:chr m:val="&#8896;"/>{hidden}"#), "x"),
+            r"\bigwedge x"
+        );
+        assert_eq!(nary(hidden, "(2x+1)dx"), r"\int(2x+1)dx");
+        // Only the hidden one goes; `m:val="0"` hides nothing.
+        let sup_only = r#"<m:supHide/><m:subHide m:val="0"/>"#;
+        assert_eq!(nary(sup_only, "x"), r"\int_{}x");
+        // Not hidden: docling's empty placeholders, unchanged.
+        assert_eq!(nary("", "x"), r"\int_{}^{}x");
+    }
+
+    #[test]
+    fn run_properties_set_the_alphabet() {
+        // #1239: `m:nor` is text, `m:scr` an alphabet, `m:sty` bold; docling
+        // ignores all three.
+        let nor = r#"<m:nor/>"#;
+        assert_eq!(
+            math(&format!(
+                "{}{}{}",
+                run("", "x"),
+                run(nor, " for all "),
+                run("", "y")
+            )),
+            r"x\text{ for all }y"
+        );
+        // Adjacent runs of one style share the wrapper.
+        assert_eq!(
+            math(&format!("{}{}", run(nor, "if "), run(nor, "x &amp; y"))),
+            r"\text{if x \& y}"
+        );
+        let scr = |v: &str| format!(r#"<m:scr m:val="{v}"/>"#);
+        assert_eq!(math(&run(&scr("double-struck"), "R")), r"\mathbb{R}");
+        assert_eq!(math(&run(&scr("script"), "L")), r"\mathcal{L}");
+        assert_eq!(math(&run(&scr("fraktur"), "g")), r"\mathfrak{g}");
+        assert_eq!(math(&run(&scr("sans-serif"), "A")), r"\mathsf{A}");
+        assert_eq!(math(&run(&scr("monospace"), "f")), r"\mathtt{f}");
+        assert_eq!(math(&run(&scr("roman"), "x")), "x");
+        let sty = |v: &str| format!(r#"<m:sty m:val="{v}"/>"#);
+        assert_eq!(math(&run(&sty("b"), "v")), r"\mathbf{v}");
+        assert_eq!(math(&run(&sty("bi"), "v")), r"\boldsymbol{v}");
+        assert_eq!(math(&run(&sty("i"), "v")), "v");
+        // Plain is what Word sets on function names and operators: unwrapped.
+        assert_eq!(math(&run(&sty("p"), "d")), "d");
+        // A function name keeps its lookup under `m:sty="p"`.
+        assert_eq!(
+            math(&format!(
+                r#"<m:func><m:fName>{}</m:fName><m:e><m:r><m:t>x</m:t></m:r></m:e></m:func>"#,
+                run(&sty("p"), "sin")
+            )),
+            r"\sin(x)"
+        );
+        // Text mode escapes its own specials.
+        assert_eq!(
+            math(&run(nor, r"a\b ~c")),
+            r"\text{a\textbackslash{}b \textasciitilde{}c}"
+        );
+    }
+
+    #[test]
+    fn bracket_characters_are_latex_delimiters() {
+        // #1239: docling writes `⟨`, `⌈`, `‖`… as typed after `\left`, where
+        // LaTeX does not take them.
+        let d = |beg: &str, end: &str| {
+            math(&format!(
+                r#"<m:d><m:dPr><m:begChr m:val="{beg}"/><m:endChr m:val="{end}"/></m:dPr><m:e><m:r><m:t>u</m:t></m:r></m:e><m:e><m:r><m:t>v</m:t></m:r></m:e></m:d>"#
+            ))
+        };
+        assert_eq!(d("&#10216;", "&#10217;"), r"\left\langle u|v\right\rangle");
+        assert_eq!(d("&#8968;", "&#8969;"), r"\left\lceil u|v\right\rceil");
+        assert_eq!(d("&#8970;", "&#8971;"), r"\left\lfloor u|v\right\rfloor");
+        assert_eq!(d("&#8214;", "&#8214;"), r"\left\| u|v\right\|");
+        assert_eq!(
+            d("&#10214;", "&#10215;"),
+            r"\left[\!\left[u|v\right]\!\right]"
+        );
+        // An empty character is no delimiter (`.`), as before.
+        assert_eq!(d("", "&#10217;"), r"\left.u|v\right\rangle");
+    }
+
+    #[test]
+    fn equation_array_alignment_points_align() {
+        // #1239: an `&` typed in an equation array row is Word's alignment
+        // point; docling escapes it to a literal `\&`.
+        let row = |t: &str| format!("<m:e><m:r><m:t>{t}</m:t></m:r></m:e>");
+        let arr = |rows: &[&str]| {
+            let rows: String = rows.iter().map(|r| row(r)).collect();
+            math(&format!("<m:eqArr>{rows}</m:eqArr>"))
+        };
+        assert_eq!(
+            arr(&["x&amp;=1", "y&amp;=2"]),
+            r"\begin{aligned}x&=1\\y&=2\end{aligned}"
+        );
+        // Rows without alignment points: centred, one per line.
+        assert_eq!(
+            arr(&["x=1", "y=2"]),
+            r"\begin{gathered}x=1\\y=2\end{gathered}"
+        );
+        // A single row stays as docling writes it.
+        assert_eq!(arr(&["a+b"]), "a+b");
+        // `m:aln` on a run marks the point too.
+        let aln = format!(
+            "<m:eqArr><m:e><m:r><m:t>x</m:t></m:r>{}<m:r><m:t>1</m:t></m:r></m:e>{}</m:eqArr>",
+            run("<m:aln/>", "="),
+            row("y=2")
+        );
+        assert_eq!(math(&aln), r"\begin{aligned}x&=1\\y=2\end{aligned}");
+        // Outside an equation array an `&` is a literal, as before.
+        assert_eq!(math(&run("", "a&amp;b")), r"a \& b");
     }
 }

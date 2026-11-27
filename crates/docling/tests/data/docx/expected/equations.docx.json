@@ -964,8 +964,8 @@
       "content_layer": "body",
       "label": "formula",
       "prov": [],
-      "orig": "N_{s}^{H}",
-      "text": "N_{s}^{H}"
+      "orig": "N_{\\text{s}}^{\\text{H}}",
+      "text": "N_{\\text{s}}^{\\text{H}}"
     },
     {
       "self_ref": "#/texts/45",
@@ -1146,8 +1146,8 @@
       "content_layer": "body",
       "label": "formula",
       "prov": [],
-      "orig": "\\bigwedge_{}^{}x",
-      "text": "\\bigwedge_{}^{}x"
+      "orig": "\\bigwedge x",
+      "text": "\\bigwedge x"
     },
     {
       "self_ref": "#/texts/59",
@@ -1158,8 +1158,8 @@
       "content_layer": "body",
       "label": "formula",
       "prov": [],
-      "orig": "\\int_{}^{}(2x+1)dx",
-      "text": "\\int_{}^{}(2x+1)dx"
+      "orig": "\\int(2x+1)dx",
+      "text": "\\int(2x+1)dx"
     },
     {
       "self_ref": "#/texts/60",
@@ -1182,8 +1182,8 @@
       "content_layer": "body",
       "label": "formula",
       "prov": [],
-      "orig": "\\iiint_{}^{}ydy",
-      "text": "\\iiint_{}^{}ydy"
+      "orig": "\\iiint ydy",
+      "text": "\\iiint ydy"
     },
     {
       "self_ref": "#/texts/62",
@@ -1194,8 +1194,8 @@
       "content_layer": "body",
       "label": "formula",
       "prov": [],
-      "orig": "\\oint_{}^{}\\frac{dy}{dx}",
-      "text": "\\oint_{}^{}\\frac{dy}{dx}"
+      "orig": "\\oint\\frac{dy}{dx}",
+      "text": "\\oint\\frac{dy}{dx}"
     },
     {
       "self_ref": "#/texts/63",
@@ -1352,8 +1352,8 @@
       "content_layer": "body",
       "label": "formula",
       "prov": [],
-      "orig": "P_{ x}=\\underbrace{S \\cdot T \\cdot G \\cdot (x+y+z)}_{group\\ with\\ underbraces}+e^{x}",
-      "text": "P_{ x}=\\underbrace{S \\cdot T \\cdot G \\cdot (x+y+z)}_{group\\ with\\ underbraces}+e^{x}"
+      "orig": "P_{\\text{ x}}=\\underbrace{S \\cdot T \\cdot G \\cdot (x+y+z)}_{group\\ with\\ underbraces}+e^{x}",
+      "text": "P_{\\text{ x}}=\\underbrace{S \\cdot T \\cdot G \\cdot (x+y+z)}_{group\\ with\\ underbraces}+e^{x}"
     },
     {
       "self_ref": "#/texts/75",
@@ -1364,8 +1364,8 @@
       "content_layer": "body",
       "label": "formula",
       "prov": [],
-      "orig": "Q_{ y}=\\overset{group\\ with\\ overbraces}{\\overbrace{G \\cdot T \\cdot S \\cdot (x+y+z)}}+e^{y}",
-      "text": "Q_{ y}=\\overset{group\\ with\\ overbraces}{\\overbrace{G \\cdot T \\cdot S \\cdot (x+y+z)}}+e^{y}"
+      "orig": "Q_{\\text{ y}}=\\overset{group\\ with\\ overbraces}{\\overbrace{G \\cdot T \\cdot S \\cdot (x+y+z)}}+e^{y}",
+      "text": "Q_{\\text{ y}}=\\overset{group\\ with\\ overbraces}{\\overbrace{G \\cdot T \\cdot S \\cdot (x+y+z)}}+e^{y}"
     },
     {
       "self_ref": "#/texts/76",

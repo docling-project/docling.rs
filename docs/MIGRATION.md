@@ -245,7 +245,7 @@ with the inline whitespace contract (#997, § JSON); this one with the
 
 | Format | Files | Markdown exact | JSON identical | Residual |
 |---|---|---|---|---|
-| DOCX | 40 | 39 | 38 | `docx_symbol_font_glyphs`: the five Wingdings lines alone, in the Markdown and the JSON (the #588 divergence below); `docx_checkboxes` JSON: live docling's table-cell text keeps the content controls' ☒/☐ glyphs, a side effect of docling#4455 (it now reads a plain cell's wrapped runs), where upstream's committed groundtruth and we leave them out — the state is the cell's `checkbox_*` items (§ DOCX). `docx_wrapped_table_rows` is Markdown and JSON exact (#527: a JPEG picture is stored as docling's `ImageRef.from_pil` PNG, re-encoded from libjpeg-exact pixels) |
+| DOCX | 40 | 38 | 37 | `equations.docx`, Markdown and JSON: the OMML divergences of #1239 (§ DOCX — Word's hidden n-ary limits left out, `m:nor` runs as `\text{…}`; exact until then); `docx_symbol_font_glyphs`: the five Wingdings lines alone, in the Markdown and the JSON (the #588 divergence below); `docx_checkboxes` JSON: live docling's table-cell text keeps the content controls' ☒/☐ glyphs, a side effect of docling#4455 (it now reads a plain cell's wrapped runs), where upstream's committed groundtruth and we leave them out — the state is the cell's `checkbox_*` items (§ DOCX). `docx_wrapped_table_rows` is Markdown and JSON exact (#527: a JPEG picture is stored as docling's `ImageRef.from_pil` PNG, re-encoded from libjpeg-exact pixels) |
 | HTML | 32 | 31 | **32** | `html_nested_block_in_list_item`: a table inside a `<li>` is blank-line separated from its item (a divergence, § HTML; 32/32 after whitespace normalization) |
 | PPTX | 8 | **8** | **8** | — (`pptx_chart`'s 3-D column chart now reads as upstream's `bar_chart`, docling#4811) |
 | XLSX | 17 | **17** | **17** | — (`xlsx_10_place_in_cell`: the images placed in its cells, docling#5015, since #1019, its `#N/A` error cell since #1020; `xlsx_11_image_function` and `xlsx_12_image_function_and_place_in_cell`, the `IMAGE()` pictures, #1169; beyond that the PNG bytes PIL re-encodes. Live docling's Markdown has no `## <sheet>` heading the committed groundtruth of the two image workbooks has, below) |
@@ -728,6 +728,11 @@ converted once more as that format with a warning.
   - U+20EE is `\underleftarrow` (docling: `\underledtarrow`, a typo in its `CHR`)
   - a group character (`m:groupChr`) outside `CHR` goes above its base when `m:pos` is `top` and below it otherwise (`\overset{→}{x}`, `\underset{→}{x}`), as an unknown accent does: Word's "arrow over text" is `→` with `pos="top"`, which docling returns alone, dropping the base (it used to be an underbrace here)
   - many of these macros exist only in `unicode-math` (`\ovhook`, `\candra`, `\annuity`, `\widebridgeabove`, `\Bbbsum`, `\threeunderdot`, …): they compile with LuaLaTeX/XeLaTeX and `unicode-math`, but MathJax and KaTeX do not render them, so Markdown viewers show them as raw or as errors — kept for parity with docling
+- #1239, the rest of the OMML gaps docling shares — deliberate divergences, each where docling's LaTeX loses what Word wrote (`equations.docx`, exact until then, now differs from docling on seven of its formulas):
+  - an n-ary's hidden limits (`m:subHide` / `m:supHide`, Word's indefinite integral or `⋀` over an implied range) are left out: `\int(2x+1)dx`, `\bigwedge x` — docling writes the empty placeholders, `\int_{}^{}(2x+1)dx`
+  - run properties, which docling ignores: an `m:nor` (normal text) run is `\text{…}`, its spaces kept and text-mode escaped (`x\text{ for all }y`; `N_{\text{s}}^{\text{H}}`); `m:scr` picks the alphabet — `double-struck` `\mathbb`, `script` `\mathcal`, `fraktur` `\mathfrak`, `sans-serif` `\mathsf`, `monospace` `\mathtt`; `m:sty` bold is `\mathbf` (`b`) / `\boldsymbol` (`bi`). Adjacent runs of one style share the wrapper. `m:sty="p"` (plain) is not wrapped: Word sets it on every function name, `lim` and operator, which LaTeX sets upright already
+  - a delimiter's bracket characters LaTeX names are written as its delimiters — `⟨⟩` `\langle` `\rangle`, `⌈⌉` `\lceil` `\rceil`, `⌊⌋` `\lfloor` `\rfloor`, `‖` `\|`, `⟦⟧` two nested `\left[` (`\llbracket` is no `\left` delimiter); `∣` between the elements is `\mid` — where docling writes the character after `\left` / `\right`, which LaTeX (and KaTeX, for `‖`) rejects
+  - an equation array's alignment points (an `&` typed in a row, or `m:aln` on a run) stay alignment points, the rows in an `aligned` environment (`\begin{aligned}x&=1\\y&=2\end{aligned}`); several rows without one are `gathered`, a single row is written as before. docling escapes the `&` to a literal `\&` and joins the rows with a bare `\\`
 
 #### DOC (Word 97–2004)
 
@@ -1746,7 +1751,7 @@ fragments as XML.
 |---|---|---|---|
 | CSV | **9/9**, 100% | JATS | 6/7, 93% |
 | AsciiDoc | **5/5**, 100% | Markdown | **11/11**, 100% |
-| DOCX | 33/38, 99% | LaTeX | **2/2**, 100% |
+| DOCX | 32/38, 99% | LaTeX | **2/2**, 100% |
 | PPTX | 7/8, 99% | HTML | **32/32**, 100% |
 | XLSX | 9/14, 97% | WebVTT | **4/4**, 100% |
 | USPTO | **9/9**, 100% | ODF | 5/7, 98% |
