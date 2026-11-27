@@ -73,7 +73,7 @@ def test_no_pipeline_means_no_cells():
 
 def _ocr_models_ready():
     models = Path(os.environ.get("DOCLING_RS_MODELS_DIR", REPO / ".models"))
-    return (models / "layout.onnx").exists() and any(models.glob("ocr_rec*.onnx"))
+    return any(models.glob("layout_heron*.onnx")) and any(models.glob("ocr_rec*.onnx"))
 
 
 @pytest.mark.skipif(not _ocr_models_ready(), reason="OCR models not installed")
