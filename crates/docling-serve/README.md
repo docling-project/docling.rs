@@ -190,7 +190,8 @@ curl -H 'content-type: application/json' localhost:5001/v1/convert/source \
 | `cloud` | off | S3 / Azure Blob / GCS request sources and output targets (`object_store`) |
 | `otel` | off | OpenTelemetry trace export over OTLP (`OTEL_EXPORTER_OTLP_ENDPOINT`) |
 | `cuda` · `tensorrt` · `directml` · `coreml` · `xnnpack` · `ort-load-dynamic` | off | ONNX Runtime execution providers for the ML pipeline, selected at runtime with `DOCLING_RS_EP` |
-| `pdfium` · `heif` | off | pdfium as an opt-in PDF renderer · HEIC/HEIF input (links libheif) |
+| `heif` | on | HEIC/HEIF input (pure-Rust heifer, no native library) |
+| `pdfium` | off | pdfium as an opt-in PDF renderer |
 
 PDF, image, audio and video conversion need the ONNX models — fetch them with
 `scripts/install/download_dependencies.sh` from the repository, or use the

@@ -1,5 +1,5 @@
-//! HEIC/HEIF image input (#211), end to end. Compiled only with the opt-in
-//! `heif` feature (links the system libheif) and, like the other pipeline
+//! HEIC/HEIF image input (#211), end to end. Compiled with the `heif`
+//! feature (pure-Rust heifer, #1249; in the default set) and, like the other pipeline
 //! e2es, skips cleanly when the ONNX models aren't installed —
 //! model-free CI stays green.
 
@@ -31,7 +31,7 @@ fn heic_photo_ocrs_through_the_image_pipeline() {
         .expect("heic conversion")
         .document
         .export_to_markdown();
-    // Big, plain, high-contrast text — asserts the plumbing (libheif decode →
+    // Big, plain, high-contrast text — asserts the plumbing (heifer decode →
     // layout + OCR), not recognition quality.
     for needle in ["Site Inspection Report", "Building 7", "sprinkler"] {
         assert!(md.contains(needle), "{needle:?} missing:\n{md}");

@@ -26,6 +26,8 @@ preserve-order = ["docling/preserve-order"]
 ocr = [
     "dep:docling-core",
     "dep:docling-pdf",
+    # HEIC/HEIF photos (#1249): docling-pdf's pure-Rust heifer decode.
+    "docling-pdf/heif",
     "dep:image",
     "dep:js-sys",
     "dep:wasm-bindgen-futures",

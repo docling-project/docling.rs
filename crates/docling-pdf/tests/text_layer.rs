@@ -102,7 +102,8 @@ fn scanned_pdf_yields_empty_document() {
 /// #211: HEIC is detected by content, and without the `heif` feature the
 /// error names the fix instead of a generic decode failure. Runs before any
 /// model loads, so it needs no assets. (With the feature on, the same bytes
-/// fail in libheif instead — a 12-byte file is not a real container.)
+/// fail in the heifer decode instead — a 12-byte file is not a real
+/// container.)
 #[test]
 fn heif_without_feature_reports_clearly() {
     let stub = b"\x00\x00\x00\x18ftypheic\0\0\0\0";

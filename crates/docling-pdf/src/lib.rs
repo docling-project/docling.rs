@@ -53,6 +53,10 @@ mod ocr_cls;
 pub mod ocr_det;
 #[cfg(feature = "ocr-prep")]
 pub mod ocr_prep;
+// HEIC/HEIF decoding (#211, #1249): heifer, pure Rust — the native image
+// pipeline and the browser OCR build share it.
+#[cfg(feature = "heif")]
+pub mod heif;
 #[cfg(feature = "ml")]
 mod orient;
 pub mod outline;
@@ -654,51 +658,13 @@ fn image_page_dpi(bytes: &[u8], decoded: (u32, u32)) -> (f64, f64) {
 /// Whether `bytes` is an ISOBMFF HEIF/HEIC container (the `ftyp` brands
 /// iPhones write). Checked by content, not extension — HEIC regularly
 /// arrives misnamed `.jpg`.
-#[cfg(feature = "ml")]
-fn is_heif(bytes: &[u8]) -> bool {
+pub fn is_heif(bytes: &[u8]) -> bool {
     bytes.len() >= 12
         && &bytes[4..8] == b"ftyp"
         && matches!(
             &bytes[8..12],
             b"heic" | b"heix" | b"hevc" | b"heim" | b"heis" | b"hevm" | b"hevs" | b"mif1" | b"msf1"
         )
-}
-
-/// Decode a HEIF/HEIC primary image via libheif (#211). Behind the opt-in
-/// `heif` feature — libheif is a native dependency the default build (and
-/// wasm) must not carry.
-#[cfg(all(feature = "ml", feature = "heif"))]
-fn decode_heif(bytes: &[u8], max_side: u32) -> Result<image::RgbImage, PdfError> {
-    use libheif_rs::{ColorSpace, HeifContext, LibHeif, RgbChroma};
-    let err = |e: String| PdfError::Pdfium(format!("heif: {e}"));
-    let ctx = HeifContext::read_from_bytes(bytes).map_err(|e| err(e.to_string()))?;
-    let handle = ctx.primary_image_handle().map_err(|e| err(e.to_string()))?;
-    if handle.width() > max_side || handle.height() > max_side {
-        return Err(err(format!(
-            "image dimensions {}x{} exceed the {max_side}px per-side cap \
-             (DOCLING_RS_MAX_IMAGE_PIXELS overrides)",
-            handle.width(),
-            handle.height()
-        )));
-    }
-    let lib = LibHeif::new();
-    let img = lib
-        .decode(&handle, ColorSpace::Rgb(RgbChroma::Rgb), None)
-        .map_err(|e| err(e.to_string()))?;
-    let (w, h) = (img.width(), img.height());
-    let planes = img.planes();
-    let plane = planes
-        .interleaved
-        .ok_or_else(|| err("no RGB plane".into()))?;
-    let stride = plane.stride;
-    let mut out = image::RgbImage::new(w, h);
-    for (y, row) in out.rows_mut().enumerate() {
-        let src = &plane.data[y * stride..y * stride + w as usize * 3];
-        for (x, px) in row.enumerate() {
-            px.0 = [src[x * 3], src[x * 3 + 1], src[x * 3 + 2]];
-        }
-    }
-    Ok(out)
 }
 
 #[cfg(feature = "ml")]
@@ -708,11 +674,11 @@ fn decode_image_with_max_side(bytes: &[u8], max_side: u32) -> Result<image::RgbI
 
     if is_heif(bytes) {
         #[cfg(feature = "heif")]
-        return decode_heif(bytes, max_side);
+        return heif::decode(bytes, max_side).map_err(|e| PdfError::Pdfium(format!("heif: {e}")));
         #[cfg(not(feature = "heif"))]
         return Err(PdfError::Pdfium(
             "HEIC/HEIF input needs a build with the `heif` cargo feature \
-             (rebuild with --features heif; links the system libheif)"
+             (rebuild with --features heif)"
                 .into(),
         ));
     }
