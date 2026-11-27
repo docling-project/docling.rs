@@ -184,6 +184,35 @@ impl ConfidenceReport {
         self.ocr_cells.get(&page_no).map_or(&[], Vec::as_slice)
     }
 
+    /// The per-cell OCR confidences of every page as JSON (#1246), for the
+    /// bindings: `{"<page_no>": [{"text", "l", "t", "r", "b",
+    /// "confidence"}, …]}` — 1-based page keys (JSON object keys are
+    /// strings), boxes in page points with a top-left origin, cells in
+    /// pipeline order; `{}` when no page was OCR'd. Like
+    /// [`ConfidenceReport::ocr_cells`] a docling extension outside docling's
+    /// wire shape ([`ConfidenceReport::to_json`]): it is what Python
+    /// docling's `generate_parsed_pages` exposes as the `from_ocr` text-line
+    /// cells of `ConversionResult.pages[i].parsed_page`.
+    pub fn ocr_cells_json(&self) -> serde_json::Value {
+        let pages = self.ocr_cells.iter().map(|(n, cells)| {
+            let cells = cells
+                .iter()
+                .map(|c| {
+                    serde_json::json!({
+                        "text": c.text,
+                        "l": c.l,
+                        "t": c.t,
+                        "r": c.r,
+                        "b": c.b,
+                        "confidence": c.confidence,
+                    })
+                })
+                .collect();
+            (n.to_string(), serde_json::Value::Array(cells))
+        });
+        serde_json::Value::Object(pages.collect())
+    }
+
     /// The cells of every page whose confidence is below `threshold`,
     /// as `(page_no, cell)`.
     pub fn low_confidence_cells(
@@ -296,6 +325,31 @@ mod tests {
         assert_eq!((low[0].0, low[0].1.text.as_str()), (2, "smudge"));
         // docling's wire shape is untouched.
         assert!(!report.to_json().to_string().contains("smudge"));
+    }
+
+    #[test]
+    fn ocr_cells_json_keys_pages_and_keeps_boxes() {
+        // #1246: the bindings read every page's cells from this one export.
+        let cell = OcrCellConfidence {
+            text: "Invoice".into(),
+            l: 10.0,
+            t: 20.0,
+            r: 60.5,
+            b: 32.0,
+            confidence: 0.75,
+        };
+        let report = ConfidenceReport::from_pages(BTreeMap::new()).with_ocr_cells(2, vec![cell]);
+        assert_eq!(
+            report.ocr_cells_json(),
+            serde_json::json!({"2": [{
+                "text": "Invoice", "l": 10.0, "t": 20.0, "r": 60.5, "b": 32.0,
+                "confidence": 0.75,
+            }]})
+        );
+        assert_eq!(
+            ConfidenceReport::default().ocr_cells_json(),
+            serde_json::json!({})
+        );
     }
 
     #[test]

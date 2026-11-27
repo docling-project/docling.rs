@@ -8,6 +8,7 @@ import enum
 import math
 from typing import Any, Dict, Iterable
 
+from docling_core.types.doc import BoundingBox, CoordOrigin
 from pydantic import BaseModel, Field, PrivateAttr, computed_field, field_validator, model_validator
 
 from .. import ConversionStatus
@@ -150,6 +151,40 @@ class ConfidenceReport(PageConfidenceScores):
         return _nanmean(page.low_score for page in self.pages.values())
 
 
+class TextLineCell(BaseModel):
+    """One text-line cell of a page (#1246) — the counterpart of the
+    ``from_ocr`` cells in Python docling's
+    ``ConversionResult.pages[i].parsed_page.textline_cells``
+    (``generate_parsed_pages=True``): the recognized ``text``, its ``bbox``
+    in page points with a top-left origin (``CoordOrigin.TOPLEFT``), the
+    recognizer's ``confidence`` (mean emitted-character probability, the
+    figure the page ``ocr_score`` averages) and ``from_ocr``. The cells are
+    every crop the OCR read — the text lines, plus the word crops of a table
+    region, which join the page's cells just the same. Only OCR'd cells are
+    reported — text-layer cells are not, so ``from_ocr`` is always ``True``
+    (a documented divergence, ``docs/MIGRATION.md``)."""
+
+    text: str
+    bbox: BoundingBox
+    confidence: float
+    from_ocr: bool = True
+
+    @classmethod
+    def _from_native(cls, cell: Dict[str, Any]) -> "TextLineCell":
+        return cls(
+            text=cell["text"],
+            bbox=BoundingBox(
+                l=cell["l"],
+                t=cell["t"],
+                r=cell["r"],
+                b=cell["b"],
+                coord_origin=CoordOrigin.TOPLEFT,
+            ),
+            # serde writes a NaN confidence as null.
+            confidence=math.nan if cell.get("confidence") is None else cell["confidence"],
+        )
+
+
 __all__ = [
     "InputFormat",
     "DocumentStream",
@@ -157,4 +192,5 @@ __all__ = [
     "ConfidenceReport",
     "PageConfidenceScores",
     "QualityGrade",
+    "TextLineCell",
 ]

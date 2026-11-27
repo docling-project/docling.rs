@@ -2463,6 +2463,16 @@ These are deliberate or unavoidable divergences, not bugs.
    export's `pages` map and `--pages` windows — where Python docling keys by
    its 0-based internal page index. Unset scores serialize as `null`, not
    `NaN`.
+   The per-cell OCR confidences behind each page's `ocr_score` (#915) ride
+   beside the report — Rust `ConfidenceReport::ocr_cells` /
+   `ocr_cells_json`, Python `result.ocr_cells` / `result.textline_cells(n)`
+   (#1246: `TextLineCell` with `text`, a top-left-origin `bbox` in page
+   points, `confidence`, `from_ocr`) — where docling exposes them as the
+   `from_ocr` text-line cells of `generate_parsed_pages`'
+   `ConversionResult.pages[i].parsed_page`. Always on, no option: the
+   pipeline keeps them anyway. Only OCR'd cells are reported (the text
+   lines plus a table region's word crops); text-layer cells are not, so
+   there is no `parsed_page` and `from_ocr` is always `True`.
 
 10. **Page rasterization over HTTP** (#243). `to=images` on docling-serve's
     `/v1/convert` (sync, async, batch) renders a PDF's pages to PNG

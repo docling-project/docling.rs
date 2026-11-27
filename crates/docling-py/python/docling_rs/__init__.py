@@ -117,6 +117,7 @@ __all__ = [
     "ConfidenceReport",
     "PageConfidenceScores",
     "QualityGrade",
+    "TextLineCell",
     "ErrorItem",
     "ConversionError",
     "EncryptionError",
@@ -226,7 +227,13 @@ class ConversionResult:
     went on without them, so scanned pages and text inside images are
     missing although the status is ``SUCCESS`` — or ``None`` when nothing
     asked for OCR. ``.ocr_unavailable_reason`` is the load error behind an
-    ``"unavailable"``."""
+    ``"unavailable"``. ``.ocr_cells`` (#1246) holds the OCR'd text lines of
+    the PDF/image pipeline, ``{page_no: [TextLineCell, ...]}`` keyed by the
+    real 1-based page number — text, ``bbox`` (page points, top-left
+    origin), recognition ``confidence``, ``from_ocr=True`` — the ``from_ocr``
+    cells of docling's ``generate_parsed_pages``; pages read from their text
+    layer have no entry, and a conversion without the pipeline has ``{}``.
+    :meth:`textline_cells` reads one page."""
 
     def __init__(
         self,
@@ -240,6 +247,7 @@ class ConversionResult:
         pdf_repairs: Optional[List[Dict[str, Any]]] = None,
         ocr_status: Optional[str] = None,
         ocr_unavailable_reason: Optional[str] = None,
+        ocr_cells: Optional[Dict[int, List[TextLineCell]]] = None,
     ):
         self.status = ConversionStatus(status)
         self.document = document
@@ -251,6 +259,12 @@ class ConversionResult:
         self.pdf_repairs = list(pdf_repairs) if pdf_repairs is not None else None
         self.ocr_status = ocr_status
         self.ocr_unavailable_reason = ocr_unavailable_reason
+        self.ocr_cells = dict(ocr_cells) if ocr_cells is not None else {}
+
+    def textline_cells(self, page_no: int) -> List[TextLineCell]:
+        """The OCR'd text-line cells of the 1-based page ``page_no``, in
+        pipeline order; ``[]`` when the page was not OCR'd."""
+        return list(self.ocr_cells.get(page_no, ()))
 
 
 # Imported here because datamodel re-exports ConversionResult from this module.
@@ -258,6 +272,7 @@ from .datamodel.base_models import (  # noqa: E402
     ConfidenceReport,
     PageConfidenceScores,
     QualityGrade,
+    TextLineCell,
 )
 
 
@@ -1445,4 +1460,16 @@ def _wrap(native) -> ConversionResult:
         json.loads(pdf_repairs_json) if pdf_repairs_json is not None else None,
         getattr(native, "ocr_status", None),
         getattr(native, "ocr_unavailable_reason", None),
+        _ocr_cells(getattr(native, "ocr_cells_json", None)),
     )
+
+
+def _ocr_cells(ocr_cells_json: Optional[str]) -> Dict[int, List[TextLineCell]]:
+    """The native ``{"<page_no>": [{text, l, t, r, b, confidence}]}``
+    export (#1246) as ``{page_no: [TextLineCell]}``."""
+    if not ocr_cells_json:
+        return {}
+    return {
+        int(page): [TextLineCell._from_native(cell) for cell in cells]
+        for page, cells in json.loads(ocr_cells_json).items()
+    }

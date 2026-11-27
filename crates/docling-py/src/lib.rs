@@ -116,6 +116,12 @@ struct PyNativeResult {
     /// kept outside the document JSON just as Python docling does.
     #[pyo3(get)]
     confidence_json: Option<String>,
+    /// The OCR'd text-line cells with their recognition confidence (#915,
+    /// #1246) as `{"<page_no>": [{"text", "l", "t", "r", "b",
+    /// "confidence"}]}` — page points, top-left origin — when the
+    /// conversion ran the PDF/image pipeline; `None` otherwise.
+    #[pyo3(get)]
+    ocr_cells_json: Option<String>,
     /// What the PDF reader repaired to read the input (#934), as a JSON
     /// list of `{"kind": …}` objects, when `pdf_report_repairs` was on and
     /// the input is a PDF; `None` otherwise.
@@ -151,6 +157,12 @@ fn metadata_json(doc: &docling::DoclingDocument) -> Option<String> {
 
 fn confidence_json(doc: &docling::DoclingDocument) -> Option<String> {
     doc.confidence.as_ref().map(|r| r.to_json().to_string())
+}
+
+fn ocr_cells_json(doc: &docling::DoclingDocument) -> Option<String> {
+    doc.confidence
+        .as_ref()
+        .map(|r| r.ocr_cells_json().to_string())
 }
 
 fn pdf_repairs_json(repairs: Option<Vec<docling::PdfRepair>>) -> Option<String> {
@@ -1271,6 +1283,7 @@ impl PyDocumentConverter {
                     input_name: src.name,
                     metadata_json: metadata_json(&c.document),
                     confidence_json: confidence_json(&c.document),
+                    ocr_cells_json: ocr_cells_json(&c.document),
                     document_json: c.document.export_to_json(),
                     errors: error_tuples(errors),
                     redaction: redaction_counts(redaction),
@@ -1397,6 +1410,7 @@ fn native_result(r: docling::ConversionResult) -> PyNativeResult {
         input_name: r.input_name,
         metadata_json: metadata_json(&r.document),
         confidence_json: confidence_json(&r.document),
+        ocr_cells_json: ocr_cells_json(&r.document),
         document_json,
         errors: error_tuples(r.errors),
         redaction: redaction_counts(r.redaction),
