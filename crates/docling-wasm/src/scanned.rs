@@ -461,9 +461,7 @@ pub async fn convert_scanned_image(
     to: Option<String>,
     images: Option<String>,
 ) -> Result<String, JsError> {
-    let img = image::load_from_memory(bytes)
-        .map_err(|e| JsError::new(&format!("decode image: {e}")))?
-        .to_rgba8();
+    let img = crate::ocr::decode_input_image(bytes)?.to_rgba8();
     let (w, h) = img.dimensions();
     let mut conv = ScannedConverter::new(dict);
     conv.add_page(img.as_raw(), w, h, 1.0, layout, rec).await?;

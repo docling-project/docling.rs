@@ -33,11 +33,12 @@ glyph-list = []
 # The ONNX-free OCR pre/post half (`ocr_prep`) alone — what the wasm build
 # (#79 phase 2) pulls: pure Rust + the `image` crate, no ort/pdfium.
 ocr-prep = ["dep:image"]
-# HEIC/HEIF image input (#211): decode via the system libheif (native
-# dependency — libde265 for HEVC), off by default so plain and wasm builds
-# stay pure Rust. Without it a .heic input fails with a targeted
-# "rebuild with --features heif" message.
-heif = ["dep:libheif-rs"]
+# HEIC/HEIF image input (#211): decoded by heifer (#1249) — pure Rust,
+# `#![forbid(unsafe_code)]`, no native library, so it compiles for wasm32
+# too (the browser OCR build takes it with `ocr-prep`). Off in this crate's
+# own default set; `docling`'s default turns it on. Without it a .heic input
+# fails with a targeted "rebuild with --features heif" message.
+heif = ["ocr-prep", "dep:heifer"]
 # pdfium (phase 5 of "Retiring pdfium", docs/PDF_CONFORMANCE.md): off by
 # default — the pipeline renders in pure Rust. On, `DOCLING_RS_RENDERER=pdfium`
 # renders with the library (docling's pypdfium2 chain), a file lopdf cannot
@@ -94,10 +95,11 @@ ort-load-dynamic = ["ml", "docling-onnx/load-dynamic", "ort/load-dynamic"]
 [dependencies]
 # The NER model's `config.json` (`id2label`), behind the `ner` feature.
 serde_json = { version = "1", optional = true }
-# ~1.0: keeps libheif-sys on the 2.x line, which links libheif 1.16–1.17 —
-# what current LTS distros ship (Ubuntu 24.04 = 1.17). Newer libheif-rs
-# requires libheif >= 1.18 and can be selected once baselines move.
-libheif-rs = { version = "~1.0", default-features = false, optional = true }
+# The HEIC/HEIF decoder behind `heif` (#1249; replaces libheif-rs, which
+# linked the system libheif + libde265). Pinned exactly: a young codec
+# (first release 2026-10) that ships often — review the diff before a bump.
+# No default features: the encoder is not needed.
+heifer = { version = "=0.9.0", default-features = false, optional = true }
 docling-core = { path = "../docling-core", version = "=2.89.4", default-features = false }
 # Shared ONNX execution-provider selection (DOCLING_RS_EP, #74/#288);
 # re-exported as `docling_pdf::ep`.
@@ -108,7 +110,7 @@ pdfium-render = { version = "0.8", optional = true }
 libloading = { version = "0.8", optional = true }
 ort = { version = "2.0.0-rc.14", default-features = false, features = ["std", "download-binaries", "tls-rustls"], optional = true }
 # The formats the image input accepts (docling's `format.rs` list; HEIC goes
-# through libheif behind `heif`), not `image`'s default set: the defaults also
+# through heifer behind `heif`), not `image`'s default set: the defaults also
 # pull the OpenEXR and AVIF codecs (`exr` → `pulp`, `ravif` → `rav1e`) — two
 # routes to the unmaintained `paste` proc-macro (RUSTSEC-2024-0436, #952) and
 # rav1e's minutes of compile time, for formats nothing here decodes.

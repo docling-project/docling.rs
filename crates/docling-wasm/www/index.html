@@ -224,7 +224,7 @@ curl -fsSL https://raw.githubusercontent.com/docling-project/docling.rs/master/s
     import init, { convert, convert_with_options, supported_extensions, version } from "./pkg/docling_wasm.js";
 
     const SCALE = 2.0; // px per PDF point — the native pipeline's RENDER_SCALE
-    const IMAGE_EXT = ["png", "jpg", "jpeg", "tif", "tiff", "webp", "bmp", "gif"];
+    const IMAGE_EXT = ["png", "jpg", "jpeg", "tif", "tiff", "webp", "bmp", "gif", "heic", "heif"];
 
     const $ = (id) => document.getElementById(id);
     const [meta, out, preview, drop, pick, to, images, render, structure, maxPages, stop, lang, tf, forceOcr, gpu, gpuWrap, modelsInput, ocrState] =

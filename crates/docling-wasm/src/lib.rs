@@ -445,9 +445,10 @@ mod tests {
         assert_eq!(has("png"), InputFormat::Image.is_compiled_in());
         assert_eq!(has("mp3"), InputFormat::Audio.is_compiled_in());
         assert_eq!(has("mp4"), InputFormat::Video.is_compiled_in());
-        assert!(
-            !has("heic"),
-            "heic needs the heif feature, which no build here has"
-        );
+        // HEIC rides on the image input (docling's `heif`, in its default
+        // set since #1249): never listed without it.
+        if !has("png") {
+            assert!(!has("heic"), "heic listed without the image input");
+        }
     }
 }

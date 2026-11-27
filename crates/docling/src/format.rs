@@ -456,7 +456,8 @@ impl InputFormat {
     /// binary instead of hard-coding a list that drifts from it. Formats the
     /// build lacks ([`is_compiled_in`](Self::is_compiled_in)) are left out,
     /// and so are two extensions that only route: `.heic`/`.heif` without the
-    /// `heif` feature (libheif — the image pipeline cannot decode them) and
+    /// `heif` feature (in the default set; without it the image pipeline cannot
+    /// decode them) and
     /// StarCalc's `.sdc`, which reaches the StarOffice backend for its
     /// targeted "save as .ods" error, never a document.
     /// The format `bytes` evidently are, from their content alone (#672) —
@@ -543,7 +544,8 @@ const EXTENSIONS: &[(&str, InputFormat)] = {
         ("dclx", Dclx),
         // `.gif` decodes through the same content-sniffing `image` path as
         // the rest (first frame of an animation), issue #208. `.heic`/`.heif`
-        // decode behind the opt-in `heif` cargo feature (#211).
+        // decode through heifer behind the `heif` cargo feature (#211, #1249;
+        // in the default set).
         ("jpg", Image),
         ("jpeg", Image),
         ("png", Image),

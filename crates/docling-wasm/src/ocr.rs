@@ -57,6 +57,22 @@ extern "C" {
     ) -> Result<JsValue, JsValue>;
 }
 
+/// The per-side cap on a decoded image input, as the native pipeline's
+/// `DOCLING_RS_MAX_IMAGE_PIXELS` default (the browser has no environment).
+const MAX_IMAGE_SIDE: u32 = 30_000;
+
+/// An image input's pixels: HEIC/HEIF through docling-pdf's heifer decode
+/// (#1249, by content — iPhones' photos arrive misnamed `.jpg` too), every
+/// other format through the `image` crate.
+pub(crate) fn decode_input_image(bytes: &[u8]) -> Result<image::DynamicImage, JsError> {
+    if docling_pdf::is_heif(bytes) {
+        return docling_pdf::heif::decode(bytes, MAX_IMAGE_SIDE)
+            .map(image::DynamicImage::ImageRgb8)
+            .map_err(|e| JsError::new(&format!("decode HEIC image: {e}")));
+    }
+    image::load_from_memory(bytes).map_err(|e| JsError::new(&format!("decode image: {e}")))
+}
+
 /// OCR a scanned image entirely in the browser: `bytes` is the image file
 /// (PNG/JPEG/…), `dict` the recognition dictionary text (`en_dict.txt` for
 /// the default English model), `session` the JS inference wrapper. Returns
@@ -72,7 +88,7 @@ pub async fn ocr_image(
     // Screenshots and dark-mode captures arrive light-on-dark; the whole
     // pipeline assumes scan polarity, so normalize first.
     let img = normalize_polarity(docling_pdf::ocr_prep::flatten_onto_white(
-        image::load_from_memory(bytes).map_err(|e| JsError::new(&format!("decode image: {e}")))?,
+        decode_input_image(bytes)?,
     ));
     let lines = prep_page_lines(&img);
     let chars = dict_chars(dict);

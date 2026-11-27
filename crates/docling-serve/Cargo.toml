@@ -11,7 +11,7 @@ keywords.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["chunking"]
+default = ["chunking", "heif"]
 # Tokenization-aware chunking: enables the hybrid chunk records in `to=chunks`
 # responses (hierarchical records work without it).
 chunking = ["docling/chunking"]
@@ -26,7 +26,9 @@ cuda = ["docling/cuda"]
 # pdfium as an opt-in PDF renderer (`DOCLING_RS_RENDERER=pdfium`) — off by
 # default, the pipeline renders in pure Rust; pass-through to docling-pdf.
 pdfium = ["docling/pdfium"]
-# HEIC/HEIF image input (#211) — links the system libheif.
+# HEIC/HEIF image input (#211) — pure-Rust heifer (#1249), on by default as
+# in docling's own default set (which this crate takes), so `cfg!(feature =
+# "heif")` here says what the binary decodes.
 heif = ["docling/heif"]
 tensorrt = ["docling/tensorrt"]
 directml = ["docling/directml"]

@@ -19,13 +19,14 @@ rust-version.workspace = true
 exclude = ["tests", "benches"]
 
 [features]
-# HEIC/HEIF image input (#211): forwards to docling-pdf's libheif decode.
+# HEIC/HEIF image input (#211): docling-pdf's pure-Rust heifer decode
+# (#1249) — no native library, so in the default set.
 heif = ["pdf", "docling-pdf/heif"]
 # The default build is the full converter. The ML pipelines and the HTTP
 # client are feature-sliced so `--no-default-features` leaves the pure-Rust
 # declarative converters (DOCX/HTML/MD/XLSX/PPTX/… → md/json) — a set that
 # compiles for wasm32-unknown-unknown (issue #79, see crates/docling-wasm).
-default = ["preserve-order", "pdf", "asr", "fetch-images", "fetch-url", "vlm", "ner", "youtube"]
+default = ["preserve-order", "pdf", "heif", "asr", "fetch-images", "fetch-url", "vlm", "ner", "youtube"]
 # docling's JSON field order (#970): forwards docling-core's `preserve-order`,
 # which enables `serde_json/preserve_order` for the whole build. A consumer that
 # needs sorted `serde_json::Map`s elsewhere disables it and gets a key-sorted
