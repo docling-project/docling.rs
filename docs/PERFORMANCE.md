@@ -755,6 +755,19 @@ paper, INT8 stack:
 
 `DOCLING_RS_PDF_WORKERS` remains the coarse memory knob on top.
 
+The OCR recognizer's activations grow with a run's total input width, so a
+run is capped at 16 lines *and* 16 × 1 024 px of width
+(`ocr_prep::REC_BATCH_COLUMNS`, #1250): 16 lines at ~8 200 px peaked at
+~4.4 GB inside ONNX Runtime, 16 at 1 024 px take ~0.6 GB. Only same-width
+lines share a run, which is bit-identical to one-at-a-time recognition, so
+the split moves the peak, never the text. The projection line split also
+drops the seam comb a striped raster renders as (a screenshot printed
+through a PostScript driver as hundreds of `re`-clipped 1-px inline images,
+seamed wherever a strip edge falls mid-pixel; `ocr_prep::drop_seam_combs`) —
+read as 90 picture-wide 4-px "lines", one such picture's speculative OCR
+took ~10 GB and two minutes (#1250); the pure-Rust repro
+(`tests/clipped_strips.rs`) now splits it like the unclipped control.
+
 ### Determinism note (pre-existing, worth knowing)
 
 Multi-threaded ONNX Runtime float reductions are **not deterministic
