@@ -30,6 +30,16 @@ pub const REC_MAX_WIDTH: u32 = 16384;
 /// benefit — same-width groups are rarely larger.
 pub const REC_BATCH: usize = 16;
 
+/// Cap on a recognition run's total input width — lines × width, the
+/// dimension the recognizer's activations grow with (#1250). [`REC_BATCH`]
+/// alone bounds the line count, so a batch of 16 lines at ~8 200 px peaked
+/// at ~4.4 GB inside ONNX Runtime where 16 at 1 024 px take ~0.6 GB. Lines up
+/// to 1 024 px (nearly all of them) still batch 16 at a time; wider ones go
+/// fewer per run, a line at [`REC_MAX_WIDTH`] alone. Only same-width lines
+/// share a run, which is bit-identical to one-at-a-time recognition, so the
+/// split changes the peak, never the text.
+pub const REC_BATCH_COLUMNS: usize = REC_BATCH * 1024;
+
 /// A text-line crop prepared for recognition: resized to the fixed model
 /// height, normalised to `[-1, 1]`, laid out CHW.
 pub struct PrepLine {
@@ -184,6 +194,8 @@ pub fn segment_lines(crop: &RgbImage) -> Vec<(u32, u32, u32, u32)> {
         }
     }
 
+    drop_seam_combs(&mut runs);
+
     // Tighten each line to its horizontal ink bounds.
     runs.into_iter()
         .map(|(t, b)| {
@@ -203,6 +215,62 @@ pub fn segment_lines(crop: &RgbImage) -> Vec<(u32, u32, u32, u32)> {
             }
         })
         .collect()
+}
+
+/// Thickest run, and widest gap after it, a rasterization seam comb is made
+/// of (see [`drop_seam_combs`]), in crop pixels.
+const SEAM_MAX_RUN: u32 = 6;
+const SEAM_MAX_GAP: u32 = 3;
+/// Fewest consecutive equally spaced thin runs that make a comb.
+const SEAM_MIN_RUNS: usize = 6;
+
+/// Drop the runs of a rasterization seam comb (#1250): a raster drawn as
+/// hundreds of 1-pixel-tall inline images, each under its own rectangular
+/// clip (a PostScript-driver + Ghostscript print of a screenshot), renders
+/// with faint light seams wherever a strip boundary falls mid-pixel — at the
+/// 2.0 render scale a 0.6 pt strip is 1.2 px, so four of every five do. The
+/// seams lift the crop's mean, and the profile then reads each seam period as
+/// a 4-px "text line" as wide as the picture: 90 of them in one screenshot,
+/// each stretched to ~8 200 px for the recognizer, which spent ~10 GB and two
+/// minutes on a picture whose speculative text was then discarded.
+///
+/// A comb is told from print by its regularity and scale: at least
+/// [`SEAM_MIN_RUNS`] consecutive runs at most [`SEAM_MAX_RUN`] px thick with
+/// gaps of at most [`SEAM_MAX_GAP`] px, every run and every gap within a
+/// pixel of the chain's first. Printed lines are neither that thin nor that
+/// periodic — ascenders and descenders vary a line's ink height, and 6-px
+/// lines are 3 pt type at the render scale, which the recognizer cannot read
+/// anyway. The rest of the crop's runs stay.
+fn drop_seam_combs(runs: &mut Vec<(u32, u32)>) {
+    let thin = |r: &(u32, u32)| r.1 - r.0 <= SEAM_MAX_RUN;
+    let mut keep = vec![true; runs.len()];
+    let mut i = 0;
+    while i < runs.len() {
+        if !thin(&runs[i]) {
+            i += 1;
+            continue;
+        }
+        let h0 = runs[i].1 - runs[i].0;
+        let mut gap0: Option<u32> = None;
+        let mut j = i;
+        while j + 1 < runs.len() {
+            let next = runs[j + 1];
+            let gap = next.0 - runs[j].1;
+            let h = next.1 - next.0;
+            let gap_ok = gap <= SEAM_MAX_GAP && gap0.is_none_or(|g0| gap.abs_diff(g0) <= 1);
+            if !thin(&next) || h.abs_diff(h0) > 1 || !gap_ok {
+                break;
+            }
+            gap0.get_or_insert(gap);
+            j += 1;
+        }
+        if j + 1 - i >= SEAM_MIN_RUNS {
+            keep[i..=j].iter_mut().for_each(|k| *k = false);
+        }
+        i = j + 1;
+    }
+    let mut k = keep.into_iter();
+    runs.retain(|_| k.next().unwrap_or(true));
 }
 
 /// Layout labels whose content is recognised as running text.
@@ -776,7 +844,8 @@ fn text_score_from(raw: Option<&str>) -> f32 {
 
 /// Deterministic recognition batching: page-order line indices grouped by
 /// exact width (equal widths share a run — bit-identical to one-at-a-time
-/// recognition, see `ocr.rs`), each group split into [`REC_BATCH`] chunks.
+/// recognition, see `ocr.rs`), each group split into chunks of at most
+/// [`REC_BATCH`] lines and [`REC_BATCH_COLUMNS`] total width.
 pub fn width_batches(lines: &[PrepLine]) -> Vec<(usize, Vec<usize>)> {
     let mut by_width: std::collections::BTreeMap<usize, Vec<usize>> =
         std::collections::BTreeMap::new();
@@ -785,7 +854,8 @@ pub fn width_batches(lines: &[PrepLine]) -> Vec<(usize, Vec<usize>)> {
     }
     let mut out = Vec::new();
     for (w, ixs) in by_width {
-        for chunk in ixs.chunks(REC_BATCH) {
+        let per_run = (REC_BATCH_COLUMNS / w.max(1)).clamp(1, REC_BATCH);
+        for chunk in ixs.chunks(per_run) {
             out.push((w, chunk.to_vec()));
         }
     }
@@ -820,6 +890,85 @@ mod tests {
             }
         }
         img
+    }
+
+    /// #1250: a striped raster's seam comb — runs 4 px thick every 6 px, the
+    /// period of 0.6 pt strips at the 2.0 render scale — yields no lines,
+    /// while real lines on the same crop (thicker, irregular) survive.
+    #[test]
+    fn seam_comb_is_not_split_into_lines() {
+        let mut img = RgbImage::from_pixel(300, 200, Rgb([255, 255, 255]));
+        let fill = |img: &mut RgbImage, x0: u32, x1: u32, y0: u32, y1: u32| {
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    img.put_pixel(x, y, Rgb([0, 0, 0]));
+                }
+            }
+        };
+        // The comb: 20 periods of 4 dark rows + 2 light ones.
+        for k in 0..20 {
+            fill(&mut img, 10, 290, 10 + 6 * k, 14 + 6 * k);
+        }
+        // Two printed lines below it.
+        fill(&mut img, 10, 200, 140, 152);
+        fill(&mut img, 10, 150, 164, 178);
+        let lines = segment_lines(&img);
+        assert_eq!(
+            lines.iter().map(|l| (l.1, l.3)).collect::<Vec<_>>(),
+            vec![(140, 152), (164, 178)]
+        );
+        // Five thin runs are not a comb yet, nor are thin runs with uneven
+        // gaps — tiny print keeps its lines.
+        let mut few = RgbImage::from_pixel(300, 100, Rgb([255, 255, 255]));
+        for k in 0..5 {
+            fill(&mut few, 10, 290, 10 + 6 * k, 14 + 6 * k);
+        }
+        assert_eq!(segment_lines(&few).len(), 5);
+        let mut uneven = RgbImage::from_pixel(300, 120, Rgb([255, 255, 255]));
+        let mut y = 10;
+        for k in 0..8 {
+            fill(&mut uneven, 10, 290, y, y + 5);
+            y += 5 + if k % 2 == 0 { 1 } else { 3 };
+        }
+        assert_eq!(segment_lines(&uneven).len(), 8);
+    }
+
+    /// #1250: wide lines batch fewer per run — total width capped at
+    /// [`REC_BATCH_COLUMNS`] — narrow ones still [`REC_BATCH`] at a time.
+    #[test]
+    fn width_batches_cap_total_columns() {
+        let line = |w: usize| PrepLine {
+            w,
+            data: Vec::new(),
+        };
+        let mut lines: Vec<PrepLine> = (0..20).map(|_| line(8192)).collect();
+        lines.extend((0..20).map(|_| line(300)));
+        lines.push(line(REC_MAX_WIDTH as usize));
+        let sizes: Vec<(usize, usize)> = width_batches(&lines)
+            .iter()
+            .map(|(w, c)| (*w, c.len()))
+            .collect();
+        assert_eq!(
+            sizes,
+            vec![
+                (300, 16),
+                (300, 4),
+                (8192, 2),
+                (8192, 2),
+                (8192, 2),
+                (8192, 2),
+                (8192, 2),
+                (8192, 2),
+                (8192, 2),
+                (8192, 2),
+                (8192, 2),
+                (8192, 2),
+                (16384, 1)
+            ]
+        );
+        assert!(width_batches(&lines)
+            .iter()
+            .all(|(w, c)| w * c.len() <= REC_BATCH_COLUMNS || c.len() == 1));
     }
 
     #[test]
