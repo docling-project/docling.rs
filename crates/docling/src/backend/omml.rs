@@ -590,17 +590,31 @@ fn do_r(e: XmlNode) -> String {
 fn math_run(e: XmlNode) -> String {
     let found = run_text(e);
     let in_eqarr = EQARR.with(|d| d.get() > 0);
-    let mapped: String = found
-        .chars()
-        .map(|c| {
-            if c == '&' && in_eqarr {
-                // An alignment point, not pylatexenc's padded `\&`.
-                "&".to_string()
-            } else {
-                process_unicode(c)
+    let mut mapped = String::with_capacity(found.len());
+    // Whether `mapped` ends with a superscript entry (`²` → `  ^{2}  `).
+    let mut in_exponent = false;
+    for c in found.chars() {
+        if c == '&' && in_eqarr {
+            // An alignment point, not pylatexenc's padded `\&`.
+            mapped.push('&');
+            in_exponent = false;
+            continue;
+        }
+        let latex = process_unicode(c);
+        match exponent(&latex) {
+            // Consecutive superscript digits (`10²³`) are one exponent,
+            // `^{23}`: two would be a double superscript (#1253).
+            Some(digits) if in_exponent => {
+                mapped.truncate(mapped.len() - "}  ".len());
+                mapped.push_str(digits);
+                mapped.push_str("}  ");
             }
-        })
-        .collect();
+            digits => {
+                mapped.push_str(&latex);
+                in_exponent = digits.is_some();
+            }
+        }
+    }
     let mut proc = escape_latex(&mapped);
 
     if !found.contains('{') && proc.contains("\\{") {
@@ -609,8 +623,10 @@ fn math_run(e: XmlNode) -> String {
     if !found.contains('}') && proc.contains("\\}") {
         proc = proc.replace("\\}", "}");
     }
-    // A caret in the source is a math superscript operator, not a literal.
-    if found.contains('^') && proc.contains("\\^") {
+    // A caret in the source is a math superscript operator, not a literal; so
+    // is one the table writes (`²` → `^{2}`, `℉` → `^\circ F`), which
+    // docling escapes to the text accent `\^` (#1253).
+    if mapped.contains('^') && proc.contains("\\^") {
         proc = proc.replace("\\^", "^");
     }
     if found.contains('&') && in_eqarr {
@@ -618,6 +634,11 @@ fn math_run(e: XmlNode) -> String {
         ALIGNED.with(|a| a.set(true));
     }
     proc
+}
+
+/// The exponent of a superscript entry of [`UNICODE_LATEX`] (`  ^{2}  ` → `2`).
+fn exponent(latex: &str) -> Option<&str> {
+    latex.strip_prefix("  ^{")?.strip_suffix("}  ")
 }
 
 /// Per-character Unicode → LaTeX: the strings docling's `process_unicode`
@@ -628,7 +649,10 @@ fn math_run(e: XmlNode) -> String {
 /// unwraps `\ensuremath{…}`, which leaves a macro with an argument unbalanced
 /// (`ℝ` → `\mathbb{R`); the table keeps that macro's braces (`\mathbb{R}`).
 /// `√` is `\surd`, and `{` / `}` are not in the table: [`do_r`] escapes them
-/// with `escape_latex` alone. A character outside the table is kept as typed.
+/// with `escape_latex` alone. Where docling writes a text-mode command math
+/// renderers reject (`→` → `\text{ \textrightarrow }`, #1253), the table has
+/// the math-mode command (`\rightarrow`) or, for a text symbol, the character.
+/// A character outside the table is kept as typed.
 fn process_unicode(c: char) -> String {
     UNICODE_LATEX
         .binary_search_by_key(&c, |&(k, _)| k)
@@ -1318,5 +1342,75 @@ mod tests {
         assert_eq!(math(&aln), r"\begin{aligned}x&=1\\y=2\end{aligned}");
         // Outside an equation array an `&` is a literal, as before.
         assert_eq!(math(&run("", "a&amp;b")), r"a \& b");
+    }
+
+    #[test]
+    fn text_mode_symbols_are_math_mode_commands() {
+        // #1253: for these characters docling's `process_unicode` gives
+        // pylatexenc's text-mode command in `\text{…}` (` \text{ \textrightarrow } `),
+        // which KaTeX and math-core reject; the math-mode command renders
+        // there and compiles with pdflatex.
+        let r = |t: &str| math(&format!("<m:r><m:t>{t}</m:t></m:r>"));
+        assert_eq!(r("x→0"), r"x \rightarrow 0");
+        assert_eq!(r("f:R→R"), r"f:R \rightarrow R");
+        assert_eq!(r("¬p"), r"\neg p");
+        assert_eq!(r("a·b"), r"a \cdot b");
+        assert_eq!(r("a÷b"), r"a \div b");
+        // A typed space next to the padding keeps a double space, as for `∞<`.
+        assert_eq!(r("5 µm"), r"5  \mu m");
+        assert_eq!(r("x²"), "x ^{2}");
+        // Adjacent superscript digits are one exponent, not a double superscript.
+        assert_eq!(r("6×10²³"), r"6\times 10 ^{23}");
+        assert_eq!(r("½"), r"\frac{1}{2}");
+        assert_eq!(r("37 ℃"), r"37  {}^{\circ}\mathrm{C}");
+        assert_eq!(r("1⁄2"), "1/2");
+        // docling's own `℉` entry writes a caret, which its escaping turns
+        // into the text accent `\^`.
+        assert_eq!(r("98 ℉"), r"98  ^\circ F");
+        // Word's limit: `lim` with `x→0` below it. docling's `do_lim` writes
+        // `\rightarrow` as `\to`, which the text-mode command never reached.
+        let lim = math(
+            "<m:limLow><m:e><m:r><m:t>lim</m:t></m:r></m:e>\
+             <m:lim><m:r><m:t>x→0</m:t></m:r></m:lim></m:limLow>",
+        );
+        assert_eq!(lim, r"\lim_{x \to 0}");
+    }
+
+    #[test]
+    fn other_text_symbols_are_kept_as_typed() {
+        // #1253: text symbols without a math-mode command stay as typed, which
+        // math renderers read, instead of docling's `\text{ \textperthousand }`.
+        let r = |t: &str| math(&format!("<m:r><m:t>{t}</m:t></m:r>"));
+        assert_eq!(r("5‰"), "5‰");
+        assert_eq!(r("№ 7"), "№ 7");
+    }
+
+    #[test]
+    fn text_mode_entries_are_ones_katex_reads() {
+        // #1253: a `\text{…}` entry left in the table names a text-mode command
+        // KaTeX reads too; every other text-mode entry is a math-mode command
+        // or the character as typed.
+        const KATEX_TEXT: &[&str] = &[
+            "\\textbackslash",
+            "\\textasciitilde",
+            "\\textsterling",
+            "\\textcopyright",
+            "\\textregistered",
+            "\\textdegree",
+            "\\textemdash",
+            "\\textquoteleft",
+            "\\textquoteright",
+            "\\textquotedblleft",
+            "\\textquotedblright",
+            "\\textdagger",
+            "\\textdaggerdbl",
+            "\\textellipsis",
+        ];
+        for &(c, latex) in UNICODE_LATEX {
+            if let Some(inner) = latex.trim().strip_prefix("\\text{") {
+                let cmd = inner.trim_end_matches('}').trim();
+                assert!(KATEX_TEXT.contains(&cmd), "{c:?} → {latex:?}");
+            }
+        }
     }
 }
